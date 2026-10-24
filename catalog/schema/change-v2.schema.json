@@ -70,7 +70,7 @@
       "properties": {
         "class": {
           "type": "string",
-          "enum": ["breaks-on-date", "breaks-on-upgrade", "already-broken", "security"]
+          "enum": ["breaks-on-date", "breaks-on-upgrade", "already-broken", "security", "notice"]
         },
         "affectedRange": {
           "type": "string"

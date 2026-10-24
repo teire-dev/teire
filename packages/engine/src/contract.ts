@@ -67,6 +67,8 @@ export const applicabilityClasses = [
   "breaks-on-upgrade",
   "already-broken",
   "security",
+  /** Flagged by a registry or vendor (deprecated, unmaintained, renamed) with nothing breaking yet (D76). */
+  "notice",
 ] as const;
 export type ApplicabilityClass = (typeof applicabilityClasses)[number];
 

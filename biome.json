@@ -16,7 +16,8 @@
       "!**/drizzle/meta",
       "!**/pnpm-lock.yaml",
       "!apps/web/public/logos",
-      "!**/worker-configuration.d.ts"
+      "!**/worker-configuration.d.ts",
+      "!fixtures"
     ]
   },
   "formatter": {

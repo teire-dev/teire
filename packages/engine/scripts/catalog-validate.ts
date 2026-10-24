@@ -45,11 +45,12 @@ const schemas: Record<string, unknown> = {
 for (const [name, schema] of Object.entries(schemas)) {
   const path = join(root, "schema", `${name}.schema.json`);
   const expected = `${JSON.stringify(schema, null, 2)}\n`;
-  let current = "";
+  // Compared as data: Biome formats the committed files, which changes whitespace only.
+  let current: unknown = null;
   try {
-    current = readFileSync(path, "utf8");
+    current = JSON.parse(readFileSync(path, "utf8"));
   } catch {}
-  if (current === expected) continue;
+  if (JSON.stringify(current) === JSON.stringify(schema)) continue;
   if (write) writeFileSync(path, expected);
   else {
     failures++;

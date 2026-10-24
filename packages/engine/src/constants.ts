@@ -121,3 +121,30 @@ export const SANDBOX = {
   /** How often a running job is polled for status and new log bytes. */
   pollIntervalMs: 2000,
 } as const;
+
+/** The guarded fetch routine (net/fetch.ts). */
+export const NET = {
+  userAgent: "TeireBot/0.1 (+https://teire.vercel.app)",
+  timeoutMs: 30_000,
+  maxRedirects: 5,
+  /** Default cap for one response; package tarballs pass their own larger cap. */
+  maxResponseBytes: 32 * 1024 * 1024,
+} as const;
+
+/** Registry access and the target-version policy (plan D71). */
+export const REGISTRY = {
+  /** A version must be at least this old before Teire proposes it (repos may lower or raise it). */
+  cooldownDays: 7,
+  /** Largest package tarball Teire downloads for an API-surface diff. */
+  maxTarballBytes: 100 * 1024 * 1024,
+  /** deps.dev sends no ETag, only `cache-control: max-age=3600`; Teire reuses its answer this long. */
+  depsDevTtlMs: 60 * 60 * 1000,
+  /** npm's full package document ("over 10MB uncompressed" for some packages), fallback only. */
+  maxPackumentBytes: 96 * 1024 * 1024,
+  /** How many skipped newer versions a target decision lists per reason. */
+  maxSkippedListed: 5,
+  hosts: {
+    depsDev: "api.deps.dev",
+    npm: "registry.npmjs.org",
+  },
+} as const;

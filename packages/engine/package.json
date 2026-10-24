@@ -10,7 +10,9 @@
     "./catalog": "./src/catalog/index.ts",
     "./contract": "./src/contract.ts",
     "./verify": "./src/verify/cloudflare.ts",
-    "./inventory": "./src/inventory/index.ts"
+    "./inventory": "./src/inventory/index.ts",
+    "./registry": "./src/registry/index.ts",
+    "./net": "./src/net/fetch.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
