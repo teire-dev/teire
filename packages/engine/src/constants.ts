@@ -107,3 +107,13 @@ export const CATALOG = {
   /** Oldest Stripe API version whose breaking changes are catalogued. */
   stripeSince: "2019-01-01",
 } as const;
+
+/** Teire's sandbox service (apps/sandbox). Timeouts are set from context/11-build-notes/sandbox-measurements.md. */
+export const SANDBOX = {
+  /** Lifetime of a signed per-sandbox token. */
+  tokenTtlSeconds: 15 * 60,
+  /** One HTTP call to the service (start includes the tarball fetch). */
+  requestTimeoutMs: 6 * 60 * 1000,
+  /** How often a running job is polled for status and new log bytes. */
+  pollIntervalMs: 2000,
+} as const;
