@@ -2,7 +2,9 @@ import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { createDb, runMigrations, sql, tlsOptions } from "@teire/db";
 import { PgBoss } from "pg-boss";
-import { ensureQueues } from "./queues";
+import { catalogIsEmpty, ingestAll } from "./jobs/ingest";
+import { ensureQueues, QUEUES, SCHEDULES } from "./queues";
+import { revalidateWeb } from "./web";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const databaseUrl = process.env.DATABASE_URL;
@@ -47,6 +49,16 @@ async function main() {
   console.log("[worker] migrations applied");
   await boss.start();
   await ensureQueues(boss);
+
+  await boss.work(QUEUES.ingest, async () => {
+    const summaries = await ingestAll(db);
+    for (const s of summaries) console.log("[ingest]", JSON.stringify(s));
+    if (summaries.some((s) => s.written > 0)) await revalidateWeb(["catalog"]);
+    return summaries;
+  });
+  await boss.schedule(QUEUES.ingest, SCHEDULES.ingest);
+  if (await catalogIsEmpty(db)) await boss.send(QUEUES.ingest, {});
+
   server.listen(PORT, () => console.log(`[worker] listening on :${PORT}`));
 }
 

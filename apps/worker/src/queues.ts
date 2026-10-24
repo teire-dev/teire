@@ -15,6 +15,11 @@ export const QUEUES = {
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
+/** Cron schedules (UTC). Provider pages are re-read every 3 hours (CATALOG.checkEveryMs). */
+export const SCHEDULES = {
+  ingest: "17 */3 * * *",
+} as const;
+
 export async function ensureQueues(boss: PgBoss) {
   await boss.createQueue(QUEUES.event, {
     policy: "standard",
