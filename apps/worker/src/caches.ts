@@ -1,4 +1,4 @@
-import { and, type Database, eq, registryCache, surfaceDiffs } from "@teire/db";
+import { and, type Database, eq, extractionCache, registryCache, surfaceDiffs } from "@teire/db";
 import { SURFACE } from "@teire/engine/constants";
 import type { RegistryCache } from "@teire/engine/registry";
 import { type NpmSurfaceOptions, npmSurfaceDiff, type SurfaceDiff } from "@teire/engine/surface";
@@ -78,4 +78,25 @@ export async function cachedNpmSurfaceDiff(
     })
     .onConflictDoNothing();
   return diff;
+}
+
+/**
+ * `extraction_cache`: one Nemotron reading per (model, exact prompt), so the same notes are never
+ * paid for twice. The prompt hash covers the instructions, the sliced documents and the question.
+ */
+export async function cachedExtraction<T>(
+  db: Database,
+  model: string,
+  promptHash: string,
+  compute: () => Promise<{ value: T; costUsd: number }>,
+): Promise<{ value: T; cached: boolean }> {
+  const key = `${model}:${promptHash}`;
+  const [row] = await db.select().from(extractionCache).where(eq(extractionCache.key, key)).limit(1);
+  if (row) return { value: row.records as T, cached: true };
+  const { value, costUsd } = await compute();
+  await db
+    .insert(extractionCache)
+    .values({ key, model, records: value, costUsd: costUsd.toFixed(6) })
+    .onConflictDoNothing();
+  return { value, cached: false };
 }

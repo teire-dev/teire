@@ -180,3 +180,12 @@ export const VERIFY = {
   /** Output kept per command for the classifier and the PR body. */
   outputTailChars: 20_000,
 } as const;
+
+/** Release notes read by Nemotron 3 Ultra (S02a task 8). */
+export const NOTES = {
+  /** Total text sent to the model per upgrade (~20k tokens). */
+  maxCharsToModel: 80_000,
+  maxCharsPerDocument: 30_000,
+  maxOutputTokens: 16_000,
+  maxRemovedApisInPrompt: 60,
+} as const;
