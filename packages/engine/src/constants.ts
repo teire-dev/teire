@@ -171,3 +171,12 @@ export const SURFACE = {
   toolVersion: "1+typescript@6.0.3",
   noiseFilterVersion: "1",
 } as const;
+
+/** Baseline-vs-after verification (card C5), from context/11-build-notes/sandbox-measurements.md. */
+export const VERIFY = {
+  workDir: "/work",
+  installTimeoutSec: 600,
+  checkTimeoutSec: 300,
+  /** Output kept per command for the classifier and the PR body. */
+  outputTailChars: 20_000,
+} as const;

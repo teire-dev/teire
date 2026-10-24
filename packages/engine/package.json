@@ -9,13 +9,14 @@
     "./constants": "./src/constants.ts",
     "./catalog": "./src/catalog/index.ts",
     "./contract": "./src/contract.ts",
-    "./verify": "./src/verify/cloudflare.ts",
+    "./verify": "./src/verify/index.ts",
     "./inventory": "./src/inventory/index.ts",
     "./registry": "./src/registry/index.ts",
     "./net": "./src/net/fetch.ts",
     "./surface": "./src/surface/index.ts",
     "./locate": "./src/locate/index.ts",
-    "./impact": "./src/impact/index.ts"
+    "./impact": "./src/impact/index.ts",
+    "./fix": "./src/fix/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
