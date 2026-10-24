@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import * as schema from "./schema";
 
@@ -27,4 +28,12 @@ export function createDb({ connectionString, caCert, max = 10 }: CreateDbOptions
   });
   const db = drizzle({ client: pool, schema });
   return { db, pool };
+}
+
+/**
+ * Apply pending SQL migrations. `migrationsFolder` is passed explicitly (an absolute path in the
+ * worker image) because paths relative to this source file break once the worker is bundled.
+ */
+export async function runMigrations(db: Database, migrationsFolder: string) {
+  await migrate(db, { migrationsFolder });
 }

@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
-import { createDb, sql } from "@teire/db";
+import { resolve } from "node:path";
+import { createDb, runMigrations, sql } from "@teire/db";
 import { PgBoss } from "pg-boss";
 import { ensureQueues } from "./queues";
 
@@ -36,7 +37,12 @@ const server = createServer(async (req, res) => {
   res.writeHead(404).end();
 });
 
+/** In the image MIGRATIONS_DIR is an absolute path; in dev it is the db package folder. */
+const migrationsDir = process.env.MIGRATIONS_DIR ?? resolve(process.cwd(), "../../packages/db/drizzle");
+
 async function main() {
+  await runMigrations(db, migrationsDir);
+  console.log("[worker] migrations applied");
   await boss.start();
   await ensureQueues(boss);
   server.listen(PORT, () => console.log(`[worker] listening on :${PORT}`));

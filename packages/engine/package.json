@@ -9,7 +9,8 @@
     "./constants": "./src/constants.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --env-file=../../.env.local scripts/smoke-tokenfactory.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.77",
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "24.19.2",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "tsx": "4.23.15"
   }
 }
