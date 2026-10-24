@@ -1,15 +1,17 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
-import { createDb, runMigrations, sql } from "@teire/db";
+import { createDb, runMigrations, sql, tlsOptions } from "@teire/db";
 import { PgBoss } from "pg-boss";
 import { ensureQueues } from "./queues";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const databaseUrl = process.env.DATABASE_URL;
+const caCert = process.env.DATABASE_CA_CERT;
 if (!databaseUrl) throw new Error("DATABASE_URL is not set");
+if (!caCert) throw new Error("DATABASE_CA_CERT is not set");
 
-const { db, pool } = createDb({ connectionString: databaseUrl, caCert: process.env.DATABASE_CA_CERT });
-const boss = new PgBoss({ connectionString: databaseUrl, schema: "pgboss" });
+const { db, pool } = createDb({ connectionString: databaseUrl, caCert });
+const boss = new PgBoss({ connectionString: databaseUrl, ssl: tlsOptions(caCert), schema: "pgboss" });
 boss.on("error", (error) => console.error("[pg-boss]", error));
 
 const startedAt = new Date();

@@ -10,10 +10,16 @@ export { schema };
 export type Database = ReturnType<typeof createDb>["db"];
 
 interface CreateDbOptions {
+  /** Without `sslmode`: node-postgres lets a URL's sslmode override the `ssl` object below. */
   connectionString: string;
-  /** PEM of the Coolify CA. When set, connections use TLS with full certificate verification. */
-  caCert?: string;
+  /** PEM of the Coolify CA. The server accepts TLS only (`hostssl`), so this is required. */
+  caCert: string;
   max?: number;
+}
+
+/** TLS settings equivalent to sslmode=verify-full: the chain must lead to the Coolify CA and the host must match. */
+export function tlsOptions(caCert: string) {
+  return { ca: caCert, rejectUnauthorized: true };
 }
 
 /**
@@ -21,11 +27,7 @@ interface CreateDbOptions {
  * so idle clients are released before the function suspends.
  */
 export function createDb({ connectionString, caCert, max = 10 }: CreateDbOptions) {
-  const pool = new pg.Pool({
-    connectionString,
-    max,
-    ssl: caCert ? { ca: caCert, rejectUnauthorized: true } : undefined,
-  });
+  const pool = new pg.Pool({ connectionString, max, ssl: tlsOptions(caCert) });
   const db = drizzle({ client: pool, schema });
   return { db, pool };
 }

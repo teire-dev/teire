@@ -87,18 +87,26 @@ function page(body) {
 ${body}`;
 }
 
+function manifestForm(key) {
+  const app = apps[key];
+  const state = randomBytes(16).toString("hex");
+  states.set(state, key);
+  const manifest = JSON.stringify(app.manifest).replace(/"/g, "&quot;");
+  return `<form id="${key}" method="post" action="https://github.com/organizations/${ORG}/settings/apps/new?state=${state}">
+<input type="hidden" name="manifest" value="${manifest}"><button>Create “${app.manifest.name}”</button></form>`;
+}
+
 createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+  // /prod and /dev go straight to GitHub's confirm page: one click there creates the app.
+  const direct = url.pathname.slice(1);
+  if (direct in apps) {
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end(page(`${manifestForm(direct)}<script>document.getElementById("${direct}").submit()</script>`));
+    return;
+  }
   if (url.pathname === "/") {
-    const forms = Object.entries(apps)
-      .map(([key, app]) => {
-        const state = randomBytes(16).toString("hex");
-        states.set(state, key);
-        const manifest = JSON.stringify(app.manifest).replace(/"/g, "&quot;");
-        return `<form method="post" action="https://github.com/organizations/${ORG}/settings/apps/new?state=${state}">
-<input type="hidden" name="manifest" value="${manifest}"><button>Create “${app.manifest.name}”</button></form>`;
-      })
-      .join("");
+    const forms = Object.keys(apps).map(manifestForm).join("");
     res.writeHead(200, { "content-type": "text/html" });
     res.end(
       page(
