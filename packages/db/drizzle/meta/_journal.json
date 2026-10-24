@@ -15,6 +15,13 @@
       "when": 1792880431093,
       "tag": "0001_v2_contract",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792886062414,
+      "tag": "0002_web_outbox_grant",
+      "breakpoints": true
     }
   ]
 }

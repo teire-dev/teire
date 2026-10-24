@@ -31,3 +31,12 @@ export async function ensureQueues(boss: PgBoss) {
   await boss.createQueue(QUEUES.scan, { policy: "key_strict_fifo", retryLimit: 2, retryDelay: 30 });
   await boss.createQueue(QUEUES.fix, { policy: "key_strict_fifo", retryLimit: 1, retryDelay: 60 });
 }
+
+/** Webhook outbox loop (outbox.ts). */
+export const OUTBOX = {
+  pollMs: 5_000,
+  batch: 10,
+  /** A claim older than this is taken again (the worker died mid-delivery). */
+  reclaimAfterSeconds: 300,
+  maxAttempts: 5,
+} as const;

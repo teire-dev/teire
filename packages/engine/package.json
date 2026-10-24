@@ -17,7 +17,10 @@
     "./locate": "./src/locate/index.ts",
     "./impact": "./src/impact/index.ts",
     "./fix": "./src/fix/index.ts",
-    "./notes": "./src/notes/index.ts"
+    "./notes": "./src/notes/index.ts",
+    "./github": "./src/github/index.ts",
+    "./pipeline": "./src/pipeline/index.ts",
+    "./config": "./src/config/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -36,6 +39,7 @@
     "diff": "9.0.0",
     "es-module-lexer": "3.0.3",
     "jsonc-parser": "3.3.1",
+    "octokit": "5.0.5",
     "semver": "7.8.5",
     "smol-toml": "1.9.1",
     "ts-morph": "28.0.0",

@@ -9,6 +9,7 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@octokit/webhooks-methods": "6.0.0",
     "@teire/db": "workspace:*",
     "@teire/engine": "workspace:*",
     "@vercel/functions": "3.10.3",

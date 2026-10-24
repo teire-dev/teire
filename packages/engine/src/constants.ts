@@ -70,6 +70,11 @@ export const PULL_REQUESTS = {
   /** GitHub check-run annotations per request. */
   annotationsPerCall: 50,
   branchPrefix: "teire",
+  /** Base64 payload above which a commit goes through the Git Data API instead of GraphQL. */
+  maxGraphqlCommitBytes: 5 * 1024 * 1024,
+  /** Call sites shown per finding in a PR body before "and N more". */
+  maxSitesPerFinding: 12,
+  labels: ["teire"],
 } as const;
 
 export const RUNS = {
