@@ -26,24 +26,33 @@ export const MODEL_ENV = {
 } as const;
 
 export const FIX = {
-  /** Confidence at or above this opens a PR; below it opens a "needs a human" issue. */
-  prThreshold: 0.7,
   /** Failed verifications before the agent discards its plan and starts over from the evidence. */
   replanAfterFailures: 2,
-  /** Hard cap on fix attempts per run. */
-  maxAttempts: 4,
+  /** Fix attempts at one target version before falling back one major (plan D71). */
+  maxAttemptsPerTarget: 4,
+  /** How many majors Teire may step back from the latest before stopping with "needs a human". */
+  maxTargetFallbacks: 2,
   /** Agent tool-loop step cap per attempt. */
   maxAgentSteps: 24,
 } as const;
 
-/** Ceilings applied to model confidence by what verification proved (Patch's confidence model). */
-export const CONFIDENCE_CEILING = {
-  verified: 1,
-  typecheck_only: 0.75,
-  pre_existing_failure: 0.6,
-  unverified: 0.4,
-  regression: 0.25,
+/**
+ * Evidence decides the pull request (spec rule 13), never a model score:
+ * only `verified` opens a ready PR; weaker evidence opens a draft that states what was not covered;
+ * the rest open a "needs a human" issue with exact steps.
+ */
+export const PR_MODE_BY_EVIDENCE = {
+  verified: "ready",
+  typecheck_only: "draft",
+  pre_existing_failure: "draft",
+  needs_live_access: "draft",
+  needs_local_service: "draft",
+  environment_mismatch: "draft",
+  regression: "issue",
+  unverified: "issue",
+  timeout: "issue",
 } as const;
+export type EvidenceKind = keyof typeof PR_MODE_BY_EVIDENCE;
 
 export const PULL_REQUESTS = {
   maxOpenPerRepo: 5,

@@ -138,5 +138,26 @@ export function normalizeForQuote(text: string) {
 /** True when `quote` appears in `source` once both are normalised (plan D40: quotes are checked by code). */
 export function quoteAppearsIn(quote: string, source: string) {
   const q = normalizeForQuote(quote);
-  return q.length > 0 && normalizeForQuote(source).includes(q);
+  if (q.length === 0) return false;
+  if (normalizeForQuote(source).includes(q)) return true;
+  // Registry responses are JSON: compare against the decoded string values too.
+  const decoded = jsonStrings(source);
+  return decoded !== null && normalizeForQuote(decoded).includes(q);
+}
+
+function jsonStrings(body: string): string | null {
+  const first = body.trimStart()[0];
+  if (first !== "{" && first !== "[") return null;
+  try {
+    const out: string[] = [];
+    const walk = (v: unknown) => {
+      if (typeof v === "string") out.push(v);
+      else if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") Object.values(v).forEach(walk);
+    };
+    walk(JSON.parse(body));
+    return out.join("\n");
+  } catch {
+    return null;
+  }
 }

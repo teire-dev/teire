@@ -15,6 +15,7 @@ export const changeKinds = [
   "sdk-major",
   "behaviour-change",
   "account-gated",
+  "package-deprecated",
 ] as const;
 export type ChangeKind = (typeof changeKinds)[number];
 

@@ -35,11 +35,13 @@ export async function fetchSource(
   url: string,
   previous: PreviousFetch = {},
   fetchImpl = fetch,
+  extraHeaders: Record<string, string> = {},
 ): Promise<FetchResult> {
   const checkedAt = new Date().toISOString();
   const headers: Record<string, string> = {
     "user-agent": CATALOG.userAgent,
     accept: "text/markdown, text/plain, */*",
+    ...extraHeaders,
   };
   if (previous.etag) headers["if-none-match"] = previous.etag;
   if (previous.lastModified) headers["if-modified-since"] = previous.lastModified;
