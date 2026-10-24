@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2023-08-16-v-platform-scope-rendering-payment-method",
+  "provider": "stripe",
+  "title": "Platform-scope rendering for select PaymentMethod fingerprints",
+  "announcedOn": "2023-08-16",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "When being viewed by a platform, PaymentMethod fingerprints of types us_bank_account, acss_debit, sepa_debit, bacs_debit, and au_becs_debit are rendered in platform scope, not the owning merchant (connected account) scope. This works similarly to the 2018-01-23 change for cards and bank accounts.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2023-08-16"]
+  },
+  "migrationNotes": [
+    "PaymentMethod fingerprints for bank account-based payment types are now rendered in platform scope when viewed by a platform, aligning with the previous changes for cards and bank accounts."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Platform-scope rendering for select PaymentMethod fingerprints](https://docs.stripe.com/changelog/2023-08-16/platform-scope-rendering-payment-method.md) | Connect, Payments, Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2023-08-16/platform-scope-rendering-payment-method.md",
+      "quote": "When being viewed by a platform, PaymentMethod fingerprints of types `us_bank_account`, `acss_debit`, `sepa_debit`, `bacs_debit`, and `au_becs_debit` are rendered in platform scope, not the owning merchant (connected account) scope. This works similarly to the [2018-01-23](https://docs.stripe.com/changelog/2018-01-23/connect-platforms-identify-reused-cards-bank-accounts.md) change for cards and bank accounts.",
+      "contentHash": "a2e3941d25ea354fbb4c73eed075b9d79bf817b1dfc281bc46cadfd36702462d",
+      "checkedAt": "2026-10-24T14:37:34.779Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

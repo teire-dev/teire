@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-03-31-basil-deprecate-interac-present-manual-capture-method",
+  "provider": "stripe",
+  "title": "Removes manual capture method for Interac cards",
+  "announcedOn": "2025-03-31",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "The interac_present payment method type no longer supports the manual capture_method for PaymentIntents. We still support synchronous and asynchronous automatic capture methods. We’re removing support for the manual capture_method for PaymentIntents that use the Interac payment method.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-03-31.basil"]
+  },
+  "migrationNotes": [
+    "This change makes the behavior of the capture_method parameter consistent with the Interac network’s single-message behavior.",
+    "To use this version, update the capture_method in your integration to use automatic_async or automatic.",
+    "Setting the capture_method to either automatic_async or automatic means Stripe captures funds when the customer authorizes the payment.",
+    "If you need to manually capture card_present payments in addition to automatically captured interac_present payments, use the payment_method_options.card_present.capture_method parameter.",
+    "### Before",
+    "curl",
+    "curl https://api.stripe.com/v1/payment_intents \\",
+    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+    "-d amount=1099 \\",
+    "-d currency=cad \\",
+    "-d \"allowed_payment_method_types[]=card_present\" \\",
+    "-d \"allowed_payment_method_types[]=interac_present\" \\",
+    "-d capture_method=manual",
+    "",
+    "### After",
+    "curl",
+    "curl https://api.stripe.com/v1/payment_intents \\",
+    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+    "-d amount=1099 \\",
+    "-d currency=cad \\",
+    "-d \"allowed_payment_method_types[]=card_present\" \\",
+    "-d \"allowed_payment_method_types[]=interac_present\" \\",
+    "-d \"payment_method_options[card_present][capture_method]=manual\"",
+    ""
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes manual capture method for Interac cards](https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-interac-present-manual-capture-method.md) | Payments, Terminal | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-interac-present-manual-capture-method.md",
+      "quote": "We’re removing support for the `manual` [capture_method](https://docs.stripe.com/api/payment_intents/object.md?api-version=2025-03-31.basil#payment_intent_object-capture_method) for PaymentIntents that use the Interac payment method.",
+      "contentHash": "0a3607f5963691345606c071929e07cf5b45585ff1f0558b23afe82a5932f492",
+      "checkedAt": "2026-10-24T14:37:33.069Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

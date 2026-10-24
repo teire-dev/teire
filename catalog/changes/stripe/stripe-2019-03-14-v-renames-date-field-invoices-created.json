@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-03-14-v-renames-date-field-invoices-created",
+  "provider": "stripe",
+  "title": "Renames the `date` field for invoices to `created`",
+  "announcedOn": "2019-03-14",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames the date property for invoices to created.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["date"],
+    "endpoints": [],
+    "symbols": ["date"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-03-14"]
+  },
+  "migrationNotes": [
+    "This change renames the date property to created for Invoice objects. You need to update your code to reference created instead of date when accessing the creation timestamp of an invoice. This modification aligns the invoice property naming with other objects in the API."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames the `date` field for invoices to `created`](https://docs.stripe.com/changelog/2019-03-14/renames-date-field-invoices-created.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-03-14/renames-date-field-invoices-created.md",
+      "quote": "Renames the `date` property for invoices to `created`.",
+      "contentHash": "54a2cf899351f80479d643ee61f790c66f4d9abe48ee09227e524d418cfaf3fa",
+      "checkedAt": "2026-10-24T14:37:38.238Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

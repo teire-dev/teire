@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2020-08-27-v-renames-phases-attributes-subscription-schedules",
+  "provider": "stripe",
+  "title": "Renames `phases` attributes in subscription schedules",
+  "announcedOn": "2020-08-27",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Renames phases.plans to phases.items on subscription schedules. This applies for the subscription schedule object, as well as the create and update requests.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2020-08-27"]
+  },
+  "migrationNotes": [
+    "By renaming phases.plans to phases.items, the terminology aligns better with the broader concept of subscription items, rather than being limited to just plans. This makes it easier to understand and manage the different components that make up a subscription schedule."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames `phases` attributes in subscription schedules](https://docs.stripe.com/changelog/2020-08-27/renames-phases-attributes-subscription-schedules.md) | Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2020-08-27/renames-phases-attributes-subscription-schedules.md",
+      "quote": "Renames `phases.plans` to `phases.items` on subscription schedules. This applies for the [subscription schedule](https://docs.stripe.com/api/subscription_schedules/object.md?api-version=2024-06-20#subscription_schedule_object-phases) object, as well as the [create](https://docs.stripe.com/api/subscription_schedules/create.md?api-version=2024-06-20#create_subscription_schedule-phases) and [update](https://docs.stripe.com/api/subscription_schedules/update.md?api-version=2024-06-20#update_subscription_schedule-phases) requests.",
+      "contentHash": "45b12647e6d0f68033d3b6b4b65b7f2a5ee424537315450be6f50a9e93123530",
+      "checkedAt": "2026-10-24T14:37:36.119Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

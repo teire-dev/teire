@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "anthropic-2026-04-20-claude-3-haiku-20240307",
+  "provider": "anthropic",
+  "kind": "model-retirement",
+  "title": "claude-3-haiku-20240307 shutdown",
+  "summary": "Claude Haiku 3 model. Shutdown date: 2026-04-20. Replacement: claude-haiku-4-5-20251001.",
+  "announcedOn": "2026-02-19",
+  "effectiveOn": "2026-04-20",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["claude-3-haiku-20240307"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "claude-haiku-4-5-20251001",
+    "modelIds": ["claude-haiku-4-5-20251001"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "quote": "| April 20, 2026  | `claude-3-haiku-20240307` | `claude-haiku-4-5-20251001` |",
+      "contentHash": "d2fd9f71fed176557d5ed32e2bd212e72dce5dab836bf62b5a2b40dba2fda0d4",
+      "checkedAt": "2026-10-24T14:37:24.092Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

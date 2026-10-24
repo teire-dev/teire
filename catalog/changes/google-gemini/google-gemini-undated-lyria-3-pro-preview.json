@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "google-gemini-undated-lyria-3-pro-preview",
+  "provider": "google-gemini",
+  "kind": "model-retirement",
+  "title": "lyria-3-pro-preview deprecated",
+  "summary": "Lyria models. No shutdown date announced. Replacement: lyria-3.5.",
+  "announcedOn": null,
+  "effectiveOn": null,
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["lyria-3-pro-preview"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "lyria-3.5",
+    "modelIds": ["lyria-3.5"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt",
+      "quote": "| `lyria-3-pro-preview` | March 25, 2026 | No shutdown date announced | `lyria-3.5` |",
+      "contentHash": "3342ebac18090931abc3a2f58e42a07f2f1f4c7f411dc6587c4faf64831c4601",
+      "checkedAt": "2026-10-24T14:37:24.882Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

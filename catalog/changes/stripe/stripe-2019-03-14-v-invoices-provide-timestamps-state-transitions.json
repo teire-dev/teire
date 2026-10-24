@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-03-14-v-invoices-provide-timestamps-state-transitions",
+  "provider": "stripe",
+  "title": "Invoices now provide timestamps for each state transition",
+  "announcedOn": "2019-03-14",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "A status_transitions hash for invoices now contains the timestamps when an invoice was finalized, paid, marked uncollectible, or voided.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-03-14"]
+  },
+  "migrationNotes": [
+    "This change adds a status_transitions hash to invoices, containing timestamps for key status changes such as finalization, payment, being marked uncollectible, or voided. You can now access precise timing information for these important invoice state changes."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Invoices now provide timestamps for each state transition](https://docs.stripe.com/changelog/2019-03-14/invoices-provide-timestamps-state-transitions.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-03-14/invoices-provide-timestamps-state-transitions.md",
+      "quote": "A `status_transitions` hash for invoices now contains the timestamps when an invoice was finalized, paid, marked uncollectible, or voided.",
+      "contentHash": "7ec9d9321e6f12dc11973005cd93597fa3deb9fbd0a047718eeefbb933e327ff",
+      "checkedAt": "2026-10-24T14:37:38.088Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

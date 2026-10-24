@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-03-31-basil-naver-pay-payment-method",
+  "provider": "stripe",
+  "title": "Payment Methods won’t allow modifying fields for Naver Pay after the object is first created",
+  "announcedOn": "2025-03-31",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Removes the ability to update Naver Pay parameters on a PaymentMethod object. You can only set them when first creating a PaymentMethod. This change removes the ability to update Naver Pay parameters when you update a PaymentMethod.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["naver_pay"],
+    "endpoints": [],
+    "symbols": ["naver_pay"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2025-03-31.basil"]
+  },
+  "migrationNotes": [
+    "You can no longer use POST /v1/payment_methods/:id to update Naver Pay parameters. You can only set them when creating a PaymentMethod."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Payment Methods won’t allow modifying fields for Naver Pay after the object is first created](https://docs.stripe.com/changelog/basil/2025-03-31/naver-pay-payment-method.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/basil/2025-03-31/naver-pay-payment-method.md",
+      "quote": "This change removes the ability to update Naver Pay parameters when you [update a PaymentMethod](https://docs.stripe.com/api/payment_methods/update.md?api-version=2025-03-31.basil).",
+      "contentHash": "aed5504801c79990512a4247e8bc6467032d1789412d94626c275c2361b6f3a9",
+      "checkedAt": "2026-10-24T14:37:33.099Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

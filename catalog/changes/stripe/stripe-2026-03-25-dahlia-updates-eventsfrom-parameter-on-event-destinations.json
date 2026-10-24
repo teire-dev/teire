@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-03-25-dahlia-updates-eventsfrom-parameter-on-event-destinations",
+  "provider": "stripe",
+  "title": "Updates the events_from parameter on event destinations to accept string values",
+  "announcedOn": "2026-03-25",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Updates the events_from parameter on the EventDestination object to be a nullable array of strings instead of a nullable array of enums. It accepts the following strings: The events_from parameter changes from an enum type to a string type and uses different values. SDK type definitions that previously used a typed enum union (self | other_accounts) must now use string. If your integration expects the previous values, you need to update your code to expect the new values.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["events_from"],
+    "endpoints": [],
+    "symbols": [
+      "V2.Core.EventDestination.events_from",
+      "v2.core.EventDestinationCreateParams.events_from",
+      "V2.Core.EventDestinationCreateParams.events_from"
+    ],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-03-25.dahlia"]
+  },
+  "migrationNotes": [
+    "You can now set the events_from parameter to one of 4 string values when creating event destinations instead of using the previous 2 enum values. Update any code that checks for specific events_from values in API responses to expect the new values.",
+    "The API continues to accept the previous values as input, so you don’t have to update your code for creating destinations. However, Stripe automatically converts the enum values to the corresponding string values. For example, if you set the value to self, it becomes @self. You need to update any code that expects it to be self."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Updates the events_from parameter on event destinations to accept string values](https://docs.stripe.com/changelog/dahlia/2026-03-25/updates-eventsfrom-parameter-on-event-destinations.md) | All products | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/updates-eventsfrom-parameter-on-event-destinations.md",
+      "quote": "The `events_from` parameter changes from an enum type to a string type and uses different values. SDK type definitions that previously used a typed enum union (`self` | `other_accounts`) must now use `string`. If your integration expects the previous values, you need to update your code to expect the new values.",
+      "contentHash": "781efdc61b727758b1ff35ad4ab0d26309ad2a8c68b49ca8a25be00a428d6cca",
+      "checkedAt": "2026-10-24T14:37:30.798Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

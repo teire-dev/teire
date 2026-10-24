@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-06-20-v-adds-enum-disabled-reasons-capabilities",
+  "provider": "stripe",
+  "title": "Adds enum values for disabled reasons",
+  "announcedOn": "2024-06-20",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds paused.inactivity and other as new disabled reasons in the Capabilities API. To learn more, see Capability disabled reasons.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2024-06-20"]
+  },
+  "migrationNotes": [
+    "You now encounter these additional reasons when a capability is disabled, providing more specific information about the cause of the disability."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds enum values for disabled reasons](https://docs.stripe.com/changelog/2024-06-20/adds-enum-disabled-reasons-capabilities.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2024-06-20/adds-enum-disabled-reasons-capabilities.md",
+      "quote": "Adds `paused.inactivity` and `other` as new disabled reasons in the Capabilities API. To learn more, see [Capability disabled reasons](https://docs.stripe.com/api/accounts/object.md?api-version=2024-06-20#capability_object-requirements-disabled_reason).",
+      "contentHash": "df926525f7947d822217ca51cbf8d2b8b467d80d8b978c7e0e091bd780556c7e",
+      "checkedAt": "2026-10-24T14:37:34.078Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

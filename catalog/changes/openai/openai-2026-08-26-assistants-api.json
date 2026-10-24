@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "openai-2026-08-26-assistants-api",
+  "provider": "openai",
+  "kind": "endpoint-removal",
+  "title": "Assistants API shutdown",
+  "summary": "Assistants API. Shutdown date: 2026-08-26. Replacement: Responses API and Conversations API.",
+  "announcedOn": "2025-08-20",
+  "effectiveOn": "2026-08-26",
+  "breaking": true,
+  "signatures": {
+    "modelIds": [],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "Responses API and Conversations API",
+    "modelIds": []
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "quote": "| 2026‑08‑26    | Assistants API | Responses API and Conversations API |",
+      "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
+      "checkedAt": "2026-10-24T14:37:23.481Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

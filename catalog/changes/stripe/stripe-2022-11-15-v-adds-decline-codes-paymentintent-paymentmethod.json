@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-11-15-v-adds-decline-codes-paymentintent-paymentmethod",
+  "provider": "stripe",
+  "title": "Adds new decline codes to the PaymentIntent and PaymentMethod APIs",
+  "announcedOn": "2022-11-15",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds the following decline codes to the PaymentIntent and PaymentMethod APIs:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-11-15"]
+  },
+  "migrationNotes": [
+    "Lets you accurately identify additional reasons for PaymentIntent or PaymentMethod declines, improving error handling."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds new decline codes to the PaymentIntent and PaymentMethod APIs](https://docs.stripe.com/changelog/2022-11-15/adds-decline-codes-paymentintent-paymentmethod.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-11-15/adds-decline-codes-paymentintent-paymentmethod.md",
+      "quote": "Adds the following decline codes to the [PaymentIntent](https://docs.stripe.com/api/payment_intents.md?api-version=2024-06-20) and [PaymentMethod](https://docs.stripe.com/api/payment_methods.md?api-version=2024-06-20) APIs:",
+      "contentHash": "b0461165b3ce3e7762c9ebdbb137b9c9b7982b3f52b1332f47a99dab3221f0f0",
+      "checkedAt": "2026-10-24T14:37:35.058Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

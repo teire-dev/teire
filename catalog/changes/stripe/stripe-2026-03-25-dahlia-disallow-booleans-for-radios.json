@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-03-25-dahlia-disallow-booleans-for-radios",
+  "provider": "stripe",
+  "title": "Removes support for boolean values in options.layout.radios",
+  "announcedOn": "2026-03-25",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "When using a Payment Element, you can no longer set options.layout.radios to true or false. You must use one of the enum values: If your existing code sets options.layout.radios to true or false, you must update it to use the enum values instead.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-03-25.dahlia"]
+  },
+  "migrationNotes": [
+    "Attempting to set options.layout.radios to a value not on its enum list now throws an integration error."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes support for boolean values in options.layout.radios](https://docs.stripe.com/changelog/dahlia/2026-03-25/disallow-booleans-for-radios.md) | Elements | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/disallow-booleans-for-radios.md",
+      "quote": "If your existing code sets `options.layout.radios` to true or false, you must update it to use the enum values instead.",
+      "contentHash": "596507ca35b4b38a084bee42da9d9d476f78fb51d2dbbfa5e877723c4b550dd4",
+      "checkedAt": "2026-10-24T14:37:30.439Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

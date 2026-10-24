@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "nebius-token-factory-2026-08-31-qwen-qwen2-5-vl-72b-instruct",
+  "provider": "nebius-token-factory",
+  "kind": "model-retirement",
+  "title": "Qwen/Qwen2.5-VL-72B-Instruct shutdown",
+  "summary": "Shutdown date: 2026-08-31. Replacement: MiniMaxAI/MiniMax-M3.",
+  "announcedOn": null,
+  "effectiveOn": "2026-08-31",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["Qwen/Qwen2.5-VL-72B-Instruct"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "MiniMaxAI/MiniMax-M3",
+    "modelIds": ["MiniMaxAI/MiniMax-M3"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://docs.tokenfactory.nebius.com/august-2026-deprecation-notice.md",
+      "quote": "| [`Qwen/Qwen2.5-VL-72B-Instruct`](https://tokenfactory.nebius.com/models/catalog/image2text/Qwen%2FQwen2.5-VL-72B-Instruct) | [`MiniMaxAI/MiniMax-M3`](https://tokenfactory.nebius.com/models/catalog/text2text/MiniMaxAI%2FMiniMax-M3) |",
+      "contentHash": "4c9d8a9f463e8d4cb3ac567b863d5d18dbc74cf0e1c23bbee047ef3ef5d89401",
+      "checkedAt": "2026-10-24T14:37:26.028Z"
+    },
+    {
+      "url": "https://docs.tokenfactory.nebius.com/august-2026-deprecation-notice.md",
+      "quote": "> **On August 31, 2026:**",
+      "contentHash": "4c9d8a9f463e8d4cb3ac567b863d5d18dbc74cf0e1c23bbee047ef3ef5d89401",
+      "checkedAt": "2026-10-24T14:37:26.028Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

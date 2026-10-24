@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2023-08-16-v-klarna-payment-failure-error-code",
+  "provider": "stripe",
+  "title": "Adds specific error codes for failed Klarna payments",
+  "announcedOn": "2023-08-16",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds more specific error codes to the PaymentIntent API for when a Klarna payment fails:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2023-08-16"]
+  },
+  "migrationNotes": [
+    "Adding specific error codes for when a Klarna payment fails gives you more detailed information about why the payment failed, enabling better error handling."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds specific error codes for failed Klarna payments](https://docs.stripe.com/changelog/2023-08-16/klarna-payment-failure-error-code.md) | Payments, Checkout | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2023-08-16/klarna-payment-failure-error-code.md",
+      "quote": "Adds more specific error codes to the [PaymentIntent](https://docs.stripe.com/api/payment_intents.md?api-version=2024-06-20) API for when a [Klarna](https://docs.stripe.com/payments/klarna.md) payment fails:",
+      "contentHash": "9cb0bceec1c853048df32907dbd2a926719817db8f929abbba5a00e0cd0315ea",
+      "checkedAt": "2026-10-24T14:37:34.828Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

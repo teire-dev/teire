@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2023-08-16-v-automatic-payment-methods",
+  "provider": "stripe",
+  "title": "Enables automatic payment methods by default for PaymentIntents and SetupIntents",
+  "announcedOn": "2023-08-16",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "PaymentIntents and SetupIntents now have dynamic automatic_payment_methods enabled by default, which allows you to configure payment method settings from the Dashboard. The previous default was to accept only card payments when both payment_method_types and automatic_payment_methods weren’t specified. For more information, see the upgrade guide.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2023-08-16"]
+  },
+  "migrationNotes": [
+    "PaymentIntents and SetupIntents now use automatic dynamic payment methods by default, allowing for configuration through the Stripe Dashboard."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Enables automatic payment methods by default for PaymentIntents and SetupIntents](https://docs.stripe.com/changelog/2023-08-16/automatic-payment-methods.md) | Payments, Elements | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2023-08-16/automatic-payment-methods.md",
+      "quote": "[PaymentIntents](https://docs.stripe.com/api/payment_intents.md?api-version=2024-06-20) and [SetupIntents](https://docs.stripe.com/api/setup_intents.md?api-version=2024-06-20) now have dynamic `automatic_payment_methods` enabled by default, which allows you to configure payment method settings from the [Dashboard](https://dashboard.stripe.com/settings/payment_methods). The previous default was to accept only card payments when both `payment_method_types` and `automatic_payment_methods` weren’t specified. For more information, see the [upgrade guide](https://docs.stripe.com/upgrades/manage-payment-methods.md).",
+      "contentHash": "270e20e5ecfb054a4a6dd62060e625a6b872c0a0a02b134f3e5057fba00dcf5d",
+      "checkedAt": "2026-10-24T14:37:34.659Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

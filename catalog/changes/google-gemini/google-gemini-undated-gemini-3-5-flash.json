@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "google-gemini-undated-gemini-3-5-flash",
+  "provider": "google-gemini",
+  "kind": "model-rerouted",
+  "title": "gemini-3.5-flash rerouted to gemini-3.6-flash",
+  "summary": "Gemini 3 models. No shutdown date. Replacement: gemini-3.6-flash (not available to select in Google AI Studio; the endpoint is not shutting down and automatically routes API requests to gemini-3.6-flash).",
+  "announcedOn": null,
+  "effectiveOn": null,
+  "breaking": false,
+  "signatures": {
+    "modelIds": ["gemini-3.5-flash"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "gemini-3.6-flash (not available to select in Google AI Studio; the endpoint is not shutting down and automatically routes API requests to gemini-3.6-flash)",
+    "note": "not available to select in Google AI Studio; the endpoint is not shutting down and automatically routes API requests to gemini-3.6-flash",
+    "modelIds": ["gemini-3.6-flash"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt",
+      "quote": "| `gemini-3.5-flash` | May 19, 2026 | N/A | `gemini-3.6-flash` (not available to select in Google AI Studio; the endpoint is not shutting down and automatically routes API requests to `gemini-3.6-flash`) |",
+      "contentHash": "3342ebac18090931abc3a2f58e42a07f2f1f4c7f411dc6587c4faf64831c4601",
+      "checkedAt": "2026-10-24T14:37:24.882Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "openai-2024-01-04-ada",
+  "provider": "openai",
+  "kind": "model-retirement",
+  "title": "ada shutdown",
+  "summary": "GPT and embeddings. Shutdown date: 2024-01-04. Replacement: babbage-002.",
+  "announcedOn": "2023-07-06",
+  "effectiveOn": "2024-01-04",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["ada"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "babbage-002",
+    "modelIds": ["babbage-002"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "quote": "| 2024-01-04    | `ada`              | $0.40 / 1M tokens      | `babbage-002`            |",
+      "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
+      "checkedAt": "2026-10-24T14:37:23.481Z"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "quote": "| 2024-01-04    | `ada`            | $0.40 / 1M tokens  | $1.60 / 1M tokens   | `babbage-002`                            |",
+      "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
+      "checkedAt": "2026-10-24T14:37:23.481Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

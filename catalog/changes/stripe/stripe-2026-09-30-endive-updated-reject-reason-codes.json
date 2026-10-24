@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-updated-reject-reason-codes",
+  "provider": "stripe",
+  "title": "Replaces the generic fraud rejection reason with specific fraud reasons",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Replaces the generic fraud value for the reason parameter when rejecting an account with more specific fraud reasons: The reason parameter changes from a string to an enum that doesn’t include fraud as a value. Requests that pass fraud return an HTTP 400 error.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["fraud", "reason"],
+    "endpoints": [],
+    "symbols": ["fraud", "AccountRejectParams.reason"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration rejects connected accounts for suspected fraud, update it to use one of the new fraud reasons that best describes the suspected activity. Use fraud_other when none of the more specific reasons apply.",
+    "Update your integration to use the new reason enum, including calls that continue to use terms_of_service or other."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Replaces the generic fraud rejection reason with specific fraud reasons](https://docs.stripe.com/changelog/endive/2026-09-30/updated-reject-reason-codes.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/updated-reject-reason-codes.md",
+      "quote": "The `reason` parameter changes from a string to an enum that doesn’t include `fraud` as a value. Requests that pass `fraud` return an HTTP `400` error.",
+      "contentHash": "9043e6d9d1dfb563a462e1210909b4586bc837a7f3acf9ef91cc49a0a41bb39e",
+      "checkedAt": "2026-10-24T14:37:27.925Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

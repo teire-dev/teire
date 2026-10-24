@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-08-01-v-error-code-invalid-tos-accounts",
+  "provider": "stripe",
+  "title": "New error code for invalid terms of service acceptance in Accounts API",
+  "announcedOn": "2022-08-01",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds invalid_tos_acceptance as a new error code in the requirements.errors array in the Accounts API. To learn more, see Account requirements errors.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-08-01"]
+  },
+  "migrationNotes": [
+    "The Accounts API now includes invalid_tos_acceptance as a new error code in the requirements.errors array, providing more specific error reporting for terms of service acceptance issues."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [New error code for invalid terms of service acceptance in Accounts API](https://docs.stripe.com/changelog/2022-08-01/error-code-invalid-tos-accounts.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-08-01/error-code-invalid-tos-accounts.md",
+      "quote": "Adds `invalid_tos_acceptance` as a new error code in the `requirements.errors` array in the Accounts API. To learn more, see [Account requirements errors](https://docs.stripe.com/api/accounts/object.md?api-version=2024-06-20#account_object-requirements-errors).",
+      "contentHash": "80306ef3c5ea42565f4f200f8691f819e8f162556eae91c3f002b19e3d210b62",
+      "checkedAt": "2026-10-24T14:37:35.770Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

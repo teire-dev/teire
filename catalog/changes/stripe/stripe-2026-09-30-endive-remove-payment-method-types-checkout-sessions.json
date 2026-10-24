@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-remove-payment-method-types-checkout-sessions",
+  "provider": "stripe",
+  "title": "Removes the payment method types parameter from Checkout Sessions",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Removes the payment_method_types parameter from the create Checkout Session method. You can no longer pass payment_method_types when you create a Checkout Session. Use dynamic payment methods to manage payment methods from the Dashboard without writing code. Passing payment_method_types as a parameter when you create a Checkout Session now returns a 400 error. If your integration sets this parameter, you must remove it and migrate to dynamic payment methods or allowed_payment_method_types.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["payment_method_types"],
+    "endpoints": [],
+    "symbols": ["payment_method_types"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "This migration requires careful attention if your integration passes payment_method_types when creating a Checkout Session. You must update your integration to use dynamic payment methods or switch to allowed_payment_method_types to get automatic compatibility filtering instead of errors. Requests that include payment_method_types on this now return a 400 error."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes the payment method types parameter from Checkout Sessions](https://docs.stripe.com/changelog/endive/2026-09-30/remove-payment-method-types-checkout-sessions.md) | Checkout | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/remove-payment-method-types-checkout-sessions.md",
+      "quote": "Passing `payment_method_types` as a parameter when you [create a Checkout Session](https://docs.stripe.com/api/checkout/sessions/create.md?api-version=2026-09-30.endive) now returns a `400` error. If your integration sets this parameter, you must remove it and migrate to [dynamic payment methods](https://docs.stripe.com/payments/payment-methods/dynamic-payment-methods.md) or [allowed_payment_method_types](https://docs.stripe.com/api/checkout/sessions/create.md?api-version=2026-09-30.endive#create_checkout_session-allowed_payment_method_types).",
+      "contentHash": "aba38d46432ba16685b2d170ea6b202a8ae098d2b5a3e9f29102455c4ac86f19",
+      "checkedAt": "2026-10-24T14:37:28.888Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

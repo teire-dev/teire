@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "anthropic-2025-10-28-claude-3-5-sonnet-20241022",
+  "provider": "anthropic",
+  "kind": "model-retirement",
+  "title": "claude-3-5-sonnet-20241022 shutdown",
+  "summary": "Claude Sonnet 3.5 models. Shutdown date: 2025-10-28. Replacement: claude-sonnet-5-5.",
+  "announcedOn": "2025-08-13",
+  "effectiveOn": "2025-10-28",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["claude-3-5-sonnet-20241022"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "claude-sonnet-5-5",
+    "modelIds": ["claude-sonnet-5-5"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "quote": "| October 28, 2025 | `claude-3-5-sonnet-20241022` | `claude-sonnet-5-5`     |",
+      "contentHash": "d2fd9f71fed176557d5ed32e2bd212e72dce5dab836bf62b5a2b40dba2fda0d4",
+      "checkedAt": "2026-10-24T14:37:24.092Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

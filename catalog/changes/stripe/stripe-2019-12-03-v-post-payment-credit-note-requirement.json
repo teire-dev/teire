@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-12-03-v-post-payment-credit-note-requirement",
+  "provider": "stripe",
+  "title": "New requirement for `out_of_band_amount` when creating post-payment credit notes",
+  "announcedOn": "2019-12-03",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "When creating a post-payment credit note on an invoice, out_of_band_amount is now required if the sum of credit_amount and (refund or refund_amount) is less than the credit note total. In previous API versions out_of_band_amount is optional and, in the case that the credit_amount and refund amounts are less than the credit note total, the difference was automatically be allocated to the out_of_band_amount.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-12-03"]
+  },
+  "migrationNotes": [
+    "This enforces more explicit specification of the credit note details, ensuring that all components of the credit note are clearly defined. It removes the previous automatic allocation of the difference to out_of_band_amount, which gives you greater control and transparency over the credit note creation process."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [New requirement for `out_of_band_amount` when creating post-payment credit notes](https://docs.stripe.com/changelog/2019-12-03/post-payment-credit-note-requirement.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-12-03/post-payment-credit-note-requirement.md",
+      "quote": "When [creating](https://docs.stripe.com/api/credit_notes/create.md?api-version=2024-06-20) a post-payment credit note on an invoice, [out_of_band_amount](https://docs.stripe.com/api/credit_notes/create.md?api-version=2024-06-20#create_credit_note-out_of_band_amount) is now required if the sum of `credit_amount` and (`refund` or `refund_amount`) is less than the credit note total. In previous API versions `out_of_band_amount` is optional and, in the case that the `credit_amount` and refund amounts are less than the credit note total, the difference was automatically be allocated to the `out_of_band_amount`.",
+      "contentHash": "d4e0ca788642f22e1642963fea9513e063966daf65bf465a5b7d739b647aebe5",
+      "checkedAt": "2026-10-24T14:37:36.917Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

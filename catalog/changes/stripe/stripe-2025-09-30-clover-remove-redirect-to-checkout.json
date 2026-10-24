@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-09-30-clover-remove-redirect-to-checkout",
+  "provider": "stripe",
+  "title": "Removes support for the redirectToCheckout method",
+  "announcedOn": "2025-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "The stripe.redirectToCheckout method is no longer supported in Stripe.js. You can no longer use stripe.redirectToCheckout for both client-only and client and server integrations.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-09-30.clover"]
+  },
+  "migrationNotes": [
+    "If you use the client-only integration for Checkout, migrate to Payment Links and Buy Buttons. For client-side redirects, use standard redirect functions (such as window.location.href = session.url) or equivalent methods in your environment to redirect users to the Checkout Session."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes support for the redirectToCheckout method](https://docs.stripe.com/changelog/clover/2025-09-30/remove-redirect-to-checkout.md) | Checkout | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/clover/2025-09-30/remove-redirect-to-checkout.md",
+      "quote": "You can no longer use `stripe.redirectToCheckout` for both client-only and [client and server](https://docs.stripe.com/payments/accept-a-payment.md?integration=checkout) integrations.",
+      "contentHash": "5c4326d8db7d6e64aa5b771e89a27daef6053a7d9175f4d0f2cdefba67560c5e",
+      "checkedAt": "2026-10-24T14:37:31.422Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

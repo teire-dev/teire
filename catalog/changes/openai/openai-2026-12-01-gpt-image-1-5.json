@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "openai-2026-12-01-gpt-image-1-5",
+  "provider": "openai",
+  "kind": "model-retirement",
+  "title": "gpt-image-1.5 shutdown",
+  "summary": "GPT Image model deprecations. Shutdown date: 2026-12-01. Replacement: gpt-image-2.5-sunburst or gpt-image-2.5-flare.",
+  "announcedOn": "2026-06-02",
+  "effectiveOn": "2026-12-01",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["gpt-image-1.5", "gpt-image-1.5-2025-12-16"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "gpt-image-2.5-sunburst or gpt-image-2.5-flare",
+    "modelIds": ["gpt-image-2.5-sunburst", "gpt-image-2.5-flare"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "quote": "| Dec 1, 2026   | `gpt-image-1.5` \\| `gpt-image-1.5-2025-12-16` | `gpt-image-2.5-sunburst` or `gpt-image-2.5-flare` |",
+      "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
+      "checkedAt": "2026-10-24T14:37:23.481Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

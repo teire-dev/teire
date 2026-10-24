@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-surface-india-card-mandate-even-when-inactive",
+  "provider": "stripe",
+  "title": "Surfaces India card mandates on Charges and SetupIntents even when inactive",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Changes the following properties for India recurring card payments so that they return the mandate ID even when registration fails and the mandate is inactive: If your integration treats a non-null payment_method_details.card.mandate property on a Charge or mandate property on a SetupIntent as confirmation that the mandate is usable, you must update it to check the mandate’s status. Attempting a subsequent off-session payment with an inactive mandate causes the payment to fail.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "Before using a returned mandate for a subsequent off-session payment, retrieve it and verify that its status is active. You can also use an inactive mandate’s ID to identify a failed registration and show the failure to your customer. See Mandate webhooks for integration guidance."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Surfaces India card mandates on Charges and SetupIntents even when inactive](https://docs.stripe.com/changelog/endive/2026-09-30/surface-india-card-mandate-even-when-inactive.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/surface-india-card-mandate-even-when-inactive.md",
+      "quote": "If your integration treats a non-null `payment_method_details.card.mandate` property on a Charge or `mandate` property on a SetupIntent as confirmation that the mandate is usable, you must update it to check the mandate’s status. Attempting a subsequent off-session payment with an `inactive` mandate causes the payment to fail.",
+      "contentHash": "d267b234dd395fa34bbc7e6c9c34c46c41e26c300c99771104d4e5dd45788bff",
+      "checkedAt": "2026-10-24T14:37:29.982Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

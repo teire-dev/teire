@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents",
+  "provider": "stripe",
+  "title": "Removes the payment method types parameter from Payment Intents and Setup Intents",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Removes payment_method_types as a writable parameter from the create, update, and confirm methods on Payment Intents, and from the create and update methods on Setup Intents. Passing payment_method_types on this API version returns a 400 error with the code payment_method_types_no_longer_supported. Previously, payment_method_types accepted a list of payment method types to explicitly set which methods are available on a PaymentIntent or SetupIntent. This parameter is no longer writable. Requests that pass payment_method_types on the affected endpoints return a 400 error.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["payment_method_types"],
+    "endpoints": [],
+    "symbols": ["payment_method_types"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration passes payment_method_types when creating, updating, or confirming a Payment Intent or Setup Intent, remove it before upgrading to API version 2026-08-26.preview. Replace it with dynamic payment methods (optionally combined with excluded_payment_method_types), or use allowed_payment_method_types. Dynamic payment methods automatically handle compatibility filtering, so you no longer need to maintain eligibility logic in your code."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes the payment method types parameter from Payment Intents and Setup Intents](https://docs.stripe.com/changelog/endive/2026-09-30/removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents.md",
+      "quote": "Previously, `payment_method_types` accepted a list of payment method types to explicitly set which methods are available on a PaymentIntent or SetupIntent. This parameter is no longer writable. Requests that pass `payment_method_types` on the affected endpoints return a `400` error.",
+      "contentHash": "c326b6a1f3513f27413aa0428d1c9fe6902242981e4bd2260d5ac9cf1ca73bc6",
+      "checkedAt": "2026-10-24T14:37:29.241Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

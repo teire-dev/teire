@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-polymorphic-billing-cycle-anchor",
+  "provider": "stripe",
+  "title": "Unifies the billing cycle anchor format across Subscriptions and Invoices",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Unifies how updates to a subscription’s billing cycle anchor are formatted when updating Subscriptions, resuming Subscriptions, and creating Preview Invoices. The billing_cycle_anchor field now uses a consistent object format with a type field, replacing the previous string, enum, and timestamp formats. The billing_cycle_anchor field now requires an object with a type field instead of a string value (for example, {type: 'now'}). When creating a preview invoice, the subscription_details.billing_cycle_anchor field requires an object with type and timestamp fields.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["billing_cycle_anchor"],
+    "endpoints": [],
+    "symbols": [
+      "InvoiceCreatePreviewParamsSubscriptionDetail.billing_cycle_anchor",
+      "SubscriptionResumeParams.billing_cycle_anchor",
+      "SubscriptionModifyParams.billing_cycle_anchor",
+      "InvoiceCreatePreviewParams.subscription_details.billing_cycle_anchor",
+      "SubscriptionUpdateParams.billing_cycle_anchor"
+    ],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "Previously, you could pass a string value when updating a subscription’s billing cycle anchor. Instead, set billing_cycle_anchor to an object with an equivalent type parameter.",
+    "Replace now with {type: 'now'}.",
+    "Replace unchanged with {type: 'unchanged'}.",
+    "When creating a preview invoice for a new subscription whose billing cycle anchor is a future timestamp, replace 1234567890 with {type: 'timestamp', timestamp: 1234567890}."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Unifies the billing cycle anchor format across Subscriptions and Invoices](https://docs.stripe.com/changelog/endive/2026-09-30/polymorphic-billing-cycle-anchor.md) | Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/polymorphic-billing-cycle-anchor.md",
+      "quote": "The `billing_cycle_anchor` field now requires an object with a `type` field instead of a string value (for example, `{type: 'now'}`). When creating a preview invoice, the [subscription_details.billing_cycle_anchor](https://docs.stripe.com/api/invoices/create_preview.md?api-version=2026-09-30.endive#create_invoice-subscription_details-billing_cycle_anchor) field requires an object with `type` and `timestamp` fields.",
+      "contentHash": "2d0bbab67d57f572b0e7c7ae207984b0fa2ff26079e13faf40ae06674cb17522",
+      "checkedAt": "2026-10-24T14:37:27.923Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

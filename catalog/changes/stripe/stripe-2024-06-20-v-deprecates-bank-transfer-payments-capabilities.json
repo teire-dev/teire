@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-06-20-v-deprecates-bank-transfer-payments-capabilities",
+  "provider": "stripe",
+  "title": "Deprecates the `bank_transfer_payments` capability type in favor of newer capability types",
+  "announcedOn": "2024-06-20",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Deprecates the bank_transfer_payments capability type in favor of newer capability types per buyer’s location in the Capabilities API. The newer capability types are:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2024-06-20"]
+  },
+  "migrationNotes": [
+    "Deprecates the bank_transfer_payments capability type in favor of newer capability types per buyer’s location in the Capabilities API. This gives you more specific, location-based capabilities."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Deprecates the `bank_transfer_payments` capability type in favor of newer capability types](https://docs.stripe.com/changelog/2024-06-20/deprecates-bank-transfer-payments-capabilities.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2024-06-20/deprecates-bank-transfer-payments-capabilities.md",
+      "quote": "Deprecates the `bank_transfer_payments` capability type in favor of newer capability types per buyer’s location in the Capabilities API. The newer capability types are:",
+      "contentHash": "915310984e938294904b37b2bfa1094b871010520c39dcef57970cb59d6ed722",
+      "checkedAt": "2026-10-24T14:37:34.249Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

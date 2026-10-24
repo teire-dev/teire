@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-03-14-v-invoices-specify-finalized-alongside-status-transitions",
+  "provider": "stripe",
+  "title": "Invoices now specify when they’re finalized alongside other status transitions",
+  "announcedOn": "2019-03-14",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Moves the finalized_at property for invoices into the status_transitions hash.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["finalized_at"],
+    "endpoints": [],
+    "symbols": ["finalized_at"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-03-14"]
+  },
+  "migrationNotes": [
+    "This change moves the finalized_at property for invoices into the new status_transitions hash. You now need to access the finalization timestamp through status_transitions.finalized_at instead of directly from the Invoice object. This modification organizes invoice status change information more coherently."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Invoices now specify when they’re finalized alongside other status transitions](https://docs.stripe.com/changelog/2019-03-14/invoices-specify-finalized-alongside-status-transitions.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-03-14/invoices-specify-finalized-alongside-status-transitions.md",
+      "quote": "Moves the `finalized_at` property for invoices into the `status_transitions` hash.",
+      "contentHash": "435b81691dc124650afd7d5704855834ad72e11048036e31a9b6e4aa6b6cc101",
+      "checkedAt": "2026-10-24T14:37:38.300Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

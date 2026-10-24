@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-06-20-v-deprecates-alphanumeric-id-issuing",
+  "provider": "stripe",
+  "title": "Deprecates `alphanumeric_id` for Issuing Authorization",
+  "announcedOn": "2024-06-20",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Deprecates the fleet.cardholder_prompt_data.alphanumeric_id property for the Issuing Authorization resource. Use driver_id, vehicle_number, unspecified_id, or user_id instead.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2024-06-20"]
+  },
+  "migrationNotes": [
+    "This change provides clearer categorization of identifiers in fleet management scenarios, but requires updates to existing code that processes or relies on the alphanumeric_id field."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Deprecates `alphanumeric_id` for Issuing Authorization](https://docs.stripe.com/changelog/2024-06-20/deprecates-alphanumeric-id-issuing.md) | Issuing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2024-06-20/deprecates-alphanumeric-id-issuing.md",
+      "quote": "Deprecates the [fleet.cardholder_prompt_data.alphanumeric_id](https://docs.stripe.com/api/issuing/authorizations/object.md?api-version=2024-06-20#issuing_authorization_object-fleet-cardholder_prompt_data-alphanumeric_id) property for the [Issuing Authorization](https://docs.stripe.com/api/issuing/authorizations/object.md?api-version=2024-06-20) resource. Use `driver_id`, `vehicle_number`, `unspecified_id`, or `user_id` instead.",
+      "contentHash": "4cb0edfa7fa4c354bbc369d00d1043331dbc9880bf8edb9448f2224e7676b7e4",
+      "checkedAt": "2026-10-24T14:37:34.039Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

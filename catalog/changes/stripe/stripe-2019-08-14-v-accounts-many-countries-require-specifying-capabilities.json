@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-08-14-v-accounts-many-countries-require-specifying-capabilities",
+  "provider": "stripe",
+  "title": "Configuring a person as an account opener no longer automatically sets them as an executive",
+  "announcedOn": "2019-08-14",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "The relationship[executive] field on a Person object is no longer automatically set to true when you create a Person object with relationship[account_opener]. The requirements hash on an Account object might require that you explicitly indicate that the account_opener is also an executive. If this is the case, you need to indicate it by setting relationship[executive]=true.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-08-14"]
+  },
+  "migrationNotes": [
+    "This change removes the automatic setting of relationship[executive] to true when creating a Person object with relationship[account_opener]. You now need to explicitly set relationship[executive]=true if required by the account’s requirements hash. This modification provides more precise control over person relationships in account management."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Configuring a person as an account opener no longer automatically sets them as an executive](https://docs.stripe.com/changelog/2019-08-14/accounts-many-countries-require-specifying-capabilities.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-08-14/accounts-many-countries-require-specifying-capabilities.md",
+      "quote": "The `relationship[executive]` field on a `Person` object is no longer automatically set to `true` when you create a `Person` object with `relationship[account_opener]`. The `requirements` hash on an `Account` object might require that you explicitly indicate that the `account_opener` is also an `executive`. If this is the case, you need to indicate it by setting `relationship[executive]=true`.",
+      "contentHash": "3d29da1a33f9dbda1d8f9230e57083b813e7b72c2a39ca8eb738345ddf201bb3",
+      "checkedAt": "2026-10-24T14:37:37.939Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

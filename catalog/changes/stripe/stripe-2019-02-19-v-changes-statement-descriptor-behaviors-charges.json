@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-19-v-changes-statement-descriptor-behaviors-charges",
+  "provider": "stripe",
+  "title": "Changes statement descriptor behaviors for card payments created with Charges",
+  "announcedOn": "2019-02-19",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Changes statement descriptor behaviors for card payments created through /v1/charges. To learn more, see our guide on statement descriptors.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-02-19"]
+  },
+  "migrationNotes": [
+    "This change alters how statement descriptors are handled for card payments created through the Charges API, providing more accurate branding for connected accounts and standardize descriptor formatting."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Changes statement descriptor behaviors for card payments created with Charges](https://docs.stripe.com/changelog/2019-02-19/changes-statement-descriptor-behaviors-charges.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-19/changes-statement-descriptor-behaviors-charges.md",
+      "quote": "Changes statement descriptor behaviors for card payments created through [ /v1/charges](https://docs.stripe.com/api/charges/create.md?api-version=2024-06-20). To learn more, see our guide on [statement descriptors](https://docs.stripe.com/payments/charges-api.md#dynamic-statement-descriptor).",
+      "contentHash": "080b6f77b800c22da600eec3b3edb2fb7d939e045a72a8c5da4984da9b0f506f",
+      "checkedAt": "2026-10-24T14:37:38.349Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

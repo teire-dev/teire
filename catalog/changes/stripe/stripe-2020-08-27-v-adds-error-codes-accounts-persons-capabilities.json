@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2020-08-27-v-adds-error-codes-accounts-persons-capabilities",
+  "provider": "stripe",
+  "title": "Adds new error codes to the Accounts, Persons, and Capabilities APIs",
+  "announcedOn": "2020-08-27",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds several new error codes to the requirements.errors array in the Accounts, Persons, and Capabilities API:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2020-08-27"]
+  },
+  "migrationNotes": [
+    "By introducing these new error codes, you can more precisely determine the nature of the verification failure, such as missing document details, unsigned documents, or issues with tax IDs and addresses."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds new error codes to the Accounts, Persons, and Capabilities APIs](https://docs.stripe.com/changelog/2020-08-27/adds-error-codes-accounts-persons-capabilities.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2020-08-27/adds-error-codes-accounts-persons-capabilities.md",
+      "quote": "Adds several new error codes to the `requirements.errors` array in the Accounts, Persons, and Capabilities API:",
+      "contentHash": "1c67beaf0eff90c7749c9318c708b3a2205bf1fe5349f6ea3067c0a09cacad6f",
+      "checkedAt": "2026-10-24T14:37:36.479Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

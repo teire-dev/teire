@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-rejected-accounts-v2-capabilities",
+  "provider": "stripe",
+  "title": "Adds rejected status for Accounts v2 capabilities",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds a rejected value to the status property of account capabilities on Accounts v2. This status appears alongside the existing values active, pending, restricted, and unsupported. Previously, rejected accounts provided a status of restricted with a status_details code of requirements_past_due.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration reads capability status or status_details values from Accounts v2 Account objects, you can now understand and handle the specific reasons a capability configuration was rejected.",
+    "These events also now include the rejected status for rejected accounts:",
+    "[v2.core.account[configuration.customer].capability_status_updated](https://docs.stripe.com/api/v2/core/accounts/event-types.md?api-version=2026-09-30.endive#v2_accounts_event_types-v2.core.account%5Bconfiguration.customer%5D.capability_status_updated)",
+    "[v2.core.account[configuration.merchant].capability_status_updated](https://docs.stripe.com/api/v2/core/accounts/event-types.md?api-version=2026-09-30.endive#v2_accounts_event_types-v2.core.account%5Bconfiguration.merchant%5D.capability_status_updated)",
+    "[v2.core.account[configuration.recipient].capability_status_updated](https://docs.stripe.com/api/v2/core/accounts/event-types.md?api-version=2026-09-30.endive#v2_accounts_event_types-v2.core.account%5Bconfiguration.recipient%5D.capability_status_updated)",
+    "[v2.core.account[configuration.customer].updated](https://docs.stripe.com/api/v2/core/accounts/event-types.md?api-version=2026-09-30.endive#v2_accounts_event_types-v2.core.account%5Bconfiguration.customer%5D.updated)",
+    "[v2.core.account[configuration.merchant].updated](https://docs.stripe.com/api/v2/core/accounts/event-types.md?api-version=2026-09-30.endive#v2_accounts_event_types-v2.core.account%5Bconfiguration.merchant%5D.updated)",
+    "[v2.core.account[configuration.recipient].updated](https://docs.stripe.com/api/v2/core/accounts/event-types.md?api-version=2026-09-30.endive#v2_accounts_event_types-v2.core.account%5Bconfiguration.recipient%5D.updated)"
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds rejected status for Accounts v2 capabilities](https://docs.stripe.com/changelog/endive/2026-09-30/rejected-accounts-v2-capabilities.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/rejected-accounts-v2-capabilities.md",
+      "quote": "Previously, rejected accounts provided a `status` of `restricted` with a `status_details` code of `requirements_past_due`.",
+      "contentHash": "1daa0f17a1605968e762005ae74f4a0ffb4b2012be511d436b92250530222c77",
+      "checkedAt": "2026-10-24T14:37:27.924Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

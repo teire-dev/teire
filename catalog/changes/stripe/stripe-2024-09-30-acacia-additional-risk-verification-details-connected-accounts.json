@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-09-30-acacia-additional-risk-verification-details-connected-accounts",
+  "provider": "stripe",
+  "title": "Adds risk verification details for connected accounts",
+  "announcedOn": "2024-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Upgrading to this version helps you better understand the causes of supportability verification issues for your connected accounts. You can see the verification error in the requirements.errors.code enum. This is a breaking change because it adds the new verification_supportability value to the requirements error code enumeration.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2024-09-30.acacia"]
+  },
+  "migrationNotes": [
+    "You can use the details to send notifications to connected accounts and guide them to a form where they can address the requirements."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds risk verification details for connected accounts](https://docs.stripe.com/changelog/acacia/2024-09-30/additional-risk-verification-details-connected-accounts.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/acacia/2024-09-30/additional-risk-verification-details-connected-accounts.md",
+      "quote": "This is a breaking change because it adds the new `verification_supportability` value to the requirements [error code enumeration](https://docs.stripe.com/api/accounts/object.md?api-version=2024-09-30.acacia#account_object-requirements-errors-code).",
+      "contentHash": "729f3a48691c7f36f2c063a49af5f0fc1de5e9121229ab8d88d8d2a1bb21cac5",
+      "checkedAt": "2026-10-24T14:37:33.649Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

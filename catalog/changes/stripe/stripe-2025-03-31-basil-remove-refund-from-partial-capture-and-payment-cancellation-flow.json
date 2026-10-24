@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-03-31-basil-remove-refund-from-partial-capture-and-payment-cancellation-flow",
+  "provider": "stripe",
+  "title": "Partially capturing or canceling payments no longer creates a Refund",
+  "announcedOn": "2025-03-31",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "The following flows no longer result in a Refund object created and linked to the payment: This change might break your integration in the following scenarios:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-03-31.basil"]
+  },
+  "migrationNotes": [
+    "This change affects your integration if you depend on the Refund object or any related fields for capture reversals or for payment cancellation. Removal of the Refund object affects the following fields or objects.",
+    "### Refund object",
+    "A Refund object representing the cancellation or capture reversal will no longer be created.",
+    "It won’t be returned when calling to get all refunds associated with the payment intent or charge.",
+    "It won’t be present in any webhook events.",
+    "It won’t be present on the Charge object in any API response.",
+    "It won’t be visible on the Dashboard.",
+    "### PaymentIntent Object",
+    "A new cancellation_reason value called expired will be introduced. This new value represents payments canceled because of authorization expiration. It replaces the formerly used value of automatic.",
+    "### Charge object",
+    "amount_captured will be 0 instead of nil in payment cancellation flows.",
+    "amount_refunded will no longer be updated by these actions.",
+    "refunded will no longer be true for payment cancellation flows.",
+    "### Balance transactions",
+    "There will only be a single balance transaction for partial captures. There will no longer be a balance transaction representing the amount and fees reversed.",
+    "The balance transaction representing the capture will show the amount captured instead of the amount authorized for the related payment.",
+    "### Webhooks",
+    "We’ll no longer send charge.refunded and charge.refund.updated events.",
+    "We’ll still send charge.expired, charge.captured, and payment_intent.canceled events for their respective flows.",
+    "### Radar payment review",
+    "If applicable, a Radar payment review will be closed upon payment cancellation with the reason canceled instead of refunded."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Partially capturing or canceling payments no longer creates a Refund](https://docs.stripe.com/changelog/basil/2025-03-31/remove-refund-from-partial-capture-and-payment-cancellation-flow.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/basil/2025-03-31/remove-refund-from-partial-capture-and-payment-cancellation-flow.md",
+      "quote": "This change might break your integration in the following scenarios:",
+      "contentHash": "7da899d1e9b407e9fb7d9ad246d9b0a6066bfc085a15e132400f3952472af166",
+      "checkedAt": "2026-10-24T14:37:33.128Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-04-10-v-automatic-sync-default-paymentintents",
+  "provider": "stripe",
+  "title": "Makes automatic async the default capture method for PaymentIntents when not specified",
+  "announcedOn": "2024-04-10",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "PaymentIntents now has automatic_async as the default capture method when capture method isn’t specified during PaymentIntents creation.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2024-04-10"]
+  },
+  "migrationNotes": [
+    "Setting automatic_async as the default capture method for PaymentIntents when not explicitly specified lets you benefit from asynchronous capture by default, potentially improving payment success rates and reducing declines. To learn more, see our guide."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Makes automatic async the default capture method for PaymentIntents when not specified](https://docs.stripe.com/changelog/2024-04-10/automatic-sync-default-paymentintents.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2024-04-10/automatic-sync-default-paymentintents.md",
+      "quote": "[PaymentIntents](https://docs.stripe.com/api/payment_intents.md?api-version=2024-06-20) now has `automatic_async` as the default capture method when capture method isn’t specified during PaymentIntents creation.",
+      "contentHash": "0c19740d9f581eee8da5c4a7c3f99b802d6d342b29bd58969bd95fc94281ad8c",
+      "checkedAt": "2026-10-24T14:37:34.299Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

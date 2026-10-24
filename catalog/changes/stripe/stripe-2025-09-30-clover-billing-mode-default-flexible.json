@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-09-30-clover-billing-mode-default-flexible",
+  "provider": "stripe",
+  "title": "Makes flexible billing mode the default for new subscriptions",
+  "announcedOn": "2025-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Subscriptions you create through the API now default to flexible billing mode. To use classic, set the billing_mode.type parameter to classic. Flexible billing mode changes subscription behavior and invoice calculations compared to classic. Review the differences.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-09-30.clover"]
+  },
+  "migrationNotes": [
+    "For API users, the default billing mode depends on the request API version:",
+    "If the request API version is 2025-09-30.clover or newer, the default is flexible billing mode.",
+    "If the request API version is older than 2025-09-30.clover, the default is classic billing mode.",
+    "For Dashboard users, the default billing mode is linked to the newly introduced Billing Mode Settings:",
+    "New Stripe Billing users (those who’ve never created a subscription in live mode or test mode) only see flexible billing mode as the option.",
+    "Existing users see both flexible and classic billing modes, with classic selected by default.",
+    "You can configure the default Billing Mode Settings in your Billing settings."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Makes flexible billing mode the default for new subscriptions](https://docs.stripe.com/changelog/clover/2025-09-30/billing-mode-default-flexible.md) | Billing, Checkout | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/clover/2025-09-30/billing-mode-default-flexible.md",
+      "quote": "[Flexible billing mode](https://docs.stripe.com/billing/subscriptions/billing-mode.md) changes subscription behavior and invoice calculations compared to `classic`. Review the [differences](https://docs.stripe.com/billing/subscriptions/billing-mode/compare.md).",
+      "contentHash": "f9d85b82605f4a76e058dcc68f16e7baa395c9da004e9555c63bbedea16c0527",
+      "checkedAt": "2026-10-24T14:37:31.079Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

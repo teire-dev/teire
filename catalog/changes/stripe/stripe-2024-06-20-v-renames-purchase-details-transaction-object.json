@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-06-20-v-renames-purchase-details-transaction-object",
+  "provider": "stripe",
+  "title": "Renames a `purchase_details` attribute of the `Transaction` object",
+  "announcedOn": "2024-06-20",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames purchase_details.fuel.volume_decimal to purchase_details.fuel.quantity_decimal on the Issuing Transaction resource and related test_helper APIs.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["volume_decimal"],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2024-06-20"]
+  },
+  "migrationNotes": [
+    "Renames a purchase_details attribute of the Transaction object from volume_decimal to quantity_decimal to more precisely describe the number of items purchased."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames a `purchase_details` attribute of the `Transaction` object](https://docs.stripe.com/changelog/2024-06-20/renames-purchase-details-transaction-object.md) | Issuing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2024-06-20/renames-purchase-details-transaction-object.md",
+      "quote": "Renames `purchase_details.fuel.volume_decimal` to `purchase_details.fuel.quantity_decimal` on the [Issuing Transaction](https://docs.stripe.com/api/issuing/transactions/object.md?api-version=2024-06-20) resource and related `test_helper` APIs.",
+      "contentHash": "f095db774caf5641434cbd81c8f1e3bc5883fe446cb4f202edbe37dbf9c87d94",
+      "checkedAt": "2026-10-24T14:37:33.855Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

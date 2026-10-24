@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-removes-configurations-parameter-from-v2-core-account-links-api",
+  "provider": "stripe",
+  "title": "Removes the configurations parameter from the Account Links v2 API",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Removes the configurations parameter from the use_case.account_onboarding and use_case.account_update hashes when you create a v2 Account Link. Previously, configurations accepted an array of configuration names (such as customer, merchant, or recipient) to specify which configurations should be onboarded or updated. Stripe now automatically determines which configurations require onboarding, making this parameter unnecessary. This change removes the configurations parameter from the account_onboarding and account_update use cases in the Account Links v2 API. If your existing integration includes configurations when creating a v2 Account Link, those requests fail on API version 2026-09-30.endive or later. To avoid errors, remove the configurations parameter from your create Account Link requests before upgrading.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["configurations"],
+    "endpoints": [],
+    "symbols": ["configurations"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration passes configurations in any use_case when creating a v2 Account Link, you must remove that parameter before upgrading to the 2026-09-30.endive API version. Requests that include configurations now return an error."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes the configurations parameter from the Account Links v2 API](https://docs.stripe.com/changelog/endive/2026-09-30/removes-configurations-parameter-from-v2-core-account-links-api.md) | All products | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/removes-configurations-parameter-from-v2-core-account-links-api.md",
+      "quote": "This change removes the `configurations` parameter from the `account_onboarding` and `account_update` use cases in the Account Links v2 API. If your existing integration includes `configurations` when creating a v2 Account Link, those requests fail on API version `2026-09-30.endive` or later. To avoid errors, remove the `configurations` parameter from your [create Account Link](https://docs.stripe.com/api/v2/core/account-links/create.md?api-version=2026-09-30.endive) requests before upgrading.",
+      "contentHash": "1d122d262a63b88eb865797d734617c92c177e3c3be9e1a623e9fd0cad52a280",
+      "checkedAt": "2026-10-24T14:37:27.925Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

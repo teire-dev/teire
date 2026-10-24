@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-19-v-renames-business-id-number-business-registration-number",
+  "provider": "stripe",
+  "title": "Renames the `business_id_number` for an account’s legal entity to `business_registration_number`",
+  "announcedOn": "2019-02-19",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Renames the legal_entity[business_id_number] field to legal_entity[business_registration_number].",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-02-19"]
+  },
+  "migrationNotes": [
+    "You need to update your code to use the new field name when providing or accessing business registration information. This modification provides more clarity about the nature of the information being requested, but requires updates to existing code that handles business entity data."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames the `business_id_number` for an account’s legal entity to `business_registration_number`](https://docs.stripe.com/changelog/2019-02-19/renames-business-id-number-business-registration-number.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-19/renames-business-id-number-business-registration-number.md",
+      "quote": "Renames the `legal_entity[business_id_number]` field to `legal_entity[business_registration_number]`.",
+      "contentHash": "2bee533fac9460df39b4b99217f3eb05cbd0f2eb8528cb0e399c48697ad5b628",
+      "checkedAt": "2026-10-24T14:37:38.710Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

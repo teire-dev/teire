@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-19-v-several-fields-accounts-refactored",
+  "provider": "stripe",
+  "title": "Several account fields have been refactored to better describe legal entity, verification status and requirements, and configurable settings",
+  "announcedOn": "2019-02-19",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Includes multiple changes:",
+  "signatures": {
+    "modelIds": [],
+    "params": [
+      "legal_entity",
+      "verification[fields_needed]",
+      "verification[due_by]",
+      "payout_schedule",
+      "payout_statement_descriptor",
+      "debit_negative_balances",
+      "statement_descriptor",
+      "decline_charge_on",
+      "business_logo",
+      "business_logo_large",
+      "business_primary_color",
+      "display_name",
+      "timezone"
+    ],
+    "endpoints": [],
+    "symbols": [
+      "business_logo",
+      "business_logo_large",
+      "business_name",
+      "business_primary_color",
+      "business_url",
+      "debit_negative_balances",
+      "decline_charge_on",
+      "payout_schedule",
+      "payout_statement_descriptor",
+      "product_description",
+      "statement_descriptor",
+      "statement_descriptor_prefix_kana",
+      "statement_descriptor_prefix_kanji",
+      "support_email",
+      "support_phone",
+      "support_url",
+      "legal_entity",
+      "statement_descriptor_prefix",
+      "display_name",
+      "keys",
+      "statement_descriptor_kana",
+      "statement_descriptor_kanji",
+      "support_address",
+      "timezone",
+      "verification",
+      "due_by",
+      "fields_needed"
+    ],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-02-19"]
+  },
+  "migrationNotes": [
+    "This change significantly restructures the Account API resource, providing a more structured and detailed approach to account information and settings. You need to extensively update your code that interacts with the Account API."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Several account fields have been refactored to better describe legal entity, verification status and requirements, and configurable settings](https://docs.stripe.com/changelog/2019-02-19/several-fields-accounts-refactored.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-19/several-fields-accounts-refactored.md",
+      "quote": "Includes multiple changes:",
+      "contentHash": "491f8027c62aa43ce561a3732216bc1d2b0f6f622053fa99b751fab08a5f4662",
+      "checkedAt": "2026-10-24T14:37:38.358Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

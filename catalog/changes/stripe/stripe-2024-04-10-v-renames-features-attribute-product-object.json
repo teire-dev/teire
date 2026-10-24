@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-04-10-v-renames-features-attribute-product-object",
+  "provider": "stripe",
+  "title": "Renames the `features` attribute of the `Product` object",
+  "announcedOn": "2024-04-10",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Renames features to marketing_features in the Product object.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2024-04-10"]
+  },
+  "migrationNotes": [
+    "Renaming the features attribute of the Product object to marketing_features more precisely defines its purpose."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames the `features` attribute of the `Product` object](https://docs.stripe.com/changelog/2024-04-10/renames-features-attribute-product-object.md) | Invoicing, Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2024-04-10/renames-features-attribute-product-object.md",
+      "quote": "Renames `features` to `marketing_features` in the `Product` object.",
+      "contentHash": "51d20e1c0a182f64d2c307485ade57d5636e131803cb2103e7f91c2d39fe4523",
+      "checkedAt": "2026-10-24T14:37:34.404Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

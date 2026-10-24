@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-10-17-v-updates-subscription-renewal-properties",
+  "provider": "stripe",
+  "title": "Renames and updates subscription schedule renewal properties",
+  "announcedOn": "2019-10-17",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Includes multiple changes to subscription schedules:",
+  "signatures": {
+    "modelIds": [],
+    "params": ["renewal_behavior", "renewal_interval"],
+    "endpoints": [],
+    "symbols": ["renewal_behavior", "SubscriptionSchedule.renewal_behavior"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-10-17"]
+  },
+  "migrationNotes": [
+    "Lets you more intuitively control how a subscription schedule ends using the end_behavior property. The change handles backward compatibility by automatically mapping the old renewal_behavior value of none to the new cancel end behavior."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames and updates subscription schedule renewal properties](https://docs.stripe.com/changelog/2019-10-17/updates-subscription-renewal-properties.md) | Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-10-17/updates-subscription-renewal-properties.md",
+      "quote": "Includes multiple changes to subscription schedules:",
+      "contentHash": "da021e56584802ee73335ac89488da5170d877eebbbd938184aabeda0a9bdd6b",
+      "checkedAt": "2026-10-24T14:37:37.279Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

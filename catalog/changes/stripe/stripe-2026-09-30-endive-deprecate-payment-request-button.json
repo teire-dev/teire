@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-deprecate-payment-request-button",
+  "provider": "stripe",
+  "title": "Deprecates the payment request button",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Deprecates the payment request button element and removes support for it in Endive. Use the Express Checkout Element instead. Starting with Endive, elements.create('paymentRequestButton') throws an error. This also affects integrations that render the React PaymentRequestButtonElement component.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "Follow the migration guide to replace your payment request button integration with the Express Checkout Element before upgrading to Endive. Stripe.js versions through Dahlia continue to support the payment request button element."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Deprecates the payment request button](https://docs.stripe.com/changelog/endive/2026-09-30/deprecate-payment-request-button.md) | Elements | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/deprecate-payment-request-button.md",
+      "quote": "Starting with Endive, `elements.create('paymentRequestButton')` throws an error. This also affects integrations that render the React `PaymentRequestButtonElement` component.",
+      "contentHash": "36f1f5965620d842126b7f6b7ffd589a6aacf5df955077cf26c4e55be588f90d",
+      "checkedAt": "2026-10-24T14:37:29.358Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

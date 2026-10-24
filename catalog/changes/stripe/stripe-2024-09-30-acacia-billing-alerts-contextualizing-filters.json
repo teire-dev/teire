@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-09-30-acacia-billing-alerts-contextualizing-filters",
+  "provider": "stripe",
+  "title": "Adds contextual filters to billing alerts",
+  "announcedOn": "2024-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Moves the filter field inside of the alert type configuration as a list of filters. Also renames the alert type configuration fields to drop the _config suffix. Because this change moves the filter parameter into the alert configuration, you can no longer apply the filter at the top level of alerts.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["filter", "usage_threshold_config"],
+    "endpoints": [],
+    "symbols": ["filter", "usage_threshold_config"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2024-09-30.acacia"]
+  },
+  "migrationNotes": [
+    "With this change, you can create filters that are unique to each alert type. You can see the filters as part of the alert type configuration."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds contextual filters to billing alerts](https://docs.stripe.com/changelog/acacia/2024-09-30/billing-alerts-contextualizing-filters.md) | Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/acacia/2024-09-30/billing-alerts-contextualizing-filters.md",
+      "quote": "Because this change moves the `filter` parameter into the alert configuration, you can no longer apply the filter at the top level of alerts.",
+      "contentHash": "463f7f0586577ef65aef5110c390ca5fb42b26c60f6bf17ba6ce4fd80f132b9d",
+      "checkedAt": "2026-10-24T14:37:33.498Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

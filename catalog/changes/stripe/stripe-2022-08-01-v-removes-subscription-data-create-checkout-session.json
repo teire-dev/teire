@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-08-01-v-removes-subscription-data-create-checkout-session",
+  "provider": "stripe",
+  "title": "Removes the subscription data parameter from the Create Checkout Session endpoint",
+  "announcedOn": "2022-08-01",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Removes the subscription_data[coupon] parameter from the Create Checkout Session endpoint. Use the discounts parameter instead.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-08-01"]
+  },
+  "migrationNotes": [
+    "Lets you apply discounts to Checkout Sessions using the discounts parameter, instead of the previously available subscription_data[coupon] parameter. This provides a more generic way to handle discounts, rather than being limited to just coupons."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes the subscription data parameter from the Create Checkout Session endpoint](https://docs.stripe.com/changelog/2022-08-01/removes-subscription-data-create-checkout-session.md) | Checkout, Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-08-01/removes-subscription-data-create-checkout-session.md",
+      "quote": "Removes the `subscription_data[coupon]` parameter from the [Create Checkout Session](https://docs.stripe.com/api/checkout/sessions/create.md?api-version=2024-06-20) endpoint. Use the `discounts` parameter instead.",
+      "contentHash": "cb8ff00c6aa021ce6006d26a6296737aa04a88503e70f7480e59097e4412052c",
+      "checkedAt": "2026-10-24T14:37:35.579Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

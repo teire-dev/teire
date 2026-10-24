@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-financial-connections-session-defaults",
+  "provider": "stripe",
+  "title": "Updates Financial Connections Session defaults",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Standardizes Financial Connections Session defaults across account holder types. Previously, some Sessions used account holder-specific defaults when optional configuration parameters were omitted. For example, Sessions created for connected accounts could default to collecting one checking or savings account, requiring payment method support, enabling automatic manual entry, and using the connected account’s country.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration relies on the previous implicit behavior, specify the configuration you require when creating the Session. For example, explicitly set limits[accounts], filters[account_subcategories], filters[require_payment_method_support], filters[country], and manual_entry[mode] instead of relying on their defaults.",
+    "Set filters[require_payment_method_support] to all or at_least_one if your integration requires payment-eligible accounts and successful account and routing number retrieval. If you set manual_entry[mode] to automatic, you must also configure payment method support. Automatic manual entry isn’t supported when filters[require_payment_method_support] is none."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Updates Financial Connections Session defaults](https://docs.stripe.com/changelog/endive/2026-09-30/financial-connections-session-defaults.md) | Financialconnections | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/financial-connections-session-defaults.md",
+      "quote": "Previously, some Sessions used account holder-specific defaults when optional configuration parameters were omitted. For example, Sessions created for connected accounts could default to collecting one checking or savings account, requiring payment method support, enabling automatic manual entry, and using the connected account’s country.",
+      "contentHash": "23b9e6d155e8a4a5a09ec8ed9f251bf6a7813c4b0460994f7f445bffbed11c76",
+      "checkedAt": "2026-10-24T14:37:28.859Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

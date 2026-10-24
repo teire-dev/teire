@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-09-30-clover-add-discount-source-property",
+  "provider": "stripe",
+  "title": "Adds the Discount source property and removes the Discount coupon property",
+  "announcedOn": "2025-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "This change adds a new source property to the Discount object and removes the auto-expanded coupon property. The new source property is a hash that contains the following attributes: This is a breaking change because:",
+  "signatures": {
+    "modelIds": [],
+    "params": ["coupon"],
+    "endpoints": [],
+    "symbols": ["coupon"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2025-09-30.clover"]
+  },
+  "migrationNotes": [
+    "The coupon property no longer auto-expands on the Discount object. To retrieve details about a discount’s coupon, either retrieve it separately or expand it through the source property.",
+    "This change has no impact on how coupons are redeemed into discounts today, but enables expanded discounting functionality in the future."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds the Discount source property and removes the Discount coupon property](https://docs.stripe.com/changelog/clover/2025-09-30/add-discount-source-property.md) | Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/clover/2025-09-30/add-discount-source-property.md",
+      "quote": "This is a breaking change because:",
+      "contentHash": "dcc549f92a433e7e7e04337c74dff8b2ad3ee7fbefbeb9063093346b756ec4f4",
+      "checkedAt": "2026-10-24T14:37:31.007Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

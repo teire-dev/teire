@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-11-v-renames-several-statuses-payment-intents",
+  "provider": "stripe",
+  "title": "Renames several statuses for PaymentIntents",
+  "announcedOn": "2019-02-11",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames several PaymentIntent statuses:",
+  "signatures": {
+    "modelIds": [],
+    "params": ["requires_source", "requires_source_action"],
+    "endpoints": [],
+    "symbols": ["requires_source", "requires_source_action"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-02-11"]
+  },
+  "migrationNotes": [
+    "Update your code to check for these new status names when processing PaymentIntents. This might affect payment flow logic and error handling."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames several statuses for PaymentIntents](https://docs.stripe.com/changelog/2019-02-11/renames-several-statuses-payment-intents.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-11/renames-several-statuses-payment-intents.md",
+      "quote": "Renames several PaymentIntent statuses:",
+      "contentHash": "6dc0b8acac7171c3071c44b2bfab46710736904f06a87bc8c860b5d06b551fa4",
+      "checkedAt": "2026-10-24T14:37:38.772Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

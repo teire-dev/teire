@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-09-30-clover-risk-levels-issuing-authorizations",
+  "provider": "stripe",
+  "title": "Updates risk levels for Issuing Authorizations to use standard values",
+  "announcedOn": "2025-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "To be consistent with other Stripe APIs, we renamed the risk levels for Issuing Authorizations to the following standard values: This change renames existing enum values for risk levels and introduces new values to match other Stripe APIs. Referencing the previous enum values in your integration or failing to handle the new values might affect risk evaluation accuracy.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-09-30.clover"]
+  },
+  "migrationNotes": [
+    "You must support these new enum values, and remove use of the previous values.",
+    "The risk_assessment.merchant_dispute_risk.risk_level field adds low as a new value and replaces high with highest.",
+    "The risk_assessment.card_testing_risk.risk_level field adds low as a new value. Existing authorizations with this field set to high will now show as elevated risk level."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Updates risk levels for Issuing Authorizations to use standard values](https://docs.stripe.com/changelog/clover/2025-09-30/risk-levels-issuing-authorizations.md) | Issuing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/clover/2025-09-30/risk-levels-issuing-authorizations.md",
+      "quote": "This change renames existing enum values for risk levels and introduces new values to match other Stripe APIs. Referencing the previous enum values in your integration or failing to handle the new values might affect risk evaluation accuracy.",
+      "contentHash": "8ebd52edd46faa65d9b73bf5ed4822655afab5e658a901150837e513a4c97764",
+      "checkedAt": "2026-10-24T14:37:31.919Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

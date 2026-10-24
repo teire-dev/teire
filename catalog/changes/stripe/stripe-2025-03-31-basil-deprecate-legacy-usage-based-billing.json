@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-03-31-basil-deprecate-legacy-usage-based-billing",
+  "provider": "stripe",
+  "title": "Removes legacy usage-based billing",
+  "announcedOn": "2025-03-31",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "We’ve removed support for legacy usage-based billing. You can no longer create a price with a usage_type of metered without a specified meter. We’ve also removed the billing_thresholds from the subscription endpoints. - Removed billing_thresholds from Subscription endpoints. - Removed aggregate_usage from Price endpoints. - Using usage_type of metered without a specified meter now returns an error on Price creation. - Removed support for attaching prices of usage_type=metered without a set meter to Subscriptions, Subscription Schedules and Quotes.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["create", "list", "usage_record_summaries", "aggregate_usage", "billing_thresholds"],
+    "endpoints": [],
+    "symbols": ["create", "list", "aggregate_usage", "billing_thresholds"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2025-03-31.basil"]
+  },
+  "migrationNotes": [
+    "Follow our migration guide to update your integration to use meters.",
+    "### Using the legacy UsageRecords API via RawRequest",
+    "You can continue using the legacy UsageRecords API after upgrading your SDK by calling it via RawRequest with a pinned pre-Basil API version. See Upgrade your SDK without migrating from usage records."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes legacy usage-based billing](https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-legacy-usage-based-billing.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-legacy-usage-based-billing.md",
+      "quote": "- Removed `billing_thresholds` from [Subscription](https://docs.stripe.com/api/subscriptions/object.md?api-version=2025-03-31.basil) endpoints.\n- Removed `aggregate_usage` from [Price](https://docs.stripe.com/api/prices/object.md?api-version=2025-03-31.basil) endpoints.\n- Using `usage_type` of `metered` without a specified `meter` now returns an error on [Price](https://docs.stripe.com/api/prices/object.md?api-version=2025-03-31.basil) creation.\n- Removed support for attaching prices of `usage_type=metered` without a set `meter` to Subscriptions, Subscription Schedules and Quotes.",
+      "contentHash": "3e4d6835cd40077c9872f1ce6b554d80fe71b27c3914322226d379ba7abec0b8",
+      "checkedAt": "2026-10-24T14:37:32.549Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

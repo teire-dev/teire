@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-11-v-renames-next-source-action-next-action",
+  "provider": "stripe",
+  "title": "Renames the `next_source_action` field for Payment Intents to `next_action`",
+  "announcedOn": "2019-02-11",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames the next_source_action property on the PaymentIntent to next_action.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["next_source_action"],
+    "endpoints": [],
+    "symbols": ["next_source_action"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-02-11"]
+  },
+  "migrationNotes": [
+    "Update your code to reference next_action instead of next_source_action when handling additional actions required for payment processing. This modification provides more generalized terminology that could accommodate various types of required actions."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames the `next_source_action` field for Payment Intents to `next_action`](https://docs.stripe.com/changelog/2019-02-11/renames-next-source-action-next-action.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-11/renames-next-source-action-next-action.md",
+      "quote": "Renames the `next_source_action` property on the PaymentIntent to `next_action`.",
+      "contentHash": "70b68519ae8d40b0585a86c91ec24433d73114f08b3cdf093b35e80d4bec4611",
+      "checkedAt": "2026-10-24T14:37:38.970Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

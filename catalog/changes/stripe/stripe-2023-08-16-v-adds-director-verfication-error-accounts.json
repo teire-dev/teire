@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2023-08-16-v-adds-director-verfication-error-accounts",
+  "provider": "stripe",
+  "title": "Adds new director verification error codes to the Accounts API",
+  "announcedOn": "2023-08-16",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds verification_missing_directors, verification_directors_mismatch, verification_document_directors_mismatch, and verification_extraneous_directors as new error codes in the requirements.errors array in the Accounts API. To learn more, see Account requirements errors.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2023-08-16"]
+  },
+  "migrationNotes": [
+    "Adds four new error codes to the requirements.errors array in the Accounts API for director verification issues. These codes provide specific information about director-related verification problems."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds new director verification error codes to the Accounts API](https://docs.stripe.com/changelog/2023-08-16/adds-director-verfication-error-accounts.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2023-08-16/adds-director-verfication-error-accounts.md",
+      "quote": "Adds `verification_missing_directors`, `verification_directors_mismatch`, `verification_document_directors_mismatch`, and `verification_extraneous_directors` as new error codes in the `requirements.errors` array in the Accounts API. To learn more, see [Account requirements errors](https://docs.stripe.com/api/accounts/object.md?api-version=2024-06-20#account_object-requirements-errors).",
+      "contentHash": "4bd727e5aef6a1681a1c1ffe15aefb55a5af63761e6ba1a24494b6270221b586",
+      "checkedAt": "2026-10-24T14:37:34.829Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

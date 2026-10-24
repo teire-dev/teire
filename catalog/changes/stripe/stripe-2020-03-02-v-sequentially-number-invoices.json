@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2020-03-02-v-sequentially-number-invoices",
+  "provider": "stripe",
+  "title": "Invoices can now be numbered sequentially across your account",
+  "announcedOn": "2020-03-02",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "You can now optionally number invoices sequentially across your account instead of sequentially for each customer. To use this feature, enable account level numbering in the Stripe Dashboard. To ensure invoices are numbered sequentially and without gaps, invoices that can be deleted (drafts) are only assigned numbers when finalized.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2020-03-02"]
+  },
+  "migrationNotes": [
+    "Lets you configure your Stripe account to number invoices sequentially across the entire account, rather than sequentially for each individual customer. This provides more flexibility and control over invoice numbering, as you can now maintain a consistent, unified sequence of invoice numbers across your business."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Invoices can now be numbered sequentially across your account](https://docs.stripe.com/changelog/2020-03-02/sequentially-number-invoices.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2020-03-02/sequentially-number-invoices.md",
+      "quote": "You can now optionally number invoices [sequentially across your account](https://docs.stripe.com/invoicing/customize.md#account-numbering) instead of sequentially for each customer. To use this feature, enable [account level numbering](https://dashboard.stripe.com/settings/billing/invoice) in the Stripe Dashboard. To ensure invoices are numbered sequentially and without gaps, invoices that can be deleted (drafts) are only assigned numbers when finalized.",
+      "contentHash": "daee3594fd7cd22e995041719d06fd2e285367776ec7b99865f1450e6d239d51",
+      "checkedAt": "2026-10-24T14:37:36.869Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-03-25-dahlia-visa-card-reference-id-optional",
+  "provider": "stripe",
+  "title": "Updates the Issuing Token card reference ID for Visa to be optional",
+  "announcedOn": "2026-03-25",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Updates the network_data.visa.card_reference_id string property of the Issuing Token object to be optional. Previously, it couldn’t be null. Changes the data type of the Issuing Token object’s network_data.visa.card_reference_id property from string to nullable string. If your integration accesses this property and assumes that it always has a non-null value, you need to update your code to handle null values.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["card_reference_id"],
+    "endpoints": [],
+    "symbols": [
+      "Issuing.Token.NetworkDatum.Visa.card_reference_id",
+      "Issuing.Token.network_data.visa.card_reference_id"
+    ],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-03-25.dahlia"]
+  },
+  "migrationNotes": [
+    "The Issuing Token object now supports tokens from the Visa network that don’t have a reference ID by allowing the reference ID to be null. There is no change to the network_data.mastercard.card_reference_id property, which already supports null values."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Updates the Issuing Token card reference ID for Visa to be optional](https://docs.stripe.com/changelog/dahlia/2026-03-25/visa-card-reference-id-optional.md) | Issuing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/visa-card-reference-id-optional.md",
+      "quote": "Changes the data type of the Issuing Token object’s `network_data.visa.card_reference_id` property from string to nullable string. If your integration accesses this property and assumes that it always has a non-null value, you need to update your code to handle null values.",
+      "contentHash": "137f4ba001abe19c46c37bfbf79cb6bfc9dbb9eac556b1e444ee0e8b815e4893",
+      "checkedAt": "2026-10-24T14:37:30.699Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

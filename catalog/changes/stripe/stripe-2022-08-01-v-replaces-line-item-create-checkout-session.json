@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-08-01-v-replaces-line-item-create-checkout-session",
+  "provider": "stripe",
+  "title": "Replaces line item parameters from the Create Checkout Session endpoint",
+  "announcedOn": "2022-08-01",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Removes the following parameters from the Create Checkout Session endpoint:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-08-01"]
+  },
+  "migrationNotes": [
+    "Defines line items for Checkout Sessions using the price and price_data parameters, instead of the previously available individual line_items parameters. This simplifies the Checkout Session creation process by providing a more consolidated way to specify line item details."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Replaces line item parameters from the Create Checkout Session endpoint](https://docs.stripe.com/changelog/2022-08-01/replaces-line-item-create-checkout-session.md) | Checkout | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-08-01/replaces-line-item-create-checkout-session.md",
+      "quote": "Removes the following parameters from the [Create Checkout Session](https://docs.stripe.com/api/checkout/sessions/create.md?api-version=2024-06-20) endpoint:",
+      "contentHash": "0298db02c7902c8efc437f3788c1b78c9f4a6def38dc251807f918962ab8e980",
+      "checkedAt": "2026-10-24T14:37:35.559Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

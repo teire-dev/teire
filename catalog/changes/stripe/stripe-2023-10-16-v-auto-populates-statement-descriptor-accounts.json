@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2023-10-16-v-auto-populates-statement-descriptor-accounts",
+  "provider": "stripe",
+  "title": "Auto-populates the statement descriptor and prefix in the Accounts API",
+  "announcedOn": "2023-10-16",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "In priority order, automatically sets the statement descriptor (when unset), to the first of the following supplied parameters:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2023-10-16"]
+  },
+  "migrationNotes": [
+    "The statement descriptor is only set automatically when you provide one of these fields as a parameter, so existing accounts aren’t impacted unless a dependent field is updated. Similarly, settings.card_payments.statement_descriptor_prefix now defaults to a shortened version of the settings.payments.statement_descriptor. This takes place whenever the statement descriptor is updated (either explicitly or when defaulted)."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Auto-populates the statement descriptor and prefix in the Accounts API](https://docs.stripe.com/changelog/2023-10-16/auto-populates-statement-descriptor-accounts.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2023-10-16/auto-populates-statement-descriptor-accounts.md",
+      "quote": "In priority order, automatically sets the statement descriptor (when unset), to the first of the following supplied parameters:",
+      "contentHash": "bd0b7ca68b863ebb3a954cca490c1f5bf9fb6be3453a9ca73f7db94ed6a1adad",
+      "checkedAt": "2026-10-24T14:37:34.619Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

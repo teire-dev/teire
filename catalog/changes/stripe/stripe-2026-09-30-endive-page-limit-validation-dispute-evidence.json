@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-page-limit-validation-dispute-evidence",
+  "provider": "stripe",
+  "title": "Adds page limit validation for dispute evidence",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Stripe now validates the estimated compiled page count of evidence submitted when you update a Dispute. If the estimated page count of your text fields and file uploads exceeds the network page limit, the API returns a 400 error with the code dispute_evidence_page_limit_exceeded. This validation applies whether or not you set submit to true, so you can catch oversized evidence before final submission. Previously, you could update a Dispute with evidence of any length. Now, if the evidence exceeds the compiled page limit, the requset fails and returns a 400 invalid_request_error with the code dispute_evidence_page_limit_exceeded.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration submits Dispute evidence through the API, requests that exceed the page limit now return a 400 error instead of succeeding. Update your error handling to check for the dispute_evidence_page_limit_exceeded error code. To resolve the error, shorten text fields or reduce the number of pages in uploaded files to stay within the limit."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds page limit validation for dispute evidence](https://docs.stripe.com/changelog/endive/2026-09-30/page-limit-validation-dispute-evidence.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/page-limit-validation-dispute-evidence.md",
+      "quote": "Previously, you could [update a Dispute](https://docs.stripe.com/api/disputes/update.md?api-version=2026-09-30.endive) with evidence of any length. Now, if the evidence exceeds the compiled page limit, the requset fails and returns a `400` `invalid_request_error` with the code `dispute_evidence_page_limit_exceeded`.",
+      "contentHash": "4a33b56a6f7d18327235af94f3e4c564a79a6c1897c061551c07841919026634",
+      "checkedAt": "2026-10-24T14:37:29.748Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

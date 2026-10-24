@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-03-14-v-renames-application-fee-invoices-application-fee-amount",
+  "provider": "stripe",
+  "title": "Renames `application_fee` on invoices to `application_fee_amount`",
+  "announcedOn": "2019-03-14",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames both the application_fee parameter on Invoice API methods and the application_fee field on the Invoice object to application_fee_amount.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["application_fee"],
+    "endpoints": [],
+    "symbols": ["application_fee"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-03-14"]
+  },
+  "migrationNotes": [
+    "This change renames the application_fee parameter and field to application_fee_amount in the invoice API methods and Invoice object. You need to update your code to use the new application_fee_amount name when setting or retrieving application fee information for invoices. This modification provides more clarity about the nature of the value (an amount rather than a fee object), but requires updates to existing code that handles application fees."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames `application_fee` on invoices to `application_fee_amount`](https://docs.stripe.com/changelog/2019-03-14/renames-application-fee-invoices-application-fee-amount.md) | Connect, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-03-14/renames-application-fee-invoices-application-fee-amount.md",
+      "quote": "Renames both the `application_fee` parameter on Invoice API methods and the `application_fee` field on the `Invoice` object to `application_fee_amount`.",
+      "contentHash": "e4aff52e0f9d4fd868d9c59e49fb8401024e1a988ba0c1657cf6949ab55281ee",
+      "checkedAt": "2026-10-24T14:37:37.969Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

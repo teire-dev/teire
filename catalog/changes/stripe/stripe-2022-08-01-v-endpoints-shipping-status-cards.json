@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-08-01-v-endpoints-shipping-status-cards",
+  "provider": "stripe",
+  "title": "New endpoints for managing a physical card’s shipping status in test mode",
+  "announcedOn": "2022-08-01",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "When creating a physical card in testmode, its shipping status no longer automatically changes from pending to delivered. This functionality is now accessible through the following new endpoints:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-08-01"]
+  },
+  "migrationNotes": [
+    "You now have more control over simulating different shipping scenarios using new dedicated endpoints. This change allows for more comprehensive testing of shipping-related workflows in card issuance processes"
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [New endpoints for managing a physical card’s shipping status in test mode](https://docs.stripe.com/changelog/2022-08-01/endpoints-shipping-status-cards.md) | Issuing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-08-01/endpoints-shipping-status-cards.md",
+      "quote": "When creating a physical card in testmode, its shipping [status](https://docs.stripe.com/api/issuing/cards/object.md?api-version=2024-06-20#issuing_card_object-shipping-status) no longer automatically changes from `pending` to `delivered`. This functionality is now accessible through the following new endpoints:",
+      "contentHash": "b97fa3c3500964f0a9635e546c9fb828125fad9855134288598bf1dde160baf5",
+      "checkedAt": "2026-10-24T14:37:35.949Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "google-gemini-2026-11-17-gemini-3-1-flash-tts-preview",
+  "provider": "google-gemini",
+  "kind": "model-retirement",
+  "title": "gemini-3.1-flash-tts-preview shutdown",
+  "summary": "Gemini 3 models. Shutdown date: 2026-11-17. Replacement: gemini-3.8-flash-tts or gemini-3.8-flash-lite-tts.",
+  "announcedOn": null,
+  "effectiveOn": "2026-11-17",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["gemini-3.1-flash-tts-preview"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "gemini-3.8-flash-tts or gemini-3.8-flash-lite-tts",
+    "modelIds": ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt",
+      "quote": "| `gemini-3.1-flash-tts-preview` | February 26, 2026 | November 17, 2026 | `gemini-3.8-flash-tts` or `gemini-3.8-flash-lite-tts` |",
+      "contentHash": "3342ebac18090931abc3a2f58e42a07f2f1f4c7f411dc6587c4faf64831c4601",
+      "checkedAt": "2026-10-24T14:37:24.882Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2020-08-27-v-removes-tax-percent-attribute",
+  "provider": "stripe",
+  "title": "Removes the `tax_percent` attribute",
+  "announcedOn": "2020-08-27",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Removes tax_percent from objects and requests in favor of tax rates.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["tax_percent"],
+    "endpoints": [],
+    "symbols": ["tax_percent"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2020-08-27"]
+  },
+  "migrationNotes": [
+    "Lets you manage taxation more flexibly by using the dedicated Tax Rates API instead of the previously available tax_percent property."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes the `tax_percent` attribute](https://docs.stripe.com/changelog/2020-08-27/removes-tax-percent-attribute.md) | Checkout, Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2020-08-27/removes-tax-percent-attribute.md",
+      "quote": "Removes `tax_percent` from objects and requests in favor of [tax rates](https://docs.stripe.com/api/tax_rates.md?api-version=2024-06-20).",
+      "contentHash": "7db6e3f50d49af069fc44691287d61e319da7b5ee60a2b3a19c69728630196c5",
+      "checkedAt": "2026-10-24T14:37:36.099Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

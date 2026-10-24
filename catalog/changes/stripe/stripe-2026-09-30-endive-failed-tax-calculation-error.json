@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-failed-tax-calculation-error",
+  "provider": "stripe",
+  "title": "Adds Failed Tax Calculation error",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Introduces a new error code and message that’s returned when automatic tax fails to calculate.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration handles specific error codes from APIs with automatic tax, you must update your error handling logic to also handle the failed_tax_calculation error code, which indicates that the tax calculation couldn’t be completed."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds Failed Tax Calculation error](https://docs.stripe.com/changelog/endive/2026-09-30/failed-tax-calculation-error.md) | Tax, Billing, Invoicing, Checkout | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/failed-tax-calculation-error.md",
+      "quote": "Introduces a new error code and message that’s returned when automatic tax fails to calculate.",
+      "contentHash": "fc042997bd9847aedbee7a829da7f10ff22c53b27f6716cd74937502a2f56e7f",
+      "checkedAt": "2026-10-24T14:37:29.639Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

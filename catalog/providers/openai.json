@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "slug": "openai",
+  "name": "OpenAI",
+  "homepage": "https://developers.openai.com/api/docs",
+  "logo": {
+    "light": "/logos/openai-light.svg",
+    "dark": "/logos/openai-dark.svg"
+  },
+  "officialDomains": ["developers.openai.com", "platform.openai.com", "openai.com"],
+  "sources": [
+    {
+      "kind": "deprecations",
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "adapter": "openai-deprecations"
+    }
+  ],
+  "sdks": [
+    {
+      "ecosystem": "npm",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@ai-sdk/openai"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@langchain/openai"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "langchain-openai"
+    }
+  ],
+  "detection": {
+    "imports": ["openai", "@ai-sdk/openai", "@langchain/openai", "langchain_openai"],
+    "envVars": ["OPENAI_API_KEY"],
+    "baseUrls": ["api.openai.com"]
+  }
+}

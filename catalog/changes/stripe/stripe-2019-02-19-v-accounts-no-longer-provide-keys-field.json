@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-19-v-accounts-no-longer-provide-keys-field",
+  "provider": "stripe",
+  "title": "Accounts no longer provide a `keys` field. Platforms should use their own API key to authenticate as their connected accounts",
+  "announcedOn": "2019-02-19",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Renames the keys property for account creation. Platforms should now authenticate as their connected accounts with their own key through the Stripe-Account header.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-02-19"]
+  },
+  "migrationNotes": [
+    "This change removes the keys property from account creation and introduces a new authentication method for platforms to act on behalf of connected accounts. You must now use your own key with the Stripe-Account header to authenticate as connected accounts."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Accounts no longer provide a `keys` field. Platforms should use their own API key to authenticate as their connected accounts](https://docs.stripe.com/changelog/2019-02-19/accounts-no-longer-provide-keys-field.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-19/accounts-no-longer-provide-keys-field.md",
+      "quote": "Renames the `keys` property for account creation. Platforms should now authenticate as their connected accounts with their own key through the [Stripe-Account header](https://docs.stripe.com/connect/authentication.md#stripe-account-header).",
+      "contentHash": "ed7dd1e9a8c2268f89d6608803efe2f72934911251e8fe9f77b26af206e000e4",
+      "checkedAt": "2026-10-24T14:37:38.630Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

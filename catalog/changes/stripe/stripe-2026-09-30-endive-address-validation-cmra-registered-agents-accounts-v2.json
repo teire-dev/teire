@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-address-validation-cmra-registered-agents-accounts-v2",
+  "provider": "stripe",
+  "title": "Adds address validation errors for CMRAs and registered agents to Accounts v1 and Accounts v2",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds two values to the [requirements.errors[].code](https://docs.stripe.com/api/accounts/object.md?api-version=2026-09-30.endive#account_object-requirements-errors-code) and [future_requirements.errors[].code](https://docs.stripe.com/api/accounts/object.md?api-version=2026-09-30.endive#account_object-future_requirements-errors-code) enum properties on v1 objects, and to the [requirements.entries[].errors[].code](https://docs.stripe.com/api/v2/core/accounts/object.md?api-version=2026-09-30.endive#v2_account_object-requirements-entries-errors-code) and [future_requirements.entries[].errors[].code](https://docs.stripe.com/api/v2/core/accounts/object.md?api-version=2026-09-30.endive#v2_account_object-future_requirements-entries-errors-code) enum properties on v2 Accounts: Integrations that read requirement error codes from Accounts v1 or Accounts v2 can now receive invalid_address_cmra_address and invalid_address_registered_agent_address. If your code uses strict enum matching or doesn’t handle unknown error codes, it can fail when it encounters these values.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration reads requirement errors from a v1 Account, a v1 Bank Account, a v1 Capability, a v1 Person, or a v2 Account, update its error-handling logic to support invalid_address_cmra_address and invalid_address_registered_agent_address. Review address validation for commercial compliance for integration guidance."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds address validation errors for CMRAs and registered agents to Accounts v1 and Accounts v2](https://docs.stripe.com/changelog/endive/2026-09-30/address-validation-cmra-registered-agents-accounts-v2.md) | Issuing, Treasury | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/address-validation-cmra-registered-agents-accounts-v2.md",
+      "quote": "Integrations that read requirement error codes from Accounts v1 or Accounts v2 can now receive `invalid_address_cmra_address` and `invalid_address_registered_agent_address`. If your code uses strict enum matching or doesn’t handle unknown error codes, it can fail when it encounters these values.",
+      "contentHash": "5fffc6bec8b708340330f814b44c6837682ab7854850ef966ce8e1e936e0e9fc",
+      "checkedAt": "2026-10-24T14:37:27.923Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

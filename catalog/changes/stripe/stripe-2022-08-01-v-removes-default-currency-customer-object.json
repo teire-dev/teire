@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-08-01-v-removes-default-currency-customer-object",
+  "provider": "stripe",
+  "title": "Removes the `default_currency` attribute from the `Customer` object",
+  "announcedOn": "2022-08-01",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Removes the default_currency field on the Customer API resource.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-08-01"]
+  },
+  "migrationNotes": ["This change simplifies the Customer object and streamlines currency handling."],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes the `default_currency` attribute from the `Customer` object](https://docs.stripe.com/changelog/2022-08-01/removes-default-currency-customer-object.md) | All products | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-08-01/removes-default-currency-customer-object.md",
+      "quote": "Removes the `default_currency` field on the Customer API resource.",
+      "contentHash": "a75adf26f578df307938e61cab22eceb562ec60f1a911ea3667bdc28977c24f8",
+      "checkedAt": "2026-10-24T14:37:35.997Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

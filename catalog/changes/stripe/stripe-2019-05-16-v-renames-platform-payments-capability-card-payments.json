@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-05-16-v-renames-platform-payments-capability-card-payments",
+  "provider": "stripe",
+  "title": "Bank pull payments no longer expose internal system refunds on failure",
+  "announcedOn": "2019-05-16",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Bank pull payments no longer expose internal system refunds on failure. You can still access system refunds through the List refunds endpoint.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-05-16"]
+  },
+  "migrationNotes": [
+    "This change removes the visibility of internal system refunds for failed bank pull payments from the main payment interface. You no longer see these automatic refunds directly in the payment data, but can still access them through the List refunds endpoint."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Bank pull payments no longer expose internal system refunds on failure](https://docs.stripe.com/changelog/2019-05-16/renames-platform-payments-capability-card-payments.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-05-16/renames-platform-payments-capability-card-payments.md",
+      "quote": "Bank pull payments no longer expose internal system refunds on failure. You can still access system refunds through the [List refunds](https://docs.stripe.com/api/refunds/list.md?api-version=2024-06-20#list_refunds-charge) endpoint.",
+      "contentHash": "3f455088652d0e8c2dff65d6647ca93b9f3019e8328683eae05967fc9d204288",
+      "checkedAt": "2026-10-24T14:37:37.949Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

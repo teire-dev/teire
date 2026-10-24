@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-11-05-v-adds-requested-capabilities-requirement-custom-account",
+  "provider": "stripe",
+  "title": "Adds requirement for `requested_capabilities` on custom account creation",
+  "announcedOn": "2019-11-05",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "In the Accounts API, the requested_capabilities property is now required at creation time for custom accounts in all countries. To learn more, see Account capabilities.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-11-05"]
+  },
+  "migrationNotes": [
+    "Forces you to explicitly specify the capabilities you require for a custom account during the account creation process. This ensures that the necessary capabilities are properly requested and configured from the start."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds requirement for `requested_capabilities` on custom account creation](https://docs.stripe.com/changelog/2019-11-05/adds-requested-capabilities-requirement-custom-account.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-11-05/adds-requested-capabilities-requirement-custom-account.md",
+      "quote": "In the Accounts API, the `requested_capabilities` property is now required at creation time for custom accounts in all countries. To learn more, see [Account capabilities](https://docs.stripe.com/connect/account-capabilities.md).",
+      "contentHash": "525404722650266f48457f5f5b50d10771795e148598df31852b0c931bc83d7c",
+      "checkedAt": "2026-10-24T14:37:37.196Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

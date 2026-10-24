@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "openai-2026-12-11-o3",
+  "provider": "openai",
+  "kind": "model-retirement",
+  "title": "o3 shutdown",
+  "summary": "GPT-5 and o3 model deprecations. Shutdown date: 2026-12-11. Replacement: gpt-5.6-sol.",
+  "announcedOn": "2026-06-11",
+  "effectiveOn": "2026-12-11",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["o3", "o3-2025-04-16"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "gpt-5.6-sol",
+    "modelIds": ["gpt-5.6-sol"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "quote": "| Dec 11, 2026  | `o3` \\| `o3-2025-04-16`                 | `gpt-5.6-sol`                         |",
+      "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
+      "checkedAt": "2026-10-24T14:37:23.481Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

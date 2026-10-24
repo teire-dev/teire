@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2020-08-27-v-updates-3d-scure-charge-object",
+  "provider": "stripe",
+  "title": "Updates to 3D Secure details in `Charge` object",
+  "announcedOn": "2020-08-27",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Updates the payment_method_details.card.three_d_secure fields on the Charge object, and removes the succeeded and authenticated booleans. Use the result enum instead.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["authenticated", "succeeded"],
+    "endpoints": [],
+    "symbols": ["authenticated", "succeeded"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2020-08-27"]
+  },
+  "migrationNotes": [
+    "Lets you more accurately determine the 3D Secure status of a payment by using the new result enum in the payment_method_details.card.three_d_secure fields of the Charge object. The previous succeeded and authenticated booleans have been removed, providing a more granular and comprehensive way to understand the 3D Secure authentication process for a given payment."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Updates to 3D Secure details in `Charge` object](https://docs.stripe.com/changelog/2020-08-27/updates-3d-scure-charge-object.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2020-08-27/updates-3d-scure-charge-object.md",
+      "quote": "Updates the `payment_method_details.card.three_d_secure` fields on the `Charge` object, and removes the `succeeded` and `authenticated` booleans. Use the `result` enum instead.",
+      "contentHash": "e464806e35694b71314f7429bb84dfec12bbf61afa53971d22f14bb210dcefc1",
+      "checkedAt": "2026-10-24T14:37:36.489Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

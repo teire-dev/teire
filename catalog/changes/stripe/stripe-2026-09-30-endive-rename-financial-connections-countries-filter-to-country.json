@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-rename-financial-connections-countries-filter-to-country",
+  "provider": "stripe",
+  "title": "Renames the countries filter to country on Financial Connections Sessions",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames the filters.countries parameter to filters.country and changes its type from an array of strings to a single string when you create a Financial Connections Session. Previously, filters.countries accepted an array but used only the first element. The parameter now accepts a single country code, making this behavior explicit. The filters.countries parameter no longer exists. If your code passes an array of country codes to filters.countries, you must replace it with filters.country and provide a single country code string. Passing the old parameter name or an array value results in an error.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["countries"],
+    "endpoints": [],
+    "symbols": ["countries"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration passes filters.countries as an array when creating a Financial Connections Session, update it to use filters.country with a single string value."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames the countries filter to country on Financial Connections Sessions](https://docs.stripe.com/changelog/endive/2026-09-30/rename-financial-connections-countries-filter-to-country.md) | Financialconnections | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/rename-financial-connections-countries-filter-to-country.md",
+      "quote": "The `filters.countries` parameter no longer exists. If your code passes an array of country codes to `filters.countries`, you must replace it with `filters.country` and provide a single country code string. Passing the old parameter name or an array value results in an error.",
+      "contentHash": "eec5012cf798fec53fca6863d540307bc49383ad78d4359a281a23ee7bf041ae",
+      "checkedAt": "2026-10-24T14:37:28.819Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

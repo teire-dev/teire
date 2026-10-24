@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-09-30-clover-postal-code-in-card-form-for-non-us-countries",
+  "provider": "stripe",
+  "title": "Removes postal code for card payments in certain regions on Checkout and Payment Element",
+  "announcedOn": "2025-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "A postal code is no longer collected for all card payments on Checkout and Payment Element in the following regions: Previously, the postal code was always collected for card payments in the following scenarios:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-09-30.clover"]
+  },
+  "migrationNotes": [
+    "If you currently rely on the postal code for customers in the affected regions and don’t have automatic_tax enabled, make the changes necessary to collect this field manually:",
+    "For Checkout Sessions, you can set billing_address_collection to required. However, this will collect the full billing address and affect other payment methods and regions.",
+    "For Payment Element, you need to add your own custom fields for country and postal code, as well as set billingDetails.address to never."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes postal code for card payments in certain regions on Checkout and Payment Element](https://docs.stripe.com/changelog/clover/2025-09-30/postal_code_in_card_form_for_non_us_countries.md) | Checkout, Elements | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/clover/2025-09-30/postal_code_in_card_form_for_non_us_countries.md",
+      "quote": "Previously, the postal code was always collected for card payments in the following scenarios:",
+      "contentHash": "4880313a597ceef249a4ff69c4ae2ae6ce4fc085fe836df5b7d0a0e2647532d6",
+      "checkedAt": "2026-10-24T14:37:31.189Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

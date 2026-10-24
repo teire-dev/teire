@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2020-08-27-v-deprecates-auto-expansion-customer-sources",
+  "provider": "stripe",
+  "title": "Customer sources are no longer auto-expanded by default",
+  "announcedOn": "2020-08-27",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "The sources property on Customers is no longer included by default.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["sources"],
+    "endpoints": [],
+    "symbols": ["Customer.sources"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2020-08-27"]
+  },
+  "migrationNotes": [
+    "Lets you optimize performance by not automatically including the sources property on the Customer object. You can still expand the list of sources, but Stripe recommends it for performance reasons."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Customer sources are no longer auto-expanded by default](https://docs.stripe.com/changelog/2020-08-27/deprecates-auto-expansion-customer-sources.md) | Payments, Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2020-08-27/deprecates-auto-expansion-customer-sources.md",
+      "quote": "The `sources` property on `Customers` is no longer included by default.",
+      "contentHash": "8d526fb623efa12fb5271c06dbd31378d125311695a94454d3d5440e9bb7bd74",
+      "checkedAt": "2026-10-24T14:37:36.718Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

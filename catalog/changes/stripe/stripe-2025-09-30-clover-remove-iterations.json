@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-09-30-clover-remove-iterations",
+  "provider": "stripe",
+  "title": "Removes iterations parameter for subscription schedules",
+  "announcedOn": "2025-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "We’ve removed the iterations parameter because duration replaces its functionality. We no longer support the iterations parameter for Subscription Schedules.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["iterations"],
+    "endpoints": [],
+    "symbols": ["iterations"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2025-09-30.clover"]
+  },
+  "migrationNotes": [
+    "You must update your integration to use duration to specify the length of a subscription schedule phase in the following API endpoints:",
+    "Subscription Schedules Create",
+    "Subscription Schedules Update",
+    "Create an invoice preview",
+    "Using iterations in these endpoints now returns an error.",
+    "### Before",
+    "curl",
+    "curl https://api.stripe.com/v1/subscription_schedules \\",
+    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+    "-H \"Stripe-Version: 2025-08-27.basil\" \\",
+    "-d customer={{CUSTOMER_ID}} \\",
+    "-d start_date=now \\",
+    "-d \"phases[0][items][0][price]={{PRICE_PREMIUM}\" \\",
+    "-d \"phases[0][items][0][quantity]=1\" \\",
+    "-d \"phases[0][iterations]=3\" \\",
+    "-d end_behavior=release",
+    "",
+    "### After",
+    "curl",
+    "curl https://api.stripe.com/v1/subscription_schedules \\",
+    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+    "-d customer={{CUSTOMER_ID}} \\",
+    "-d start_date=now \\",
+    "-d \"phases[0][items][0][price]={{PRICE_PREMIUM}\" \\",
+    "-d \"phases[0][items][0][quantity]=1\" \\",
+    "-d \"phases[0][duration][interval]=month\" \\",
+    "-d \"phases[0][duration][interval_count]=3\" \\",
+    "-d end_behavior=release",
+    ""
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes iterations parameter for subscription schedules](https://docs.stripe.com/changelog/clover/2025-09-30/remove-iterations.md) | Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/clover/2025-09-30/remove-iterations.md",
+      "quote": "We no longer support the [iterations](https://docs.stripe.com/api/subscription_schedules/create.md?api-version=2025-09-30.clover#create_subscription_schedule-phases-iterations) parameter for [Subscription Schedules](https://docs.stripe.com/api/subscription_schedules/create.md?api-version=2025-09-30).",
+      "contentHash": "ea5c3202718dee6caa8ec52defad84aedaab3475c27b19d876a56bee58d4cb0d",
+      "checkedAt": "2026-10-24T14:37:30.878Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

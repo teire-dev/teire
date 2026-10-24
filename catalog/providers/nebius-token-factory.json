@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "slug": "nebius-token-factory",
+  "name": "Nebius Token Factory",
+  "homepage": "https://docs.tokenfactory.nebius.com",
+  "logo": {
+    "light": "/logos/nebius-light.svg",
+    "dark": "/logos/nebius-dark.svg"
+  },
+  "officialDomains": ["docs.tokenfactory.nebius.com", "tokenfactory.nebius.com"],
+  "sources": [
+    {
+      "kind": "notices-index",
+      "url": "https://docs.tokenfactory.nebius.com/llms.txt",
+      "adapter": "tokenfactory-notices"
+    }
+  ],
+  "sdks": [
+    {
+      "ecosystem": "npm",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "openai"
+    }
+  ],
+  "detection": {
+    "imports": [],
+    "envVars": ["NEBIUS_API_KEY"],
+    "baseUrls": ["api.tokenfactory.nebius.com", "api.tokenfactory.us-central1.nebius.com"]
+  }
+}

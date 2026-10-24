@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-03-25-dahlia-capabilities-api-risk-requirements",
+  "provider": "stripe",
+  "title": "Adds risk requirements to the Capabilities API",
+  "announcedOn": "2026-03-25",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds risk requirements to the requirements hash of the Capability object. The Capability object’s requirements hash can now contain risk-related requirements. If your integration assumes that it doesn’t include them, you might need to update your code.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-03-25.dahlia"]
+  },
+  "migrationNotes": [
+    "When using the Accounts v1 API, you can now programmatically identify capabilities that are or can be affected by risk requirements by using the Capabilities API.",
+    "If you use the Accounts v2 API, you don’t need to use the Capabilities API. In Accounts v2, each entry in the requirements and future_requirements hashes includes an impact.restricts_capabilities array listing the capabilities affected by that requirement."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds risk requirements to the Capabilities API](https://docs.stripe.com/changelog/dahlia/2026-03-25/capabilities-api-risk-requirements.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/capabilities-api-risk-requirements.md",
+      "quote": "The Capability object’s `requirements` hash can now contain risk-related requirements. If your integration assumes that it doesn’t include them, you might need to update your code.",
+      "contentHash": "4f2722ac24208a902e96b4588705cefac108173273a80b8e2c397e614fb575ec",
+      "checkedAt": "2026-10-24T14:37:30.289Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

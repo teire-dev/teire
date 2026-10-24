@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2023-10-16-v-adds-account-requirement-error-accounts",
+  "provider": "stripe",
+  "title": "Adds new account requirement error codes to the Accounts API",
+  "announcedOn": "2023-10-16",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds the following error codes to the requirements.errors array in the Accounts API. To learn more, see Account requirements errors.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2023-10-16"]
+  },
+  "migrationNotes": [
+    "Lets you get detailed error messages for issues with addresses, business profiles, company names, dates of birth, product descriptions, statement descriptors, tax IDs, and URLs."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Adds new account requirement error codes to the Accounts API](https://docs.stripe.com/changelog/2023-10-16/adds-account-requirement-error-accounts.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2023-10-16/adds-account-requirement-error-accounts.md",
+      "quote": "Adds the following error codes to the `requirements.errors` array in the Accounts API. To learn more, see [Account requirements errors](https://docs.stripe.com/api/accounts/object.md?api-version=2024-06-20#account_object-requirements-errors).",
+      "contentHash": "a213f987051492cadda6895bf42b9161073a412c9d1288f53b0ab95630b065ca",
+      "checkedAt": "2026-10-24T14:37:34.409Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

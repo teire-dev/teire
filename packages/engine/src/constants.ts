@@ -83,3 +83,18 @@ export const GITHUB = {
   contentWritesPerMinute: 80,
   webhookRedeliveryWindowMs: 3 * 24 * 60 * 60 * 1000,
 } as const;
+
+export const CATALOG = {
+  userAgent: "TeireBot/0.1 (+https://teire.vercel.app; catalog ingestion)",
+  fetchTimeoutMs: 20_000,
+  /** How often each provider source is checked. */
+  checkEveryMs: 3 * 60 * 60 * 1000,
+  /** A source that has not been read successfully for this long is shown as stale. */
+  staleAfterMs: 24 * 60 * 60 * 1000,
+  /** Verdicts depending on a stale source become "inconclusive" after this long (capability card C2). */
+  inconclusiveAfterMs: 14 * 24 * 60 * 60 * 1000,
+  /** Linked pages (Stripe change details, Token Factory notices) fetched at once per provider. */
+  linkedFetchConcurrency: 6,
+  /** Oldest Stripe API version whose breaking changes are catalogued. */
+  stripeSince: "2019-01-01",
+} as const;

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-03-25-dahlia-rename-init-checkout-to-init-checkout-elements",
+  "provider": "stripe",
+  "title": "Renames Checkout initialization method",
+  "announcedOn": "2026-03-25",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Renames the stripe.initCheckout() method for Stripe.js to stripe.initCheckoutElementsSdk(). It accepts the same options and returns the same Checkout object as initCheckout(). stripe.initCheckout() has been renamed, so calling it throws an IntegrationError. If your integration uses Elements with the Checkout Sessions API and calls initCheckout(), you need to update your code to instead call initCheckoutElementsSdk().",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-03-25.dahlia"]
+  },
+  "migrationNotes": [
+    "The rename from initCheckout to initCheckoutElementsSdk clarifies the method’s purpose as the entry point for Elements with Checkout Sessions integrations, where you compose individual Elements (Payment Element, Address Element, and so on) on your checkout page.",
+    "The new initCheckoutFormSdk() method provides a dedicated entry point for Checkout form integrations, corresponding to ui_mode: \"form\"."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames Checkout initialization method](https://docs.stripe.com/changelog/dahlia/2026-03-25/rename-init-checkout-to-init-checkout-elements.md) | Checkout, Elements | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/rename-init-checkout-to-init-checkout-elements.md",
+      "quote": "`stripe.initCheckout()` has been renamed, so calling it throws an `IntegrationError`. If your integration uses [Elements with the Checkout Sessions API](https://docs.stripe.com/payments/quickstart.md) and calls `initCheckout()`, you need to update your code to instead call `initCheckoutElementsSdk()`.",
+      "contentHash": "c673529c1d24620caab9fb6c66a08e7df6612c89dcfe44d61643ec66253a10a0",
+      "checkedAt": "2026-10-24T14:37:30.627Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

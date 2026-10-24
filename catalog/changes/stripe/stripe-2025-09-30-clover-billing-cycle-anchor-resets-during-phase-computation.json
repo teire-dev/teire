@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-09-30-clover-billing-cycle-anchor-resets-during-phase-computation",
+  "provider": "stripe",
+  "title": "Updates computation of subscription schedule phase end date to consider billing cycle anchor changes",
+  "announcedOn": "2025-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Adds consideration of any billing_cycle_anchor changes to the end_date calculation when you create a subscription schedule without explicitly setting a phase’s end_date. That aligns the end_date more closely with the subscription’s billing cycle. Previously, the calculation only used the interval, interval_count, and the previous phase’s end_date. If your integration depends on the automatically calculated value of a phase end_date, a calculated end_date might differ from the values you expect based on the previous formula.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-09-30.clover"]
+  },
+  "migrationNotes": [
+    "A subscription schedule’s computed phase end_date now aligns more closely with the billing cycle. This change applies only to new subscription schedules, and doesn’t affect existing schedules."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Updates computation of subscription schedule phase end date to consider billing cycle anchor changes](https://docs.stripe.com/changelog/clover/2025-09-30/billing-cycle-anchor-resets-during-phase-computation.md) | Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/clover/2025-09-30/billing-cycle-anchor-resets-during-phase-computation.md",
+      "quote": "If your integration depends on the automatically calculated value of a phase `end_date`, a calculated `end_date` might differ from the values you expect based on the previous formula.",
+      "contentHash": "da4c4dacf157846cc62fb4c14d5d589b4697b894c8b18d9336bedc3bc319d5e2",
+      "checkedAt": "2026-10-24T14:37:31.080Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "anthropic-2025-07-21-claude-2-0",
+  "provider": "anthropic",
+  "kind": "model-retirement",
+  "title": "claude-2.0 shutdown",
+  "summary": "Claude 2, Claude 2.1, and Claude Sonnet 3 models. Shutdown date: 2025-07-21. Replacement: claude-opus-4-8.",
+  "announcedOn": "2025-01-21",
+  "effectiveOn": "2025-07-21",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["claude-2.0"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "claude-opus-4-8",
+    "modelIds": ["claude-opus-4-8"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "quote": "| July 21, 2025   | `claude-2.0`               | `claude-opus-4-8`       |",
+      "contentHash": "d2fd9f71fed176557d5ed32e2bd212e72dce5dab836bf62b5a2b40dba2fda0d4",
+      "checkedAt": "2026-10-24T14:37:24.092Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

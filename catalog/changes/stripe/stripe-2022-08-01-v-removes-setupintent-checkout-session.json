@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-08-01-v-removes-setupintent-checkout-session",
+  "provider": "stripe",
+  "title": "Removes the `setup_intent` property from Checkout Sessions in subscription mode",
+  "announcedOn": "2022-08-01",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Checkout Sessions no longer return the setup_intent property in subscription mode.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-08-01"]
+  },
+  "migrationNotes": [
+    "This change simplifies the Checkout Session response in subscription mode by removing the setup_intent property. It allows you to focus on the core subscription-related information without needing to handle the now-unnecessary SetupIntent details."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes the `setup_intent` property from Checkout Sessions in subscription mode](https://docs.stripe.com/changelog/2022-08-01/removes-setupintent-checkout-session.md) | Checkout | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-08-01/removes-setupintent-checkout-session.md",
+      "quote": "Checkout Sessions no longer return the `setup_intent` property in subscription mode.",
+      "contentHash": "d2d301a0e7ad70d1507d4f948005dd7f216624652516f30051366fe9550c2913",
+      "checkedAt": "2026-10-24T14:37:35.428Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

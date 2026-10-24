@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-09-30-clover-custom-checkout-saved-payment-method-defaults",
+  "provider": "stripe",
+  "title": "Updates default behavior for saved payment methods in Elements with Checkout Sessions",
+  "announcedOn": "2025-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Updates Elements with Checkout Sessions to automatically enable saved payment method collection and redisplay the saved payment methods in the Payment Element by default. This change means you don’t need to explicitly configure these options in your client-side integration when a customer ID is passed to the Checkout Session (for redisplay) or when saved_payment_method_options.payment_method_save is enabled (for collection). Previously, to enable saved payment methods with Elements and Checkout Sessions, you had to configure saved payment methods both on the Checkout Session and explicitly in your client-side initCheckout() call. Now, when you enable saved payment methods on the Checkout Session, the Payment Element automatically enables collection and redisplay without requiring additional client-side configuration. This changes the default behavior for integrations that enabled saved payment methods on the Checkout Session but intentionally omitted the client-side configuration—those integrations will now have saved payment method collection and redisplay enabled automatically.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-09-30.clover"]
+  },
+  "migrationNotes": [
+    "You can now integrate saved payment methods in Elements with Checkout Sessions with simplified client-side configuration. Previously, you had to enable saved payment methods both on the Checkout Session and explicitly in your initCheckout() call. Now, when you enable saved payment methods on the Checkout Session, the Payment Element automatically enables collection and redisplay of saved payment methods without requiring additional client-side configuration.",
+    "This reduces integration complexity and ensures consistent saved payment method behavior across your Elements with Checkout Sessions implementation. If you want to disable saved payment methods, you can still explicitly set enableSave and enableRedisplay to never in your elementsOptions.savedPaymentMethod configuration."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Updates default behavior for saved payment methods in Elements with Checkout Sessions](https://docs.stripe.com/changelog/clover/2025-09-30/custom-checkout-saved-payment-method-defaults.md) | Elements | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/clover/2025-09-30/custom-checkout-saved-payment-method-defaults.md",
+      "quote": "Previously, to enable saved payment methods with Elements and Checkout Sessions, you had to configure saved payment methods both on the Checkout Session and explicitly in your client-side `initCheckout()` call. Now, when you enable saved payment methods on the Checkout Session, the Payment Element automatically enables collection and redisplay without requiring additional client-side configuration. This changes the default behavior for integrations that enabled saved payment methods on the Checkout Session but intentionally omitted the client-side configuration—those integrations will now have saved payment method collection and redisplay enabled automatically.",
+      "contentHash": "021fce00c8ba87c3558424c59be3b690aef42627d61e3b3256f98dfe2b0decb3",
+      "checkedAt": "2026-10-24T14:37:31.568Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "slug": "stripe",
+  "name": "Stripe",
+  "homepage": "https://docs.stripe.com",
+  "logo": {
+    "light": "/logos/stripe.svg",
+    "dark": "/logos/stripe.svg"
+  },
+  "officialDomains": ["docs.stripe.com", "stripe.com"],
+  "sources": [
+    {
+      "kind": "changelog",
+      "url": "https://docs.stripe.com/changelog.md",
+      "adapter": "stripe-changelog"
+    }
+  ],
+  "sdks": [
+    {
+      "ecosystem": "npm",
+      "name": "stripe"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "stripe"
+    }
+  ],
+  "detection": {
+    "imports": ["stripe"],
+    "envVars": ["STRIPE_SECRET_KEY"],
+    "baseUrls": ["api.stripe.com"]
+  }
+}

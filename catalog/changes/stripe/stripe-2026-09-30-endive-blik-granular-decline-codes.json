@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-blik-granular-decline-codes",
+  "provider": "stripe",
+  "title": "Returns specific decline codes for BLIK payment failures",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Replaces the generic_decline decline code with code_invalid, code_expired, insufficient_funds, customer_declined, payment_limit_exceeded, and partner_generic_decline for applicable BLIK payment failures. Integrations with strict decline-code handling must accept code_invalid, code_expired, insufficient_funds, customer_declined, payment_limit_exceeded, and partner_generic_decline. Previously, API versions before Endive received generic_decline.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "You now receive specific decline codes for applicable BLIK payment failures. Update your error handling to support code_invalid, code_expired, insufficient_funds, customer_declined, payment_limit_exceeded, and partner_generic_decline. For details about these decline codes, see decline codes."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Returns specific decline codes for BLIK payment failures](https://docs.stripe.com/changelog/endive/2026-09-30/blik-granular-decline-codes.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/blik-granular-decline-codes.md",
+      "quote": "Integrations with strict decline-code handling must accept `code_invalid`, `code_expired`, `insufficient_funds`, `customer_declined`, `payment_limit_exceeded`, and `partner_generic_decline`. Previously, API versions before Endive received `generic_decline`.",
+      "contentHash": "82bcbdd6853f188c6fcc3359431cb2388223077372c09abd804ac39fac60e633",
+      "checkedAt": "2026-10-24T14:37:29.279Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

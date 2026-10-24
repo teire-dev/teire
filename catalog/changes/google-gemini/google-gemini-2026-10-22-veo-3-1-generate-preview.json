@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "google-gemini-2026-10-22-veo-3-1-generate-preview",
+  "provider": "google-gemini",
+  "kind": "model-retirement",
+  "title": "veo-3.1-generate-preview shutdown",
+  "summary": "Veo models. Shutdown date: 2026-10-22. Replacement: gemini-omni-1.1-flash.",
+  "announcedOn": null,
+  "effectiveOn": "2026-10-22",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["veo-3.1-generate-preview"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "gemini-omni-1.1-flash",
+    "modelIds": ["gemini-omni-1.1-flash"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt",
+      "quote": "| `veo-3.1-generate-preview` | October 15, 2025 | October 22, 2026 | `gemini-omni-1.1-flash` |",
+      "contentHash": "3342ebac18090931abc3a2f58e42a07f2f1f4c7f411dc6587c4faf64831c4601",
+      "checkedAt": "2026-10-24T14:37:24.882Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-strict-billing-details-validation",
+  "provider": "stripe",
+  "title": "Requires billing details when Payment Element collection is disabled",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Requires Elements with the Checkout Sessions API integrations to provide required billing details for any field disabled on the Payment Element, starting with Endive. If you set a billing field to never in the Payment Element configuration, the Payment Element no longer collects that field, and you’re responsible for supplying required billing data through another Element or a supported Custom Checkout SDK method. Previously, checkout.confirm() could succeed even when a required billing field configured as never wasn’t provided through another source. Starting with Endive, these integrations fail at confirmation with an integration error.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration disables any billing-details fields on the Payment Element, provide the corresponding data before calling checkout.confirm(). Use one of the following approaches depending on the type of billing data. For a full walkthrough of address collection with Custom Checkout, see Collect physical addresses.",
+    "If your integration collects specific billing details itself, set only those fields to never and leave the remaining fields as auto. The Payment Element can then collect the remaining fields when the selected payment method requires them.",
+    "Set fields.billingDetails to never only if your integration collects all billing details itself. In this configuration, the Payment Element doesn’t collect any billing details, so you must collect and provide every applicable billing field through another Element or supported Custom Checkout SDK method.",
+    "### Name and address",
+    "Call updateBillingAddress to set the billing address before confirmation.",
+    "Pass a billingAddress option to checkout.confirm().",
+    "Use the Billing Address Element to collect billing addresses through a dedicated Element.",
+    "If you use automatic tax and disable billing address collection in the Payment Element, don’t pass billingAddress to checkout.confirm(). Instead, provide the tax address using the Address Element or updateBillingAddress(). See Collect tax with Elements for details.",
+    "### Email",
+    "Call updateEmail to set the email before confirmation.",
+    "Pass an email option to checkout.confirm().",
+    "### Phone",
+    "Enable phone_number_collection.enabled on the Checkout Session.",
+    "Call updatePhoneNumber to set the phone number before confirmation.",
+    "Pass a phoneNumber option to checkout.confirm()."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Requires billing details when Payment Element collection is disabled](https://docs.stripe.com/changelog/endive/2026-09-30/strict-billing-details-validation.md) | Checkout, Elements | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/strict-billing-details-validation.md",
+      "quote": "Previously, `checkout.confirm()` could succeed even when a required billing field configured as `never` wasn’t provided through another source. Starting with Endive, these integrations fail at confirmation with an integration error.",
+      "contentHash": "4f2a9d3ed6252691a8caaad5a45444ba4fcbc6d557f3fceebcb19206dadfc28a",
+      "checkedAt": "2026-10-24T14:37:30.129Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

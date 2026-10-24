@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2020-08-27-v-deprecates-prorate-parameters-subscriptions",
+  "provider": "stripe",
+  "title": "Deprecates subscription `prorate` and `subscription_prorate` parameters",
+  "announcedOn": "2020-08-27",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Deprecates the prorate and subscription_prorate parameters in favor of proration_behavior.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["prorate"],
+    "endpoints": [],
+    "symbols": ["prorate"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2020-08-27"]
+  },
+  "migrationNotes": [
+    "By deprecating the prorate and subscription_prorate parameters in favor of the more comprehensive proration_behavior parameter, you can more precisely configure how prorating should be handled."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Deprecates subscription `prorate` and `subscription_prorate` parameters](https://docs.stripe.com/changelog/2020-08-27/deprecates-prorate-parameters-subscriptions.md) | Billing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2020-08-27/deprecates-prorate-parameters-subscriptions.md",
+      "quote": "Deprecates the `prorate` and `subscription_prorate` parameters in favor of `proration_behavior`.",
+      "contentHash": "2154e0152acf767964e9590cbaddf7a7ed8d97f8530a8c4ee215fffb6c035fb4",
+      "checkedAt": "2026-10-24T14:37:36.859Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri"
+    },
+    "logo": {
+      "type": "object",
+      "properties": {
+        "light": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dark": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["light", "dark"]
+    },
+    "officialDomains": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "sources": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "deprecations",
+              "changelog",
+              "release-feed",
+              "model-catalog",
+              "notices-index",
+              "package-registry",
+              "custom"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "adapter": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["kind", "url", "adapter"]
+      }
+    },
+    "sdks": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ecosystem": {
+            "type": "string",
+            "enum": ["npm", "pypi"]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versions": {
+            "type": "string"
+          }
+        },
+        "required": ["ecosystem", "name"]
+      }
+    },
+    "detection": {
+      "type": "object",
+      "properties": {
+        "imports": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "envVars": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "baseUrls": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": ["schemaVersion", "slug", "name", "homepage", "logo", "officialDomains", "sources", "detection"]
+}

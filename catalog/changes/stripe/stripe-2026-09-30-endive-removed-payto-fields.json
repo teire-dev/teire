@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-removed-payto-fields",
+  "provider": "stripe",
+  "title": "Removes PayTo-specific fields from Payment Methods",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Removes the payto field (containing account_number, bsb_number, and pay_id) when you update PaymentMethods. Previously, the API accepted these PayTo-specific fields with a 200 status but never persisted the values. You can still update other fields such as billing_details and metadata for PayTo Payment Methods. The payto parameter isn’t accepted when you update a Payment Method. If your integration sends payto or any of its sub-fields (account_number, bsb_number, pay_id) when updating a PayTo Payment Method, the request returns an error instead of a 200 status. Update your code to remove these fields from your requests.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["payto"],
+    "endpoints": [],
+    "symbols": ["payto"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration passes payto, payto[account_number], payto[bsb_number], or payto[pay_id] to update a Payment Method, those requests now return an error. Remove these fields from your update calls. No previously stored data is affected because the API never persisted these values."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes PayTo-specific fields from Payment Methods](https://docs.stripe.com/changelog/endive/2026-09-30/removed-payto-fields.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/removed-payto-fields.md",
+      "quote": "The `payto` parameter isn’t accepted when you [update a Payment Method](https://docs.stripe.com/api/payment_methods/update.md?api-version=2026-09-30.endive). If your integration sends `payto` or any of its sub-fields (`account_number`, `bsb_number`, `pay_id`) when updating a PayTo Payment Method, the request returns an error instead of a `200` status. Update your code to remove these fields from your requests.",
+      "contentHash": "cd566413d147e1208e6eea105c24414b9e92410a6c56cbf90dc33112069183bc",
+      "checkedAt": "2026-10-24T14:37:29.220Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

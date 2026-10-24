@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-block-custom-checkout-confirmation-pending-updates",
+  "provider": "stripe",
+  "title": "Sets canConfirm to false while updates are pending in Elements with Checkout Sessions",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Updates canConfirm to false while a Custom Checkout server update is queued or in progress. After all pending updates finish, canConfirm reflects whether the checkout is otherwise ready for confirmation. This provides a signal that integrations can use to avoid confirming with outdated information. Elements with Checkout Sessions changes canConfirm to false while updates are pending, which could change behavior if you rely on canConfirm in your checkout flow. Previously, Stripe.js didn’t change canConfirm while server updates were pending.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "Your integration can prevent customers from confirming with outdated information by allowing confirmation only when canConfirm is true. Make sure that your integration handles the updated information when the pending requests resolve, and updates the state of your confirmation control when canConfirm changes. See Submit the payment for implementation examples."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Sets canConfirm to false while updates are pending in Elements with Checkout Sessions](https://docs.stripe.com/changelog/endive/2026-09-30/block-custom-checkout-confirmation-pending-updates.md) | Checkout, Elements | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/block-custom-checkout-confirmation-pending-updates.md",
+      "quote": "Elements with Checkout Sessions changes `canConfirm` to `false` while updates are pending, which could change behavior if you rely on `canConfirm` in your checkout flow. Previously, Stripe.js didn’t change `canConfirm` while server updates were pending.",
+      "contentHash": "e0731532bf08bb9d86ef9be369df1705f275a2c3c12413bd0f038e6a1c111d73",
+      "checkedAt": "2026-10-24T14:37:30.029Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

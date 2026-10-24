@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-19-v-business-details-moved-business-profile-object",
+  "provider": "stripe",
+  "title": "Several fields describing an account’s business details have moved to the `business_profile` subhash",
+  "announcedOn": "2019-02-19",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Moves business_name, business_url, product_description, support_address, support_email, support_phone and support_url to the business_profile subhash.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-02-19"]
+  },
+  "migrationNotes": [
+    "This change reorganizes several business-related fields by moving them into a new business_profile subhash within the Account object. You need to update your code to access and update these fields under the new business_profile structure instead of the root level of the Account object."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Several fields describing an account’s business details have moved to the `business_profile` subhash](https://docs.stripe.com/changelog/2019-02-19/business-details-moved-business-profile-object.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-19/business-details-moved-business-profile-object.md",
+      "quote": "Moves `business_name`, `business_url`, `product_description`, `support_address`, `support_email`, `support_phone` and `support_url` to the `business_profile` subhash.",
+      "contentHash": "d6889a54ed56715d1d8ddd1741d42498723e51fa438a3c0a3222c33a682a3cbc",
+      "checkedAt": "2026-10-24T14:37:38.378Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

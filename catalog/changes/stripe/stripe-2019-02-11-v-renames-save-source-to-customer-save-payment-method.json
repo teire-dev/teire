@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-11-v-renames-save-source-to-customer-save-payment-method",
+  "provider": "stripe",
+  "title": "Renames the `save_source_to_customer` field for sources to `save_payment_method`",
+  "announcedOn": "2019-02-11",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames save_source_to_customer to save_payment_method.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["save_source_to_customer"],
+    "endpoints": [],
+    "symbols": ["save_source_to_customer"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-02-11"]
+  },
+  "migrationNotes": [
+    "Update your code to use the new parameter name when specifying whether to save a payment method to a customer. This modification provides more generalized terminology that could accommodate various types of payment methods."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames the `save_source_to_customer` field for sources to `save_payment_method`](https://docs.stripe.com/changelog/2019-02-11/renames-save-source-to-customer-save-payment-method.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-11/renames-save-source-to-customer-save-payment-method.md",
+      "quote": "Renames `save_source_to_customer` to `save_payment_method`.",
+      "contentHash": "f7db9d8032b16f152113e1be89772fe167d18af7fe708c7dadce557b3e8ba08f",
+      "checkedAt": "2026-10-24T14:37:38.810Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

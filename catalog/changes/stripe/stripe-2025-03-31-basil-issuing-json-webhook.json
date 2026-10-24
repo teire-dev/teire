@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-03-31-basil-issuing-json-webhook",
+  "provider": "stripe",
+  "title": "HTTP Accept headers for webhooks now specify JSON during Issuing authorizations",
+  "announcedOn": "2025-03-31",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Webhooks emitted for Issuing real-time authorizations now specify application/json in the request Accept header. This change improves the clarity of content negotiation, because real-time authorization webhooks require a JSON response from your integration. Your webhook handler might return an HTTP response code 406 if it doesn’t support JSON as a response format. These errors are visible in Workbench. If you use Issuing real-time authorizations, a response code other than 200 might cause your authorizations to decline.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2025-03-31.basil"]
+  },
+  "migrationNotes": [
+    "Issuing real-time authorizations require JSON responses to issuing_authorization.request webhooks. Those webhooks’ Accept headers now specify application/json in order to align with that requirement."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [HTTP Accept headers for webhooks now specify JSON during Issuing authorizations](https://docs.stripe.com/changelog/basil/2025-03-31/issuing-json-webhook.md) | Issuing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/basil/2025-03-31/issuing-json-webhook.md",
+      "quote": "Your [webhook handler](https://docs.stripe.com/webhooks.md#webhook-endpoint-def) might return an HTTP response code 406 if it doesn’t support JSON as a response format. These errors are visible in [Workbench](https://docs.stripe.com/workbench.md). If you use [Issuing real-time authorizations](https://docs.stripe.com/issuing/controls/real-time-authorizations.md), a response code other than 200 might cause your authorizations to decline.",
+      "contentHash": "71b4d5e69e77deb35c39fee31cec7f37dbd38c05b4c9d6e8ee065b0f535a2ece",
+      "checkedAt": "2026-10-24T14:37:32.909Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

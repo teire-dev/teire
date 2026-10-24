@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-19-v-accounts-us-require-specifying-capabilities-creation",
+  "provider": "stripe",
+  "title": "Accounts in the US now require specifying capabilities at creation time",
+  "announcedOn": "2019-02-19",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Starting with the 2019-02-19 API, the requested_capabilities property is now required at creation time for accounts in the U.S. To learn more, see Account capabilities.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-02-19"]
+  },
+  "migrationNotes": [
+    "This change mandates the inclusion of the requested_capabilities property when creating accounts in the U.S. You must now explicitly specify the capabilities they want for new accounts, which provides more control over account functionalities."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Accounts in the US now require specifying capabilities at creation time](https://docs.stripe.com/changelog/2019-02-19/accounts-us-require-specifying-capabilities-creation.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-19/accounts-us-require-specifying-capabilities-creation.md",
+      "quote": "Starting with the 2019-02-19 API, the `requested_capabilities` property is now required at creation time for accounts in the U.S. To learn more, see [Account capabilities](https://docs.stripe.com/connect/account-capabilities.md).",
+      "contentHash": "562ed49b7b2f8bdee091119b1cf3c91fff36d63920a5f687ac6ff218a16bb20e",
+      "checkedAt": "2026-10-24T14:37:38.688Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

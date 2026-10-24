@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-08-01-v-removes-include-require-value-invoices",
+  "provider": "stripe",
+  "title": "Removes the `include_and_require` value when creating invoices",
+  "announcedOn": "2022-08-01",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "The pending_invoice_items_behavior parameter on Create an invoice no longer supports the include_and_require value. When the parameter is omitted, the default value of pending_invoice_items_behavior is now exclude.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-08-01"]
+  },
+  "migrationNotes": [
+    "Pending invoice items are no longe automatically included, giving you more control and flexibility in managing pending invoice items when creating invoices."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes the `include_and_require` value when creating invoices](https://docs.stripe.com/changelog/2022-08-01/removes-include-require-value-invoices.md) | Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-08-01/removes-include-require-value-invoices.md",
+      "quote": "The `pending_invoice_items_behavior` parameter on [Create an invoice](https://docs.stripe.com/api/invoices/create.md?api-version=2024-06-20) no longer supports the `include_and_require` value. When the parameter is omitted, the default value of `pending_invoice_items_behavior` is now `exclude`.",
+      "contentHash": "d730dedd1397e377752c0a183cbe3130c2a1200f33f945be4e2ee377a19edf00",
+      "checkedAt": "2026-10-24T14:37:35.209Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

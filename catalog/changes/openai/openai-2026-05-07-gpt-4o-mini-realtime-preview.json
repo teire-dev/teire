@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "openai-2026-05-07-gpt-4o-mini-realtime-preview",
+  "provider": "openai",
+  "kind": "model-retirement",
+  "title": "gpt-4o-mini-realtime-preview shutdown",
+  "summary": "gpt-4o-realtime-preview models. Shutdown date: 2026-05-07. Replacement: gpt-realtime-mini.",
+  "announcedOn": "2025-09-15",
+  "effectiveOn": "2026-05-07",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["gpt-4o-mini-realtime-preview"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "gpt-realtime-mini",
+    "modelIds": ["gpt-realtime-mini"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "quote": "| 2026-05-07    | `gpt-4o-mini-realtime-preview`       | `gpt-realtime-mini`     |",
+      "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
+      "checkedAt": "2026-10-24T14:37:23.481Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

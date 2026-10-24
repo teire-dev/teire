@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-03-31-basil-adds-new-parent-field-to-invoicing-objects",
+  "provider": "stripe",
+  "title": "Invoicing resources now specify how they were generated",
+  "announcedOn": "2025-03-31",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "We’re introducing a new parent field on invoices, invoice items, and invoice line items. The parent field allows you to view the details of the upstream object that generated the invoice, invoice item, or invoice line item (such as a subscription, a quote, or other). It replaces top level fields that we previously used to reference these objects. - On the Invoice object, we deprecated the quote, subscription, subscription_details, and subscription_proration_date fields. - On the Invoice Item object, we deprecated the subscription_item and subscription fields. - On the Invoice Line Item object, we deprecated the type, subscription, subscription_item, invoice_item, proration, and proration_details fields.",
+  "signatures": {
+    "modelIds": [],
+    "params": [
+      "subscription",
+      "subscription_item",
+      "quote",
+      "subscription_details",
+      "subscription_proration_date",
+      "invoice_item",
+      "proration",
+      "proration_details",
+      "type"
+    ],
+    "endpoints": [],
+    "symbols": [
+      "subscription",
+      "subscription_item",
+      "quote",
+      "subscription_details",
+      "subscription_proration_date",
+      "invoice_item",
+      "proration",
+      "proration_details",
+      "type"
+    ],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2025-03-31.basil"]
+  },
+  "migrationNotes": [
+    "Replace field references on invoicing objects with their new locations in the parent field.",
+    "On Invoice objects:",
+    "Use invoice.parent.subscription_details.subscription (verify invoice.parent.type is subscription_details) instead of invoice.subscription.",
+    "This also applies to:",
+    "quote",
+    "subscription_details",
+    "subscription_proration_date",
+    "On Invoice Item objects:",
+    "Use invoiceitem.parent.subscription_details.subscription (verify invoiceitem.parent.type is subscription_details) instead of invoice_item.subscription",
+    "This also applies to the subscription_item field",
+    "On Invoice Line Item objects:",
+    "Use line_item.parent.subscription_item_details.subscription_item (verify line_item.parent.type is subscription_item_details) instead of line_item.subscription_item.",
+    "This also applies to:",
+    "subscription",
+    "invoice_item",
+    "proration",
+    "proration_details"
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Invoicing resources now specify how they were generated](https://docs.stripe.com/changelog/basil/2025-03-31/adds-new-parent-field-to-invoicing-objects.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/basil/2025-03-31/adds-new-parent-field-to-invoicing-objects.md",
+      "quote": "- On the [Invoice](https://docs.stripe.com/api/invoices.md?api-version=2025-03-31.basil) object, we deprecated the `quote`, `subscription`, `subscription_details`, and `subscription_proration_date` fields.\n- On the [Invoice Item](https://docs.stripe.com/api/invoiceitems.md?api-version=2025-03-31.basil) object, we deprecated the `subscription_item` and `subscription` fields.\n- On the [Invoice Line Item](https://docs.stripe.com/api/invoice-line-item.md?api-version=2025-03-31.basil) object, we deprecated the `type`, `subscription`, `subscription_item`, `invoice_item`, `proration`, and `proration_details` fields.",
+      "contentHash": "0a8e7e8fc789a690dd7169e59334d082f660903bfd991245afeaeaeccc6ad215",
+      "checkedAt": "2026-10-24T14:37:32.141Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

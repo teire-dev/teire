@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-remove-elements-deferred-intent-payment-method-types",
+  "provider": "stripe",
+  "title": "Removes support for the payment method types option in Elements",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "Removes support for setting paymentMethodTypes when you create Elements without a Payment or Setup Intent or call elements.update(). Use allowedPaymentMethodTypes to limit available payment methods, or use Dynamic Payment Methods to manage them from the Dashboard. If your integration sets paymentMethodTypes, Stripe.js now throws an integration error and prevents the Elements instance from being created or updated.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "You can no longer set paymentMethodTypes in your Elements options on Endive. Remove it, replace it with allowedPaymentMethodTypes to limit available payment methods, or manage payment methods in the Dashboard. Previously, Stripe.js versions through Dahlia supported paymentMethodTypes."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes support for the payment method types option in Elements](https://docs.stripe.com/changelog/endive/2026-09-30/remove-elements-deferred-intent-payment-method-types.md) | Elements | Breaking | stripejs |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/remove-elements-deferred-intent-payment-method-types.md",
+      "quote": "If your integration sets `paymentMethodTypes`, Stripe.js now throws an integration error and prevents the Elements instance from being created or updated.",
+      "contentHash": "bd26a295678be486d5cca12176815e2c4013a24b48e6a4ae7441fe88e8cd20ec",
+      "checkedAt": "2026-10-24T14:37:29.528Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

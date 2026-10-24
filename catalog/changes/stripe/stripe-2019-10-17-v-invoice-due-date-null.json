@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-10-17-v-invoice-due-date-null",
+  "provider": "stripe",
+  "title": "The `due_date` property is always null on auto-billed invoices",
+  "announcedOn": "2019-10-17",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "The due_date property is now always null on invoices with billing=charge_automatically.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-10-17"]
+  },
+  "migrationNotes": [
+    "Provides you with a clear understanding of the invoice due_date behavior for auto-billed invoices. You can now reliably expect the due_date to be null in these scenarios, allowing for better handling and interpretation of the invoice data."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [The `due_date` property is always null on auto-billed invoices](https://docs.stripe.com/changelog/2019-10-17/invoice-due-date-null.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-10-17/invoice-due-date-null.md",
+      "quote": "The `due_date` property is now always null on invoices with `billing=charge_automatically`.",
+      "contentHash": "e2bebaf4df074c72853a166d0a403771d302e17ea301ce24dea445e0575d3dfe",
+      "checkedAt": "2026-10-24T14:37:37.497Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

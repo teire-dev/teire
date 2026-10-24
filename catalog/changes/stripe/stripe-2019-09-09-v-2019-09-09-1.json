@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-09-09-v-2019-09-09-1",
+  "provider": "stripe",
+  "title": "Accounts in many countries now require specifying capabilities at creation time",
+  "announcedOn": "2019-09-09",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "In the Accounts API, the requested_capabilities property is now required at creation time for accounts in Australia, Austria, Belgium, Denmark, Finland, France, Germany, Ireland, Italy, Luxembourg, the Netherlands, New Zealand, Norway, Portugal, Spain, Sweden, Switzerland, and the United Kingdom. To learn more, see Account capabilities.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2019-09-09"]
+  },
+  "migrationNotes": [
+    "This change mandates the inclusion of the requested_capabilities property when creating accounts in several European countries, Australia, and New Zealand. You must now explicitly specify the desired capabilities for new accounts in these regions during the creation process."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Accounts in many countries now require specifying capabilities at creation time](https://docs.stripe.com/changelog/2019-09-09/2019-09-09-1.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-09-09/2019-09-09-1.md",
+      "quote": "In the Accounts API, the `requested_capabilities` property is now required at creation time for accounts in Australia, Austria, Belgium, Denmark, Finland, France, Germany, Ireland, Italy, Luxembourg, the Netherlands, New Zealand, Norway, Portugal, Spain, Sweden, Switzerland, and the United Kingdom. To learn more, see [Account capabilities](https://docs.stripe.com/connect/account-capabilities.md).",
+      "contentHash": "fec4a73565eb7940c072f8bb4d3b4daa827a5236bd16ede2db4c23072032e93e",
+      "checkedAt": "2026-10-24T14:37:37.679Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

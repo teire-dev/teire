@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-02-11-v-renames-allowed-source-types-payment-method-types",
+  "provider": "stripe",
+  "title": "Renames the `allowed_source_types` field for `sources` to `payment_method_types`",
+  "announcedOn": "2019-02-11",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames allowed_source_types to payment_method_types.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["allowed_source_types"],
+    "endpoints": [],
+    "symbols": ["allowed_source_types"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-02-11"]
+  },
+  "migrationNotes": [
+    "Update your code to use the new parameter name when specifying acceptable payment methods for a transaction. This modification provides more consistent terminology aligned with the broader concept of payment methods."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames the `allowed_source_types` field for `sources` to `payment_method_types`](https://docs.stripe.com/changelog/2019-02-11/renames-allowed-source-types-payment-method-types.md) | Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-02-11/renames-allowed-source-types-payment-method-types.md",
+      "quote": "Renames `allowed_source_types` to `payment_method_types`.",
+      "contentHash": "d3685dc6faa7206aaaacd4404c8b67b896a2d71563fd96cad183ff2f8fd22757",
+      "checkedAt": "2026-10-24T14:37:38.899Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2022-08-01-v-deferred-paymentintent-checkout-session",
+  "provider": "stripe",
+  "title": "Deferred PaymentIntent creation in Checkout Session payment mode",
+  "announcedOn": "2022-08-01",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "A PaymentIntent is no longer created during Checkout Session creation in payment mode. Instead, a PaymentIntent is created when the Session is confirmed.",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2022-08-01"]
+  },
+  "migrationNotes": [
+    "Lets you create a PaymentIntent only when the Checkout Session is confirmed, rather than having it created during the initial Checkout Session creation. This provides more flexibility and control over the payment flow."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Deferred PaymentIntent creation in Checkout Session payment mode](https://docs.stripe.com/changelog/2022-08-01/deferred-paymentintent-checkout-session.md) | Checkout, Payments | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2022-08-01/deferred-paymentintent-checkout-session.md",
+      "quote": "A PaymentIntent is no longer created during Checkout Session creation in payment mode. Instead, a PaymentIntent is created when the Session is confirmed.",
+      "contentHash": "a2ab5cd4c127867f200d700a953311b80c05e4e526fe471f927efc61cb6518b2",
+      "checkedAt": "2026-10-24T14:37:35.379Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

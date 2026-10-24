@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2019-10-08-v-renames-person-object-relationship-attribute",
+  "provider": "stripe",
+  "title": "Renames a `Person` object relationship attribute",
+  "announcedOn": "2019-10-08",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Renames the relationship[account_opener] field to relationship[representative] on a Person object.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["account_opener"],
+    "endpoints": [],
+    "symbols": ["account_opener"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2019-10-08"]
+  },
+  "migrationNotes": [
+    "Lets you more accurately and intuitively identify the person who is designated as the representative for an account. By renaming the relationship[account_opener]field to relationship[representative], the terminology better reflects the role and purpose of this person within the account."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Renames a `Person` object relationship attribute](https://docs.stripe.com/changelog/2019-10-08/renames-person-object-relationship-attribute.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2019-10-08/renames-person-object-relationship-attribute.md",
+      "quote": "Renames the `relationship[account_opener]` field to `relationship[representative]` on a `Person` object.",
+      "contentHash": "6563c09addab6d3a043f19e78a1e15563c3b6898f6c118faa32a24ad61220fac",
+      "checkedAt": "2026-10-24T14:37:37.589Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

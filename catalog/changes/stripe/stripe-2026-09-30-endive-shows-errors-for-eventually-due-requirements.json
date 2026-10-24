@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2026-09-30-endive-shows-errors-for-eventually-due-requirements",
+  "provider": "stripe",
+  "title": "Shows errors for eventually due requirements",
+  "announcedOn": "2026-09-30",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "In the Accounts, Persons, and Capabilities APIs, validation and verification errors can now appear in the requirements.errors and future_requirements.errors arrays for eventually_due requirements. Previously, requirements.errors and future_requirements.errors only included errors for requirements that were currently due or past due. If your integration assumes that eventually_due requirements don’t have corresponding errors, update your code to handle errors for those requirements.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["errors", "updated"],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-09-30.endive"]
+  },
+  "migrationNotes": [
+    "If your integration reads requirements.errors or future_requirements.errors from Accounts, Persons, Capabilities, or related events, handle errors whose requirement value is also listed in eventually_due."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Shows errors for eventually due requirements](https://docs.stripe.com/changelog/endive/2026-09-30/shows-errors-for-eventually-due-requirements.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/endive/2026-09-30/shows-errors-for-eventually-due-requirements.md",
+      "quote": "Previously, `requirements.errors` and `future_requirements.errors` only included errors for requirements that were currently due or past due. If your integration assumes that `eventually_due` requirements don’t have corresponding errors, update your code to handle errors for those requirements.",
+      "contentHash": "fd581dfff4fa5821728794f3232add6c7e92298ce4d72a94f7e4db648473b988",
+      "checkedAt": "2026-10-24T14:37:28.769Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

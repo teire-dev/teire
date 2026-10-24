@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "nebius-token-factory-2026-08-31-deepseek-ai-deepseek-v4-flash",
+  "provider": "nebius-token-factory",
+  "kind": "model-retirement",
+  "title": "deepseek-ai/DeepSeek-V4-Flash shutdown",
+  "summary": "Shutdown date: 2026-08-31. Replacement: deepseek-ai/DeepSeek-V4-Flash-0731.",
+  "announcedOn": null,
+  "effectiveOn": "2026-08-31",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["deepseek-ai/DeepSeek-V4-Flash"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "modelIds": ["deepseek-ai/DeepSeek-V4-Flash-0731"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://docs.tokenfactory.nebius.com/august-2026-deprecation-notice.md",
+      "quote": "| [`deepseek-ai/DeepSeek-V4-Flash`](https://tokenfactory.nebius.com/models/catalog/text2text/deepseek-ai%2FDeepSeek-V4-Flash) | [`deepseek-ai/DeepSeek-V4-Flash-0731`](https://tokenfactory.nebius.com/?modals=endpoint-details\\&model-id=deepseek-ai/DeepSeek-V4-Flash-0731) |",
+      "contentHash": "4c9d8a9f463e8d4cb3ac567b863d5d18dbc74cf0e1c23bbee047ef3ef5d89401",
+      "checkedAt": "2026-10-24T14:37:26.028Z"
+    },
+    {
+      "url": "https://docs.tokenfactory.nebius.com/august-2026-deprecation-notice.md",
+      "quote": "> **On August 31, 2026:**",
+      "contentHash": "4c9d8a9f463e8d4cb3ac567b863d5d18dbc74cf0e1c23bbee047ef3ef5d89401",
+      "checkedAt": "2026-10-24T14:37:26.028Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

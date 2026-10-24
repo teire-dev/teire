@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2024-06-20-v-removes-undocumented-fuel-fields-issuing",
+  "provider": "stripe",
+  "title": "Removes undocumented fuel fields",
+  "announcedOn": "2024-06-20",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "Removes the following undocumented fuel fields from the Issuing Transaction resource in favor of the _decimal equivalents:",
+  "signatures": {
+    "modelIds": [],
+    "params": ["unit_cost", "volume", "volume_decimal"],
+    "endpoints": [],
+    "symbols": ["unit_cost", "volume", "volume_decimal"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2024-06-20"]
+  },
+  "migrationNotes": [
+    "Removes undocumented attributes of the Transaction object, replacing them with equivalent attributes in the form of *_decimal."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Removes undocumented fuel fields](https://docs.stripe.com/changelog/2024-06-20/removes-undocumented-fuel-fields-issuing.md) | Issuing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2024-06-20/removes-undocumented-fuel-fields-issuing.md",
+      "quote": "Removes the following undocumented fuel fields from the [Issuing Transaction](https://docs.stripe.com/api/issuing/transactions/object.md?api-version=2024-06-20) resource in favor of the `_decimal` equivalents:",
+      "contentHash": "8612f1d8f95ceb9c94a37e27ce68899dd87694b2ea63e3059a26a1ff7a169333",
+      "checkedAt": "2026-10-24T14:37:33.879Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

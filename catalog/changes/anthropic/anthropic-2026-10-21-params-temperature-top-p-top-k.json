@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "anthropic-2026-10-21-params-temperature-top-p-top-k",
+  "provider": "anthropic",
+  "kind": "parameter-change",
+  "title": "temperature, top_p, top_k: removed in API version 2026-10-21",
+  "summary": "Removed in API version 2026-10-21. Returns a 400 error. Earlier API versions return it when set to a non-default value on Claude 4.7 and later models and Claude Mythos Preview.",
+  "announcedOn": null,
+  "effectiveOn": "2026-10-21",
+  "breaking": true,
+  "signatures": {
+    "modelIds": [],
+    "params": ["temperature", "top_p", "top_k"],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2026-10-21"]
+  },
+  "replacement": {
+    "value": "Omit and use prompting to guide model behavior.",
+    "modelIds": []
+  },
+  "migrationNotes": [
+    "Returns a 400 error. Earlier API versions return it when set to a non-default value on Claude 4.7 and later models and Claude Mythos Preview."
+  ],
+  "sources": [
+    {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "quote": "| `temperature`, `top_p`, `top_k` | Removed in [API version `2026-10-21`](https://platform.claude.com/docs/en/api/migration-2026-10-21#sampling-parameters) | Returns a 400 error. Earlier API versions return it when set to a non-default value on Claude 4.7 and later models and [Claude Mythos Preview](https://anthropic.com/glasswing). | Omit and use [prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices) to guide model behavior. |",
+      "contentHash": "d2fd9f71fed176557d5ed32e2bd212e72dce5dab836bf62b5a2b40dba2fda0d4",
+      "checkedAt": "2026-10-24T14:37:24.092Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

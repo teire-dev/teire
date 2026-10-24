@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2020-08-27-v-formats-requirements-key-persons-accounts",
+  "provider": "stripe",
+  "title": "Formats requirements for key persons associated with accounts",
+  "announcedOn": "2020-08-27",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "behaviour-change",
+  "summary": "The requirements hash on the Account and Capability objects, and the verification_fields hash on the Country Spec object have newly formatted strings for requirements that are related to key persons associated with an account:",
+  "signatures": {
+    "modelIds": [],
+    "params": [],
+    "endpoints": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": ["2020-08-27"]
+  },
+  "migrationNotes": [
+    "The new formatting of the requirements and verification_fields hashes creates a more intuitive naming convention, making it easier for you to identify and address the specific information needed for each person role."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Formats requirements for key persons associated with accounts](https://docs.stripe.com/changelog/2020-08-27/formats-requirements-key-persons-accounts.md) | Connect | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/2020-08-27/formats-requirements-key-persons-accounts.md",
+      "quote": "The `requirements` hash on the `Account` and `Capability` objects, and the `verification_fields` hash on the `Country Spec` object have newly formatted strings for requirements that are related to key persons associated with an account:",
+      "contentHash": "e313313bfa3c44c9c6f4aa272ed51e98ae4186c8eded225e6af0e39f1e8e5a2c",
+      "checkedAt": "2026-10-24T14:37:36.349Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}

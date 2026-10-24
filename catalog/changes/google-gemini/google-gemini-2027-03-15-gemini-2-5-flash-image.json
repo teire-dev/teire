@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "google-gemini-2027-03-15-gemini-2-5-flash-image",
+  "provider": "google-gemini",
+  "kind": "model-retirement",
+  "title": "gemini-2.5-flash-image shutdown",
+  "summary": "Nano Banana models. Shutdown date: 2027-03-15. Replacement: gemini-3.1-flash-lite-image.",
+  "announcedOn": null,
+  "effectiveOn": "2027-03-15",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["gemini-2.5-flash-image"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "gemini-3.1-flash-lite-image",
+    "modelIds": ["gemini-3.1-flash-lite-image"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt",
+      "quote": "| `gemini-2.5-flash-image` | October 2, 2025 | March 15, 2027 | `gemini-3.1-flash-lite-image` |",
+      "contentHash": "3342ebac18090931abc3a2f58e42a07f2f1f4c7f411dc6587c4faf64831c4601",
+      "checkedAt": "2026-10-24T14:37:24.882Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

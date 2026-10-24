@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "openai-2027-02-26-gpt-4o-mini-transcribe",
+  "provider": "openai",
+  "kind": "model-retirement",
+  "title": "gpt-4o-mini-transcribe shutdown",
+  "summary": "Transcription models. Shutdown date: 2027-02-26. Replacement: gpt-live-transcribe or gpt-transcribe.",
+  "announcedOn": "2026-08-26",
+  "effectiveOn": "2027-02-26",
+  "breaking": true,
+  "signatures": {
+    "modelIds": ["gpt-4o-mini-transcribe", "gpt-4o-mini-transcribe-2025-12-15"],
+    "endpoints": [],
+    "params": [],
+    "symbols": [],
+    "packages": [],
+    "apiVersions": []
+  },
+  "replacement": {
+    "value": "gpt-live-transcribe or gpt-transcribe",
+    "modelIds": ["gpt-live-transcribe", "gpt-transcribe"]
+  },
+  "migrationNotes": [],
+  "sources": [
+    {
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "quote": "| Feb 26, 2027  | `gpt-4o-mini-transcribe` \\| `gpt-4o-mini-transcribe-2025-12-15` | `gpt-live-transcribe` or `gpt-transcribe` |",
+      "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
+      "checkedAt": "2026-10-24T14:37:23.481Z"
+    }
+  ],
+  "extraction": {
+    "method": "table"
+  },
+  "status": "confirmed",
+  "quarantineReasons": []
+}

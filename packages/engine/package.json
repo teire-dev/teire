@@ -6,11 +6,14 @@
   "exports": {
     ".": "./src/index.ts",
     "./llm": "./src/llm/index.ts",
-    "./constants": "./src/constants.ts"
+    "./constants": "./src/constants.ts",
+    "./catalog": "./src/catalog/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "smoke": "tsx --env-file=../../.env.local scripts/smoke-tokenfactory.ts"
+    "smoke": "tsx --env-file=../../.env.local scripts/smoke-tokenfactory.ts",
+    "catalog:sync": "tsx scripts/catalog-sync.ts",
+    "compare-models": "tsx --env-file=../../.env.local scripts/compare-models.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.77",

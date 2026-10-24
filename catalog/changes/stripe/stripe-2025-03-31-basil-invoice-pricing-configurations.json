@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "stripe-2025-03-31-basil-invoice-pricing-configurations",
+  "provider": "stripe",
+  "title": "Replaces top-level price fields with improved price modeling on Invoice Items and Invoice Line Items",
+  "announcedOn": "2025-03-31",
+  "effectiveOn": null,
+  "breaking": true,
+  "replacement": null,
+  "extraction": {
+    "method": "table"
+  },
+  "kind": "parameter-change",
+  "summary": "We’re introducing a new polymorphic pricing concept on Invoice Items and Invoice Line Items. It contains all price-related data and unifies the structure of pricing objects (Price and Plan) to prepare for adding new pricing object types. We’re also moving unit amount data into pricing. - price and plan fields are no longer available on Invoice Items and Invoice Line Items. - Move unit_amount and unit_amount_decimal to the new pricing concept on Invoice Items and Invoice Line Items.",
+  "signatures": {
+    "modelIds": [],
+    "params": ["plan", "price", "unit_amount_decimal", "unit_amount"],
+    "endpoints": [],
+    "symbols": ["plan", "price", "unit_amount", "unit_amount_decimal"],
+    "packages": [
+      {
+        "ecosystem": "pypi",
+        "name": "stripe"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "stripe"
+      }
+    ],
+    "apiVersions": ["2025-03-31.basil"]
+  },
+  "migrationNotes": [
+    "Replace all references to price or plan on Invoice Items or Invoice Line Items with the pricing field:",
+    "Instead of invoice_item.price.id, use invoice_item.pricing.price_details.price after verifying that invoice_item.pricing.type is price_details",
+    "When creating or updating Invoice Items, use the pricing parameter instead of price (for example, set pricing.price instead of passing the price parameter)",
+    "For unit amounts, use pricing.unit_amount_decimal instead of unit_amount or unit_amount_decimal",
+    "When creating or updating Invoice Items, use the unit_amount_decimal parameter instead of unit_amount"
+  ],
+  "sources": [
+    {
+      "url": "https://docs.stripe.com/changelog.md",
+      "quote": "| [Replaces top-level price fields with improved price modeling on Invoice Items and Invoice Line Items](https://docs.stripe.com/changelog/basil/2025-03-31/invoice-pricing-configurations.md) | Billing, Invoicing | Breaking | api |",
+      "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
+      "checkedAt": "2026-10-24T14:37:26.524Z"
+    },
+    {
+      "url": "https://docs.stripe.com/changelog/basil/2025-03-31/invoice-pricing-configurations.md",
+      "quote": "- `price` and `plan` fields are no longer available on Invoice Items and Invoice Line Items.\n- Move `unit_amount` and `unit_amount_decimal` to the new `pricing` concept on Invoice Items and Invoice Line Items.",
+      "contentHash": "b97ea8edf00d35465e09e53ef0a3161e4fff96135a7374c190fbd5cde7c5facf",
+      "checkedAt": "2026-10-24T14:37:32.567Z"
+    }
+  ],
+  "status": "confirmed",
+  "quarantineReasons": []
+}
