@@ -34,6 +34,14 @@ export const FIX = {
   maxTargetFallbacks: 2,
   /** Agent tool-loop step cap per attempt. */
   maxAgentSteps: 24,
+  /** Docs text handed to the agent per lookup. */
+  maxDocsChars: 12_000,
+  /** File text returned per read, and check output returned per run (tool output is data). */
+  maxReadChars: 24_000,
+  maxCheckOutputChars: 8_000,
+  maxSearchHits: 60,
+  /** Output cap per agent step. */
+  maxOutputTokens: 16_000,
 } as const;
 
 /**

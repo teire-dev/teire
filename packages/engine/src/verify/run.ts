@@ -38,7 +38,8 @@ const tail = (text: string) =>
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
-export async function runSide(
+/** Install side of a run: write the change, regenerate the lockfile, install, switch the network off. */
+export async function prepareSide(
   session: VerifySession,
   plan: CheckPlan,
   side: "baseline" | "after",
@@ -80,7 +81,6 @@ export async function runSide(
       }
     }
   }
-
   const install = await session.run(`${side}-install`, plan.install, {
     cwd: plan.cwd,
     timeoutSec: VERIFY.installTimeoutSec,
@@ -92,11 +92,29 @@ export async function runSide(
     output: tail(install.stdout + install.stderr),
   };
   onLog?.(`${side}: install exit ${install.exitCode} in ${install.ms} ms`);
-  if (!result.install.ok) return result;
+  if (result.install.ok) await session.setPhase("check");
+  return result;
+}
 
-  await session.setPhase("check");
+let checkRound = 0;
+
+/**
+ * The offline checks, after writing `files` (repo-relative → content). Run as often as a fix
+ * needs: the install is done once, each round only rewrites the edited files.
+ */
+export async function runChecks(
+  session: VerifySession,
+  plan: CheckPlan,
+  side: "baseline" | "after",
+  files: Record<string, string> = {},
+  onLog?: (line: string) => void,
+): Promise<{ checks: CheckResult[]; deniedHosts: string[] }> {
+  for (const [path, content] of Object.entries(files))
+    await session.writeFile(`${VERIFY.workDir}/${path}`, encoder.encode(content));
+  const round = ++checkRound;
+  const checks: CheckResult[] = [];
   for (const check of plan.checks) {
-    const run = await session.run(`${side}-${check.name}`, check.argv, {
+    const run = await session.run(`${side}-${check.name}-${round}`, check.argv, {
       cwd: plan.cwd,
       env: plan.env,
       timeoutSec: VERIFY.checkTimeoutSec,
@@ -110,7 +128,7 @@ export async function runSide(
     // `timeout` exits 124; 137 is a kill, a timeout only when it came at the limit (else memory).
     const timedOut =
       run.exitCode === 124 || (run.exitCode === 137 && run.ms >= VERIFY.checkTimeoutSec * 1000);
-    const checkResult: CheckResult = {
+    const result: CheckResult = {
       name: check.name,
       argv: check.argv,
       exitCode: run.exitCode ?? -1,
@@ -120,14 +138,26 @@ export async function runSide(
       typeErrors: typeErrorCount(output),
       output: tail(output),
     };
-    result.checks.push(checkResult);
+    checks.push(result);
     onLog?.(
-      `${side}: ${check.name} exit ${run.exitCode} in ${run.ms} ms${counts ? ` (${counts.passed}/${counts.collected} passed)` : ""}${checkResult.typeErrors ? ` (${checkResult.typeErrors} TS errors)` : ""}`,
+      `${side}: ${check.name} exit ${run.exitCode} in ${run.ms} ms${counts ? ` (${counts.passed}/${counts.collected} passed)` : ""}${result.typeErrors ? ` (${result.typeErrors} TS errors)` : ""}`,
     );
   }
   const egress = await session.egress().catch(() => []);
-  result.deniedHosts = [...new Set(egress.filter((e) => e.phase === "check").map((e) => e.host))];
-  return result;
+  return { checks, deniedHosts: [...new Set(egress.filter((e) => e.phase === "check").map((e) => e.host))] };
+}
+
+export async function runSide(
+  session: VerifySession,
+  plan: CheckPlan,
+  side: "baseline" | "after",
+  change?: Change,
+  onLog?: (line: string) => void,
+): Promise<SideRun> {
+  const result = await prepareSide(session, plan, side, change, onLog);
+  if (!result.install.ok) return result;
+  const { checks, deniedHosts } = await runChecks(session, plan, side, {}, onLog);
+  return { ...result, checks, deniedHosts };
 }
 
 export async function verifyChange(input: {

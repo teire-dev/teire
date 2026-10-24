@@ -117,3 +117,70 @@ export function lockfileCommand(manager: JsManager, lockfileVersion?: string): s
       return ["npm", "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"];
   }
 }
+
+/**
+ * Lockfile-only bump of a transitive dependency (advisories with a fixed version, D71): first
+ * within its parents' ranges with the package manager's own update; when a parent's range forbids
+ * the fix, an override pins it (npm `overrides`, pnpm `pnpm.overrides`, yarn and bun
+ * `resolutions`) and the PR says so. Whether the fix landed is read back from the new lockfile.
+ */
+export function transitiveUpdateCommand(
+  manager: JsManager,
+  name: string,
+  lockfileVersion?: string,
+): string[] | null {
+  switch (manager) {
+    case "pnpm":
+      return [
+        "pnpm",
+        "update",
+        name,
+        "--recursive",
+        "--depth",
+        "Infinity",
+        "--lockfile-only",
+        "--ignore-scripts",
+      ];
+    case "yarn":
+      return lockfileVersion && lockfileVersion !== "1"
+        ? ["yarn", "up", "-R", name, "--mode=update-lockfile"]
+        : null;
+    case "bun":
+      return null;
+    default:
+      return ["npm", "update", name, "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"];
+  }
+}
+
+/** The override that pins `name` to at least `version` in the root manifest, format-preserving. */
+export function overrideEdit(
+  tree: RepoTree,
+  manager: JsManager,
+  manifestPath: string,
+  name: string,
+  version: string,
+): ManifestEdit | null {
+  const text = tree.read(manifestPath);
+  if (text === null) return null;
+  const path =
+    manager === "pnpm"
+      ? ["pnpm", "overrides", name]
+      : manager === "npm"
+        ? ["overrides", name]
+        : ["resolutions", name];
+  const range = `^${version}`;
+  let current: string | undefined;
+  try {
+    let node: unknown = JSON.parse(text);
+    for (const key of path) node = (node as Record<string, unknown> | undefined)?.[key];
+    current = typeof node === "string" ? node : undefined;
+  } catch {
+    return null;
+  }
+  if (current === range) return null;
+  const after = applyEdits(
+    text,
+    modify(text, path, range, { formattingOptions: { insertSpaces: true, tabSize: 2 } }),
+  );
+  return { path: manifestPath, before: text, after, from: current ?? "", to: range };
+}
