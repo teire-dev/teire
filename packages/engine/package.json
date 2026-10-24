@@ -13,7 +13,9 @@
     "./inventory": "./src/inventory/index.ts",
     "./registry": "./src/registry/index.ts",
     "./net": "./src/net/fetch.ts",
-    "./surface": "./src/surface/index.ts"
+    "./surface": "./src/surface/index.ts",
+    "./locate": "./src/locate/index.ts",
+    "./impact": "./src/impact/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -21,7 +23,8 @@
     "catalog:sync": "tsx scripts/catalog-sync.ts",
     "compare-models": "tsx --env-file=../../.env.local scripts/compare-models.ts",
     "test": "vitest run",
-    "catalog:validate": "tsx scripts/catalog-validate.ts"
+    "catalog:validate": "tsx scripts/catalog-validate.ts",
+    "s02a": "tsx --env-file=../../.env.local scripts/s02a.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.77",
@@ -32,6 +35,7 @@
     "jsonc-parser": "3.3.1",
     "semver": "7.8.5",
     "smol-toml": "1.9.1",
+    "ts-morph": "28.0.0",
     "typescript6": "npm:typescript@6.0.3",
     "yaml": "2.9.1",
     "zod": "4.6.7"

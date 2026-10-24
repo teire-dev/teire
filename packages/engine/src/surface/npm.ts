@@ -1,7 +1,8 @@
+import { join } from "node:path";
 import semver from "semver";
 import { SURFACE } from "../constants";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
-import { declarationEntries, readManifest } from "./entries";
+import { declarationEntries, readManifest, resolveSubpath, wildcardSubpaths } from "./entries";
 import { exportsOnlySurface } from "./lexer";
 import { fetchNpmPackage } from "./npm-package";
 import { diffSurfaces } from "./ts-diff";
@@ -96,6 +97,28 @@ export async function npmSurfaceDiff(
   const from = await npmSurface(name, fromVersion, options);
   const to = await npmSurface(name, toVersion, options);
   const diff = diffSurfaces(from.surface, to.surface);
+  // Deep imports reachable through wildcard exports in the installed version that no longer resolve.
+  if (!diff.unanalyzable && from.surface.source.kind === "bundled") {
+    const fromManifest = readManifest(from.dir) ?? {};
+    const toManifest = readManifest(to.dir) ?? {};
+    const deep = wildcardSubpaths(
+      from.dir,
+      declarationEntries(from.dir, fromManifest),
+      SURFACE.maxWildcardFiles,
+    );
+    for (const subpath of deep) {
+      if (subpath in from.surface.entries || resolveSubpath(to.dir, toManifest, subpath) !== null) continue;
+      diff.changes.push({
+        path: subpath,
+        declKey: null,
+        kind: "entry-removed",
+        severity: "breaking",
+        before: resolveSubpath(from.dir, fromManifest, subpath),
+        after: null,
+      });
+      diff.counts["entry-removed"] = (diff.counts["entry-removed"] ?? 0) + 1;
+    }
+  }
   const side = (s: typeof from) => ({
     source: s.surface.source,
     symbols: Object.keys(s.surface.symbols).length,
@@ -117,4 +140,35 @@ export async function npmSurfaceDiff(
       noiseFilterVersion: SURFACE.noiseFilterVersion,
     },
   };
+}
+
+/**
+ * Where the locator should place one installed version and which directories its declaration
+ * keys are relative to: the package itself (or its `@types` stand-in) plus its type-dependency
+ * closure, with the same prefixes the walker used.
+ */
+export async function npmTypesLayout(name: string, version: string, options: NpmSurfaceOptions) {
+  const pkg = await fetchNpmPackage(name, version, options);
+  const layout = async (as: string, dir: string) => {
+    const deps = await materializeTypeDeps(dir, options);
+    const base = options.cacheDir ?? SURFACE.cacheDir;
+    return {
+      link: { as, dir },
+      roots: [
+        { dir, prefix: "" },
+        ...deps.packages.map((p) => ({
+          dir: join(base, p.name, p.version, "package"),
+          prefix: `node_modules/${p.name}/`,
+        })),
+      ],
+    };
+  };
+  if (Object.keys(declarationEntries(pkg.dir, readManifest(pkg.dir) ?? {}).entries).length)
+    return layout(name, pkg.dir);
+  const dt = await definitelyTyped(name, version, options);
+  if (dt) {
+    const types = await fetchNpmPackage(dt.name, dt.version, options);
+    return layout(dt.name, types.dir);
+  }
+  return { link: { as: name, dir: pkg.dir }, roots: [{ dir: pkg.dir, prefix: "" }] };
 }

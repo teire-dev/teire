@@ -88,7 +88,13 @@ export async function guardedFetch(
     if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
       await response.body?.cancel();
       redirects.push(current);
-      current = new URL(response.headers.get("location") as string, current).toString();
+      const nextUrl = new URL(response.headers.get("location") as string, current);
+      // Credentials never follow a redirect to another host (GitHub's codeload URL carries its own token).
+      if (nextUrl.host !== new URL(current).host) {
+        delete headers.authorization;
+        delete headers.cookie;
+      }
+      current = nextUrl.toString();
       // Conditional headers apply to the first URL only.
       delete headers["if-none-match"];
       delete headers["if-modified-since"];

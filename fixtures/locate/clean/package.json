@@ -1,0 +1,21 @@
+{
+  "name": "demo-clean",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A release-notes summariser on the OpenAI Node SDK v4 that only uses APIs newer SDK majors keep. Teire demo repository.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
+  }
+}

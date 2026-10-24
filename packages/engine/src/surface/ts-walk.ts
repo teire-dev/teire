@@ -371,13 +371,25 @@ export function extractTsSurface(input: WalkInput): ApiSurface {
   const notes: string[] = [];
   const seed = (subpath: string, file: string) => {
     const sourceFile = program.getSourceFile(join(pkgDir, file));
-    const moduleSymbol = sourceFile && resolveModuleSymbol(sourceFile, checker);
-    if (!moduleSymbol) {
+    if (!sourceFile) {
       notes.push(`${subpath}: declarations did not load`);
       return;
     }
+    const moduleSymbol = resolveModuleSymbol(sourceFile, checker);
     const prefix = subpath === "." ? "" : `${subpath.slice(2)}:`;
-    for (const exp of checker.getExportsOfModule(moduleSymbol)) {
+    const exports = moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : [];
+    if (exports.length === 0 && subpath === ".") {
+      // Ambient-only packages (`@types/node`: `declare module "fs" { … }` across many files): each
+      // module the package declares is part of its API, named by the module.
+      for (const ambient of checker.getAmbientModules()) {
+        if (!inScope(ambient)) continue;
+        const moduleName = ambient.getName().replace(/^["']|["']$/g, "");
+        for (const exp of checker.getExportsOfModule(ambient))
+          enqueue(exp, `${moduleName}:${exp.getName()}`, 0);
+      }
+      return;
+    }
+    for (const exp of exports) {
       const exportName = exp.getName();
       // A default-exported class is used under its declared name (`new OpenAI()`), not "default".
       if (exportName === "default") {

@@ -308,6 +308,8 @@ export const callSite = z.object({
     "test",
     "docs",
     "dynamic",
+    /** An object literal checked against a changed type (who builds the input). */
+    "object",
   ]),
   snippet: z.string(),
   resolution: z.enum(["type", "import", "traced", "name-only", "literal"]),

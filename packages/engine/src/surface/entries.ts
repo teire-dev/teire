@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, normalize } from "node:path";
 
 /**
@@ -153,4 +153,41 @@ export function resolveSubpath(dir: string, manifest: PackageManifest, subpath: 
   }
   if (!best?.target) return null;
   return declarationFor(dir, best.target.replaceAll("*", best.match));
+}
+
+/**
+ * Every subpath a wildcard `exports` key makes importable, found by matching the key's declaration
+ * target against the package's files (openai 4's `"./*": {"types": "./*.d.ts"}` exposes each
+ * `.d.ts`). Keys spelled with a JS extension (`./*.js`) duplicate the bare ones and are skipped.
+ */
+export function wildcardSubpaths(dir: string, entries: DeclarationEntries, limit: number): string[] {
+  const files: string[] = [];
+  const walk = (rel: string) => {
+    for (const entry of readdirSync(join(dir, rel), { withFileTypes: true })) {
+      if (files.length >= limit) return;
+      const child = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory() && entry.name !== "node_modules") walk(child);
+      else if (entry.isFile() && DECL.test(entry.name)) files.push(child);
+    }
+  };
+  walk("");
+  const out = new Set<string>();
+  for (const { key, target } of entries.wildcards) {
+    if (/\.(c|m)?js$/.test(key) || (key.match(/\*/g) ?? []).length !== 1) continue;
+    const decl = target
+      .replace(/^\.\//, "")
+      .replace(/\.mjs$/, ".d.mts")
+      .replace(/\.cjs$/, ".d.cts")
+      .replace(/\.js$/, ".d.ts");
+    const pattern = DECL.test(decl) ? decl : `${decl}.d.ts`;
+    const [before = "", after = ""] = pattern.split("*");
+    for (const file of files) {
+      if (!file.startsWith(before) || !file.endsWith(after) || file.length < before.length + after.length + 1)
+        continue;
+      const match = file.slice(before.length, file.length - after.length);
+      if (match.endsWith("/index")) out.add(key.replace("*", match.slice(0, -"/index".length)));
+      out.add(key.replace("*", match));
+    }
+  }
+  return [...out].sort();
 }

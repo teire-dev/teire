@@ -1,0 +1,21 @@
+{
+  "name": "demo-npm-major",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A small support-ticket triage service built on the OpenAI Node SDK v4. Teire demo repository.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
+  }
+}

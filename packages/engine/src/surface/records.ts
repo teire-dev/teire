@@ -69,8 +69,38 @@ function signaturesOf(name: string, c: SurfaceChange): Signature[] {
 }
 
 export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().toISOString()): ChangeV2[] {
-  if (diff.unanalyzable) return [];
   const contentHash = sha256(JSON.stringify(diff.changes));
+  const source = {
+    url: `https://registry.npmjs.org/${diff.name}/${diff.toVersion}`,
+    kind: "surface-diff" as const,
+    trustBasis: "computed" as const,
+    contentHash,
+    checkedAt,
+    tool: { name: diff.tool.name, version: diff.tool.version },
+  };
+  // Could not read one side: say so as a change with nothing to search for ("check by hand"),
+  // never as an empty diff that would read as "no breaking changes" (D74).
+  if (diff.unanalyzable)
+    return [
+      changeV2.parse({
+        schemaVersion: 2,
+        id: `npm/${diff.name}/${diff.fromVersion}..${diff.toVersion}/package-major`,
+        subject: { kind: "package", ecosystem: "npm", name: diff.name },
+        kind: "package-major",
+        title: `${diff.name} ${diff.toVersion}: API surface could not be compared with ${diff.fromVersion}`,
+        summary: diff.notes.join("; ") || "One side's declarations could not be read.",
+        applicability: {
+          class: "breaks-on-upgrade",
+          affectedRange: diff.fromVersion,
+          fromVersion: diff.fromVersion,
+          toVersion: diff.toVersion,
+        },
+        sources: [source],
+        provenance: { method: "tool", tool: diff.tool, confidence: { overall: 0.3 } },
+        visibility: "public",
+        status: "candidate",
+      }),
+    ];
   const groups = new Map<ChangeKindV2, SurfaceChange[]>();
   for (const c of diff.changes) {
     const kind = KIND[c.kind];
@@ -105,16 +135,7 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
           .filter((c) => c.guidance)
           .slice(0, 50)
           .map((c) => ({ text: `${c.path}: ${c.guidance}`, sourceIndex: 0 })),
-        sources: [
-          {
-            url: `https://registry.npmjs.org/${diff.name}/${diff.toVersion}`,
-            kind: "surface-diff",
-            trustBasis: "computed",
-            contentHash,
-            checkedAt,
-            tool: { name: diff.tool.name, version: diff.tool.version },
-          },
-        ],
+        sources: [source],
         provenance: {
           method: "tool",
           tool: diff.tool,
