@@ -82,8 +82,8 @@ async function main() {
     ),
   });
 
-  // 2. Tool calling reliability on the driver model (raw API, 10 runs)
-  const driver = config.models.driver;
+  // 2. Tool calling reliability on the agent model (raw API, 10 runs)
+  const driver = config.models.agent;
   let validCalls = 0;
   const latencies: number[] = [];
   for (let i = 0; i < 10; i++) {
@@ -164,9 +164,9 @@ async function main() {
     usage: loop.totalUsage,
   });
 
-  // 5. Thinking off on the fast model
+  // 5. Thinking off on the reader model
   const fast = await generateText({
-    model: tf.model("fast"),
+    model: tf.model("reader"),
     ...nemotronSampling,
     maxOutputTokens: 64,
     providerOptions: nemotronOptions({ thinking: false }),
@@ -174,7 +174,7 @@ async function main() {
       "Classify this changelog line as breaking or not, answer one word: 'Removed the temperature parameter.'",
   });
   report("thinking_off_fast", {
-    model: tf.modelId("fast"),
+    model: tf.modelId("reader"),
     text: fast.text.trim().slice(0, 40),
     reasoningTokens: fast.usage.outputTokenDetails?.reasoningTokens ?? null,
     outputTokens: fast.usage.outputTokens,
@@ -182,7 +182,7 @@ async function main() {
 
   // 6. Structured output: json_schema vs json_object
   const schemaRes = await chat({
-    model: config.models.fast,
+    model: config.models.reader,
     max_tokens: 200,
     chat_template_kwargs: { enable_thinking: false },
     response_format: {
@@ -215,7 +215,7 @@ async function main() {
   ] as const) {
     const r = await chat(
       {
-        model: config.models.escalation,
+        model: config.models.agent,
         max_tokens: 16,
         chat_template_kwargs: { enable_thinking: false },
         messages: [{ role: "user", content: "Reply with: ready" }],

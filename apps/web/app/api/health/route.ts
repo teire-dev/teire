@@ -18,7 +18,7 @@ export async function GET() {
   try {
     const tf = createTokenFactory(config);
     const prices = await fetchModelPrices().catch(() => undefined);
-    const result = await ping(tf, "fast", prices);
+    const result = await ping(tf, "agent", prices);
     return Response.json({ ok: true, tokenFactory: { configured: true, ...result } });
   } catch (error) {
     return Response.json(

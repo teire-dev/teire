@@ -13,17 +13,23 @@ export const NEMOTRON = {
   topP: 0.95,
 } as const;
 
+/**
+ * Model per job, chosen on results, not price (scripts/compare-models.ts, 2026-10-24):
+ * agent  — writes and repairs code (Ultra: 3/3 correct fixes vs Super 2/3);
+ * reader — extraction and triage, reasoning on (Ultra: 29/29 records on every run);
+ * failover — used only while the other model is unavailable (Super).
+ */
 export const MODEL_ENV = {
-  driver: "TEIRE_MODEL_DRIVER",
-  escalation: "TEIRE_MODEL_ESCALATION",
-  fast: "TEIRE_MODEL_FAST",
+  agent: "TEIRE_MODEL_AGENT",
+  reader: "TEIRE_MODEL_READER",
+  failover: "TEIRE_MODEL_FAILOVER",
 } as const;
 
 export const FIX = {
   /** Confidence at or above this opens a PR; below it opens a "needs a human" issue. */
   prThreshold: 0.7,
-  /** Failed verifications before escalating from the driver model to the escalation model. */
-  escalateAfterFailures: 2,
+  /** Failed verifications before the agent discards its plan and starts over from the evidence. */
+  replanAfterFailures: 2,
   /** Hard cap on fix attempts per run. */
   maxAttempts: 4,
   /** Agent tool-loop step cap per attempt. */

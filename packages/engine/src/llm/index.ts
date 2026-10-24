@@ -30,6 +30,8 @@ export function createTokenFactory(config: TokenFactoryConfig) {
     apiKey: config.apiKey,
     baseURL: config.baseURL ?? TOKENFACTORY.defaultBaseUrl,
     includeUsage: true,
+    // Token Factory accepts response_format json_schema (smoke check 6), so let the SDK send it.
+    supportsStructuredOutputs: true,
   });
   return {
     config,
