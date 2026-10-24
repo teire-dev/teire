@@ -14,7 +14,8 @@
       "!**/dist",
       "!**/.turbo",
       "!**/drizzle/meta",
-      "!**/pnpm-lock.yaml"
+      "!**/pnpm-lock.yaml",
+      "!apps/web/public/logos"
     ]
   },
   "formatter": {
