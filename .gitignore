@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+.next/
+dist/
+out/
+build/
+.turbo/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo
+
+# env (only the example is committed)
+.env*
+!.env.example
+
+# local
+.DS_Store
+coverage/
+*.log
+.smee/

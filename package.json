@@ -1,0 +1,25 @@
+{
+  "name": "teire",
+  "private": true,
+  "description": "Teire keeps your code working when the services it depends on change.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22.14"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "db:generate": "pnpm --filter @teire/db generate",
+    "db:migrate": "pnpm --filter @teire/db migrate"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.2",
+    "turbo": "2.11.10",
+    "typescript": "5.9.3"
+  }
+}
