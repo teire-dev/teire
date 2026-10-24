@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "ecosystem": {
+      "type": "string",
+      "enum": ["npm", "pypi", "maven", "go", "cargo", "rubygems"]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aliasName": {
+      "type": "string"
+    },
+    "version": {
+      "type": ["string", "null"]
+    },
+    "declaredRange": {
+      "type": "string"
+    },
+    "direct": {
+      "type": "boolean"
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["prod", "dev", "test", "optional", "build", "peer"]
+    },
+    "workspace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "manifestPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lockfilePath": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["registry", "git", "path", "workspace", "private-index", "unknown"]
+    },
+    "sourceRef": {
+      "type": "string"
+    },
+    "resolvedBy": {
+      "type": "string",
+      "enum": ["lockfile", "sandbox", "unresolved"]
+    },
+    "unresolvedReason": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "markers": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "ecosystem",
+    "name",
+    "version",
+    "direct",
+    "scope",
+    "workspace",
+    "manifestPath",
+    "source",
+    "resolvedBy"
+  ]
+}

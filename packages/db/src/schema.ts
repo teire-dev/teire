@@ -105,24 +105,40 @@ export const providerSources = pgTable(
   ],
 );
 
-export type ChangeStatus = "confirmed" | "quarantined";
+export type ChangeStatus = "confirmed" | "candidate" | "quarantined";
 
-/** Index of catalog/changes/<provider>/<id>.json. `record` holds the full validated record. */
+/**
+ * Every known change. `record` holds the full validated record: schema v1 (provider tables, until
+ * S04) or v2 (contract.ts in the engine). Generated records live here; git `catalog/` holds only
+ * schemas, curated and contributed records (plan D72).
+ */
 export const changes = pgTable(
   "changes",
   {
     id: text("id").primaryKey(),
-    providerSlug: text("provider_slug").notNull(),
+    schemaVersion: integer("schema_version").notNull().default(1),
+    subjectKind: text("subject_kind").$type<"package" | "api-host" | "model" | "runtime">(),
+    ecosystem: text("ecosystem"),
+    subjectName: text("subject_name"),
+    providerSlug: text("provider_slug"),
     kind: text("kind").notNull(),
+    class: text("class"),
     title: text("title").notNull(),
+    fromVersion: text("from_version"),
+    toVersion: text("to_version"),
     deadline: timestamp("deadline", { withTimezone: true }),
     status: text("status").$type<ChangeStatus>().notNull(),
+    visibility: text("visibility").$type<"public" | "private">().notNull().default("public"),
     contentHash: text("content_hash").notNull(),
     record: jsonb("record").notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("changes_provider_idx").on(t.providerSlug), index("changes_deadline_idx").on(t.deadline)],
+  (t) => [
+    index("changes_provider_idx").on(t.providerSlug),
+    index("changes_deadline_idx").on(t.deadline),
+    index("changes_subject_idx").on(t.ecosystem, t.subjectName),
+  ],
 );
 
 export type ScanTrigger = "install" | "push" | "catalog" | "command" | "manual" | "public";
@@ -147,39 +163,64 @@ export const scans = pgTable(
   (t) => [index("scans_repo_idx").on(t.repoId, t.createdAt)],
 );
 
-export type Verdict = "affected" | "not_affected" | "needs_human" | "inconclusive";
+export type Verdict =
+  | "affected"
+  | "not_affected"
+  | "not_applicable"
+  | "needs_human"
+  | "inconclusive"
+  | "check_by_hand";
 export type FindingState = "open" | "ignored" | "fixed" | "dismissed";
 
-/** One change × one repo. Unique per pair so re-scans update in place. */
+/**
+ * One change × one dependency × one repo. `dependency_key` (`<ecosystem>:<name>@<workspace>`) is
+ * stable across scans, so re-scans update in place.
+ */
 export const findings = pgTable(
   "findings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     repoId: githubId("repo_id").notNull(),
     changeId: text("change_id").notNull(),
+    dependencyKey: text("dependency_key").notNull().default(""),
     changeHash: text("change_hash").notNull(),
     scanId: uuid("scan_id"),
     verdict: text("verdict").$type<Verdict>().notNull(),
+    class: text("class"),
+    /** Lower runs first: security with a fix, already broken, dated, code-changing majors, plain bumps. */
+    priority: integer("priority"),
+    reachability: text("reachability"),
     state: text("state").$type<FindingState>().notNull().default("open"),
     reason: text("reason"),
+    position: jsonb("position"),
     callSites: jsonb("call_sites").notNull().default([]),
+    coverage: jsonb("coverage"),
+    groupKey: text("group_key"),
+    catalogVersion: text("catalog_version"),
+    lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    uniqueIndex("findings_repo_change_idx").on(t.repoId, t.changeId),
+    uniqueIndex("findings_repo_change_dep_idx").on(t.repoId, t.changeId, t.dependencyKey),
     index("findings_repo_state_idx").on(t.repoId, t.state),
+    index("findings_group_idx").on(t.repoId, t.groupKey),
   ],
 );
 
 export type RunKind = "fix" | "dry_run";
 export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
-export type VerifyOutcome =
+/** Mirrors PR_MODE_BY_EVIDENCE in the engine: evidence, not a score, decides the PR (rule 13). */
+export type EvidenceKind =
   | "verified"
   | "typecheck_only"
-  | "regression"
   | "pre_existing_failure"
-  | "unverified";
+  | "needs_live_access"
+  | "needs_local_service"
+  | "environment_mismatch"
+  | "regression"
+  | "unverified"
+  | "timeout";
 
 export const runs = pgTable(
   "runs",
@@ -187,15 +228,32 @@ export const runs = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     findingId: uuid("finding_id"),
     repoId: githubId("repo_id").notNull(),
-    changeId: text("change_id").notNull(),
+    /** Null for grouped upgrade runs, which carry `group_key` and cover several changes. */
+    changeId: text("change_id"),
+    groupKey: text("group_key"),
     kind: text("kind").$type<RunKind>().notNull(),
     status: text("status").$type<RunStatus>().notNull().default("queued"),
     step: text("step"),
-    outcome: text("outcome").$type<VerifyOutcome>(),
+    fromVersion: text("from_version"),
+    targetVersion: text("target_version"),
+    attempt: integer("attempt").notNull().default(1),
+    replannedAt: timestamp("replanned_at", { withTimezone: true }),
+    evidenceKind: text("evidence_kind").$type<EvidenceKind>(),
+    /** Unused since rule 13 (evidence decides the PR); kept until a later migration drops them. */
+    outcome: text("outcome"),
     confidence: real("confidence"),
+    prMode: text("pr_mode").$type<"ready" | "draft" | "issue">(),
     backend: text("backend"),
+    baseSha: text("base_sha"),
+    headSha: text("head_sha"),
+    lockBeforeHash: text("lock_before_hash"),
+    lockAfterHash: text("lock_after_hash"),
     diff: text("diff"),
     verification: jsonb("verification"),
+    testCounts: jsonb("test_counts"),
+    egressDenied: jsonb("egress_denied"),
+    envDifferences: jsonb("env_differences").$type<string[]>(),
+    modelsUsed: jsonb("models_used"),
     costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
     idempotencyKey: text("idempotency_key").notNull(),
     isPublic: boolean("is_public").notNull().default(false),
@@ -253,7 +311,11 @@ export const sandboxExecs = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     runId: uuid("run_id").notNull(),
     backend: text("backend").notNull(),
-    phase: text("phase").$type<"install" | "baseline" | "after">().notNull(),
+    phase: text("phase")
+      .$type<"install_baseline" | "baseline" | "upgrade" | "install_after" | "after" | "retry">()
+      .notNull(),
+    sandboxId: text("sandbox_id"),
+    jobId: text("job_id"),
     command: text("command").notNull(),
     exitCode: integer("exit_code"),
     timedOut: boolean("timed_out").notNull().default(false),
@@ -325,4 +387,129 @@ export const publicScans = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("public_scans_requester_idx").on(t.requestedBy, t.createdAt)],
+);
+
+/** Every dependency a scan found, per workspace/module (plan D44, D56). */
+export const dependencyInstances = pgTable(
+  "dependency_instances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    scanId: uuid("scan_id").notNull(),
+    repoId: githubId("repo_id").notNull(),
+    dependencyKey: text("dependency_key").notNull(),
+    ecosystem: text("ecosystem").notNull(),
+    name: text("name").notNull(),
+    aliasName: text("alias_name"),
+    version: text("version"),
+    declaredRange: text("declared_range"),
+    direct: boolean("direct").notNull(),
+    scope: text("scope").notNull(),
+    workspace: text("workspace").notNull(),
+    manifestPath: text("manifest_path").notNull(),
+    lockfilePath: text("lockfile_path"),
+    source: text("source").notNull(),
+    sourceRef: text("source_ref"),
+    resolvedBy: text("resolved_by").notNull(),
+    unresolvedReason: text("unresolved_reason"),
+    environment: jsonb("environment"),
+  },
+  (t) => [
+    uniqueIndex("dependency_instances_scan_key_idx").on(t.scanId, t.dependencyKey, t.version),
+    index("dependency_instances_repo_idx").on(t.repoId),
+    index("dependency_instances_pkg_idx").on(t.ecosystem, t.name, t.version),
+  ],
+);
+
+/** Registry metadata per package, revalidated with ETags. */
+export const registryCache = pgTable(
+  "registry_cache",
+  {
+    ecosystem: text("ecosystem").notNull(),
+    name: text("name").notNull(),
+    etag: text("etag"),
+    lastModified: text("last_modified"),
+    bodyHash: text("body_hash").notNull(),
+    data: jsonb("data").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.ecosystem, t.name] })],
+);
+
+/** One API-surface diff per package version pair and tool, reused by every repo on the same jump. */
+export const surfaceDiffs = pgTable(
+  "surface_diffs",
+  {
+    ecosystem: text("ecosystem").notNull(),
+    name: text("name").notNull(),
+    fromVersion: text("from_version").notNull(),
+    toVersion: text("to_version").notNull(),
+    tool: text("tool").notNull(),
+    toolVersion: text("tool_version").notNull(),
+    noiseFilterVersion: text("noise_filter_version").notNull(),
+    result: jsonb("result").notNull(),
+    symbolCount: integer("symbol_count").notNull(),
+    truncated: boolean("truncated").notNull().default(false),
+    durationMs: integer("duration_ms"),
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.ecosystem, t.name, t.fromVersion, t.toVersion, t.tool, t.toolVersion, t.noiseFilterVersion],
+    }),
+  ],
+);
+
+/** Advisory ids per exact package version (OSV + GitHub Advisory DB), refreshed daily. */
+export const advisoryCache = pgTable(
+  "advisory_cache",
+  {
+    ecosystem: text("ecosystem").notNull(),
+    name: text("name").notNull(),
+    version: text("version").notNull(),
+    ids: jsonb("ids").$type<string[]>().notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.ecosystem, t.name, t.version] })],
+);
+
+/** Release notes and changelog files by repository, ref and path, sliced by version. */
+export const notesCache = pgTable(
+  "notes_cache",
+  {
+    repoUrl: text("repo_url").notNull(),
+    ref: text("ref").notNull(),
+    path: text("path").notNull(),
+    etag: text("etag"),
+    contentHash: text("content_hash").notNull(),
+    slices: jsonb("slices").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.repoUrl, t.ref, t.path] })],
+);
+
+/** Nemotron extraction results, so the same notes are never read twice. */
+export const extractionCache = pgTable("extraction_cache", {
+  key: text("key").primaryKey(),
+  model: text("model").notNull(),
+  records: jsonb("records").notNull(),
+  costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+  createdAt: createdAt(),
+});
+
+/** Optional container snapshots per repo and lockfile (Cloudflare public beta; never shared across repos). */
+export const sandboxSnapshots = pgTable(
+  "sandbox_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    repoId: githubId("repo_id").notNull(),
+    lockfileHash: text("lockfile_hash").notNull(),
+    imageDigest: text("image_digest").notNull(),
+    backend: text("backend").notNull(),
+    ref: text("ref").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    lastRestoredAt: timestamp("last_restored_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("sandbox_snapshots_key_idx").on(t.repoId, t.lockfileHash, t.imageDigest, t.backend)],
 );

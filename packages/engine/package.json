@@ -7,13 +7,17 @@
     ".": "./src/index.ts",
     "./llm": "./src/llm/index.ts",
     "./constants": "./src/constants.ts",
-    "./catalog": "./src/catalog/index.ts"
+    "./catalog": "./src/catalog/index.ts",
+    "./contract": "./src/contract.ts",
+    "./verify": "./src/verify/cloudflare.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "smoke": "tsx --env-file=../../.env.local scripts/smoke-tokenfactory.ts",
     "catalog:sync": "tsx scripts/catalog-sync.ts",
-    "compare-models": "tsx --env-file=../../.env.local scripts/compare-models.ts"
+    "compare-models": "tsx --env-file=../../.env.local scripts/compare-models.ts",
+    "test": "vitest run",
+    "catalog:validate": "tsx scripts/catalog-validate.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.77",
@@ -27,6 +31,7 @@
     "@types/node": "24.19.2",
     "@types/semver": "7.8.0",
     "tsx": "4.23.15",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
   }
 }

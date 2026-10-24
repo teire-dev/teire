@@ -25,5 +25,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm --filter @teire/engine test
+      - run: pnpm --filter @teire/engine catalog:validate
       - run: pnpm --filter @teire/worker build
       - run: pnpm --filter @teire/web build

@@ -24,7 +24,8 @@
         "endpoint-removal",
         "sdk-major",
         "behaviour-change",
-        "account-gated"
+        "account-gated",
+        "package-deprecated"
       ]
     },
     "title": {
