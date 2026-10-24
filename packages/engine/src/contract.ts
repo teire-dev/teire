@@ -26,6 +26,7 @@ export type Subject = z.infer<typeof subject>;
 export const changeKindsV2 = [
   "symbol-removed",
   "symbol-changed",
+  "symbol-deprecated",
   "arity-changed",
   "required-added",
   "optional-to-required",

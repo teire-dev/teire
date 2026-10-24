@@ -1,5 +1,7 @@
-import { and, type Database, eq, registryCache } from "@teire/db";
+import { and, type Database, eq, registryCache, surfaceDiffs } from "@teire/db";
+import { SURFACE } from "@teire/engine/constants";
 import type { RegistryCache } from "@teire/engine/registry";
+import { type NpmSurfaceOptions, npmSurfaceDiff, type SurfaceDiff } from "@teire/engine/surface";
 
 /** `registry_cache` in Postgres: one row per (ecosystem, key), shared by every repo the worker scans. */
 export function postgresRegistryCache(db: Database): RegistryCache {
@@ -33,4 +35,47 @@ export function postgresRegistryCache(db: Database): RegistryCache {
         .onConflictDoUpdate({ target: [registryCache.ecosystem, registryCache.name], set: values });
     },
   };
+}
+
+/**
+ * `surface_diffs`: one API-surface diff per (package, from, to, tool, tool version, noise-filter
+ * version), computed once and reused by every repo on the same jump (1–10 s and ~0.5 GB per pair).
+ */
+export async function cachedNpmSurfaceDiff(
+  db: Database,
+  name: string,
+  fromVersion: string,
+  toVersion: string,
+  options: NpmSurfaceOptions,
+): Promise<SurfaceDiff> {
+  const key = and(
+    eq(surfaceDiffs.ecosystem, "npm"),
+    eq(surfaceDiffs.name, name),
+    eq(surfaceDiffs.fromVersion, fromVersion),
+    eq(surfaceDiffs.toVersion, toVersion),
+    eq(surfaceDiffs.tool, SURFACE.tool),
+    eq(surfaceDiffs.toolVersion, SURFACE.toolVersion),
+    eq(surfaceDiffs.noiseFilterVersion, SURFACE.noiseFilterVersion),
+  );
+  const [row] = await db.select({ result: surfaceDiffs.result }).from(surfaceDiffs).where(key).limit(1);
+  if (row) return row.result as SurfaceDiff;
+  const started = Date.now();
+  const diff = await npmSurfaceDiff(name, fromVersion, toVersion, options);
+  await db
+    .insert(surfaceDiffs)
+    .values({
+      ecosystem: "npm",
+      name,
+      fromVersion,
+      toVersion,
+      tool: SURFACE.tool,
+      toolVersion: SURFACE.toolVersion,
+      noiseFilterVersion: SURFACE.noiseFilterVersion,
+      result: diff,
+      symbolCount: diff.from.symbols + diff.to.symbols,
+      truncated: diff.from.truncated || diff.to.truncated,
+      durationMs: Date.now() - started,
+    })
+    .onConflictDoNothing();
+  return diff;
 }

@@ -132,6 +132,12 @@ importers:
       ai:
         specifier: 7.0.150
         version: 7.0.150(zod@4.6.7)
+      cjs-module-lexer:
+        specifier: 2.3.0
+        version: 2.3.0
+      es-module-lexer:
+        specifier: 3.0.3
+        version: 3.0.3
       jsonc-parser:
         specifier: 3.3.1
         version: 3.3.1
@@ -141,6 +147,9 @@ importers:
       smol-toml:
         specifier: 1.9.1
         version: 1.9.1
+      typescript6:
+        specifier: npm:typescript@6.0.3
+        version: typescript@6.0.3
       yaml:
         specifier: 2.9.1
         version: 2.9.1
@@ -1378,6 +1387,9 @@ packages:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
 
+  cjs-module-lexer@2.3.0:
+    resolution: {integrity: sha512-lmNyBzi6iYiqyrExTctfmjd8tInx+dHu9PBomTfH5RXS53c27JMFJgzNv5TyAnm3PgGf+MLy0+Ws41/HlVxdKQ==}
+
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
 
@@ -1508,6 +1520,9 @@ packages:
 
   es-module-lexer@2.3.2:
     resolution: {integrity: sha512-poHGpORABojJJucnV9KbOavETW8lBVnphkW77ER5/BQ5Fz7oXSoCNek7IH3vR5nRjdsEz926ibFYX8KtLQmdyw==}
+
+  es-module-lexer@3.0.3:
+    resolution: {integrity: sha512-yWGe1O/j+almnV4hOYrmZo8u58JdnmXEMneRQAYkWtqSiT86yoMIEKF4rpqEDj52tbYl3xceBD3DQIBwcsC9Pw==}
 
   esbuild@0.18.20:
     resolution: {integrity: sha512-ceqxoedUrcayh7Y7ZX6NdbbDzGROiyVBgC4PriJThBKSVPWnnFHZAkfI1lJT8QFkOwH4qOS2SJkS4wvpGl8BpA==}
@@ -2031,6 +2046,11 @@ packages:
 
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -2963,6 +2983,8 @@ snapshots:
 
   chai@6.3.0: {}
 
+  cjs-module-lexer@2.3.0: {}
+
   client-only@0.0.1: {}
 
   cookie@1.1.1: {}
@@ -3002,6 +3024,8 @@ snapshots:
   error-stack-parser-es@1.0.5: {}
 
   es-module-lexer@2.3.2: {}
+
+  es-module-lexer@3.0.3: {}
 
   esbuild@0.18.20:
     optionalDependencies:
@@ -3533,6 +3557,8 @@ snapshots:
       tagged-tag: 1.0.0
 
   typescript@5.9.3: {}
+
+  typescript@6.0.3: {}
 
   undici-types@7.24.6: {}
 

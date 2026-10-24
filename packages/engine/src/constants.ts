@@ -148,3 +148,26 @@ export const REGISTRY = {
     npm: "registry.npmjs.org",
   },
 } as const;
+
+/** API-surface diffs (plan S02a task 5; emend's measured bounds, refs/emend/src/surface.ts). */
+export const SURFACE = {
+  /** Where verified package tarballs are unpacked; one directory per name/version. */
+  cacheDir: process.env.TEIRE_PACKAGE_CACHE ?? `${process.env.TMPDIR ?? "/tmp"}/teire-packages`,
+  /** googleapis, the measured worst case, is 400,630 symbols; a cut-short walk never reports removals. */
+  maxSymbols: 600_000,
+  maxDepth: 12,
+  maxSignatureChars: 4000,
+  /** Longest alias expansion substituted into signatures before comparing. */
+  maxAliasExpansion: 200,
+  /** Type dependencies followed so re-exported declarations resolve (playwright → playwright-core). */
+  typeDepDepth: 6,
+  typeDepTotalCap: 500,
+  typeDepFileCap: 4000,
+  /** Wildcard `exports` entries expand to at most this many subpaths for existence checks. */
+  maxWildcardFiles: 5000,
+  /** Signature text kept per symbol inside a change record; the full diff stays in `surface_diffs`. */
+  recordSignatureChars: 600,
+  tool: "teire-dts-walker",
+  toolVersion: "1+typescript@6.0.3",
+  noiseFilterVersion: "1",
+} as const;
