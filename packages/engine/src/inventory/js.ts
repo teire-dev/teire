@@ -129,9 +129,9 @@ function globToRegExp(glob: string) {
   const escaped = glob
     .replace(/\/+$/, "")
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*\/?/g, "\u0000")
+    .replace(/\*\*\/?/g, "DOUBLESTAR")
     .replace(/\*/g, "[^/]+")
-    .replace(/\u0000/g, "(?:.+/)?");
+    .replace(/DOUBLESTAR/g, "(?:.+/)?");
   return new RegExp(`^${escaped}$`);
 }
 
