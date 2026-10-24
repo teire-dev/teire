@@ -1,0 +1,12 @@
+{
+  "name": "fx-root",
+  "private": true,
+  "dependencies": {
+    "openai": "^4.104.0",
+    "zod": "^3.23.8",
+    "strip-ansi-cjs": "npm:strip-ansi@^6.0.1"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

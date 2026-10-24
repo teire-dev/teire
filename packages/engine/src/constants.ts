@@ -76,6 +76,10 @@ export const SCAN = {
   /** Largest repository tarball Teire will extract. */
   maxTarballBytes: 200 * 1024 * 1024,
   maxFiles: 20_000,
+  /** Largest single file extracted from any archive (repos, package tarballs, wheels). */
+  maxFileBytes: 50 * 1024 * 1024,
+  /** Total bytes written when extracting one archive. */
+  maxExtractedBytes: 1024 * 1024 * 1024,
   /** Sources older than this make verdicts "inconclusive" instead of "not affected". */
   staleSourceAfterMs: 14 * 24 * 60 * 60 * 1000,
 } as const;

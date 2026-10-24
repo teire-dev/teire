@@ -22,6 +22,14 @@ FROM node:24-slim AS runtime
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git ripgrep \
   && rm -rf /var/lib/apt/lists/*
+# Universal lockfile reader, extraction only (plan D56). Pinned and checked against the release's
+# published SHA256SUMS.
+ARG OSV_SCANNER_VERSION=v2.6.0
+ARG OSV_SCANNER_SHA256=ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
+RUN curl -fsSL -o /usr/local/bin/osv-scanner \
+    "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64" \
+  && echo "${OSV_SCANNER_SHA256}  /usr/local/bin/osv-scanner" | sha256sum -c - \
+  && chmod 0755 /usr/local/bin/osv-scanner
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=8080 \

@@ -1,0 +1,8 @@
+{
+  "name": "@fx/b",
+  "version": "1.0.0",
+  "dependencies": {
+    "@fx/a": "1.0.0",
+    "lodash": "4.17.20"
+  }
+}
