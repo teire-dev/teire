@@ -9,12 +9,20 @@ import {
   type OnboardingRow,
   openOrUpdatePullRequest,
 } from "@teire/engine/github";
+import type { FindingDraft } from "@teire/engine/impact";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
-import { type AssessedProject, type Assessment, assessJsRepo, assessPyRepo } from "@teire/engine/pipeline";
+import {
+  type AssessedProject,
+  type Assessment,
+  assessApiChanges,
+  assessJsRepo,
+  assessPyRepo,
+} from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
   claimRun,
+  confirmedProviderChanges,
   finishScan,
   getArtifact,
   getRepo,
@@ -46,6 +54,31 @@ export function fixCandidates(assessments: AnyAssessment[], config: TeireConfig)
     .filter((a) => (a.decision?.kind === "upgrade" && a.decision.isMajor ? config.upgrades.majors : true))
     .filter((a) => a.summary?.verdict === "affected" || config.upgrades.plainBumps)
     .sort((x, y) => (x.priority ?? 9) - (y.priority ?? 9));
+}
+
+/**
+ * Provider changes that may open a PR, one entry per group (`models/openai`): affected findings of
+ * a PR-opening kind, unless the repo ignores the provider or the model.
+ */
+export function apiCandidates(findings: FindingDraft[], config: TeireConfig) {
+  const groups = new Map<string, FindingDraft[]>();
+  for (const f of findings) {
+    if (f.verdict !== "affected" || f.priority === null || !f.groupKey) continue;
+    const provider = f.groupKey.split("/")[1] ?? "";
+    if (
+      config.ignore.includes(provider) ||
+      (f.position.version && config.ignore.includes(f.position.version))
+    )
+      continue;
+    groups.set(f.groupKey, [...(groups.get(f.groupKey) ?? []), f]);
+  }
+  return [...groups.entries()].map(([groupKey, list]) => ({
+    groupKey,
+    findings: list,
+    priority: Math.min(...list.map((f) => f.priority ?? 9)),
+    from: [...new Set(list.map((f) => f.position.version).filter(Boolean))].join(", "),
+    to: [...new Set(list.map((f) => f.position.target).filter(Boolean))].join(", "),
+  }));
 }
 
 export function groupKeyOf(a: AnyAssessment) {
@@ -121,6 +154,11 @@ export async function scanRepo(
       githubToken: token,
       surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
     });
+    // Provider changes: retired models and removed endpoints the repo's code names (S04).
+    const provider = await confirmedProviderChanges(db);
+    const api = await assessApiChanges(checkout.dir, tree, provider.records);
+    for (const f of api.findings)
+      await upsertFinding(db, repoId, scan.id, f, provider.hashes.get(f.changeId) ?? "");
     const projects: AssessedProject[] = [...js.projects, ...py.projects];
     const assessments: AnyAssessment[] = [...js.assessments, ...py.assessments];
     await saveInstances(
@@ -151,6 +189,7 @@ export async function scanRepo(
       const { title, body } = composeOnboarding({
         repo: { owner, repo: name, baseSha: sha },
         rows: onboardingRows(assessments),
+        apiFindings: api.findings,
       });
       const commit = await commitToBranch({
         octokit: installation.octokit,
@@ -190,22 +229,30 @@ export async function scanRepo(
     if (status !== repo.status) await setRepo(db, repoId, { status });
     if (status !== "active") return { status };
 
-    // Active: enqueue one run per upgrade group, best first; the fix job applies the PR caps.
+    // Active: enqueue one run per group, best first (D70 queue: provider changes that already broke
+    // the repo outrank majors); the fix job applies the PR caps.
+    const queue = [
+      ...fixCandidates(assessments, config).flatMap((a) => {
+        const groupKey = groupKeyOf(a);
+        return groupKey && a.decision?.kind === "upgrade"
+          ? [{ groupKey, priority: a.priority ?? 9, from: a.instance.version, to: a.decision.to }]
+          : [];
+      }),
+      ...apiCandidates(api.findings, config),
+    ].sort((x, y) => x.priority - y.priority);
     let enqueued = 0;
-    for (const a of fixCandidates(assessments, config)) {
-      const groupKey = groupKeyOf(a);
-      if (!groupKey || a.decision?.kind !== "upgrade") continue;
+    for (const c of queue) {
       // One PR per group, and nothing a person closed comes back (C6).
-      if (await getArtifact(db, repoId, "pr", groupKey)) continue;
+      if (await getArtifact(db, repoId, "pr", c.groupKey)) continue;
       const { run, created } = await claimRun(db, {
         repoId,
-        groupKey,
+        groupKey: c.groupKey,
         kind: "fix",
         status: "queued",
-        fromVersion: a.instance.version,
-        targetVersion: a.decision.to,
+        fromVersion: c.from,
+        targetVersion: c.to,
         baseSha: sha,
-        idempotencyKey: `fix:${repoId}:${groupKey}:${sha}`,
+        idempotencyKey: `fix:${repoId}:${c.groupKey}:${sha}`,
       });
       if (created) {
         await ctx.enqueueFix(run.id, repoId);

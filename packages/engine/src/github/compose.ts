@@ -441,7 +441,13 @@ pullRequests:
 dashboardIssue: true
 `;
 
-export function composeOnboarding(input: { repo: RepoRef; rows: OnboardingRow[]; scanUrl?: string }) {
+export function composeOnboarding(input: {
+  repo: RepoRef;
+  rows: OnboardingRow[];
+  /** Provider changes found in the code (retired models, removed endpoints). */
+  apiFindings?: FindingDraft[];
+  scanUrl?: string;
+}) {
   const { rows } = input;
   const direct = rows.filter((r) => r.instance.direct);
   const ecosystems = [...new Set(rows.map((r) => r.instance.ecosystem))];
@@ -476,6 +482,20 @@ export function composeOnboarding(input: { repo: RepoRef; rows: OnboardingRow[];
                 : "upgrade checked in the sandbox"
         } |`,
       );
+  }
+  const api = (input.apiFindings ?? []).filter((f) => f.verdict === "affected");
+  if (api.length) {
+    out.push("### Models and endpoints the providers retired");
+    out.push("| In your code | Status | Replacement named by the provider | Where |", "|---|---|---|---|");
+    for (const f of api.slice(0, 30)) {
+      const site = f.callSites[0];
+      out.push(
+        `| \`${f.position.version ?? f.dependencyKey}\` | ${f.class === "already-broken" ? "already failing" : f.class === "breaks-on-date" ? "retiring" : f.class.replace(/-/g, " ")} | ${f.position.target ? `\`${f.position.target}\`` : "none named"} | ${site ? `[\`${site.file}:${site.line}\`](${blob(input.repo, site.file, site.line)})${f.callSites.length > 1 ? ` and ${f.callSites.length - 1} more` : ""}` : "—"} |`,
+      );
+    }
+    out.push(
+      "Teire swaps each one where it is used as a model, adapts the code the new model needs, and proves it with your tests before opening the PR.",
+    );
   }
   out.push("### Inventory");
   for (const eco of ecosystems) {

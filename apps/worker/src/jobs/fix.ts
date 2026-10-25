@@ -1,5 +1,7 @@
 import { rm } from "node:fs/promises";
 import { readTeireConfig } from "@teire/engine/config";
+import type { CallSite } from "@teire/engine/contract";
+import type { FixRun } from "@teire/engine/fix";
 import {
   commitToBranch,
   HumanCommitsError,
@@ -7,14 +9,16 @@ import {
   openOrUpdatePullRequest,
   publishCheckRun,
 } from "@teire/engine/github";
-import type { PyProject } from "@teire/engine/inventory";
+import type { PyProject, RepoTree } from "@teire/engine/inventory";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
 import {
   type AssessedProject,
   type Assessment,
+  assessApiChanges,
   assessJsRepo,
   assessPyRepo,
+  fixApiChanges,
   fixJsDependency,
   fixPyDependency,
 } from "@teire/engine/pipeline";
@@ -22,6 +26,7 @@ import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
   appendEvent,
+  confirmedProviderChanges,
   getArtifact,
   getRepo,
   getRun,
@@ -35,6 +40,104 @@ import type { WorkerContext } from "./scan";
 
 const DEFER_SECONDS = 3600;
 
+/** What a fix produced, whatever was fixed (a package upgrade or a provider's API change). */
+interface Outcome {
+  fix: FixRun;
+  pr: { title: string; body: string };
+  notesReceipt: { model: string; tokensIn: number; tokensOut: number; costUsd: number; ms: number } | null;
+  labels: string[];
+  checkTitle: string;
+  sites: (CallSite & { message: string })[];
+}
+
+type Common = Omit<Parameters<typeof fixJsDependency>[0], "assessment">;
+
+/** A package group (`npm/openai/7.38.0`): re-assess that package, then upgrade and fix it. */
+async function packageOutcome(
+  ctx: WorkerContext,
+  run: { groupKey: string; targetVersion: string; fromVersion: string | null },
+  repoDir: string,
+  tree: RepoTree,
+  token: string,
+  common: Common,
+): Promise<Outcome | null> {
+  const ecosystem = run.groupKey.split("/")[0] === "pypi" ? "pypi" : "npm";
+  const packageName = run.groupKey.split("/").slice(1, -1).join("/");
+  const cache = postgresRegistryCache(ctx.db);
+  const assessOptions = {
+    cache,
+    cooldownDays: readTeireConfig(tree).upgrades.cooldownDays,
+    onlyPackage: packageName,
+    githubToken: token,
+    surfaceDiff: (n: string, f: string, t: string) =>
+      cachedSurfaceDiff(ctx.db, ecosystem, n, f, t, { cache }),
+  };
+  const { assessments } =
+    ecosystem === "pypi"
+      ? await assessPyRepo(repoDir, tree, assessOptions)
+      : await assessJsRepo(repoDir, tree, assessOptions);
+  const assessment = (assessments as Assessment<AssessedProject>[]).find(
+    (a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion,
+  );
+  if (!assessment) return null;
+  const result =
+    ecosystem === "pypi"
+      ? await fixPyDependency({ ...common, assessment: assessment as unknown as Assessment<PyProject> })
+      : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
+  return {
+    fix: result.run,
+    pr: result.pr,
+    notesReceipt: result.notesReceipt,
+    labels: [
+      ecosystem,
+      assessment.purpose === "security"
+        ? "security"
+        : assessment.decision?.kind === "upgrade" && assessment.decision.isMajor
+          ? "major"
+          : "upgrade",
+    ],
+    checkTitle: `${packageName} ${run.fromVersion} → ${run.targetVersion}`,
+    sites: (assessment.summary?.breaking ?? []).flatMap((f) =>
+      f.callSites.map((s) => ({
+        ...s,
+        message: `${f.changeKind.replace(/-/g, " ")} in ${packageName} ${run.targetVersion}: ${s.snippet.trim().slice(0, 200)}`,
+      })),
+    ),
+  };
+}
+
+/** A provider group (`models/nebius-token-factory`): re-scan against the stored catalog, then swap and fix. */
+async function apiOutcome(
+  ctx: WorkerContext,
+  run: { groupKey: string },
+  repoDir: string,
+  tree: RepoTree,
+  common: Common,
+): Promise<Outcome | null> {
+  const provider = await confirmedProviderChanges(ctx.db);
+  const { findings } = await assessApiChanges(repoDir, tree, provider.records);
+  const group = findings.filter((f) => f.groupKey === run.groupKey);
+  if (!group.some((f) => f.verdict === "affected")) return null;
+  const records = provider.records.filter((r) => group.some((f) => f.changeId === r.id));
+  const slug = records[0]?.subject.provider;
+  const result = await fixApiChanges({
+    ...common,
+    findings: group,
+    records,
+    related: provider.records.filter((r) => r.subject.provider === slug),
+  });
+  return {
+    fix: result.run,
+    pr: result.pr,
+    notesReceipt: null,
+    labels: [run.groupKey.startsWith("models/") ? "model-retirement" : "api-change", ...(slug ? [slug] : [])],
+    checkTitle: result.pr.title,
+    sites: group
+      .filter((f) => f.verdict === "affected")
+      .flatMap((f) => f.callSites.map((s) => ({ ...s, message: f.reason }))),
+  };
+}
+
 export async function fixRun(ctx: WorkerContext, runId: string) {
   const { db, gh } = ctx;
   const run = await getRun(db, runId);
@@ -42,9 +145,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const repo = await getRepo(db, run.repoId);
   if (!repo?.installationId || !run.groupKey || !run.targetVersion || !run.baseSha)
     throw new Error(`run ${runId} is incomplete`);
+  const groupKey = run.groupKey;
+  const isApi = /^(models|api)\//.test(groupKey);
   const [owner = "", name = ""] = repo.fullName.split("/");
-  const ecosystem = run.groupKey.split("/")[0] === "pypi" ? "pypi" : "npm";
-  const packageName = run.groupKey.split("/").slice(1, -1).join("/");
   const installation = await gh.installation(repo.installationId);
   const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);
 
@@ -60,44 +163,17 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   }
 
   await updateRun(db, runId, { status: "running", step: "assess", startedAt: new Date() });
-  await event("assess", "started", { package: packageName, target: run.targetVersion });
+  await event("assess", "started", { group: groupKey, from: run.fromVersion, target: run.targetVersion });
   const token = await installation.token();
   let dir: string | null = null;
   try {
     const checkout = await fetchRepoTarball(owner, name, run.baseSha, { token });
     dir = checkout.dir;
     const tree = directoryTree(checkout.dir);
-    const cache = postgresRegistryCache(db);
-    const repoConfig = readTeireConfig(tree);
-    const assessOptions = {
-      cache,
-      cooldownDays: repoConfig.upgrades.cooldownDays,
-      onlyPackage: packageName,
-      githubToken: token,
-      surfaceDiff: (n: string, f: string, t: string) => cachedSurfaceDiff(db, ecosystem, n, f, t, { cache }),
-    };
-    const { assessments } =
-      ecosystem === "pypi"
-        ? await assessPyRepo(checkout.dir, tree, assessOptions)
-        : await assessJsRepo(checkout.dir, tree, assessOptions);
-    const assessment = (assessments as Assessment<AssessedProject>[]).find(
-      (a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion,
-    );
-    if (!assessment) {
-      await updateRun(db, runId, {
-        status: "cancelled",
-        step: "target no longer applies",
-        finishedAt: new Date(),
-      });
-      await event("assess", "cancelled", { reason: "the target is no longer chosen for this repo" });
-      return { cancelled: true };
-    }
-
     const tf = createTokenFactory(tokenFactoryConfigFromEnv());
     const prices = await fetchModelPrices().catch(() => undefined);
     const { backend, note } = await selectBackend();
-    await updateRun(db, runId, { step: "fix", backend: backend.name });
-    const fixInput = {
+    const common: Common = {
       tf,
       prices,
       backend,
@@ -108,29 +184,45 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       tree,
       repo: { owner, repo: name, baseSha: run.baseSha },
       tarball: { url: `https://api.github.com/repos/${owner}/${name}/tarball/${run.baseSha}`, token },
-      options: { cache, githubToken: token, context7Key: process.env.CONTEXT7_API_KEY },
+      options: {
+        cache: postgresRegistryCache(db),
+        githubToken: token,
+        context7Key: process.env.CONTEXT7_API_KEY,
+      },
       onEvent: (e: { step: string }) => {
         void event(e.step, "log", e);
         void updateRun(db, runId, { step: e.step });
       },
     };
-    const result =
-      ecosystem === "pypi"
-        ? await fixPyDependency({ ...fixInput, assessment: assessment as unknown as Assessment<PyProject> })
-        : await fixJsDependency({ ...fixInput, assessment: assessment as unknown as Assessment });
-    const fix = result.run;
+    await updateRun(db, runId, { step: "fix", backend: backend.name });
+    const outcome = isApi
+      ? await apiOutcome(ctx, { groupKey }, checkout.dir, tree, common)
+      : await packageOutcome(
+          ctx,
+          { groupKey, targetVersion: run.targetVersion, fromVersion: run.fromVersion },
+          checkout.dir,
+          tree,
+          token,
+          common,
+        );
+    if (!outcome) {
+      await updateRun(db, runId, { status: "cancelled", step: "no longer applies", finishedAt: new Date() });
+      await event("assess", "cancelled", { reason: "the change no longer applies to this repo" });
+      return { cancelled: true };
+    }
+    const { fix, pr: composed, notesReceipt } = outcome;
 
     // Receipts: every model call and every sandbox command.
-    if (result.notesReceipt)
+    if (notesReceipt)
       await recordLlmCall(db, {
         runId,
         purpose: "notes",
         step: "notes",
-        model: result.notesReceipt.model,
-        tokensIn: result.notesReceipt.tokensIn,
-        tokensOut: result.notesReceipt.tokensOut,
-        costUsd: result.notesReceipt.costUsd.toFixed(6),
-        latencyMs: result.notesReceipt.ms,
+        model: notesReceipt.model,
+        tokensIn: notesReceipt.tokensIn,
+        tokensOut: notesReceipt.tokensOut,
+        costUsd: notesReceipt.costUsd.toFixed(6),
+        latencyMs: notesReceipt.ms,
       });
     for (const s of fix.agentSteps)
       await recordLlmCall(db, {
@@ -171,10 +263,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     }
 
     const prMode = fix.evidence.prMode;
-    const models = [
-      ...new Set([result.notesReceipt?.model, ...fix.attempts.map((a) => a.model)].filter(Boolean)),
-    ];
-    const common = {
+    const models = [...new Set([notesReceipt?.model, ...fix.attempts.map((a) => a.model)].filter(Boolean))];
+    const runFields = {
       evidenceKind: fix.evidence.kind,
       prMode,
       verification: { baseline: fix.baseline.checks, after: fix.after.checks, reasons: fix.evidence.reasons },
@@ -182,14 +272,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       egressDenied: fix.after.deniedHosts,
       diff: fix.files.map((f) => f.patch).join("\n"),
       modelsUsed: models.map((m) => ({ id: m, name: modelName(m ?? "") })),
-      costUsd: (fix.costUsd + (result.notesReceipt?.costUsd ?? 0)).toFixed(6),
+      costUsd: (fix.costUsd + (notesReceipt?.costUsd ?? 0)).toFixed(6),
       attempt: Math.max(1, fix.attempts.length),
     };
 
     if (prMode === "issue") {
       // No usable result: a "needs a human" issue with the evidence and the best diff.
-      const existing = await getArtifact(db, repo.id, "issue", run.groupKey);
-      const body = `${result.pr.body}\n\n<sub>Teire stopped: ${fix.evidence.reasons.join("; ")}</sub>`;
+      const existing = await getArtifact(db, repo.id, "issue", groupKey);
+      const body = `${composed.body}\n\n<sub>Teire stopped: ${fix.evidence.reasons.join("; ")}</sub>`;
       const issue = existing?.number
         ? (
             await installation.octokit.rest.issues.update({
@@ -203,7 +293,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
             await installation.octokit.rest.issues.create({
               owner,
               repo: name,
-              title: `Teire needs a human: ${result.pr.title.toLowerCase()}`,
+              title: `Teire needs a human: ${composed.title.toLowerCase()}`,
               body,
               labels: ["teire"],
             })
@@ -211,14 +301,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       await upsertArtifact(db, {
         repoId: repo.id,
         kind: "issue",
-        changeKey: run.groupKey,
+        changeKey: groupKey,
         number: issue.number,
         state: "open",
         url: issue.html_url,
         runId,
       });
       await updateRun(db, runId, {
-        ...common,
+        ...runFields,
         status: "failed",
         step: "needs a human",
         finishedAt: new Date(),
@@ -227,7 +317,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       return { issue: issue.html_url };
     }
 
-    const branch = `teire/${run.groupKey}`;
+    const branch = `teire/${groupKey}`;
     // The lock and any manifest the package manager rewrote are among the run's files already.
     const files = fix.files.map((f) => ({ path: f.path, content: f.after }));
     const commit = await commitToBranch({
@@ -237,7 +327,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       branch,
       baseSha: run.baseSha,
       botLogin: gh.botLogin,
-      headline: result.pr.title,
+      headline: composed.title,
       body: `${fix.evidence.kind === "verified" ? "Verified" : "Draft"}: ${fix.evidence.reasons.join("; ")}`,
       files,
     });
@@ -247,42 +337,31 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       repo: name,
       branch,
       base: repo.defaultBranch,
-      title: result.pr.title,
-      body: result.pr.body,
+      title: composed.title,
+      body: composed.body,
       draft: prMode === "draft",
       labels: [
         "teire",
-        ecosystem,
-        assessment.purpose === "security"
-          ? "security"
-          : assessment.decision?.kind === "upgrade" && assessment.decision.isMajor
-            ? "major"
-            : "upgrade",
+        ...outcome.labels,
         // A draft says why in its label too: needs-live-access, typecheck-only, …
         ...(prMode === "draft" ? [fix.evidence.kind.replace(/_/g, "-")] : []),
       ],
     });
-    const sites = (assessment.summary?.breaking ?? []).flatMap((f) =>
-      f.callSites.map((s) => ({
-        ...s,
-        message: `${f.changeKind.replace(/-/g, " ")} in ${packageName} ${run.targetVersion}: ${s.snippet.trim().slice(0, 200)}`,
-      })),
-    );
     await publishCheckRun({
       octokit: installation.octokit,
       owner,
       repo: name,
       headSha: commit.oid,
       conclusion: fix.evidence.kind === "verified" ? "success" : "neutral",
-      title: `${fix.evidence.kind.replace(/_/g, " ")}: ${packageName} ${run.fromVersion} → ${run.targetVersion}`,
+      title: `${fix.evidence.kind.replace(/_/g, " ")}: ${outcome.checkTitle}`,
       summary: fix.evidence.reasons.join("; "),
       ...(ctx.webUrl ? { detailsUrl: `${ctx.webUrl}/runs/${runId}` } : {}),
-      sites,
+      sites: outcome.sites,
     }).catch((error) => event("pr", "check-run-failed", { error: String(error) }));
     await upsertArtifact(db, {
       repoId: repo.id,
       kind: "pr",
-      changeKey: run.groupKey,
+      changeKey: groupKey,
       number: pr.number,
       branch,
       headSha: commit.oid,
@@ -291,7 +370,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       runId,
     });
     await updateRun(db, runId, {
-      ...common,
+      ...runFields,
       status: "succeeded",
       step: "done",
       headSha: commit.oid,

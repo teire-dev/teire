@@ -5,14 +5,18 @@
  * agent differs. One JSON line per run goes to --out; nothing is written to GitHub.
  * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/eval.ts --out=<file> [--case=<slug>] [--models=ultra,super]
  */
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { type ChangeV2, changeV2 } from "../src/contract";
 import { directoryTree, fetchRepoTarball } from "../src/inventory";
 import type { PyProject } from "../src/inventory/python";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "../src/llm";
 import {
   type Assessment,
+  assessApiChanges,
   assessJsRepo,
   assessPyRepo,
+  fixApiChanges,
   fixJsDependency,
   fixPyDependency,
 } from "../src/pipeline";
@@ -35,6 +39,11 @@ const CASES: Case[] = [
   { slug: "teire-dev/demo-py-pydantic", ecosystem: "pypi", name: "pydantic", expect: "affected" },
   { slug: "teire-dev/demo-clean", ecosystem: "npm", name: "openai", expect: "not_affected" },
   { slug: "teire-dev/demo-py-clean", ecosystem: "pypi", name: "httpx", expect: "not_affected" },
+];
+
+/** Provider changes (retired models): no package moves; the agent adapts the code around the swap. */
+const API_CASES: { slug: string; group: string }[] = [
+  { slug: "teire-dev/demo-py-agent", group: "models/nebius-token-factory" },
 ];
 
 const args = process.argv.slice(2);
@@ -194,6 +203,115 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
     }
   } catch (error) {
     // A network failure while assessing one repo must not end the run for the others.
+    appendFileSync(out, `${JSON.stringify({ case: c.slug, error: String(error).slice(0, 2000) })}\n`);
+    console.log(`  => error ${String(error).slice(0, 300)}`);
+  }
+}
+
+const catalogRoot = resolve(import.meta.dirname, "../../../catalog/changes");
+const catalog: ChangeV2[] = readdirSync(catalogRoot).flatMap((dir) =>
+  readdirSync(join(catalogRoot, dir)).map((f) =>
+    changeV2.parse(JSON.parse(readFileSync(join(catalogRoot, dir, f), "utf8"))),
+  ),
+);
+for (const c of API_CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.endsWith(w)))) {
+  const [owner, repo] = c.slug.split("/") as [string, string];
+  try {
+    const token = process.env.GITHUB_TOKEN ? { token: process.env.GITHUB_TOKEN } : {};
+    const checkout = await fetchRepoTarball(owner, repo, "main", token);
+    const t0 = Date.now();
+    const { scan, findings } = await assessApiChanges(checkout.dir, directoryTree(checkout.dir), catalog);
+    const group = findings.filter((f) => f.groupKey === c.group);
+    const assessment = {
+      case: c.slug,
+      package: c.group,
+      from: group.map((f) => f.position.version).join(", "),
+      to: group.map((f) => f.position.target).join(", "),
+      expected: "affected",
+      verdict: group.some((f) => f.verdict === "affected")
+        ? "affected"
+        : group.length
+          ? "inconclusive"
+          : "not_affected",
+      sites: group.flatMap((f) => f.callSites.map((s) => `${s.file}:${s.line} ${f.changeKind}`)),
+      coverage: group[0]?.coverage ?? null,
+      scanMs: scan.ms,
+      assessMs: Date.now() - t0,
+    };
+    console.log(`\n# ${c.slug} ${c.group}: ${assessment.verdict}, ${assessment.sites.length} site(s)`);
+    const provider = catalog.find((r) => r.id === group[0]?.changeId)?.subject.provider;
+    for (const m of models) {
+      const agentModel = m === "super" ? env.models.failover : env.models.agent;
+      const tf = createTokenFactory({ ...env, models: { ...env.models, agent: agentModel } });
+      const started = Date.now();
+      try {
+        const fresh = await fetchRepoTarball(owner, repo, "main", token);
+        const result = await fixApiChanges({
+          tf,
+          prices,
+          backend,
+          backendNote: note,
+          runId: `eval-${repo}-${m}-${Date.now().toString(36)}`,
+          repoDir: fresh.dir,
+          tree: directoryTree(fresh.dir),
+          repo: { owner, repo, baseSha: fresh.sha ?? "main" },
+          tarball: { url: `https://api.github.com/repos/${owner}/${repo}/tarball/${fresh.sha ?? "main"}` },
+          options: { cache: memoryCache() },
+          findings: group,
+          records: catalog.filter((r) => group.some((f) => f.changeId === r.id)),
+          related: catalog.filter((r) => r.subject.provider === provider && r.status === "confirmed"),
+          onEvent: (e: { step: string; detail: string; model?: string }) =>
+            console.log(`    [${m} ${e.step}${e.model ? ` · ${e.model}` : ""}] ${e.detail.slice(0, 160)}`),
+        });
+        const run = result.run;
+        const record = {
+          ...assessment,
+          agent: m,
+          agentModel,
+          evidence: run.evidence.kind,
+          prMode: run.evidence.prMode,
+          reasons: run.evidence.reasons,
+          baseline: counts(run.baseline),
+          after: counts(run.after),
+          attempts: run.attempts.map((x) => ({
+            n: x.n,
+            model: x.model,
+            failover: x.failover,
+            replan: x.replan,
+            steps: x.steps,
+            evidence: x.evidence,
+            costUsd: x.costUsd,
+          })),
+          codemods: run.codemods.length,
+          files: run.files.map((f) => f.path),
+          patchLines: run.files.reduce(
+            (n, f) => n + f.patch.split("\n").filter((l) => /^[+-][^+-]/.test(l)).length,
+            0,
+          ),
+          notesCostUsd: 0,
+          costUsd: run.costUsd,
+          ms: Date.now() - started,
+          ...(run.evidence.kind === "verified"
+            ? {}
+            : {
+                afterOutput: run.after.checks.map((k) => `[${k.name}] ${k.output.slice(-3000)}`).join("\n"),
+                summary: run.summary,
+              }),
+          patch: run.files.map((f) => f.patch).join("\n"),
+        };
+        appendFileSync(out, `${JSON.stringify(record)}\n`);
+        console.log(
+          `  => ${m}: ${record.evidence} (${record.prMode}), ${record.attempts.length} attempt(s), $${record.costUsd.toFixed(4)}, ${Math.round(record.ms / 1000)} s`,
+        );
+      } catch (error) {
+        appendFileSync(
+          out,
+          `${JSON.stringify({ ...assessment, agent: m, agentModel, error: String(error).slice(0, 2000), ms: Date.now() - started })}\n`,
+        );
+        console.log(`  => ${m}: error ${String(error).slice(0, 300)}`);
+      }
+    }
+  } catch (error) {
     appendFileSync(out, `${JSON.stringify({ case: c.slug, error: String(error).slice(0, 2000) })}\n`);
     console.log(`  => error ${String(error).slice(0, 300)}`);
   }

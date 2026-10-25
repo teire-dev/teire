@@ -7,6 +7,7 @@ import {
   eq,
   findings,
   gte,
+  inArray,
   installations,
   llmCalls,
   repos,
@@ -170,6 +171,24 @@ export async function upsertChange(db: Database, record: ChangeV2) {
       setWhere: sql`${changes.contentHash} <> ${contentHash}`,
     });
   return contentHash;
+}
+
+/** Confirmed provider changes (retired models, removed endpoints) in contract v2, with their stored hashes. */
+export async function confirmedProviderChanges(db: Database) {
+  const rows = await db
+    .select({ record: changes.record, hash: changes.contentHash })
+    .from(changes)
+    .where(
+      and(
+        eq(changes.schemaVersion, 2),
+        inArray(changes.subjectKind, ["model", "api-host"]),
+        eq(changes.status, "confirmed"),
+      ),
+    );
+  return {
+    records: rows.map((r) => r.record as ChangeV2),
+    hashes: new Map(rows.map((r) => [(r.record as ChangeV2).id, r.hash])),
+  };
 }
 
 export async function upsertFinding(

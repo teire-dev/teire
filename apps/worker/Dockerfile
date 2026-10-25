@@ -44,11 +44,14 @@ ENV NODE_ENV=production \
     MIGRATIONS_DIR=/app/drizzle \
     TEIRE_PYTHON=/opt/teire-py/bin/python \
     TEIRE_PY_HELPER=/app/helpers/teire_py.py \
+    TEIRE_AST_GREP=/app/node_modules/@ast-grep/cli-linux-x64-gnu/ast-grep \
     UV_PYTHON_DOWNLOADS=never
 COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist
 COPY --from=build --chown=node:node /out/drizzle ./drizzle
+# ast-grep 0.50 (literal locator) arrives as the engine's optional platform package; fail here if not.
+RUN "$TEIRE_AST_GREP" --version
 USER node
 EXPOSE 8080
 # Heap sized from measured peaks: a TypeScript surface diff of a large SDK pair reached ~730 MB RSS.
