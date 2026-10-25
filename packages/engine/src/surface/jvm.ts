@@ -138,14 +138,18 @@ function kotlinDeprecation(m: X) {
     list(
       (elements.find((e) => attr(e, "name") === name)?.newElementValues as X | undefined)?.newElementValue,
     )[0];
-  const replace = list((value("replaceWith")?.values as X | undefined)?.value).find(
-    (v) => attr(v, "name") === "expression",
-  );
+  const parts = list((value("replaceWith")?.values as X | undefined)?.value);
+  const replace = parts.find((v) => attr(v, "name") === "expression");
+  // Extension functions need their import (`okhttp3.HttpUrl.Companion.toHttpUrlOrNull`).
+  const imports = list((parts.find((v) => attr(v, "name") === "imports")?.values as X | undefined)?.value)
+    .map((v) => attr(v, "value"))
+    .filter((v) => v && v !== "n.a.");
   return {
     // Kotlin's default level is WARNING.
     level: value("level") ? attr(value("level") as X, "value") : "WARNING",
     message: value("message") ? attr(value("message") as X, "value") : "",
     replaceWith: replace ? attr(replace, "value") : "",
+    imports,
     isNew:
       attr(ann, "changeStatus") === "NEW" ||
       elements.some((e) => attr(e, "name") === "level" && attr(e, "changeStatus") !== "UNCHANGED"),
@@ -290,7 +294,7 @@ export function parseJapicmp(xmlText: string, members: Map<string, string[][]> =
         const source = name.replace(/^-deprecated_/, "");
         if (!INTERNAL_MEMBER.test(source)) {
           const path = `${display(owner)}.${source}(${params(m).join(", ")})`;
-          const advice = `${kt.message}${kt.replaceWith ? `; replace with \`${kt.replaceWith}\`` : ""}`;
+          const advice = `${kt.message}${kt.replaceWith ? `; replace with \`${kt.replaceWith}\`` : ""}${kt.imports.length ? ` (import ${kt.imports.map((i) => `\`${i}\``).join(", ")})` : ""}`;
           out.push(
             kt.level === "WARNING"
               ? {
