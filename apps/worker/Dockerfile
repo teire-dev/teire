@@ -18,6 +18,12 @@ RUN pnpm --filter @teire/worker deploy --prod --legacy --config.node-linker=hois
   && cp -r apps/worker/dist /out/dist \
   && cp -r packages/db/drizzle /out/drizzle
 
+# Teire's Go helper (plan S05): apidiff and type-resolved locate, built with the pinned modules.
+FROM docker.io/library/golang:1.27.2-trixie AS gohelper
+WORKDIR /src
+COPY packages/helpers/go/ ./
+RUN CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath -o /out/teire-go .
+
 FROM node:24-slim AS runtime
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git ripgrep \
@@ -48,14 +54,22 @@ ENV UV_PYTHON_INSTALL_DIR=/opt/python UV_LINK_MODE=copy
 RUN uv python install 3.12 \
   && uv venv /opt/teire-py --python 3.12 \
   && uv pip install --python /opt/teire-py/bin/python packaging==26.3 griffe==2.4.1 jedi==0.20.1
+# Go toolchain for the worker's Go readers (go mod edit, go list -m, apidiff, locate), always run in
+# the safe mode of D88: GOTOOLCHAIN=local, CGO_ENABLED=0, GOENV/GOWORK off, proxy only, scratch HOME.
+COPY --from=gohelper /usr/local/go /usr/local/go
 WORKDIR /app
 COPY packages/helpers/python/teire_py.py /app/helpers/teire_py.py
+COPY --from=gohelper /out/teire-go /app/helpers/teire-go
+RUN mkdir -p /var/cache/teire-go && chown node:node /var/cache/teire-go
 ENV NODE_ENV=production \
     PORT=8080 \
     MIGRATIONS_DIR=/app/drizzle \
     TEIRE_PYTHON=/opt/teire-py/bin/python \
     TEIRE_PY_HELPER=/app/helpers/teire_py.py \
     TEIRE_AST_GREP=/app/node_modules/@ast-grep/cli-linux-x64-gnu/ast-grep \
+    TEIRE_GO=/usr/local/go/bin/go \
+    TEIRE_GO_HELPER=/app/helpers/teire-go \
+    TEIRE_GO_CACHE=/var/cache/teire-go \
     UV_PYTHON_DOWNLOADS=never
 COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules

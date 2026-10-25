@@ -14,11 +14,14 @@ import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from 
 import {
   type Assessment,
   assessApiChanges,
+  assessGoRepo,
   assessJsRepo,
   assessPyRepo,
   fixApiChanges,
+  fixGoDependency,
   fixJsDependency,
   fixPyDependency,
+  type GoAssessment,
   liveProviderChanges,
   repoInstances,
 } from "../src/pipeline";
@@ -45,11 +48,13 @@ log(`# ${slug}@${checkout.sha?.slice(0, 12)}`);
 
 const js = await assessJsRepo(checkout.dir, tree, options);
 const py = await assessPyRepo(checkout.dir, tree, options);
+const go = await assessGoRepo(checkout.dir, tree, options);
 const all: Assessment<{ root: string; manager: string; instances: Assessment["instance"][] }>[] = [
   ...js.assessments,
   ...py.assessments,
+  ...go.assessments,
 ];
-for (const p of [...js.projects, ...py.projects])
+for (const p of [...js.projects, ...py.projects, ...go.projects])
   log(
     `\n## ${p.root} (${p.manager}${p.lockfile ? `, ${p.lockfile}` : ""}): ${p.instances.filter((i) => i.direct).length} direct, ${p.instances.filter((i) => !i.direct).length} transitive`,
   );
@@ -91,7 +96,9 @@ if (fixName) {
   const result =
     target.instance.ecosystem === "pypi"
       ? await fixPyDependency({ ...common, assessment: target as unknown as Assessment<PyProject> })
-      : await fixJsDependency({ ...common, assessment: target as unknown as Assessment });
+      : target.instance.ecosystem === "go"
+        ? await fixGoDependency({ ...common, assessment: target as unknown as GoAssessment })
+        : await fixJsDependency({ ...common, assessment: target as unknown as Assessment });
   const run = result.run;
   log("\n## Diff");
   for (const m of run.manifest) log(`  ${m.path}: ${m.from} → ${m.to}`);

@@ -65,7 +65,24 @@ export const pypiScheme: VersionScheme = {
   isRange: (range) => range.trim() === "" || pep440.validRange(range),
 };
 
-const SCHEMES: Partial<Record<Ecosystem, VersionScheme>> = { npm: npmScheme, pypi: pypiScheme };
+/**
+ * Go module versions (go.dev/ref/mod#versions): semver with a `v`; pseudo-versions
+ * (`v0.0.0-20261007192929-f45ad48fbe92`) sort as pre-releases; `+incompatible` is build metadata.
+ * A new major is a new module path (`…/v5`), so `breaking` compares releases within one path and
+ * the Go target merges the paths of a module's majors first (registry/go.ts).
+ */
+const goSemver = (v: string) => v.replace(/^v/, "");
+export const goScheme: VersionScheme = {
+  valid: (v) => /^v\d/.test(v) && semver.valid(goSemver(v)) !== null,
+  compare: (a, b) => semver.compare(goSemver(a), goSemver(b)),
+  isPrerelease: (v) => (semver.prerelease(goSemver(v))?.length ?? 0) > 0,
+  major: (v) => semver.major(goSemver(v)),
+  breaking: (from, to) => caretBreak(semverRelease(goSemver(from)), semverRelease(goSemver(to))),
+  satisfies: (v, range) => goSemver(v) === goSemver(range),
+  isRange: (range) => /^v\d/.test(range) && semver.valid(goSemver(range)) !== null,
+};
+
+const SCHEMES: Partial<Record<Ecosystem, VersionScheme>> = { npm: npmScheme, pypi: pypiScheme, go: goScheme };
 
 export function versionScheme(ecosystem: Ecosystem): VersionScheme {
   const scheme = SCHEMES[ecosystem];

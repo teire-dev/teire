@@ -5,7 +5,7 @@ import { SURFACE } from "../constants";
 import { guardedFetch } from "../net/fetch";
 import { getNpmVersion, type RegistryOptions } from "../registry/clients";
 import { getPypiVersion } from "../registry/pypi";
-import { npmScheme, pypiScheme, type VersionScheme } from "../registry/versions";
+import { goScheme, npmScheme, pypiScheme, type VersionScheme } from "../registry/versions";
 import { type ChangelogEntry, sliceChangelog } from "./slicer";
 
 /**
@@ -246,6 +246,35 @@ export async function gatherPypiNotes(name: string, from: string, to: string, op
     scheme: pypiScheme,
     repo,
     directory: "",
+    sources,
+    notes,
+    checkedAt,
+    options,
+  });
+  return { sources, notes };
+}
+
+/**
+ * A Go module's notes: its path names its repository (`github.com/owner/repo[/sub][/vN]`); a module
+ * in a subdirectory keeps its changelog there. Modules hosted elsewhere have no notes Teire reads.
+ */
+export async function gatherGoNotes(path: string, from: string, to: string, options: NotesOptions) {
+  const checkedAt = new Date().toISOString();
+  const sources: NoteSource[] = [];
+  const notes: string[] = [];
+  const base = path.replace(/\/v\d+$/, "");
+  const m = /^github\.com\/([^/]+)\/([^/]+)(?:\/(.+))?$/.exec(base);
+  if (!m?.[1] || !m[2]) {
+    notes.push(`${path} is not hosted on GitHub; no release notes read`);
+    return { sources, notes };
+  }
+  await gatherRepoNotes({
+    name: path,
+    from,
+    to,
+    scheme: goScheme,
+    repo: { owner: m[1], repo: m[2] },
+    directory: m[3] ?? "",
     sources,
     notes,
     checkedAt,

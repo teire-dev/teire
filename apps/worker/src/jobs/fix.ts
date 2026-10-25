@@ -16,13 +16,17 @@ import {
   type AssessedProject,
   type Assessment,
   assessApiChanges,
+  assessGoRepo,
   assessJsRepo,
   assessPyRepo,
   fixApiChanges,
+  fixGoDependency,
   fixJsDependency,
   fixPyDependency,
+  type GoAssessment,
   repoInstances,
 } from "@teire/engine/pipeline";
+import { goSurfaceDiff } from "@teire/engine/surface";
 import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
@@ -62,7 +66,8 @@ async function packageOutcome(
   token: string,
   common: Common,
 ): Promise<Outcome | null> {
-  const ecosystem = run.groupKey.split("/")[0] === "pypi" ? "pypi" : "npm";
+  const head = run.groupKey.split("/")[0];
+  const ecosystem = head === "pypi" ? "pypi" : head === "go" ? "go" : "npm";
   const packageName = run.groupKey.split("/").slice(1, -1).join("/");
   const cache = postgresRegistryCache(ctx.db);
   const assessOptions = {
@@ -76,7 +81,15 @@ async function packageOutcome(
   const { assessments } =
     ecosystem === "pypi"
       ? await assessPyRepo(repoDir, tree, assessOptions)
-      : await assessJsRepo(repoDir, tree, assessOptions);
+      : ecosystem === "go"
+        ? await assessGoRepo(repoDir, tree, {
+            ...assessOptions,
+            surfaceDiff: (oldPath, f, newPath, t) =>
+              cachedSurfaceDiff(ctx.db, "go", oldPath, f, t, { cache }, () =>
+                goSurfaceDiff(oldPath, f, newPath, t),
+              ),
+          })
+        : await assessJsRepo(repoDir, tree, assessOptions);
   const assessment = (assessments as Assessment<AssessedProject>[]).find(
     (a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion,
   );
@@ -84,7 +97,9 @@ async function packageOutcome(
   const result =
     ecosystem === "pypi"
       ? await fixPyDependency({ ...common, assessment: assessment as unknown as Assessment<PyProject> })
-      : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
+      : ecosystem === "go"
+        ? await fixGoDependency({ ...common, assessment: assessment as unknown as GoAssessment })
+        : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
   return {
     fix: result.run,
     pr: result.pr,

@@ -59,6 +59,8 @@ export async function prepareTransaction(
       const run = await session.run(`after-lock-${++step}`, argv, {
         cwd: plan.cwd,
         timeoutSec: VERIFY.installTimeoutSec,
+        // The same settings as the install (Go: GOTOOLCHAIN=local, so `go get` never fetches a toolchain).
+        ...(plan.installEnv ? { env: plan.installEnv } : {}),
       });
       log(`after: ${argv.slice(0, 3).join(" ")} exit ${run.exitCode} in ${run.ms} ms`);
       if (run.exitCode !== 0) {

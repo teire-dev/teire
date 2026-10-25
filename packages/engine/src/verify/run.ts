@@ -2,7 +2,7 @@ import { VERIFY } from "../constants";
 import type { VerifyBackend, VerifySession } from "./backend";
 import type { CheckPlan } from "./commands";
 import { type CheckResult, decideEvidence, type Evidence, type SideResult } from "./evidence";
-import { countsFromJson, countsFromJunit, countsFromOutput, typeErrorCount } from "./reports";
+import { countsFromJson, countsFromJunit, countsFromOutput, goJsonToText, typeErrorCount } from "./reports";
 
 /**
  * Baseline vs after (card C5, D69): each side in its own sandbox from the same commit, each
@@ -120,7 +120,9 @@ export async function runChecks(
       env: plan.env,
       timeoutSec: VERIFY.checkTimeoutSec,
     });
-    const output = run.stdout + run.stderr;
+    const raw = run.stdout + run.stderr;
+    // Go reports tests as JSON events: counted from those, shown as the plain text they carry.
+    const output = goJsonToText(raw);
     let counts = null;
     if (check.name === "test") {
       const report = check.reportPath ? await session.readFile(check.reportPath) : null;
@@ -130,7 +132,7 @@ export async function runChecks(
           ? countsFromJunit(text)
           : countsFromJson(text)
         : null;
-      counts = fromReport ?? countsFromOutput(output);
+      counts = fromReport ?? countsFromOutput(raw);
     }
     // `timeout` exits 124; 137 is a kill, a timeout only when it came at the limit (else memory).
     const timedOut =

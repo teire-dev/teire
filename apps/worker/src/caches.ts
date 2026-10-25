@@ -1,5 +1,5 @@
 import { and, type Database, eq, extractionCache, registryCache, surfaceDiffs } from "@teire/db";
-import { PYTHON, SURFACE } from "@teire/engine/constants";
+import { GO, PYTHON, SURFACE } from "@teire/engine/constants";
 import type { RegistryCache } from "@teire/engine/registry";
 import {
   type NpmSurfaceOptions,
@@ -48,14 +48,20 @@ export function postgresRegistryCache(db: Database): RegistryCache {
  */
 export async function cachedSurfaceDiff(
   db: Database,
-  ecosystem: "npm" | "pypi",
+  ecosystem: "npm" | "pypi" | "go",
   name: string,
   fromVersion: string,
   toVersion: string,
   options: NpmSurfaceOptions,
+  /** Go: the diff needs the target's module path; (path, from, to) still decide it uniquely. */
+  compute?: () => Promise<SurfaceDiff>,
 ): Promise<SurfaceDiff> {
   const tool =
-    ecosystem === "pypi" ? PYTHON.surfaceTool : { name: SURFACE.tool, version: SURFACE.toolVersion };
+    ecosystem === "pypi"
+      ? PYTHON.surfaceTool
+      : ecosystem === "go"
+        ? { name: "apidiff", version: GO.apidiffVersion }
+        : { name: SURFACE.tool, version: SURFACE.toolVersion };
   const key = and(
     eq(surfaceDiffs.ecosystem, ecosystem),
     eq(surfaceDiffs.name, name),
@@ -68,10 +74,13 @@ export async function cachedSurfaceDiff(
   const [row] = await db.select({ result: surfaceDiffs.result }).from(surfaceDiffs).where(key).limit(1);
   if (row) return row.result as SurfaceDiff;
   const started = Date.now();
-  const diff =
-    ecosystem === "pypi"
+  const diff = compute
+    ? await compute()
+    : ecosystem === "pypi"
       ? await pypiSurfaceDiff(name, fromVersion, toVersion, options)
       : await npmSurfaceDiff(name, fromVersion, toVersion, options);
+  // A Go diff that could not be computed (a private module, a toolchain error) is not cached.
+  if (diff.unanalyzable) return diff;
   await db
     .insert(surfaceDiffs)
     .values({

@@ -200,6 +200,22 @@ export const RUNTIMES = {
   warnDays: 180,
 } as const;
 
+/** Go (plan S05, research generic/go.md). */
+export const GO = {
+  /** Modules come from the proxy only (GOVCS=*:off): no git/hg/svn against hosts a go.mod names. */
+  proxy: "https://proxy.golang.org",
+  commandTimeoutMs: 180_000,
+  helperTimeoutMs: 600_000,
+  /** Bump when packages/helpers/go changes, so development rebuilds the cached binary. */
+  helperVersion: "3",
+  /** Highest major probed above the installed one (`/v5`, `/v6`, …) on the proxy. */
+  maxMajorProbe: 6,
+  /** golang.org/x/exp pseudo-version the helper pins (apidiff). */
+  apidiffVersion: "v0.0.0-20261007192929-f45ad48fbe92",
+  /** The sandbox image's Go: checks run with this toolchain (`GOTOOLCHAIN=local`). */
+  sandboxGo: "1.27.2",
+} as const;
+
 /** Teire's sandbox service (apps/sandbox). Timeouts are set from context/11-build-notes/sandbox-measurements.md. */
 export const SANDBOX = {
   /** Lifetime of a signed per-sandbox token. */

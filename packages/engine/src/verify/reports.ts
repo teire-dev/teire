@@ -53,7 +53,65 @@ export function countsFromJunit(xml: string): TestCounts | null {
 /** Terminal colour codes (ESC [ … m), built from the code point so the source has no control character. */
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
 
+/**
+ * `go test -json` events (one JSON object per line): a test's final action is pass, fail or skip;
+ * a package that fails with no test (a build failure) counts as an error.
+ */
+export function countsFromGoJson(output: string): TestCounts | null {
+  const final = new Map<string, string>();
+  const packages = new Map<string, { failed: boolean; tests: number }>();
+  let events = 0;
+  for (const line of output.split("\n")) {
+    if (!line.startsWith("{")) continue;
+    let e: { Action?: string; Package?: string; Test?: string };
+    try {
+      e = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!e.Action) continue;
+    events++;
+    const pkg = packages.get(e.Package ?? "") ?? { failed: false, tests: 0 };
+    if (e.Test && ["pass", "fail", "skip"].includes(e.Action)) {
+      if (!final.has(`${e.Package}\u0000${e.Test}`)) pkg.tests++;
+      final.set(`${e.Package}\u0000${e.Test}`, e.Action);
+    } else if (!e.Test && e.Action === "fail") pkg.failed = true;
+    packages.set(e.Package ?? "", pkg);
+  }
+  if (!events) return null;
+  const actions = [...final.values()];
+  const count = (a: string) => actions.filter((x) => x === a).length;
+  const errors = [...packages.values()].filter((p) => p.failed && p.tests === 0).length;
+  return {
+    collected: actions.length,
+    passed: count("pass"),
+    failed: count("fail"),
+    skipped: count("skip"),
+    errors,
+  };
+}
+
+/** `go test -json` back to the plain text a person (or the fix agent) reads: the events' Output lines. */
+export function goJsonToText(output: string) {
+  if (!/^\{"Time":"[^"]+","Action":/m.test(output)) return output;
+  const out: string[] = [];
+  for (const line of output.split("\n")) {
+    if (!line.startsWith("{")) {
+      if (line.trim()) out.push(line);
+      continue;
+    }
+    try {
+      const e = JSON.parse(line) as { Output?: string };
+      if (e.Output) out.push(e.Output.replace(/\n$/, ""));
+    } catch {
+      out.push(line);
+    }
+  }
+  return out.join("\n");
+}
+
 export function countsFromOutput(output: string): TestCounts | null {
+  if (/^\{"Time":"[^"]+","Action":/m.test(output)) return countsFromGoJson(output);
   const text = output.replace(ANSI, "");
   // vitest: "Tests  2 passed | 1 failed | 1 skipped (4)"
   const vitest = /^\s*Tests\s+(.+?)\s+\((\d+)\)\s*$/m.exec(text);

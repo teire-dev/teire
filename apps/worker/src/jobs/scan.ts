@@ -15,12 +15,14 @@ import {
   type AssessedProject,
   type Assessment,
   assessApiChanges,
+  assessGoRepo,
   assessJsRepo,
   assessPyRepo,
   assessRuntimes,
   runtimesOf,
 } from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
+import { goSurfaceDiff } from "@teire/engine/surface";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
   changeHash,
@@ -158,7 +160,14 @@ export async function scanRepo(
       githubToken: token,
       surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
     });
-    const projects: AssessedProject[] = [...js.projects, ...py.projects];
+    const go = await assessGoRepo(checkout.dir, tree, {
+      cache,
+      cooldownDays: config.upgrades.cooldownDays,
+      githubToken: token,
+      surfaceDiff: (oldPath, f, newPath, t) =>
+        cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () => goSurfaceDiff(oldPath, f, newPath, t)),
+    });
+    const projects: AssessedProject[] = [...js.projects, ...py.projects, ...go.projects];
     // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.
     const api = await assessApiChanges(
       checkout.dir,
@@ -197,7 +206,7 @@ export async function scanRepo(
     const recordHashes = new Map(api.records.map((r) => [r.id, changeHash(r)]));
     for (const f of api.findings)
       await upsertFinding(db, repoId, scan.id, f, recordHashes.get(f.changeId) ?? "");
-    const assessments: AnyAssessment[] = [...js.assessments, ...py.assessments];
+    const assessments: AnyAssessment[] = [...js.assessments, ...py.assessments, ...go.assessments];
     await saveInstances(
       db,
       scan.id,
@@ -215,7 +224,11 @@ export async function scanRepo(
     await setRepo(db, repoId, {
       lastScannedSha: sha,
       lastScannedAt: new Date(),
-      languages: [...(js.projects.length ? ["javascript"] : []), ...(py.projects.length ? ["python"] : [])],
+      languages: [
+        ...(js.projects.length ? ["javascript"] : []),
+        ...(py.projects.length ? ["python"] : []),
+        ...(go.projects.length ? ["go"] : []),
+      ],
       ...(config.present ? { config, configSource: config.path } : {}),
     });
 
