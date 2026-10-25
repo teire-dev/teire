@@ -253,10 +253,15 @@ export async function updateRun(db: Database, id: string, fields: Partial<typeof
 
 /** Appends to a run's event log; `seq` is assigned in the database so writers never collide. */
 export async function appendEvent(db: Database, runId: string, step: string, type: string, payload: object) {
-  await db.execute(sql`
-    insert into run_events (run_id, seq, step, type, payload)
-    values (${runId}, coalesce((select max(seq) from run_events where run_id = ${runId}), 0) + 1, ${step}, ${type}, ${JSON.stringify(payload)}::jsonb)
-  `);
+  // The baseline and after sandboxes report at the same time; without a per-run lock two inserts
+  // can read the same max(seq) and the second fails on the primary key, taking the run down.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${runId}))`);
+    await tx.execute(sql`
+      insert into run_events (run_id, seq, step, type, payload)
+      values (${runId}, coalesce((select max(seq) from run_events where run_id = ${runId}), 0) + 1, ${step}, ${type}, ${JSON.stringify(payload)}::jsonb)
+    `);
+  });
 }
 
 export async function recordLlmCall(db: Database, values: typeof llmCalls.$inferInsert) {

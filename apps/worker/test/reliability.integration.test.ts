@@ -1,5 +1,15 @@
 import { resolve } from "node:path";
-import { createLocalDb, eq, inArray, llmCalls, repos, runMigrations, runs, scans } from "@teire/db";
+import {
+  createLocalDb,
+  eq,
+  inArray,
+  llmCalls,
+  repos,
+  runEvents,
+  runMigrations,
+  runs,
+  scans,
+} from "@teire/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   dueScheduledScans,
@@ -9,6 +19,7 @@ import {
   reap,
   setState,
 } from "../src/reliability";
+import { appendEvent } from "../src/store";
 
 /**
  * S10 done-when, against a real Postgres with Teire's migrations (TEIRE_TEST_DATABASE_URL, e.g. a
@@ -80,6 +91,27 @@ describe.skipIf(!url)("reliability (Postgres)", () => {
       .from(scans)
       .where(eq(scans.id, stuck?.id as string));
     expect(scan?.status).toBe("failed");
+  });
+
+  it("numbers a run's events in order when both sandboxes report at once", async () => {
+    const [run] = await db
+      .insert(runs)
+      .values({
+        repoId: 1,
+        kind: "fix",
+        status: "running",
+        groupKey: "npm/z/2.0.0",
+        idempotencyKey: `events-${Date.now()}`,
+      })
+      .returning();
+    if (!run) throw new Error("insert failed");
+    await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        appendEvent(db, run.id, i % 2 ? "after" : "baseline", "exec", { i }),
+      ),
+    );
+    const rows = await db.select({ seq: runEvents.seq }).from(runEvents).where(eq(runEvents.runId, run.id));
+    expect(rows.map((r) => r.seq).sort((a, b) => a - b)).toEqual(Array.from({ length: 40 }, (_, i) => i + 1));
   });
 
   it("blocks model work at the daily cap, with the reason", async () => {
