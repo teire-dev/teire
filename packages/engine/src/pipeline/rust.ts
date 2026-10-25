@@ -17,6 +17,7 @@ import { surfaceChangeRecords } from "../surface/records";
 import { cargoSurfaceDiff } from "../surface/rust";
 import { rustDocsLookup } from "../surface/rustdoc";
 import type { SurfaceDiff } from "../surface/types";
+import { withVerifyOverrides } from "../verify/commands";
 import { detectRustChecks } from "../verify/rust-commands";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -165,7 +166,7 @@ export async function fixRustDependency(
   const removedFeatures = (a.diff?.changes ?? [])
     .filter((c) => c.kind === "removed" && c.path.startsWith("feature:"))
     .map((c) => c.path.slice("feature:".length));
-  const plan = detectRustChecks(input.tree, a.project);
+  const plan = withVerifyOverrides(detectRustChecks(input.tree, a.project), a.project.root, input.verify);
   const run = await runFix({
     tf: input.tf,
     prices: input.prices,
@@ -181,7 +182,7 @@ export async function fixRustDependency(
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir: "",
     targetPaths: new Set(),
     docs: rustDocsLookup(a.instance.name, from, target),

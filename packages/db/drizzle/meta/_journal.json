@@ -43,6 +43,13 @@
       "when": 1792914277434,
       "tag": "0005_web_providers_read",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792931788240,
+      "tag": "0006_s09_github_depth",
+      "breakpoints": true
     }
   ]
 }

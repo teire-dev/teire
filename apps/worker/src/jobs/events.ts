@@ -1,15 +1,25 @@
 import type { Delivery } from "../outbox";
 import {
+  appendEvent,
   artifactByBranch,
+  getArtifact,
   getRepo,
   markFindings,
   markInstallation,
+  openArtifacts,
+  setFindingsState,
+  setIgnore,
   setRepo,
   upsertArtifact,
   upsertInstallation,
   upsertRepo,
 } from "../store";
+import { canWrite, handleComment, matchesTarget, startRun } from "./commands";
+import { syncDashboard, tickedActions } from "./dashboard";
 import { ONBOARDING_BRANCH, type WorkerContext } from "./scan";
+
+/** Customer CI read for one repair (C6). */
+const CI = { maxChecks: 3, maxLogChars: 6000 } as const;
 
 /**
  * GitHub webhook deliveries → state and jobs (cards C1, C6). Installation and repository changes
@@ -27,8 +37,21 @@ interface RepoPayload {
   default_branch?: string;
 }
 
-const RESCAN_FILES =
-  /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|yarn\.lock|bun\.lockb?|\.github\/teire\.ya?ml)$|\.(c|m)?[jt]sx?$/;
+/** Manifests and lockfiles: a base change to these makes a Teire PR's lockfile stale. */
+const DEPENDENCY_FILES =
+  /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|pyproject\.toml|uv\.lock|poetry\.lock|Pipfile\.lock|requirements[^/]*\.txt|go\.(mod|sum)|Cargo\.(toml|lock)|Gemfile(\.lock)?|pom\.xml|build\.gradle(\.kts)?|gradle\.lockfile|libs\.versions\.toml)$/;
+
+/** Manifests, lockfiles, Teire's config and source files of every supported ecosystem. */
+const RESCAN_FILES = new RegExp(
+  [
+    "(^|/)(package\\.json|package-lock\\.json|npm-shrinkwrap\\.json|pnpm-lock\\.yaml|pnpm-workspace\\.yaml|yarn\\.lock|bun\\.lockb?)$",
+    "(^|/)(pyproject\\.toml|uv\\.lock|poetry\\.lock|Pipfile(\\.lock)?|pylock[^/]*\\.toml|requirements[^/]*\\.(txt|in)|setup\\.(py|cfg))$",
+    "(^|/)(go\\.(mod|sum|work)|Cargo\\.(toml|lock)|Gemfile(\\.lock)?|gems\\.(rb|locked)|[^/]*\\.gemspec)$",
+    "(^|/)(pom\\.xml|build\\.gradle(\\.kts)?|settings\\.gradle(\\.kts)?|gradle\\.lockfile|libs\\.versions\\.toml|gradle\\.properties)$",
+    "(^|/)(\\.github/)?teire\\.ya?ml$",
+    "\\.((c|m)?[jt]sx?|py|go|rs|rb|java|kt)$",
+  ].join("|"),
+);
 
 export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
   const { db } = ctx;
@@ -96,9 +119,133 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
         [...(c.added ?? []), ...(c.modified ?? []), ...(c.removed ?? [])].some((f) => RESCAN_FILES.test(f)),
       );
       if (touched) await ctx.enqueueScan(repo.id, "push");
+      // The base moved (C6): open Teire PRs are re-applied when the push touched dependency files
+      // or GitHub reports a conflict; their verification ran against the old base.
+      const deps = (
+        (p.commits ?? []) as { added?: string[]; modified?: string[]; removed?: string[] }[]
+      ).some((c) =>
+        [...(c.added ?? []), ...(c.modified ?? []), ...(c.removed ?? [])].some((f) =>
+          DEPENDENCY_FILES.test(f),
+        ),
+      );
+      if (!repo.installationId) return;
+      const [owner = "", name = ""] = repo.fullName.split("/");
+      const { octokit } = await ctx.gh.installation(repo.installationId);
+      for (const a of await openArtifacts(db, repo.id)) {
+        if (a.kind !== "pr" || !a.number) continue;
+        const conflict = deps
+          ? true
+          : (await octokit.rest.pulls.get({ owner, repo: name, pull_number: a.number }).catch(() => null))
+              ?.data.mergeable === false;
+        if (conflict) await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
+      }
+      return;
+    }
+    case "issue_comment": {
+      if (delivery.action === "created") await handleComment(ctx, p);
+      return;
+    }
+    case "issues": {
+      // Ticks in the Dashboard issue (C7).
+      if (delivery.action !== "edited" || p.sender?.type === "Bot") return;
+      const repo = await getRepo(db, p.repository.id);
+      if (!repo?.installationId) return;
+      const dashboard = await getArtifact(db, repo.id, "dashboard");
+      if (!dashboard || dashboard.number !== p.issue.number) return;
+      const actions = tickedActions(String(p.changes?.body?.from ?? ""), String(p.issue.body ?? ""));
+      if (!actions.length) return;
+      const [owner = "", name = ""] = repo.fullName.split("/");
+      const { octokit } = await ctx.gh.installation(repo.installationId);
+      const login = String(p.sender?.login ?? "");
+      if (!(await canWrite(octokit, owner, name, login))) {
+        await syncDashboard(ctx, repo.id);
+        return;
+      }
+      const done: string[] = [];
+      for (const a of actions) {
+        if (a.kind === "rescan") {
+          await ctx.enqueueScan(repo.id, "command");
+          done.push("rescan started");
+        } else if (a.kind === "unignore") {
+          await setIgnore(db, repo.id, a.key, false);
+          await setFindingsState(db, repo.id, (f) => matchesTarget(a.key, f), "open");
+          done.push(`unignored \`${a.key}\``);
+        } else {
+          const { run, created } = await startRun(ctx, repo, octokit, a.key, a.kind, login);
+          done.push(
+            `${a.kind} \`${a.key}\`: ${created ? "started" : "already running"}${ctx.webUrl ? ` (${ctx.webUrl}/runs/${run.id})` : ""}`,
+          );
+        }
+      }
+      await syncDashboard(ctx, repo.id);
+      await octokit.rest.issues.createComment({
+        owner,
+        repo: name,
+        issue_number: p.issue.number,
+        body: `@${login}: ${done.join("; ")}.`,
+      });
+      return;
+    }
+    case "check_suite": {
+      // The repo's own CI on a Teire PR (C6): one repair attempt per head commit.
+      const suite = p.check_suite;
+      if (delivery.action !== "completed" || !["failure", "timed_out"].includes(suite?.conclusion)) return;
+      if (suite.app?.slug === ctx.gh.slug) return;
+      const repo = await getRepo(db, p.repository.id);
+      if (!repo?.installationId || repo.status === "paused") return;
+      const artifact = await artifactByBranch(db, repo.id, String(suite.head_branch ?? ""));
+      if (!artifact || artifact.kind !== "pr" || artifact.state !== "open") return;
+      if (artifact.headSha !== suite.head_sha || artifact.ciRepairSha === suite.head_sha) return;
+      await upsertArtifact(db, { ...artifact, ciRepairSha: suite.head_sha });
+      const [owner = "", name = ""] = repo.fullName.split("/");
+      const { octokit } = await ctx.gh.installation(repo.installationId);
+      const checks = await failingChecks(octokit, owner, name, suite.head_sha, ctx.gh.slug);
+      if (!checks.length) return;
+      const { run, created } = await startRun(
+        ctx,
+        repo,
+        octokit,
+        artifact.changeKey,
+        "ci-repair",
+        "ci",
+        (runId) => appendEvent(db, runId, "ci", "failure", { checks }),
+      );
+      if (created && artifact.number)
+        await octokit.rest.issues.createComment({
+          owner,
+          repo: name,
+          issue_number: artifact.number,
+          body: `CI failed on this PR (${checks.map((c) => `[${c.name}](${c.url})`).join(", ")}). Teire is making one repair attempt from those logs${ctx.webUrl ? `: ${ctx.webUrl}/runs/${run.id}` : "."}`,
+        });
       return;
     }
     default:
       return;
   }
+}
+
+/** Failing check runs on a commit, other than Teire's, with the end of each log (Actions jobs). */
+export async function failingChecks(
+  octokit: Awaited<ReturnType<EventContext["gh"]["installation"]>>["octokit"],
+  owner: string,
+  repo: string,
+  sha: string,
+  slug: string,
+) {
+  const { data } = await octokit.rest.checks.listForRef({ owner, repo, ref: sha, per_page: 100 });
+  const failed = data.check_runs.filter(
+    (c) => (c.conclusion === "failure" || c.conclusion === "timed_out") && c.app?.slug !== slug,
+  );
+  const out: { name: string; url: string; log: string }[] = [];
+  for (const c of failed.slice(0, CI.maxChecks)) {
+    let log = [c.output?.title, c.output?.summary, c.output?.text].filter(Boolean).join("\n");
+    if (c.app?.slug === "github-actions") {
+      const res = await octokit
+        .request("GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs", { owner, repo, job_id: c.id })
+        .catch(() => null);
+      if (res && typeof res.data === "string") log = res.data.replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z /gm, "");
+    }
+    out.push({ name: c.name, url: c.html_url ?? c.details_url ?? "", log: log.slice(-CI.maxLogChars) });
+  }
+  return out;
 }

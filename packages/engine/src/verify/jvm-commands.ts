@@ -121,6 +121,9 @@ export function detectJvmChecks(tree: RepoTree, project: JvmProject, sandboxRoot
     env,
     checks,
     provenOffline: true,
+    // Maven fetches surefire's provider only when tests run; upgraded code that does not compile yet
+    // runs none, so the unchanged repo warms the cache first (research jvm.md Job 8).
+    warmBeforeChange: true,
     notes,
   };
 }

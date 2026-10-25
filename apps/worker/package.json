@@ -7,7 +7,8 @@
     "dev": "tsx watch --env-file=../../.env.local src/main.ts",
     "build": "node scripts/build.mjs",
     "start": "node dist/bundle/main.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@teire/db": "workspace:*",
@@ -20,6 +21,7 @@
     "@types/semver": "7.8.0",
     "esbuild": "0.28.2",
     "tsx": "4.23.15",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
   }
 }

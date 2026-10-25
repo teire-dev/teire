@@ -8,9 +8,10 @@ import {
   type GitHubApp,
   type OnboardingRow,
   openOrUpdatePullRequest,
+  publishConfigCheckRun,
 } from "@teire/engine/github";
 import type { FindingDraft } from "@teire/engine/impact";
-import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
+import { directoryTree, fetchRepoTarball, scopedTree } from "@teire/engine/inventory";
 import {
   type AssessedProject,
   type Assessment,
@@ -35,6 +36,7 @@ import {
   getArtifact,
   getRepo,
   saveInstances,
+  setFindingsState,
   setRepo,
   startScan,
   upsertArtifact,
@@ -42,6 +44,8 @@ import {
   upsertFinding,
 } from "../store";
 import { revalidateWeb } from "../web";
+import { matchesTarget, readOrgConfig } from "./commands";
+import { syncDashboard } from "./dashboard";
 import { pageReader, storedProviderChanges } from "./providers";
 
 export interface WorkerContext {
@@ -60,7 +64,13 @@ type AnyAssessment = Assessment<AssessedProject>;
 export function fixCandidates(assessments: AnyAssessment[], config: TeireConfig) {
   return assessments
     .filter((a) => a.decision?.kind === "upgrade" && a.summary && a.priority !== null)
-    .filter((a) => !config.ignore.includes(a.instance.name))
+    .filter(
+      (a) =>
+        !config.ignore.includes(a.instance.name) &&
+        !config.ignore.includes(`${a.instance.ecosystem}:${a.instance.name}`),
+    )
+    .filter((a) => !config.upgrades.allow.length || config.upgrades.allow.includes(a.instance.name))
+    .filter((a) => !config.upgrades.deny.includes(a.instance.name))
     .filter((a) => (a.decision?.kind === "upgrade" && a.decision.isMajor ? config.upgrades.majors : true))
     .filter((a) => a.summary?.verdict === "affected" || config.upgrades.plainBumps)
     .sort((x, y) => (x.priority ?? 9) - (y.priority ?? 9));
@@ -138,10 +148,11 @@ export async function scanRepo(
     await setRepo(db, repoId, { defaultBranch: meta.default_branch, isPrivate: meta.private });
     repo.defaultBranch = meta.default_branch;
   }
+  // `pullRequests.targetBranch` (C8), from the config the previous scan stored: scans, fixes and PRs use it.
   const { data: branch } = await installation.octokit.rest.repos.getBranch({
     owner,
     repo: name,
-    branch: repo.defaultBranch,
+    branch: (repo.config as TeireConfig | null)?.pullRequests?.targetBranch || repo.defaultBranch,
   });
   const sha = branch.commit.sha;
   const scan = await startScan(db, repoId, trigger);
@@ -149,49 +160,71 @@ export async function scanRepo(
   try {
     const checkout = await fetchRepoTarball(owner, name, sha, { token });
     dir = checkout.dir;
-    const tree = directoryTree(checkout.dir);
-    const config = readTeireConfig(tree);
+    // Config: the repo's file over `<org>/teire-config` over defaults (C8); `@teire ignore` adds to it.
+    const orgText = await readOrgConfig(installation.octokit, owner);
+    const config = readTeireConfig(
+      directoryTree(checkout.dir),
+      orgText ? { orgText, orgFile: `${owner}/teire-config/teire.yml` } : {},
+    );
+    config.ignore = [...new Set([...config.ignore, ...((repo.ignores as string[] | null) ?? [])])];
+    const tree = scopedTree(directoryTree(checkout.dir), config);
+    const on = config.ecosystems;
+    const none = { projects: [], assessments: [] };
     const cache = postgresRegistryCache(db);
-    const js = await assessJsRepo(checkout.dir, tree, {
-      cache,
-      cooldownDays: config.upgrades.cooldownDays,
-      githubToken: token,
-      surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
-    });
-    const py = await assessPyRepo(checkout.dir, tree, {
-      cache,
-      cooldownDays: config.upgrades.cooldownDays,
-      githubToken: token,
-      surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
-    });
-    const go = await assessGoRepo(checkout.dir, tree, {
-      cache,
-      cooldownDays: config.upgrades.cooldownDays,
-      githubToken: token,
-      surfaceDiff: (oldPath, f, newPath, t) =>
-        cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () => goSurfaceDiff(oldPath, f, newPath, t)),
-    });
-    const rust = await assessRustRepo(checkout.dir, tree, {
-      cache,
-      cooldownDays: config.upgrades.cooldownDays,
-      githubToken: token,
-      surfaceDiff: (n, f, t) =>
-        cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
-          cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
-        ),
-    });
-    const ruby = await assessRubyRepo(checkout.dir, tree, {
-      cache,
-      cooldownDays: config.upgrades.cooldownDays,
-      githubToken: token,
-      surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
-    });
-    const jvm = await assessJvmRepo(checkout.dir, tree, {
-      cache,
-      cooldownDays: config.upgrades.cooldownDays,
-      githubToken: token,
-      surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
-    });
+    const js = !on.npm
+      ? none
+      : await assessJsRepo(checkout.dir, tree, {
+          cache,
+          cooldownDays: config.upgrades.cooldownDays,
+          githubToken: token,
+          surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
+        });
+    const py = !on.pypi
+      ? none
+      : await assessPyRepo(checkout.dir, tree, {
+          cache,
+          cooldownDays: config.upgrades.cooldownDays,
+          githubToken: token,
+          surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
+        });
+    const go = !on.go
+      ? none
+      : await assessGoRepo(checkout.dir, tree, {
+          cache,
+          cooldownDays: config.upgrades.cooldownDays,
+          githubToken: token,
+          surfaceDiff: (oldPath, f, newPath, t) =>
+            cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () =>
+              goSurfaceDiff(oldPath, f, newPath, t),
+            ),
+        });
+    const rust = !on.cargo
+      ? none
+      : await assessRustRepo(checkout.dir, tree, {
+          cache,
+          cooldownDays: config.upgrades.cooldownDays,
+          githubToken: token,
+          surfaceDiff: (n, f, t) =>
+            cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
+              cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
+            ),
+        });
+    const ruby = !on.rubygems
+      ? none
+      : await assessRubyRepo(checkout.dir, tree, {
+          cache,
+          cooldownDays: config.upgrades.cooldownDays,
+          githubToken: token,
+          surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
+        });
+    const jvm = !on.maven
+      ? none
+      : await assessJvmRepo(checkout.dir, tree, {
+          cache,
+          cooldownDays: config.upgrades.cooldownDays,
+          githubToken: token,
+          surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
+        });
     const projects: AssessedProject[] = [
       ...js.projects,
       ...py.projects,
@@ -201,18 +234,29 @@ export async function scanRepo(
       ...jvm.projects,
     ];
     // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.
-    const api = await assessApiChanges(
-      checkout.dir,
-      tree,
-      projects.flatMap((p) => p.instances),
-      {
-        changes: storedProviderChanges(db, () => revalidateWeb(["catalog"])),
-        discover: { cache },
-        triage: await pageReader(db),
-        openapi: { cache, githubToken: token, repo: { owner, name, sha } },
-        declared: config.sources,
-      },
-    );
+    const api = !on.apis
+      ? {
+          // `ecosystems.apis: false`: no API-host or model checks for this repo.
+          scan: { hits: [], filesScanned: 0, languages: [], ms: 0 },
+          findings: [],
+          providers: [],
+          records: [],
+          discovery: { candidates: 0, usage: [], notes: [] },
+          receipts: [],
+          openapiNotes: [],
+        }
+      : await assessApiChanges(
+          checkout.dir,
+          tree,
+          projects.flatMap((p) => p.instances),
+          {
+            changes: storedProviderChanges(db, () => revalidateWeb(["catalog"])),
+            discover: { cache },
+            triage: await pageReader(db),
+            openapi: { cache, githubToken: token, repo: { owner, name, sha } },
+            declared: config.sources,
+          },
+        );
     for (const n of api.openapiNotes) console.log(`[scan] ${repo.fullName}: openapi ${n}`);
     if (api.discovery.candidates)
       console.log(
@@ -258,6 +302,9 @@ export async function scanRepo(
         hashes.set(record.id, await upsertChange(db, record));
       for (const f of a.findings) await upsertFinding(db, repoId, scan.id, f, hashes.get(f.changeId) ?? "");
     }
+    // Ignored targets stay ignored across scans, new findings included.
+    if (config.ignore.length)
+      await setFindingsState(db, repoId, (f) => config.ignore.some((t) => matchesTarget(t, f)), "ignored");
     const coverage = assessments.find((a) => a.located)?.located?.coverage ?? null;
     await finishScan(db, scan.id, { status: "done", sha, coverage });
     await setRepo(db, repoId, {
@@ -271,8 +318,17 @@ export async function scanRepo(
         ...(ruby.projects.length ? ["ruby"] : []),
         ...(jvm.projects.length ? ["jvm"] : []),
       ],
-      ...(config.present ? { config, configSource: config.path } : {}),
+      config,
+      configSource: config.path ?? (orgText ? `${owner}/teire-config` : null),
     });
+    if (config.present || orgText)
+      await publishConfigCheckRun({
+        octokit: installation.octokit,
+        owner,
+        repo: name,
+        headSha: sha,
+        issues: config.issues,
+      }).catch((error) => console.error(`[scan] ${repo.fullName}: config check run: ${error}`));
 
     let status = repo.status;
     if (status === "detected" && config.present) status = "active";
@@ -351,6 +407,10 @@ export async function scanRepo(
         enqueued++;
       }
     }
+    // The Dashboard issue follows every scan of an active repo (C7).
+    await syncDashboard(ctx, repoId).catch((error) =>
+      console.error(`[scan] ${repo.fullName}: dashboard: ${error}`),
+    );
     return { status, enqueued };
   } catch (error) {
     await finishScan(db, scan.id, {

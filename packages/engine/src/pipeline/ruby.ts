@@ -18,6 +18,7 @@ import { surfaceChangeRecords } from "../surface/records";
 import { rubySurfaceDiff } from "../surface/ruby";
 import { rubyDocsLookup } from "../surface/rubydoc";
 import type { SurfaceDiff } from "../surface/types";
+import { withVerifyOverrides } from "../verify/commands";
 import { detectRubyChecks } from "../verify/ruby-commands";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -207,7 +208,7 @@ export async function fixRubyDependency(
       costUsd: extraction.receipt.costUsd,
     });
 
-  const plan = detectRubyChecks(input.tree, a.project);
+  const plan = withVerifyOverrides(detectRubyChecks(input.tree, a.project), a.project.root, input.verify);
   // Bundler's cooldown set to the target's age excludes exactly the versions published after it:
   // the resolver lands on the version Teire analysed, not a newer one.
   const lockCooldown = decision.publishedAt
@@ -228,7 +229,7 @@ export async function fixRubyDependency(
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir: "",
     targetPaths: new Set(),
     // The target gem itself: its upgrade guide and README sections, then lib/ definitions.

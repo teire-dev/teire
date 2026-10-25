@@ -114,3 +114,43 @@ export async function publishCheckRun(input: {
     });
   return data.id;
 }
+
+/** "Teire config" check run (C8): fails with one annotation per problem, at its line. */
+export async function publishConfigCheckRun(input: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  headSha: string;
+  issues: { file: string; line: number; path: string; message: string }[];
+}) {
+  const { octokit, owner, repo } = input;
+  const failing = input.issues.length > 0;
+  await octokit.rest.checks.create({
+    owner,
+    repo,
+    name: "Teire config",
+    head_sha: input.headSha,
+    status: "completed",
+    conclusion: failing ? "failure" : "success",
+    output: {
+      title: failing
+        ? `${input.issues.length} problem(s) in the Teire config; defaults used for those keys`
+        : "Teire config is valid",
+      summary: failing
+        ? input.issues
+            .map((i) => `- \`${i.file}\` line ${i.line}: ${i.path ? `\`${i.path}\` ` : ""}${i.message}`)
+            .join("\n")
+        : "Every key matched the schema (https://teire.vercel.app/schema.json).",
+      annotations: input.issues
+        .filter((i) => !i.file.includes("teire-config/"))
+        .slice(0, 50)
+        .map((i) => ({
+          path: i.file,
+          start_line: i.line,
+          end_line: i.line,
+          annotation_level: "failure" as const,
+          message: `${i.path ? `${i.path}: ` : ""}${i.message}`,
+        })),
+    },
+  });
+}

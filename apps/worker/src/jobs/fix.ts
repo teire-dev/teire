@@ -40,12 +40,15 @@ import {
   getArtifact,
   getRepo,
   getRun,
+  openArtifacts,
   prCounts,
   recordLlmCall,
   recordSandboxExec,
+  runEventsOf,
   updateRun,
   upsertArtifact,
 } from "../store";
+import { syncDashboard } from "./dashboard";
 import { pageReader, storedProviderChanges } from "./providers";
 import type { WorkerContext } from "./scan";
 
@@ -247,7 +250,22 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const tf = createTokenFactory(tokenFactoryConfigFromEnv());
     const prices = await fetchModelPrices().catch(() => undefined);
     const { backend, note } = await selectBackend();
+    // A CI repair starts from what the repo's own CI said about the PR (C6: one repair attempt).
+    const ci = run.requestedBy?.startsWith("ci-repair:")
+      ? ((await runEventsOf(db, runId, "ci"))[0]?.payload as
+          | { checks?: { name: string; url: string; log: string }[] }
+          | undefined)
+      : undefined;
+    const extraNotes = (ci?.checks ?? []).map((c) => ({
+      summary: `The repository's own CI check "${c.name}" failed on Teire's PR; fix what it reports (its log is the quote).`,
+      apis: [],
+      replacement: null,
+      quote: c.log,
+      url: c.url,
+    }));
     const common: Common = {
+      ...(extraNotes.length ? { extraNotes } : {}),
+      ...(config?.verify?.length ? { verify: config.verify } : {}),
       tf,
       prices,
       backend,
@@ -401,7 +419,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       branch,
       baseSha: run.baseSha,
       botLogin: gh.botLogin,
-      headline: composed.title,
+      headline: `${config?.pullRequests?.commitMessage?.prefix ?? ""}${composed.title}`,
       body: `${fix.evidence.kind === "verified" ? "Verified" : "Draft"}: ${fix.evidence.reasons.join("; ")}`,
       files,
     });
@@ -410,7 +428,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       owner,
       repo: name,
       branch,
-      base: repo.defaultBranch,
+      base: config?.pullRequests?.targetBranch || repo.defaultBranch,
       title: composed.title,
       body: composed.body,
       draft: prMode === "draft",
@@ -419,6 +437,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         ...outcome.labels,
         // A draft says why in its label too: needs-live-access, typecheck-only, …
         ...(prMode === "draft" ? [fix.evidence.kind.replace(/_/g, "-")] : []),
+        ...(config?.pullRequests?.labels ?? []),
       ],
     });
     await publishCheckRun({
@@ -455,6 +474,31 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       number: pr.number,
       draft: prMode === "draft",
     });
+    // A newer target for the same package supersedes its older PR (C6).
+    const family = groupKey.split("/").slice(0, -1).join("/");
+    for (const old of await openArtifacts(db, repo.id))
+      if (
+        old.kind === "pr" &&
+        old.changeKey !== groupKey &&
+        old.changeKey.startsWith(`${family}/`) &&
+        old.number
+      ) {
+        await installation.octokit.rest.issues
+          .createComment({
+            owner,
+            repo: name,
+            issue_number: old.number,
+            body: `Superseded by #${pr.number} (${groupKey.split("/").pop()}).`,
+          })
+          .catch(() => undefined);
+        await installation.octokit.rest.pulls
+          .update({ owner, repo: name, pull_number: old.number, state: "closed" })
+          .catch(() => undefined);
+        await upsertArtifact(db, { ...old, state: "closed" });
+      }
+    await syncDashboard(ctx, repo.id).catch((error) =>
+      event("dashboard", "failed", { error: String(error) }),
+    );
     return { pr: pr.url };
   } catch (error) {
     const message =
@@ -465,6 +509,19 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           : String(error);
     await updateRun(db, runId, { status: "failed", error: message, finishedAt: new Date() });
     await event("run", "failed", { error: message });
+    if (error instanceof HumanCommitsError) {
+      // C6: a person pushed to Teire's branch; their commits are never overwritten.
+      const open = await getArtifact(db, repo.id, "pr", groupKey);
+      if (open?.number && open.state === "open")
+        await installation.octokit.rest.issues
+          .createComment({
+            owner,
+            repo: name,
+            issue_number: open.number,
+            body: `Teire stopped updating this branch: ${error.message}. Your commits stay; comment \`@teire recreate\` to start over from the current base.`,
+          })
+          .catch(() => undefined);
+    }
     if (!(error instanceof HumanCommitsError)) throw error;
     return { stopped: message };
   } finally {

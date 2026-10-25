@@ -49,6 +49,17 @@ export async function prepareTransaction(
   let current: Transaction | undefined = transaction;
   let files: Record<string, string> = {};
   let step = 0;
+  if (plan.warmBeforeChange) {
+    // The unchanged repo compiles and runs its tests here first, so what only a test run downloads
+    // (Maven's surefire provider, the JUnit launcher) is cached before the upgraded code may stop
+    // compiling; the checks after the change then find it offline.
+    const warm = await session.run("after-warm-baseline", plan.install, {
+      cwd: plan.cwd,
+      timeoutSec: VERIFY.installTimeoutSec,
+      ...(plan.installEnv ? { env: plan.installEnv } : {}),
+    });
+    log(`after: warm-up on the unchanged repo exit ${warm.exitCode} in ${warm.ms} ms`);
+  }
   attempt: while (current) {
     const t: Transaction = current;
     applied.push(t);

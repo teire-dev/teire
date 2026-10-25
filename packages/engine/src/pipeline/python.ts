@@ -18,6 +18,7 @@ import { pypiScheme } from "../registry/versions";
 import { fetchPypiWheel, pypiSurfaceDiff } from "../surface/pypi";
 import { surfaceChangeRecords } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
+import { withVerifyOverrides } from "../verify/commands";
 import { detectPyChecks } from "../verify/python-commands";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -195,7 +196,7 @@ export async function fixPyDependency(
         .map((f) => f.sha256)
         .filter(Boolean)
     : [];
-  const plan = detectPyChecks(input.tree, a.project);
+  const plan = withVerifyOverrides(detectPyChecks(input.tree, a.project), a.project.root, input.verify);
   const run = await runFix({
     tf: input.tf,
     prices: input.prices,
@@ -211,7 +212,7 @@ export async function fixPyDependency(
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir: targetWheel.dir,
     targetPaths: new Set(),
     docs: async () =>

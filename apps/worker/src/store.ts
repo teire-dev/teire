@@ -5,6 +5,7 @@ import {
   type Database,
   dependencyInstances,
   eq,
+  feedback,
   findings,
   gte,
   installations,
@@ -307,4 +308,88 @@ export async function prCounts(db: Database, repoId: number) {
       ),
     );
   return { open: open[0]?.n ?? 0, lastHour: recent[0]?.n ?? 0 };
+}
+
+/** A repo's findings with the change each one is about (title, kind, deadline), for the Dashboard issue. */
+export async function findingsWithChanges(db: Database, repoId: number) {
+  return db
+    .select({
+      id: findings.id,
+      changeId: findings.changeId,
+      dependencyKey: findings.dependencyKey,
+      verdict: findings.verdict,
+      state: findings.state,
+      priority: findings.priority,
+      reason: findings.reason,
+      groupKey: findings.groupKey,
+      callSites: findings.callSites,
+      coverage: findings.coverage,
+      position: findings.position,
+      title: changes.title,
+      kind: changes.kind,
+      deadline: changes.deadline,
+    })
+    .from(findings)
+    .leftJoin(changes, eq(changes.id, findings.changeId))
+    .where(eq(findings.repoId, repoId));
+}
+
+export async function openArtifacts(db: Database, repoId: number) {
+  return db
+    .select()
+    .from(artifacts)
+    .where(and(eq(artifacts.repoId, repoId), eq(artifacts.state, "open")));
+}
+
+export async function artifactByNumber(db: Database, repoId: number, number: number) {
+  const [row] = await db
+    .select()
+    .from(artifacts)
+    .where(and(eq(artifacts.repoId, repoId), eq(artifacts.number, number)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Adds or removes an `@teire ignore` target; returns the new list. */
+export async function setIgnore(db: Database, repoId: number, target: string, on: boolean) {
+  const repo = await getRepo(db, repoId);
+  const current = new Set((repo?.ignores as string[] | null) ?? []);
+  if (on) current.add(target);
+  else current.delete(target);
+  const ignores = [...current];
+  await setRepo(db, repoId, { ignores });
+  return ignores;
+}
+
+/** Findings whose change id, package or group a target names; their state changes together. */
+export async function setFindingsState(
+  db: Database,
+  repoId: number,
+  match: (f: { changeId: string; dependencyKey: string; groupKey: string | null }) => boolean,
+  state: "open" | "ignored",
+) {
+  const rows = await db
+    .select({
+      id: findings.id,
+      changeId: findings.changeId,
+      dependencyKey: findings.dependencyKey,
+      groupKey: findings.groupKey,
+    })
+    .from(findings)
+    .where(eq(findings.repoId, repoId));
+  const ids = rows.filter(match).map((r) => r.id);
+  for (const id of ids) await db.update(findings).set({ state }).where(eq(findings.id, id));
+  return ids.length;
+}
+
+export async function recordFeedback(db: Database, values: typeof feedback.$inferInsert) {
+  await db.insert(feedback).values(values);
+}
+
+/** A run's events of one step (the CI failure a repair run starts from). */
+export async function runEventsOf(db: Database, runId: string, step: string) {
+  const { rows } = await db.execute<{ type: string; payload: unknown }>(sql`
+    select type, payload from run_events where run_id = ${runId} and step = ${step} order by seq
+  `);
+  return rows;
 }

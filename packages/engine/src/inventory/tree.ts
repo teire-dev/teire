@@ -60,3 +60,31 @@ export function memoryTree(files: Record<string, string>): RepoTree {
   const names = Object.keys(files).sort();
   return { files: () => names, read: (path) => files[path] ?? null };
 }
+
+/** `src/**`, `*.lock`, `services/api` (a plain path is a directory prefix) → a matcher on repo paths. */
+export function globMatcher(globs: string[]) {
+  const res = globs.map((g) => {
+    const glob = g.replace(/^\.?\//, "").replace(/\/$/, "");
+    if (!/[*?]/.test(glob)) return new RegExp(`^${glob.replace(/[.+^${}()|[\]\\]/g, "\\$&")}(?:/|$)`);
+    const body = glob
+      .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+      .replace(/\*\*\/?/g, "\u0000")
+      .replace(/\*/g, "[^/]*")
+      .replace(/\?/g, "[^/]")
+      .replace(/\u0000/g, "(?:.*/)?");
+    return new RegExp(`^${body}(?:/|$)`);
+  });
+  return (path: string) => res.some((re) => re.test(path));
+}
+
+/** The tree a repo's `paths` / `ignorePaths` config leaves to scan (C8); manifests outside are unseen. */
+export function scopedTree(tree: RepoTree, scope: { paths: string[]; ignorePaths: string[] }): RepoTree {
+  if (!scope.paths.length && !scope.ignorePaths.length) return tree;
+  const include = scope.paths.length ? globMatcher(scope.paths) : () => true;
+  const exclude = scope.ignorePaths.length ? globMatcher(scope.ignorePaths) : () => false;
+  const keep = (p: string) => include(p) && !exclude(p);
+  return {
+    files: () => tree.files().filter(keep),
+    read: (path: string) => (keep(path) ? tree.read(path) : null),
+  };
+}

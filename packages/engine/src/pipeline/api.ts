@@ -557,7 +557,7 @@ export async function fixApiChanges(
     requirePassing: records.some((r) => r.applicability.class === "already-broken"),
     findings: affected,
     records,
-    notes,
+    notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir: input.repoDir,
     targetPaths: new Set(),
     docs: async () =>

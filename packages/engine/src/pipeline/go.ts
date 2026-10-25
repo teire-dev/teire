@@ -21,6 +21,7 @@ import { goScheme } from "../registry/versions";
 import { goSurfaceDiff } from "../surface/go";
 import { surfaceChangeRecords } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
+import { withVerifyOverrides } from "../verify/commands";
 import { detectGoChecks } from "../verify/go-commands";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -256,7 +257,7 @@ export async function fixGoDependency(
       costUsd: extraction.receipt.costUsd,
     });
 
-  const plan = detectGoChecks(input.tree, a.project);
+  const plan = withVerifyOverrides(detectGoChecks(input.tree, a.project), a.project.root, input.verify);
   const targetDir = moduleCacheDir(targetPath, target) ?? "";
   const run = await runFix({
     tf: input.tf,
@@ -273,7 +274,7 @@ export async function fixGoDependency(
     target: targetPath === a.instance.name ? target : `${targetPath} ${target}`,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir,
     targetPaths: new Set(),
     docs: async () =>

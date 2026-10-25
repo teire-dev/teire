@@ -19,6 +19,7 @@ import { jvmSurfaceDiff } from "../surface/jvm";
 import { jvmDocsLookup } from "../surface/jvmdoc";
 import { surfaceChangeRecords } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
+import { withVerifyOverrides } from "../verify/commands";
 import { detectJvmChecks } from "../verify/jvm-commands";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -215,7 +216,7 @@ export async function fixJvmDependency(
   const { declKeys } = locateTargets(a.records);
   const prefixes = packagesOf(declKeys).map((p) => p.replace(/\./g, "/"));
   const plan = {
-    ...detectJvmChecks(input.tree, a.project),
+    ...withVerifyOverrides(detectJvmChecks(input.tree, a.project), a.project.root, input.verify),
     ...(prefixes.length ? { probe: ["teire-jvm", "refs", prefixes.join(",")] } : {}),
   };
   const run = await runFix({
@@ -233,7 +234,7 @@ export async function fixJvmDependency(
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir: "",
     targetPaths: new Set(),
     docs: jvmDocsLookup(a.instance.name, target, a.diff?.changes ?? []),

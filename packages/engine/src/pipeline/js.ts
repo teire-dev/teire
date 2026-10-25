@@ -1,4 +1,5 @@
 import type { ChangeV2, DependencyInstance } from "../contract";
+import type { MigrationNote } from "../fix/codemods";
 import { lookupDocs } from "../fix/context7";
 import { type FixRun, runFix } from "../fix/run";
 import { jsTransaction } from "../fix/upgrade-js";
@@ -26,7 +27,7 @@ import { type NpmSurfaceOptions, npmSurface, npmSurfaceDiff, npmTypesLayout } fr
 import { surfaceChangeRecords } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import type { VerifyBackend } from "../verify/backend";
-import { detectJsChecks } from "../verify/commands";
+import { detectJsChecks, withVerifyOverrides } from "../verify/commands";
 import { securityAssessments } from "./security";
 
 /**
@@ -172,6 +173,10 @@ export interface FixDependencyInput {
   assessment: Assessment;
   options: NpmSurfaceOptions & { githubToken?: string; context7Key?: string };
   onEvent?: Parameters<typeof runFix>[0]["onEvent"];
+  /** Extra context for the agent (a CI failure on the PR it is repairing, C6). */
+  extraNotes?: MigrationNote[];
+  /** teire.yml `verify` commands, which replace the detected ones per workspace (C8). */
+  verify?: { workspace: string; install?: string; typecheck?: string; test?: string }[];
 }
 
 export interface FixDependencyResult {
@@ -223,7 +228,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
   const sourceRepo = githubRepoOf(detail?.repository?.url);
   const targetSurface = await npmSurface(a.instance.name, target, options);
   const targetLayout = await npmTypesLayout(a.instance.name, target, options);
-  const plan = detectJsChecks(input.tree, a.project);
+  const plan = withVerifyOverrides(detectJsChecks(input.tree, a.project), a.project.root, input.verify);
   const run = await runFix({
     tf: input.tf,
     prices: input.prices,
@@ -239,7 +244,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir: targetLayout.link.dir,
     targetPaths: new Set([
       ...Object.keys(targetSurface.surface.symbols),

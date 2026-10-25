@@ -64,6 +64,10 @@ export const repos = pgTable(
     languages: jsonb("languages").$type<string[]>(),
     lastScannedSha: text("last_scanned_sha"),
     lastScannedAt: timestamp("last_scanned_at", { withTimezone: true }),
+    /** `@teire ignore` targets (change ids, packages, providers), kept across scans with teire.yml's. */
+    ignores: jsonb("ignores").$type<string[]>().notNull().default([]),
+    /** The status before `@teire pause`, restored by `resume`. */
+    pausedFrom: text("paused_from").$type<RepoStatus>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -343,10 +347,28 @@ export const artifacts = pgTable(
     state: text("state").$type<"open" | "closed" | "merged">().notNull().default("open"),
     url: text("url"),
     runId: uuid("run_id"),
+    /** Head sha whose failing CI Teire already tried to repair (one attempt per head, C6). */
+    ciRepairSha: text("ci_repair_sha"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [uniqueIndex("artifacts_repo_kind_change_idx").on(t.repoId, t.kind, t.changeKey)],
+);
+
+/** `@teire wrong <reason>`: a finding someone says is a false positive or negative (C7). */
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    repoId: githubId("repo_id").notNull(),
+    changeId: text("change_id"),
+    groupKey: text("group_key"),
+    login: text("login").notNull(),
+    reason: text("reason").notNull(),
+    url: text("url"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("feedback_repo_idx").on(t.repoId, t.createdAt)],
 );
 
 /** Outbox for GitHub webhooks: the web route inserts, the worker claims. */

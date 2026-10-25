@@ -33,6 +33,10 @@ const ENVIRONMENT = [
   /Cannot find module '[^']*\/build\/Release\//,
   /prebuild-install|node-gyp rebuild/,
   /Could not locate the bindings file/,
+  // A build tool that needed a download the install did not fetch (offline checks, D69).
+  /Cannot access \S+ in offline mode|has not been downloaded from it before/,
+  /No cached version of \S+ available for offline mode/,
+  /Cannot find a Java installation on your machine/,
 ];
 
 export function classifyFailure(output: string, deniedHosts: string[]): Classified {

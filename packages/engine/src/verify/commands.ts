@@ -38,6 +38,8 @@ export interface CheckPlan {
   checks: PlannedCheck[];
   /** Managers Teire has proven offline (npm, pnpm); the rest are labelled unverified. */
   provenOffline: boolean;
+  /** Run the install once on the unchanged repo in the after side, before the change is written (JVM). */
+  warmBeforeChange?: boolean;
   /** Run on the baseline after its checks; its stdout comes back with the run (JVM: bytecode references). */
   probe?: string[];
   notes: string[];
@@ -230,5 +232,38 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
     checks,
     provenOffline,
     notes,
+  };
+}
+
+/**
+ * `verify` in teire.yml (C8): commands a repo names for a workspace replace the detected ones. They
+ * run through `sh -c` in the same sandbox phases (install online, checks offline).
+ */
+export function withVerifyOverrides(
+  plan: CheckPlan,
+  workspace: string,
+  overrides: { workspace: string; install?: string; typecheck?: string; test?: string }[] = [],
+): CheckPlan {
+  const o = overrides.find(
+    (v) =>
+      v.workspace.replace(/^\.\/|\/$/g, "") === workspace.replace(/^\.\/|\/$/g, "") ||
+      (v.workspace === "." && workspace === "."),
+  );
+  if (!o) return plan;
+  const sh = (cmd: string) => ["sh", "-c", cmd];
+  const checks = [...plan.checks];
+  for (const name of ["typecheck", "test"] as const) {
+    const cmd = o[name];
+    if (!cmd) continue;
+    const at = checks.findIndex((c) => c.name === name);
+    const check: PlannedCheck = { name, argv: sh(cmd), source: "script" };
+    if (at >= 0) checks[at] = check;
+    else checks.push(check);
+  }
+  return {
+    ...plan,
+    ...(o.install ? { install: sh(o.install) } : {}),
+    checks,
+    notes: [...plan.notes, `commands from teire.yml verify for ${o.workspace}`],
   };
 }
