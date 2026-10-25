@@ -5,6 +5,7 @@
 #   teire-jvm maven ARGS...               ./mvnw or mvn in batch mode on the repo's JDK
 #   teire-jvm gradle ARGS...              ./gradlew or gradle with Teire's init script
 #   teire-jvm lock-gradle G:A PROJECT...  `PROJECT:dependencies --update-locks G:A` per locked project
+#   teire-jvm refs PREFIX,...             references to those packages in the compiled classes (TeireRefs.java)
 # Inputs from the plan's environment: TEIRE_JDK (major version).
 set -uo pipefail
 JDK="${TEIRE_JDK:-21}"
@@ -39,6 +40,8 @@ ensure_jdk() {
 maven() {
   local mvn=mvn
   [ -x ./mvnw ] && mvn=./mvnw
+  # The wrapper fetches Maven itself from Central too: the mirror (see settings.xml).
+  export MVNW_REPOURL=https://maven-central.storage-download.googleapis.com/maven2
   JAVA_HOME="/opt/jdk/$JDK" PATH="/opt/jdk/$JDK/bin:$PATH" "$mvn" -B -ntp -Dstyle.color=never -Dgpg.skip=true "$@"
 }
 
@@ -56,7 +59,7 @@ gradle_cmd() {
 }
 
 resolution_failed() {
-  grep -E "Could not resolve dependencies|Could not transfer artifact|Non-resolvable (parent|import)|Plugin .* could not be resolved|Could not resolve all (files|dependencies)|Could not find [a-z0-9.-]+:|teire: could not resolve|PKIX path building failed|SSLHandshakeException|Could not install Gradle distribution|UnknownHostException|Exception in thread \"main\"" "$1"
+  grep -E "Could not resolve dependencies|Could not transfer artifact|Non-resolvable (parent|import)|Plugin .* could not be resolved|Could not resolve all (files|dependencies)|Could not find [a-z0-9.-]+:|teire: could not resolve|PKIX path building failed|SSLHandshakeException|Could not install Gradle distribution|UnknownHostException|Exception in thread \"main\"|Could not resolve all artifacts|Could not GET|Received status code 4|status code: 4" "$1"
 }
 
 case "${1:-}" in
@@ -76,6 +79,14 @@ case "${1:-}" in
     ;;
   maven) shift; maven "$@" ;;
   gradle) shift; gradle_cmd "$@" ;;
+  refs)
+    # References in the compiled classes (after the baseline's checks built them).
+    prefixes="${2:?prefixes}"
+    [[ "$prefixes" =~ ^[A-Za-z0-9_/$,.-]+$ ]] || { echo "teire-jvm: bad prefixes"; exit 2; }
+    mapfile -t dirs < <(find . -type d \( -path "*/target/classes" -o -path "*/target/test-classes" -o -path "*/build/classes/*/main" -o -path "*/build/classes/*/test" \) 2>/dev/null)
+    [ "${#dirs[@]}" -gt 0 ] || { echo "teire-jvm: no compiled classes" >&2; exit 0; }
+    /opt/jdk/25/bin/java /usr/local/share/teire/TeireRefs.java "$prefixes" "${dirs[@]}"
+    ;;
   lock-gradle)
     ga="${2:?G:A}"; shift 2
     [[ "$ga" =~ ^[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$ ]] || { echo "teire-jvm: bad module"; exit 2; }

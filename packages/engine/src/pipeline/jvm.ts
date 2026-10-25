@@ -7,6 +7,7 @@ import { assess, locateTargets, summariseFindings } from "../impact";
 import { type JvmProject, readJvmInventory } from "../inventory/jvm";
 import type { RepoTree } from "../inventory/tree";
 import { locateJvm } from "../locate/jvm";
+import { locateBytecode, removedOverloads } from "../locate/jvm-bytecode";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { gatherJvmNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
@@ -210,7 +211,13 @@ export async function fixJvmDependency(
       costUsd: extraction.receipt.costUsd,
     });
 
-  const plan = detectJvmChecks(input.tree, a.project);
+  // After the baseline's checks compile the repo, its classes say exactly where the library is used.
+  const { declKeys } = locateTargets(a.records);
+  const prefixes = packagesOf(declKeys).map((p) => p.replace(/\./g, "/"));
+  const plan = {
+    ...detectJvmChecks(input.tree, a.project),
+    ...(prefixes.length ? { probe: ["teire-jvm", "refs", prefixes.join(",")] } : {}),
+  };
   const run = await runFix({
     tf: input.tf,
     prices: input.prices,
@@ -232,6 +239,33 @@ export async function fixJvmDependency(
     docs: jvmDocsLookup(a.instance.name, target, a.diff?.changes ?? []),
     onEvent: input.onEvent,
   });
+  // Sites from the compiled classes replace the lexical ones in the PR; lexical sites the bytecode
+  // cannot show (inlined constants, Kotlin inline bodies) are kept.
+  let summary = a.summary ?? {
+    verdict: "not_affected" as const,
+    breaking: [],
+    annotations: [],
+    coverage: null,
+  };
+  if (run.baselineProbe !== null && a.diff) {
+    const exact = locateBytecode({
+      probe: run.baselineProbe,
+      tree: input.tree,
+      declKeys,
+      overloads: removedOverloads(a.diff.changes),
+    });
+    // A key the classes never reference may still be used where bytecode cannot show it (an inlined
+    // constant, a Kotlin inline function's body): its lexical sites stay.
+    const seen = new Set(exact.hits.map((h) => h.declKey));
+    const kept = (a.located?.hits ?? []).filter((h) => !seen.has(h.declKey));
+    const merged = { ...exact, hits: [...exact.hits, ...kept] };
+    summary = summariseFindings(
+      assess({ instance: a.instance, target, isMajor: true, records: a.records, locate: merged }),
+    );
+    plan.notes.push(
+      `${exact.hits.length} site(s) read from the compiled classes on the baseline (javac/kotlinc-resolved)`,
+    );
+  }
   const groupKey = `maven/${a.instance.name}/${target}`;
   const pr = composeFixPullRequest({
     repo: input.repo,
@@ -242,7 +276,7 @@ export async function fixJvmDependency(
     run,
     plan,
     backendNote: input.backendNote,
-    summary: a.summary ?? { verdict: "not_affected", breaking: [], annotations: [], coverage: null },
+    summary,
     records: a.records,
     notes,
     behaviour,

@@ -38,6 +38,7 @@ export const REGISTRY_HOSTS = new Set([
   "repo1.maven.org",
   "maven-central.storage-download.googleapis.com",
   "plugins.gradle.org",
+  "plugins-artifacts.gradle.org",
   "services.gradle.org",
   "dl.google.com",
   "maven.google.com",

@@ -24,7 +24,9 @@ RUN curl -fsSL -o /tmp/maven.tgz https://repo1.maven.org/maven2/org/apache/maven
   && echo "${GRADLE_SHA256}  /tmp/gradle.zip" | sha256sum -c - \
   && unzip -q /tmp/gradle.zip -d /opt && ln -s /opt/gradle-9.8.1/bin/gradle /usr/local/bin/gradle \
   && rm /tmp/maven.tgz /tmp/gradle.zip
-COPY teire.init.gradle /usr/local/share/teire/teire.init.gradle
+COPY teire.init.gradle TeireRefs.java /usr/local/share/teire/
+# Maven Central answers 403 to the sandbox's Cloudflare egress; Google's mirror of it does not.
+COPY settings.xml /root/.m2/settings.xml
 COPY teire-job teire-job-status teire-jvm /usr/local/bin/
 WORKDIR /work
 CMD ["sleep", "infinity"]

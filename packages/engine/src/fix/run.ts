@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTwoFilesPatch } from "diff";
-import { FIX, PR_MODE_BY_EVIDENCE } from "../constants";
+import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import type { FindingDraft } from "../impact";
 import type { RepoTree } from "../inventory/tree";
@@ -111,6 +111,8 @@ export interface FixRun {
   exhausted: boolean;
   /** The review of the final passing diff, when the agent edited code; its problems are PR risks. */
   review: Review | null;
+  /** Output of the plan's probe on the baseline after its checks (JVM: references in the compiled classes). */
+  baselineProbe: string | null;
 }
 
 /**
@@ -257,8 +259,20 @@ export async function runFix(input: FixInput): Promise<FixRun> {
   try {
     const log = (line: string) =>
       emit({ step: line.startsWith("baseline") ? "baseline" : "install", detail: line });
-    const [baseline, txn] = await Promise.all([
-      runSide(base, input.plan, "baseline", undefined, log),
+    const probeBaseline = async () => {
+      const side = await runSide(base, input.plan, "baseline", undefined, log);
+      // The repo as it compiled before the change: a probe reads what the checks built.
+      if (!input.plan.probe || !side.install.ok) return { side, probe: null };
+      const run = await base.run("baseline-probe", input.plan.probe, {
+        cwd: input.plan.cwd,
+        env: input.plan.env,
+        timeoutSec: VERIFY.checkTimeoutSec,
+      });
+      log(`baseline: probe exit ${run.exitCode} in ${run.ms} ms`);
+      return { side, probe: run.exitCode === 0 ? run.stdout : null };
+    };
+    const [{ side: baseline, probe: baselineProbe }, txn] = await Promise.all([
+      probeBaseline(),
       prepareTransaction(after, input.plan, input.transaction, log, applyManifest),
     ]);
     const prepared = txn.side;
@@ -321,6 +335,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         target: input.target,
         evidence,
         baseline,
+        baselineProbe,
         after: afterSide,
         manifest,
         lockfile,

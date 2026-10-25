@@ -1,6 +1,24 @@
-// Teire's Gradle init script (plan S08): one test summary line per Test task, and a task that
-// resolves every resolvable configuration, so the online warm-up downloads what offline checks need.
+// Teire's Gradle init script (plan S08): one test summary line per Test task, a task that resolves
+// every resolvable configuration (so the online warm-up downloads what offline checks need), and
+// Maven Central read through Google's mirror (Central answers 403 to the sandbox's Cloudflare egress).
+def MIRROR = "https://maven-central.storage-download.googleapis.com/maven2/"
+def toMirror = { RepositoryHandler repos ->
+  repos.withType(MavenArtifactRepository).configureEach { r ->
+    def u = r.url.toString()
+    if (u.startsWith("https://repo.maven.apache.org/maven2") || u.startsWith("https://repo1.maven.org/maven2")) r.url = MIRROR
+  }
+}
+beforeSettings { settings ->
+  // Plugins published to Central (Kotlin's markers among them) come from the mirror first.
+  settings.pluginManagement.repositories { maven { url = MIRROR; name = "teireCentralMirror" } }
+}
+settingsEvaluated { settings ->
+  toMirror(settings.pluginManagement.repositories)
+  toMirror(settings.dependencyResolutionManagement.repositories)
+}
 allprojects { p ->
+  toMirror(p.repositories)
+  toMirror(p.buildscript.repositories)
   p.tasks.withType(Test).configureEach { t ->
     t.addTestListener(new TestListener() {
       void beforeSuite(TestDescriptor d) {}

@@ -38,6 +38,8 @@ export interface CheckPlan {
   checks: PlannedCheck[];
   /** Managers Teire has proven offline (npm, pnpm); the rest are labelled unverified. */
   provenOffline: boolean;
+  /** Run on the baseline after its checks; its stdout comes back with the run (JVM: bytecode references). */
+  probe?: string[];
   notes: string[];
 }
 
