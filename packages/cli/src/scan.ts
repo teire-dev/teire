@@ -19,13 +19,14 @@ import {
   runtimesOf,
 } from "@teire/engine/pipeline";
 import { memoryCache } from "@teire/engine/registry";
-import { catalogChanges, catalogDiscovery } from "./catalog";
+import { remoteCatalog } from "./catalog";
 
 /**
  * `teire scan` (card C11): the worker's scan, run locally on a checkout through the same engine
  * calls, so its findings match the dashboard's. Package checks read the registries; API-host and
- * model checks read Teire's public catalog (the pages behind it were read by the service). Wrapped
- * model IDs are traced with Nemotron only when `TOKENFACTORY_API_KEY` is set, as on the service.
+ * model checks read Teire's public catalog, and read a provider's pages here when the service has
+ * not (see `remoteCatalog`). Wrapped model IDs are traced with Nemotron only when
+ * `TOKENFACTORY_API_KEY` is set, as on the service.
  */
 export interface ScanResult {
   root: string;
@@ -59,6 +60,23 @@ function githubOrigin(dir: string) {
   }
 }
 
+/** What to install when a toolchain an ecosystem's reader runs is missing on this machine. */
+const TOOLS: Record<string, string> = {
+  go: "install Go (https://go.dev/dl) or set TEIRE_GO",
+  "cargo-semver-checks":
+    "cargo install cargo-semver-checks --version 0.51.0 --locked, or set TEIRE_CARGO_SEMVER_CHECKS",
+  cargo: "install Rust (https://rustup.rs)",
+  uv: "install uv (https://docs.astral.sh/uv); it supplies Python 3.12 and the helper's pinned packages",
+  java: "install Java 17 or newer, or set TEIRE_JAVA",
+};
+
+function plainNote(note: string) {
+  return note.replace(/(?:[\w.-]+ failed: )?spawn (\S+) ENOENT/, (_, bin: string) => {
+    const tool = bin.split("/").pop() as string;
+    return `${tool} is not installed${TOOLS[tool] ? `: ${TOOLS[tool]}` : ""}`;
+  });
+}
+
 export async function scanPath(
   dir: string,
   options: { catalogUrl: string; githubToken?: string },
@@ -82,7 +100,7 @@ export async function scanPath(
       return await fn();
     } catch (error) {
       const message = (error instanceof Error ? error.message : String(error)).split("\n")[0]?.slice(0, 200);
-      notes.push(`${name}: not scanned (${message})`);
+      notes.push(`${name}: not scanned; ${message}`);
       return NONE;
     }
   };
@@ -96,6 +114,10 @@ export async function scanPath(
   const groups = { npm: js, PyPI: py, Go: go, Cargo: rust, RubyGems: ruby, "Maven/Gradle": jvm };
   const projects = Object.values(groups).flatMap((g) => g.projects);
   const assessments = Object.values(groups).flatMap((g) => g.assessments);
+  // A diff the machine could not compute (no Java, no Go toolchain…) says why, never guesses.
+  for (const a of assessments)
+    if (a.diff?.unanalyzable && a.decision?.kind === "upgrade")
+      notes.push(`${a.instance.name} ${a.instance.version} → ${a.decision.to}: ${a.diff.notes.join("; ")}`);
 
   const records = new Map<string, ChangeV2>();
   for (const a of assessments)
@@ -104,19 +126,19 @@ export async function scanPath(
   let providers: string[] = [];
   let filesScanned = 0;
   if (on.apis) {
-    const discovery = catalogDiscovery(options.catalogUrl, cache);
     const origin = githubOrigin(dir);
     let triage: ApiSources["triage"];
     if (process.env.TOKENFACTORY_API_KEY)
       triage = { tf: createTokenFactory(tokenFactoryConfigFromEnv()), prices: await fetchModelPrices() };
+    const catalog = remoteCatalog(options.catalogUrl, { cache, ...(triage ? { reader: triage } : {}) });
     try {
       const api = await assessApiChanges(
         dir,
         tree,
         projects.flatMap((p) => p.instances),
         {
-          changes: catalogChanges(options.catalogUrl),
-          discover: { cache: discovery.cache },
+          changes: catalog.changes,
+          discover: { cache: catalog.discovery },
           ...(triage ? { triage } : {}),
           openapi: { cache, ...(token ? { githubToken: token } : {}), ...(origin ? { repo: origin } : {}) },
           declared: config.sources,
@@ -126,15 +148,16 @@ export async function scanPath(
       filesScanned = api.scan.filesScanned;
       providers = api.providers.map((p) => p.provider.name);
       for (const r of api.records) records.set(r.id, r);
-      for (const d of discovery.unread)
-        notes.push(`${d}: an API host Teire has not read yet; its changes appear once the service reads it`);
+      notes.push(...new Set(catalog.notes), ...api.discovery.notes.map((n) => `discovery: ${n}`));
       for (const n of api.openapiNotes) notes.push(`OpenAPI: ${n}`);
       const open = api.findings.filter(
-        (f) => f.verdict === "inconclusive" && f.changeKind === "model-retirement",
+        (f) =>
+          f.verdict === "inconclusive" &&
+          (f.changeKind === "model-retirement" || f.changeKind === "model-rerouted"),
       );
       if (!triage && open.length)
         notes.push(
-          `${open.length} model reference(s) left inconclusive: set TOKENFACTORY_API_KEY to trace wrapped model IDs with Nemotron`,
+          `${open.length} model mention(s) not traced through wrappers or registries (Nemotron does this when TOKENFACTORY_API_KEY is set)`,
         );
     } catch (error) {
       notes.push(
@@ -170,7 +193,7 @@ export async function scanPath(
     findings,
     records,
     providers,
-    notes,
+    notes: [...new Set(notes.map(plainNote))],
     filesScanned: filesScanned || tree.files().length,
     ms: Date.now() - started,
   };

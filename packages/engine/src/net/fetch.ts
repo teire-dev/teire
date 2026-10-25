@@ -70,6 +70,23 @@ async function checkUrl(raw: string, allow?: readonly string[]) {
   return url;
 }
 
+/**
+ * One request, retried when the connection itself fails (undici's `TypeError: fetch failed`:
+ * reset, refused, DNS). A blocked URL, an HTTP status or the overall deadline is never retried.
+ */
+async function connect(url: string, allow: readonly string[] | undefined, init: RequestInit) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await checkUrl(url, allow);
+      return await fetch(url, init);
+    } catch (error) {
+      const network = error instanceof TypeError || (error as { code?: string }).code === "EAI_AGAIN";
+      if (!network || init.signal?.aborted || attempt >= NET.networkRetries) throw error;
+      await new Promise((r) => setTimeout(r, NET.networkRetryMs * (attempt + 1)));
+    }
+  }
+}
+
 export async function guardedFetch(
   input: string,
   options: GuardedFetchOptions = {},
@@ -88,8 +105,11 @@ export async function guardedFetch(
   const redirects: string[] = [];
   let current = input;
   for (let hop = 0; hop <= NET.maxRedirects; hop++) {
-    await checkUrl(current, options.allowHosts);
-    const response = await fetch(current, { headers, redirect: "manual", signal: deadline });
+    const response = await connect(current, options.allowHosts, {
+      headers,
+      redirect: "manual",
+      signal: deadline,
+    });
     if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
       await response.body?.cancel();
       redirects.push(current);

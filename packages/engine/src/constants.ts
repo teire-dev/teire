@@ -305,6 +305,9 @@ export const NET = {
   maxRedirects: 5,
   /** Default cap for one response; package tarballs pass their own larger cap. */
   maxResponseBytes: 32 * 1024 * 1024,
+  /** A dropped connection or DNS hiccup is retried; an HTTP status never is (the caller decides). */
+  networkRetries: 2,
+  networkRetryMs: 750,
 } as const;
 
 /** Registry access and the target-version policy (plan D71). */

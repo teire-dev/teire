@@ -89,11 +89,13 @@ export function renderScan(scan: ScanResult, options: { all?: boolean } = {}) {
     .filter((g) => g.deadline)
     .sort((a, b) => (a.deadline as string).localeCompare(b.deadline as string));
   if (deadlines.length) {
-    out.push(paint("bold", "Upcoming deadlines"));
-    for (const g of deadlines.slice(0, 15))
-      out.push(
-        `  ${(g.deadline as string).slice(0, 10)}  ${g.title}  ${paint("dim", g.verdict.replace("_", " "))}`,
-      );
+    out.push(paint("bold", "Deadlines"));
+    const today = new Date().toISOString().slice(0, 10);
+    for (const g of deadlines.slice(0, 15)) {
+      const day = (g.deadline as string).slice(0, 10);
+      const state = `${day < today ? "passed · " : ""}${g.verdict.replace("_", " ")}`;
+      out.push(`  ${day}  ${g.title}  ${paint("dim", state)}`);
+    }
     out.push("");
   }
   const section = (title: string, color: "red" | "yellow" | "green" | "gray", list: Group[]) => {

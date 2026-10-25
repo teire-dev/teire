@@ -505,7 +505,15 @@ export async function jvmSurfaceDiff(name: string, from: string, to: string): Pr
     );
   } catch (error) {
     unanalyzable = true;
-    notes.push(`japicmp failed: ${(error instanceof Error ? error.message : String(error)).slice(0, 300)}`);
+    const message = error instanceof Error ? error.message : String(error);
+    const noJava =
+      (error as { code?: string }).code === "ENOENT" ||
+      /Unable to locate a Java Runtime|java: (command )?not found/.test(message);
+    notes.push(
+      noJava
+        ? "no Java runtime to compare the jars (install Java 17 or newer, or set TEIRE_JAVA)"
+        : `japicmp failed: ${message.slice(0, 300)}`,
+    );
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
