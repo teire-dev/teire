@@ -13,7 +13,7 @@ import {
   type TavilyUsage,
 } from "../discover";
 import type { CodemodEdit, MigrationNote } from "../fix/codemods";
-import { type FixRun, runFix } from "../fix/run";
+import { type FileChange, type FixRun, runFix } from "../fix/run";
 import type { Transaction } from "../fix/transaction";
 import { composeApiChangePullRequest } from "../github/compose";
 import {
@@ -28,6 +28,7 @@ import { readPythonInventory } from "../inventory/python";
 import type { RepoTree } from "../inventory/tree";
 import { findBaseUrlOverrides } from "../locate/base-url";
 import { type LiteralScan, locateLiterals } from "../locate/literals";
+import { assessOpenApi, type OpenApiOptions } from "../openapi";
 import type { RegistryOptions } from "../registry/clients";
 import { detectJsChecks } from "../verify/commands";
 import { detectPyChecks } from "../verify/python-commands";
@@ -54,6 +55,8 @@ export interface ApiAssessment {
   discovery: { candidates: number; usage: TavilyUsage[]; notes: string[] };
   /** Nemotron readings that traced wrapped model IDs (empty without `triage`). */
   receipts: TriageReceipt[];
+  /** What the OpenAPI comparison looked at per host, or why it compared nothing. */
+  openapiNotes: string[];
 }
 
 /** Reads a provider's change records (worker: stored and refreshed when stale; scripts: live). */
@@ -69,6 +72,8 @@ export interface ApiSources {
   discover?: RegistryOptions & { cacheDir?: string };
   /** Nemotron for model IDs the syntax cannot place (registries, wrappers). Omitted, they stay inconclusive. */
   triage?: PageReader;
+  /** OpenAPI diffs for operations the repo calls by URL (spec lookup, the repo's history). */
+  openapi?: OpenApiOptions;
 }
 
 /** Every exact model ID the confirmed records name, for one scan of the repo. */
@@ -157,7 +162,15 @@ export async function assessApiChanges(
     }
   }
   if (!providers.length)
-    return { scan: hostsScan, findings: [], providers, records: [], discovery, receipts: [] };
+    return {
+      scan: hostsScan,
+      findings: [],
+      providers,
+      records: [],
+      discovery,
+      receipts: [],
+      openapiNotes: [],
+    };
   const records = await sources.changes(providers.map((p) => p.provider));
   const scan = await locateLiterals({ repoDir, tree, modelIds: catalogModelIds(records) });
   let findings = assessProviderChanges({ records, scan, now });
@@ -182,7 +195,26 @@ export async function assessApiChanges(
     providers.map((p) => p.provider),
     findBaseUrlOverrides(repoDir, tree),
   );
-  return { scan, findings, providers, records, discovery, receipts };
+  // OpenAPI: operations the repo reaches by URL, compared at its position on the API and the latest.
+  let openapiNotes: string[] = [];
+  if (sources.openapi) {
+    try {
+      const oas = await assessOpenApi({
+        repoDir,
+        tree,
+        hits: scan.hits,
+        providers,
+        options: sources.openapi,
+        now,
+      });
+      records.push(...oas.records);
+      findings = [...findings, ...oas.findings];
+      openapiNotes = oas.notes;
+    } catch (error) {
+      openapiNotes = [`OpenAPI comparison failed: ${error instanceof Error ? error.message : String(error)}`];
+    }
+  }
+  return { scan, findings, providers, records, discovery, receipts, openapiNotes };
 }
 
 /** A confirmed retirement of this exact model ID (shut down already or on a date). */
@@ -282,7 +314,11 @@ export function planModelSwaps(
 }
 
 /** The provider's own words for each change, plus its parameter changes (what a new model may reject). */
-function providerNotes(group: ChangeV2[], related: ChangeV2[]): MigrationNote[] {
+function providerNotes(
+  group: ChangeV2[],
+  related: ChangeV2[],
+  usedInRepo: (token: string) => boolean = () => true,
+): MigrationNote[] {
   const notes: MigrationNote[] = [];
   // Replacements the provider has retired since: their own notices travel with the change.
   const chained = new Set<ChangeV2>();
@@ -302,7 +338,14 @@ function providerNotes(group: ChangeV2[], related: ChangeV2[]): MigrationNote[] 
       url: source.url,
     });
   }
-  for (const r of [...group, ...related.filter((x) => x.kind === "parameter-change" && !group.includes(x))]) {
+  // A parameter change travels with the fix only when the repo passes that parameter.
+  const params = related.filter(
+    (x) =>
+      x.kind === "parameter-change" &&
+      !group.includes(x) &&
+      x.signatures.some((sig) => sig.kind === "call-arg" && usedInRepo(sig.arg)),
+  );
+  for (const r of [...group, ...params]) {
     const source = r.sources[0];
     if (!source?.quote) continue;
     notes.push({
@@ -315,7 +358,67 @@ function providerNotes(group: ChangeV2[], related: ChangeV2[]): MigrationNote[] 
       url: source.url,
     });
   }
-  return notes;
+  return notes.filter((n, i) => notes.findIndex((m) => m.quote === n.quote) === i);
+}
+
+const QUOTED = /(["'`])((?:(?!\1)[^\\]|\\.)*)\1/g;
+const shape = (line: string) =>
+  line
+    .replace(QUOTED, '""')
+    .replace(/\b\d+(?:\.\d+)?\b/g, "#")
+    .trim();
+
+/**
+ * What each retired model became in the final code, read from the change itself: the site's line
+ * after the fix (the line of the same shape, nearest the original), and the literal at the same
+ * position. A provider that names several replacements leaves the choice to the agent; this says
+ * which one it made.
+ */
+export function appliedSwaps(files: FileChange[], findings: FindingDraft[]) {
+  const out: { from: string; to: string }[] = [];
+  for (const f of findings) {
+    const from = f.position.version;
+    if (f.verdict !== "affected" || !from) continue;
+    for (const site of f.callSites) {
+      const file = files.find((x) => x.path === site.file);
+      if (!file) continue;
+      const before = file.before.split("\n")[site.line - 1] ?? "";
+      const k = [...before.matchAll(QUOTED)].findIndex((m) => m[2] === from);
+      if (k < 0) continue;
+      const lines = file.after.split("\n");
+      const candidates = lines
+        .map((text, i) => ({ text, i }))
+        .filter((l) => shape(l.text) === shape(before))
+        .sort((a, b) => Math.abs(a.i - (site.line - 1)) - Math.abs(b.i - (site.line - 1)));
+      const to = candidates[0] ? [...candidates[0].text.matchAll(QUOTED)][k]?.[2] : undefined;
+      if (to && to !== from && !out.some((o) => o.from === from && o.to === to)) out.push({ from, to });
+    }
+  }
+  return out;
+}
+
+/** Whether a token appears as a whole word in the repo's source files (read once, on first use). */
+function wordsIn(repoDir: string, tree: RepoTree) {
+  let text: string | null = null;
+  return (token: string) => {
+    if (text === null) {
+      text = "";
+      for (const f of tree.files()) {
+        if (
+          !/\.(?:[cm]?[jt]sx?|py|go|rs|rb|java|kt|ya?ml|toml|json)$/.test(f) ||
+          /node_modules|\.venv|dist\/|lock/.test(f)
+        )
+          continue;
+        try {
+          text += `\n${readFileSync(join(repoDir, f), "utf8")}`;
+        } catch {
+          // unreadable: skipped
+        }
+        if (text.length > 8_000_000) break;
+      }
+    }
+    return new RegExp(`(?<![\\w-])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(text);
+  };
 }
 
 /** The project whose checks prove the change: the JS or Python project holding most edited files. */
@@ -345,6 +448,8 @@ export interface FixApiInput extends Omit<FixDependencyInput, "assessment"> {
   records: ChangeV2[];
   /** Every confirmed record of the same provider: parameter changes travel with a model swap. */
   related: ChangeV2[];
+  /** The provider's display name ("Groq"), for the title. */
+  providerName?: string;
 }
 
 export async function fixApiChanges(
@@ -379,7 +484,7 @@ export async function fixApiChanges(
     commands: [],
     readBack: [],
   };
-  const notes = providerNotes(records, input.related);
+  const notes = providerNotes(records, input.related, wordsIn(input.repoDir, input.tree));
   const run = await runFix({
     tf: input.tf,
     prices: input.prices,
@@ -417,6 +522,8 @@ export async function fixApiChanges(
     onEvent: input.onEvent,
   });
   const pr = composeApiChangePullRequest({
+    applied: appliedSwaps(run.files, affected),
+    ...(input.providerName ? { providerName: input.providerName } : {}),
     repo: input.repo,
     runId: input.runId,
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),

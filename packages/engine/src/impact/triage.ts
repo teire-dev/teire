@@ -45,12 +45,13 @@ const answerSchema = z.object({
   ),
 });
 
-const SYSTEM = `You trace string literals in a code base. For each listed site, decide whether that string is used as the model of a request this code sends to the named API provider: directly, or through a variable, constant, object field, map, config or wrapper function.
+const SYSTEM = `You trace string literals across the files of a code base. For each listed site, decide whether that string ends up as the model of a request this code sends to the named API provider.
+Follow the value wherever it goes: a constant, an object field, a map entry or a config value that another file reads (\`TIERS[tier].id\`, \`settings.model\`) and passes as the request's model counts as used. Read every file shown, not only the file holding the literal; the files that import it are listed.
 Answer per site:
-- used: "yes" only when you can point to the line where the value is passed to the request's model parameter; "no" when the code shows it is something else (a label, a log, a test fixture's expected value, a comparison); "unclear" when the code shown does not decide it.
+- used: "yes" when you can point to the line, in any file shown, where the value reaches the request's model parameter; "no" when the code shows it is something else (a label, a log line, a comparison, a test's expected value); "unclear" when the code shown does not decide it.
 - evidenceFile and evidenceLine: the file and line number where the value is passed as the model (for "yes"), else null.
 - reason: one sentence.
-Use only the code shown. Line numbers are printed at the start of each line.`;
+Line numbers are printed at the start of each line.`;
 
 const MODEL_PARAM = /\bmodel\w*\b|\bModel\b/;
 /** Tests and fixtures name retired models on purpose (stand-ins, expectations): never a fix site. */
@@ -142,8 +143,15 @@ export async function triageModelSites(input: {
       texts.set(file, text);
     }
     const provider = input.providers.get(slug);
+    const imports = files
+      .map((f) => {
+        const by = importers(input.tree, input.repoDir, f).filter((x) => texts.has(x));
+        return by.length ? `${f} is imported by ${by.join(", ")}.` : "";
+      })
+      .filter(Boolean);
     const prompt = [
       ...[...texts].map(([file, text]) => `<file path="${file}">\n${numbered(text)}\n</file>`),
+      ...imports,
       `Provider: ${provider?.name ?? slug}${provider?.via.length ? ` (the repo reaches it through ${provider.via.join(", ")})` : ""}.`,
       `Sites to decide:\n${sites.map(({ f, s }) => `- ${s.file}:${s.line} the string "${f.position.version}"`).join("\n")}`,
     ].join("\n\n");
@@ -157,9 +165,10 @@ export async function triageModelSites(input: {
           system: SYSTEM,
           prompt,
           output: Output.object({ schema: answerSchema }),
-          maxOutputTokens: 4_000,
+          maxOutputTokens: 12_000,
           ...nemotronSampling,
-          providerOptions: nemotronOptions({ thinking: false }),
+          // Tracing a value through files is reasoning work; the prompts are small.
+          providerOptions: nemotronOptions({ thinking: true }),
         });
         const receipt = receiptFor(result.usage, input.reader.prices?.get(model));
         return { value: { sites: result.output.sites, receipt }, costUsd: receipt.costUsd };

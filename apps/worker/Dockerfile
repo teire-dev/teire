@@ -30,6 +30,17 @@ RUN curl -fsSL -o /usr/local/bin/osv-scanner \
     "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64" \
   && echo "${OSV_SCANNER_SHA256}  /usr/local/bin/osv-scanner" | sha256sum -c - \
   && chmod 0755 /usr/local/bin/osv-scanner
+# OpenAPI diffs (plan S04, D64): oasdiff pinned, since its output differs between versions; checked
+# against the release's checksums.txt. It parses specs only; external $refs stay off.
+ARG OASDIFF_VERSION=1.34.1
+ARG OASDIFF_SHA256=75775f65b0adebd26a8e013af51a799342dfdc6262d89efa9e3b7bdf89657d90
+RUN curl -fsSL -o /tmp/oasdiff.tar.gz \
+    "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz" \
+  && echo "${OASDIFF_SHA256}  /tmp/oasdiff.tar.gz" | sha256sum -c - \
+  && tar -xzf /tmp/oasdiff.tar.gz -C /usr/local/bin oasdiff \
+  && chmod 0755 /usr/local/bin/oasdiff \
+  && rm /tmp/oasdiff.tar.gz \
+  && oasdiff --version
 # Python for Teire's helper (plan S03): uv-managed CPython 3.12 and a venv with the pinned readers.
 # The helper reads manifests, wheels and source; it never imports or runs a repo's code.
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /usr/local/bin/

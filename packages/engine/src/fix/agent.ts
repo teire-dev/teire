@@ -26,6 +26,8 @@ export interface AgentWorkspace {
 
 export interface AgentStep {
   model: string;
+  /** The fix attempt this step belongs to (set by the run). */
+  attempt?: number;
   tools: { name: string; input: unknown }[];
   text: string;
   tokensIn: number;

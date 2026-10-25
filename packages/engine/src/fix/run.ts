@@ -176,6 +176,40 @@ function describeFindings(input: FixInput) {
     .join("\n");
 }
 
+/**
+ * A review problem the checks answered: while following the review, the agent changed the flagged
+ * file, the repo's checks failed, and the file ended exactly as the review first saw it. The change
+ * was necessary; the problem moves to `refuted` with the failing check's counts as evidence.
+ */
+function refute(
+  review: Review,
+  reviewed: { files: Map<string, string> } | null,
+  failures: { files: Map<string, string>; text: string }[],
+  read: (path: string) => string,
+): Review {
+  if (!reviewed || !failures.length) return review;
+  const kept: Review["problems"] = [];
+  const refuted: NonNullable<Review["refuted"]> = [];
+  for (const p of review.problems) {
+    const before = reviewed.files.get(p.file);
+    let now: string | null = null;
+    try {
+      now = read(p.file);
+    } catch {
+      now = null;
+    }
+    const tried = failures.find((f) => f.files.has(p.file) && f.files.get(p.file) !== before);
+    if (before !== undefined && now === before && tried) {
+      const counts = /\d+\/\d+ tests passed/.exec(tried.text)?.[0];
+      refuted.push({
+        ...p,
+        evidence: `changing it back failed the repo's checks${counts ? ` (${counts})` : ""}`,
+      });
+    } else kept.push(p);
+  }
+  return { ...review, problems: kept, ...(refuted.length ? { refuted } : {}) };
+}
+
 export async function runFix(input: FixInput): Promise<FixRun> {
   const started = Date.now();
   const acceptable = acceptableFor(input.requirePassing ?? false);
@@ -355,6 +389,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     // The failure the agent started from: the reviewer needs to know why the code had to change.
     const startingFailure = current.text;
     let reviewRounds = 0;
+    const followUpFailures: { files: Map<string, string>; text: string }[] = [];
     let reviewFeedback: Review["problems"] = [];
     let passing: {
       files: Map<string, string>;
@@ -417,12 +452,16 @@ export async function runFix(input: FixInput): Promise<FixRun> {
           beforeEdit: remember,
           check: async () => {
             const r = await verify("agent check");
-            return { passed: acceptable(r.evidence), text: r.text };
+            const passed = acceptable(r.evidence);
+            // While answering a review: a failed check is evidence about the change the review questioned.
+            if (passing && !passed)
+              followUpFailures.push({ files: new Map([...changed].map((f) => [f, read(f)])), text: r.text });
+            return { passed, text: r.text };
           },
           docs: input.docs,
         },
         onStep: (s) => {
-          agentSteps.push(s);
+          agentSteps.push({ ...s, attempt: n });
           emit({
             step: "agent",
             model: s.model,
@@ -454,6 +493,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
           notes: input.notes,
           patch: codePatch(),
           failure: startingFailure,
+          rationale: agent.summary,
         });
         emit({
           step: "review",
@@ -478,7 +518,16 @@ export async function runFix(input: FixInput): Promise<FixRun> {
           };
           continue;
         }
-        return finish(current.evidence, lastAfter, attempts, codemods, agentSteps, summary, false, review);
+        return finish(
+          current.evidence,
+          lastAfter,
+          attempts,
+          codemods,
+          agentSteps,
+          summary,
+          false,
+          refute(review, passing, followUpFailures, read),
+        );
       }
       if (passing) {
         // The attempt after the review broke the checks: the reviewed passing change stands.

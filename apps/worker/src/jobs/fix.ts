@@ -115,16 +115,20 @@ async function apiOutcome(
   tree: RepoTree,
   common: Common,
 ): Promise<Outcome | null> {
-  const { findings, records: read } = await assessApiChanges(
-    repoDir,
-    tree,
-    await repoInstances(repoDir, tree),
-    {
-      changes: storedProviderChanges(ctx.db),
-      discover: { cache: postgresRegistryCache(ctx.db) },
-      triage: await pageReader(ctx.db),
+  const {
+    findings,
+    records: read,
+    providers,
+  } = await assessApiChanges(repoDir, tree, await repoInstances(repoDir, tree), {
+    changes: storedProviderChanges(ctx.db),
+    discover: { cache: postgresRegistryCache(ctx.db) },
+    triage: await pageReader(ctx.db),
+    openapi: {
+      cache: postgresRegistryCache(ctx.db),
+      githubToken: common.options.githubToken,
+      repo: { owner: common.repo.owner, name: common.repo.repo, sha: common.repo.baseSha },
     },
-  );
+  });
   const group = findings.filter((f) => f.groupKey === run.groupKey);
   if (!group.some((f) => f.verdict === "affected")) return null;
   const records = read.filter((r) => group.some((f) => f.changeId === r.id));
@@ -134,6 +138,7 @@ async function apiOutcome(
     findings: group,
     records,
     related: read.filter((r) => r.subject.provider === slug),
+    providerName: providers.find((p) => p.provider.slug === slug)?.provider.name,
   });
   return {
     fix: result.run,

@@ -54,7 +54,9 @@ export function assessProviderChanges(input: {
   for (const record of input.records) {
     if (record.status !== "confirmed") continue;
     const effective = record.applicability.effectiveOn;
-    const replacement = record.replacement?.modelIds[0] ?? record.replacement?.value ?? null;
+    // One named model is the swap target; several are a choice, stated as the provider wrote it.
+    const ids = record.replacement?.modelIds ?? [];
+    const replacement = ids.length === 1 ? (ids[0] ?? null) : (record.replacement?.value ?? null);
     for (const s of record.signatures) {
       let hits: LiteralHit[] = [];
       let key = "";

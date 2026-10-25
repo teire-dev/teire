@@ -120,7 +120,9 @@ function receiptLines(
     );
   if (run.codemods.length) out.push(`| Deterministic edits (${run.codemods.length}) | none | — | $0 |`);
   for (const a of run.attempts) {
-    const steps = run.agentSteps.filter((s) => s.model === a.model);
+    const steps = run.agentSteps.filter((s) =>
+      s.attempt === undefined ? s.model === a.model : s.attempt === a.n,
+    );
     const tin = steps.reduce((n, s) => n + s.tokensIn, 0);
     const tout = steps.reduce((n, s) => n + s.tokensOut, 0);
     out.push(
@@ -129,7 +131,7 @@ function receiptLines(
   }
   if (run.review)
     out.push(
-      `| Review of the passing diff: ${run.review.problems.length ? `${run.review.problems.length} problem(s) noted` : "no problems found"} | ${modelName(run.review.model)} | ${tokens(run.review.tokensIn)} / ${tokens(run.review.tokensOut)} | ${usd(run.review.costUsd)} |`,
+      `| Review of the passing diff: ${run.review.problems.length ? `${run.review.problems.length} problem(s) noted` : "no problems found"}${run.review.refuted?.length ? `, ${run.review.refuted.length} refuted by the checks` : ""} | ${modelName(run.review.model)} | ${tokens(run.review.tokensIn)} / ${tokens(run.review.tokensOut)} | ${usd(run.review.costUsd)} |`,
     );
   const sandboxMs = [...run.baseline.checks, ...run.after.checks].reduce(
     (n, c) => n + c.ms,
@@ -147,6 +149,14 @@ function reviewRisks(run: FixRun) {
   return (run.review?.problems ?? []).map(
     (p) =>
       `Review (${modelName(run.review?.model ?? "")}) of \`${p.file}\`: ${escapeCell(p.problem).slice(0, 300)}`,
+  );
+}
+
+/** What the review questioned and the checks answered: kept, with the evidence. */
+function reviewRefuted(run: FixRun) {
+  return (run.review?.refuted ?? []).map(
+    (p) =>
+      `<sub>The review (${modelName(run.review?.model ?? "")}) questioned \`${p.file}\`: ${escapeCell(p.problem).slice(0, 240)} Kept: ${p.evidence}.</sub>`,
   );
 }
 
@@ -275,6 +285,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       );
     }
     if (run.summary) out.push(`<sub>${escapeCell(run.summary).slice(0, 1200)}</sub>`);
+    out.push(...reviewRefuted(run));
     if (withDiff && codeFiles.length)
       out.push(
         `<details><summary>Code diff</summary>\n\n\`\`\`diff\n${codeFiles.map((f) => f.patch.replace(/^=+\n/, "")).join("\n")}\n\`\`\`\n\n</details>`,
@@ -344,6 +355,9 @@ export interface ApiChangePullRequestInput {
   plan: CheckPlan;
   backendNote: string;
   notes: MigrationNote[];
+  /** What each retired model became in the final code (the agent's choice where several were named). */
+  applied?: { from: string; to: string }[];
+  providerName?: string;
 }
 
 /**
@@ -358,10 +372,14 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
   const { run, repo, plan } = input;
   const affected = input.findings.filter((f) => f.verdict === "affected");
   const unsure = input.findings.filter((f) => f.verdict !== "affected");
-  const provider = input.records[0]?.subject.provider ?? "the provider";
+  const provider = input.providerName ?? input.records[0]?.subject.provider ?? "the provider";
   const swaps = [
     ...new Set(
-      affected.filter((f) => f.position.target).map((f) => `${f.position.version} → ${f.position.target}`),
+      input.applied?.length
+        ? input.applied.map((a) => `${a.from} → ${a.to}`)
+        : affected
+            .filter((f) => f.position.target)
+            .map((f) => `${f.position.version} → ${f.position.target}`),
     ),
   ];
   const broken = input.records.some((r) => r.applicability.class === "already-broken");
@@ -421,6 +439,7 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
       );
     }
     if (run.summary) out.push(`<sub>${escapeCell(run.summary).slice(0, 1200)}</sub>`);
+    out.push(...reviewRefuted(run));
     if (withDiff && run.files.length)
       out.push(
         `<details><summary>Code diff</summary>\n\n\`\`\`diff\n${run.files.map((f) => f.patch.replace(/^=+\n/, "")).join("\n")}\n\`\`\`\n\n</details>`,

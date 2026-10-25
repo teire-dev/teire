@@ -100,7 +100,12 @@ const clean = (id: string) => id.trim().replace(/^[`'"]+|[`'".,;:]+$/g, "");
 
 function recordOf(item: PageItem, quote: string, source: FetchedSource, provider: string, model: string) {
   const subject = clean(item.subject);
-  const replacements = item.replacements.map(clean).filter((r) => r && r !== subject && quote.includes(r));
+  // "—", "N/A" and "None" in a replacement cell mean there is none.
+  const replacements = item.replacements
+    .map(clean)
+    .filter(
+      (r) => /[A-Za-z0-9]/.test(r) && !/^(?:n\/?a|none|tbd)$/i.test(r) && r !== subject && quote.includes(r),
+    );
   const effectiveOn = validDate(item.shutdownDate);
   const announcedOn = validDate(item.announcedDate);
   const kind: ChangeKind = item.kind;

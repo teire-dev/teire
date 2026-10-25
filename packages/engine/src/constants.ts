@@ -169,6 +169,31 @@ export const DISCOVERY = {
   triageMaxChars: 40_000,
 } as const;
 
+/**
+ * OpenAPI diffs for APIs a repo calls over HTTP (plan S04, research cross-cutting.md §5). oasdiff is
+ * pinned: its output differs materially between versions (v1.33.0 vs v1.34.1 on the same specs).
+ */
+export const OPENAPI = {
+  oasdiff: { version: "1.34.1" },
+  /** Checks that repeat one change through every expansion path (Stripe: 19,999 enum additions). */
+  silenced: [
+    "response-property-enum-value-added",
+    "response-property-max-length-unset",
+    "response-property-any-of-added",
+  ],
+  /** oasdiff levels: 3 ERR, 2 WARN; INFO never becomes a finding. */
+  minLevel: 2,
+  maxSpecBytes: 48 * 1024 * 1024,
+  timeoutMs: 120_000,
+  /** Repositories in the SDK owner's organisation that hold its API description. */
+  repoQuery: "openapi OR oai OR api-description OR api-spec OR swagger in:name",
+  /** A spec repository's discovery is reused this long. */
+  repoFreshForMs: 7 * 24 * 60 * 60 * 1000,
+  maxItemsPerOperation: 20,
+  /** Response property paths deeper than this are expansions, not fields code reads. */
+  maxResponseDepth: 3,
+} as const;
+
 /** Teire's sandbox service (apps/sandbox). Timeouts are set from context/11-build-notes/sandbox-measurements.md. */
 export const SANDBOX = {
   /** Lifetime of a signed per-sandbox token. */

@@ -166,8 +166,10 @@ export async function scanRepo(
         changes: storedProviderChanges(db, () => revalidateWeb(["catalog"])),
         discover: { cache },
         triage: await pageReader(db),
+        openapi: { cache, githubToken: token, repo: { owner, name, sha } },
       },
     );
+    for (const n of api.openapiNotes) console.log(`[scan] ${repo.fullName}: openapi ${n}`);
     if (api.discovery.candidates)
       console.log(
         `[scan] ${repo.fullName}: ${api.discovery.candidates} provider(s) with no reader; found ${

@@ -122,15 +122,17 @@ if (api) {
   // Only the providers this repo talks to are read, live (the worker caches them across repos).
   const instances = await repoInstances(checkout.dir, tree);
   const reader = { tf: createTokenFactory(tokenFactoryConfigFromEnv()), prices: await fetchModelPrices() };
-  const { scan, findings, providers, records, discovery } = await assessApiChanges(
-    checkout.dir,
-    tree,
-    instances,
-    {
-      changes: liveProviderChanges({ reader }),
-      discover: options,
+  const api = await assessApiChanges(checkout.dir, tree, instances, {
+    changes: liveProviderChanges({ reader }),
+    discover: options,
+    triage: reader,
+    openapi: {
+      ...options,
+      githubToken: process.env.GITHUB_TOKEN,
+      ...(checkout.sha ? { repo: { owner, name: repo, sha: checkout.sha } } : {}),
     },
-  );
+  });
+  const { scan, findings, providers, records, discovery } = api;
   log(
     `\n## Providers this repo uses: ${providers.map((p) => `${p.provider.name}${p.provider.discovery ? " [discovered]" : ""} (${p.via.join(", ")})`).join("; ") || "none"}`,
   );
@@ -145,6 +147,9 @@ if (api) {
   log(
     `## Provider changes (${records.length} records read; ${scan.filesScanned} files, ${scan.languages.join(", ")}, ${scan.ms} ms)`,
   );
+  for (const n of api.openapiNotes) log(`   openapi: ${n}`);
+  for (const r of api.receipts)
+    log(`   triage ${r.model}: ${r.tokensIn} in / ${r.tokensOut} out, $${r.costUsd.toFixed(4)}, ${r.ms} ms`);
   for (const f of findings) {
     log(
       `- [${f.groupKey}] ${f.changeId}: ${f.verdict} (${f.class}, priority ${f.priority ?? "-"}) — ${f.reason}`,
@@ -172,6 +177,7 @@ if (api) {
       findings: group,
       records: records.filter((r) => group.some((f) => f.changeId === r.id)),
       related: records.filter((r) => r.subject.provider === provider && r.status === "confirmed"),
+      providerName: providers.find((p) => p.provider.slug === provider)?.provider.name,
       onEvent: (e) =>
         log(
           `    [${e.step}${e.model ? ` · ${e.model}` : ""}] ${e.detail}${e.costUsd ? ` ($${e.costUsd.toFixed(4)})` : ""}`,

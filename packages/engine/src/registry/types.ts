@@ -33,7 +33,7 @@ export interface CacheEntry {
  * installed SDK's files say about its API (per exact version), and a provider's discovered notice
  * pages (per registrable domain).
  */
-export type CacheScope = Ecosystem | "endoflife" | "sdk-profile" | "discovery";
+export type CacheScope = Ecosystem | "endoflife" | "sdk-profile" | "discovery" | "openapi";
 
 /** Storage for registry answers. The worker backs it with Postgres; scripts and tests use memory. */
 export interface RegistryCache {
