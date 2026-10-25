@@ -41,6 +41,8 @@ export async function fetchSource(
   const headers: Record<string, string> = {
     "user-agent": CATALOG.userAgent,
     accept: "text/markdown, text/plain, */*",
+    // Providers localise by IP (Stripe answers the French worker in French); quotes and readers are English.
+    "accept-language": "en-US,en;q=0.9",
     ...extraHeaders,
   };
   if (previous.etag) headers["if-none-match"] = previous.etag;

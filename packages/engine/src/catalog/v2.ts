@@ -133,7 +133,9 @@ export function toChangeV2(record: ChangeRecord, provider: ProviderRecord, now =
     subject: subjectOf(record, provider),
     kind: KIND[record.kind],
     title: record.title,
-    summary: record.summary,
+    // An empty summary means the reader found no text it understands (a translated or redesigned
+    // page): the record is kept, visible and quarantined, never applied.
+    summary: record.summary.trim() || record.title,
     applicability: {
       class: classOf(record, today),
       announcedOn: record.announcedOn,
@@ -166,8 +168,11 @@ export function toChangeV2(record: ChangeRecord, provider: ProviderRecord, now =
       },
     },
     visibility: "public",
-    status: record.status,
-    quarantineReasons: record.quarantineReasons,
+    status: record.summary.trim() ? record.status : "quarantined",
+    quarantineReasons: [
+      ...record.quarantineReasons,
+      ...(record.summary.trim() ? [] : ["No summary text was read from the source page."]),
+    ],
   });
 }
 

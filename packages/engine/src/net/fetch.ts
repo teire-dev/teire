@@ -76,7 +76,12 @@ export async function guardedFetch(
 ): Promise<GuardedResponse> {
   const maxBytes = options.maxBytes ?? NET.maxResponseBytes;
   const deadline = AbortSignal.timeout(options.timeoutMs ?? NET.timeoutMs);
-  const headers: Record<string, string> = { "user-agent": NET.userAgent, ...options.headers };
+  // English pages, wherever the worker runs: quotes are checked against what the readers understand.
+  const headers: Record<string, string> = {
+    "user-agent": NET.userAgent,
+    "accept-language": "en-US,en;q=0.9",
+    ...options.headers,
+  };
   if (options.etag) headers["if-none-match"] = options.etag;
   if (options.lastModified) headers["if-modified-since"] = options.lastModified;
 
