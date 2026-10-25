@@ -11,9 +11,9 @@ Teire starts where they stop.
 | | Dependabot, Renovate | Teire |
 |---|---|---|
 | What it watches | Package versions, plus advisories | Package versions and advisories, **plus** the APIs your code calls: model retirements, removed endpoints and API changes, read from the providers' own pages |
-| How it decides you are affected | A newer version exists | The API diff between your version and the next, and the exact lines in your code that use what changed |
+| How it decides you are affected | A newer version exists | For a major, the API diff between your version and the target, and the exact lines in your code that use what changed |
 | Code changes | Manifest and lockfile | Manifest and lockfile, the swaps the source names, and NVIDIA Nemotron edits for what a swap cannot fix |
-| Proof | Your CI runs on the PR afterwards | Your own checks run in a sandbox **before and after** the change, with the network off, compared test by test |
+| Proof | Your CI runs on the PR afterwards | Your own checks run in a sandbox **before and after** the change, with the network off, compared check by check and by test counts |
 | What a PR tells you | The version range and release notes | Why your code is affected (lines linked), the quoted source, the verification table, the receipt, the risks not covered |
 | When it can't prove the fix | The PR stays red | A draft that says why, or an issue for a person |
 

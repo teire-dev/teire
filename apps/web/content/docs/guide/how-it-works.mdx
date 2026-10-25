@@ -17,7 +17,7 @@ Teire reads the repository at one commit as a GitHub tarball, without git, and i
 The target version is the newest stable one that:
 
 - is at least **7 days** old (`upgrades.cooldownDays`, and longer if your package manager sets its own release-age gate),
-- respects your overrides and pins,
+- respects your npm, pnpm, Yarn or Bun overrides and resolutions,
 - is not deprecated, yanked or a prerelease.
 
 Security fixes skip the cooldown and take the smallest version that fixes every advisory.
@@ -59,14 +59,14 @@ Next come deterministic edits:
 - a model swap to the replacement the provider names,
 - for npm packages, an import or call rename that a quoted migration note maps old → new, only where the target proves the new name exists.
 
-If verification is already good enough for a pull request at that point, the run stops **with no model call**.
+If verification is already good enough for a pull request at that point, the run stops without starting the agent. A model swap then costs nothing; a package upgrade has already paid for Nemotron to read its release notes.
 
 Otherwise NVIDIA Nemotron 3 Ultra works as an agent with six tools: `read_file`, `search`, `edit_file`, `run_check`, `lookup_docs` and `finish`. It may edit only the files the change reaches and the files your check output names. It never edits manifests, lockfiles, config or CI. It has up to 24 steps per attempt and 4 attempts. After 2 failed verifications it starts over from a plan. When an attempt passes, a review pass reads the diff and sends back any real problem once. See [Nemotron on Token Factory](/docs/nemotron).
 
 <Diagram
   name="fix-loop"
   width={1568}
-  height={174}
+  height={242}
   alt="Flow: upgrade transaction, deterministic edits, your checks before vs after; pass goes to the pull request, fail goes to the Nemotron agent, which loops until checks pass or attempts run out; a passing fix goes through the review pass."
   caption="How a fix run decides what to do next."
 />

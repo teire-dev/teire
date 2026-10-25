@@ -34,7 +34,7 @@ Cursor, Windsurf and other clients take the same command in their MCP config:
 | Tool | Input | Returns |
 |---|---|---|
 | `scan_path` | `path`, optional `fresh` | The scan as JSON: ecosystems, providers, groups of findings with their sites, and notes. Results are cached 5 minutes per path, unless `fresh` |
-| `explain_finding` | `path`, `key` (a group key, change ID or package name) | The finding group with every call site and its change records, with their quoted sources |
+| `explain_finding` | `path`, `key` (a group key, change ID or package name) | The finding group with every call site and its change records: the computed API diff for a package, or the provider's quoted notice |
 | `list_changes` | optional `provider`, `ecosystem`, `kind`, `subject` | Changes from the public catalog: ID, title, kind, class, date and replacement |
 | `get_change` | `id` | One full change record |
 
@@ -42,6 +42,6 @@ Every tool is marked read-only. None of them writes to the repository or to GitH
 
 ## What an agent does with it
 
-- **Before an upgrade:** call `scan_path` on the repository, then `explain_finding` on what it reports. The agent gets the lines to change and the migration note, quoted from the source.
+- **Before an upgrade:** call `scan_path` on the repository, then `explain_finding` on what it reports. The agent gets the lines to change and the change record: the computed API diff for a package, or the provider's quoted notice for a model or API change.
 - **Before writing model code:** call `list_changes` with `provider: "openai"` (or any provider) to see which model IDs are retired or retiring, and what replaces them.
 - **In review:** call `get_change` on an ID from a Teire PR for the full record.

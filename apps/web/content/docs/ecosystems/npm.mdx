@@ -54,7 +54,7 @@ Deterministic codemods apply on npm: a removed deep import rewritten to the path
 
 ## How it verifies
 
-Install: `npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable` or `--frozen-lockfile`, `bun install --frozen-lockfile`. Lifecycle scripts never run.
+Install: `npm ci`, `pnpm install --frozen-lockfile`, `yarn install --frozen-lockfile` (v1) or `yarn install --immutable --mode=skip-build` (Berry), `bun install --frozen-lockfile`. No lifecycle or build script runs: `--ignore-scripts`, or Berry's `--mode=skip-build`.
 
 The checks come from your CI first: workflow steps that run a package script for typecheck, build or test. Next come your scripts (`typecheck`, `type-check`, `test`, `test:unit`…). Last come the defaults: `tsc --noEmit` when you have TypeScript and a `tsconfig.json`, then `vitest run` or `jest --ci`. Test counts come from a JSON report when the script is a plain Vitest or Jest call, otherwise from the summary line. Watch, e2e, Playwright, Cypress, lint and format scripts are skipped.
 

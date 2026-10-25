@@ -30,14 +30,14 @@ A repository that already has a `teire.yml` skips this and goes straight to work
 
 ### Merge Configure Teire
 
-The repository becomes active and is scanned again. Teire queues a fix run for each change that reaches your code, most urgent first. By default at most **5** Teire PRs are open at once and **2** new ones open per hour. The **Teire Dashboard** issue appears and stays current.
+The repository becomes active and is scanned again. Teire queues a fix run for each change that reaches your code, most urgent first, then a plain upgrade for every other outdated direct dependency. Turn those off with `upgrades.plainBumps: false`. By default at most **5** Teire PRs are open at once and **2** new ones open per hour. The **Teire Dashboard** issue appears and stays current.
 
 </Step>
 <Step>
 
 ### Review the pull requests
 
-Each PR is **ready** when your checks passed before and after. It is a **draft** when something could not be proven, and the PR says what. When the fix breaks a check, Teire opens an **issue** for a person instead. See [Anatomy of a Teire PR](/docs/guide/anatomy-of-a-pr).
+Each PR is **ready** when your checks pass after the change and nothing got worse than before, with tests counted. It is a **draft** when something could not be proven, and the PR says what. When the fix breaks a check, no check can be found, or a check times out, Teire opens an **issue** for a person instead. See [Anatomy of a Teire PR](/docs/guide/anatomy-of-a-pr).
 
 </Step>
 </Steps>
@@ -95,7 +95,7 @@ npx teire check --fail-on deadline --within 60
 ```
 
 <Callout type="warn" title="Not on npm yet">
-  The `teire` package has not been published to npm, so `npx teire` fails for now. Build it from a clone instead: `pnpm install && pnpm --filter teire build`, then `node packages/cli/dist/teire.mjs scan`.
+  The `teire` package has not been published to npm, so `npx teire` fails for now. Build it from a clone instead: `pnpm install && pnpm --filter ./packages/cli build`, then `node packages/cli/dist/teire.mjs scan`.
 </Callout>
 
 All commands, toolchains and exit codes are on the [CLI page](/docs/build/cli). The [MCP page](/docs/build/mcp) covers coding agents.

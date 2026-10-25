@@ -20,7 +20,7 @@ Every install and check runs on **Cloudflare Containers**. One Durable Object dr
 | Install: registries only | `GET` and `HEAD` over HTTPS to 25 hosts: npm and Yarn, PyPI, Maven Central and Google's mirror, Gradle, the Go proxy, crates.io and the Rust toolchain, RubyGems, Adoptium, and GitHub with its release assets |
 | Checks: nothing | Every request is answered `403` and recorded with its host, method and path. Denied hosts appear in the PR |
 | No secrets inside | The repository arrives as a tarball the egress handler fetches **outside** the container, adding the GitHub token itself. The token is dropped after the fetch. Model keys never enter |
-| No install scripts | npm, pnpm, Yarn and Bun install with `--ignore-scripts` |
+| No install scripts | npm, pnpm, Yarn v1 and Bun install with `--ignore-scripts`, Yarn Berry with `--mode=skip-build` |
 | One token per sandbox | Each sandbox needs its own signed token (HMAC-SHA256). The worker signs it for 15 minutes; the service refuses anything valid for over 2 hours |
 | Bounded | Each job has a 60-minute ceiling, each command's output is capped, and an idle container stops after 15 minutes |
 | Nothing left behind | Tearing a sandbox down deletes its container and all its stored state |
@@ -38,7 +38,7 @@ The model is handed file contents, documentation, check output and provider page
 
 ## Provider data
 
-A provider's change is acted on only when its quote is found word for word in the page Teire fetched from the provider's own domain. See [the quote gate](/docs/ecosystems/providers#the-quote-gate). Records that fail stay visible as unconfirmed and are never applied.
+A provider's change is acted on only when its quote is found word for word in the page Teire fetched from the provider's own domain. See [the quote gate](/docs/ecosystems/providers#the-quote-gate). Items whose quote fails are dropped; records that fail the final checks are kept as unconfirmed and never applied.
 
 ## On GitHub
 

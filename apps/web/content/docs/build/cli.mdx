@@ -5,7 +5,7 @@ icon: SquareTerminal
 ---
 
 <Callout type="warn" title="Not on npm yet">
-  The `teire` package has not been published to npm, so `npx teire` fails for now. Until it is, build it from a clone of [teire-dev/teire](https://github.com/teire-dev/teire): run `pnpm install && pnpm --filter teire build`, then `node packages/cli/dist/teire.mjs` in place of `npx teire`.
+  The `teire` package has not been published to npm, so `npx teire` fails for now. Until it is, build it from a clone of [teire-dev/teire](https://github.com/teire-dev/teire): run `pnpm install && pnpm --filter ./packages/cli build`, then `node packages/cli/dist/teire.mjs` in place of `npx teire`.
 </Callout>
 
 ```bash
@@ -38,7 +38,7 @@ Notes
   4 model mention(s) not traced through wrappers or registries (Nemotron does this when TOKENFACTORY_API_KEY is set)
 ```
 
-The scan makes the same engine calls as the Teire worker, so its findings match the dashboard. Packages are diffed and located on your machine. API and model changes come from Teire's [public catalog](/changes). For a provider the catalog hasn't read yet, the CLI reads that provider's pages itself, through the same quote gate.
+The scan makes the same engine calls as the Teire worker. Its findings match the dashboard once `TOKENFACTORY_API_KEY` is set, which lets Nemotron trace wrapped model IDs, for a repository with no organisation config. Packages are diffed and located on your machine. API and model changes come from Teire's [public catalog](/changes). For a provider the catalog hasn't read yet, the CLI reads that provider's pages itself, through the same quote gate.
 
 ## Commands
 

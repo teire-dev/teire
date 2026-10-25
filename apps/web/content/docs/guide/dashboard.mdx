@@ -1,10 +1,10 @@
 ---
 title: Dashboard
-description: Every installed repository in one place, in the web app and as a Teire Dashboard issue in each repository, with the same actions as the @teire commands.
+description: Every installed repository in one place, in the web app and as a Teire Dashboard issue in each repository, with buttons and checkboxes for the main @teire commands.
 icon: LayoutDashboard
 ---
 
-There are two dashboards. The web one at [/app](/app) covers every repository you can see. The **Teire Dashboard** issue lives inside each repository on GitHub. Both show the same findings, and both can start the same actions.
+There are two dashboards. The web one at [/app](/app) covers every repository you can see. The **Teire Dashboard** issue lives inside each repository on GitHub. Both show the same findings, and both can start most actions: the issue adds Rebase, and the web adds Pause, Resume and Ignore.
 
 ## The web dashboard
 
@@ -15,7 +15,7 @@ Sign in with GitHub. When you sign in, Teire asks GitHub which installations you
 
 <Shot
   name="dashboard"
-  alt="Overview: 3 repositories watched, 5 changes reaching code, 0 open Teire PRs, next deadline none; deadlines across repositories, recent runs with a verified dry run, and open pull requests."
+  alt="Overview: 3 repositories watched, 5 changes reaching code, 0 open Teire PRs, next deadline none; deadlines across repositories, recent runs with a verified dry run, and an empty open pull requests list."
   caption="Overview: the counts, every deadline across your repositories, recent runs and open Teire PRs."
 />
 
@@ -33,7 +33,7 @@ Sign in with GitHub. When you sign in, Teire asks GitHub which installations you
 
 <Shot
   name="repo-findings"
-  alt="teire-dev/demo-ruby-major, active: Findings (1) shows faraday 2.15.0 removes 43 APIs, affected, with three call sites in lib/status_client.rb, and Fix now and Ignore buttons."
+  alt="teire-dev/demo-ruby-major, active: Findings (1) shows faraday 2.15.0 removes 43 APIs, affected, with three call sites in lib/status_client.rb and lib/status_client/raise_on_server_error.rb, and Fix now and Ignore buttons."
   caption="A repository's findings: each change with its lines, Fix now (or Open PR #n) and Ignore."
 />
 
@@ -73,7 +73,7 @@ The same rule applies as for a comment: you must have write access to the reposi
 
 ## The Teire Dashboard issue
 
-Once a repository is active, Teire keeps one issue named **Teire Dashboard** up to date. It is refreshed after every scan, every fix run and every action.
+Once a repository is active, Teire keeps one issue named **Teire Dashboard** up to date. It is refreshed after every scan, every PR or issue Teire opens or updates, every ticked box, dashboard button and state-changing command.
 
 | Section | Content | Tick the box to |
 |---|---|---|

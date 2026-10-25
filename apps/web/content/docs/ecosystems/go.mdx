@@ -53,10 +53,10 @@ For advisories, govulncheck decides. If your code **calls** the vulnerable funct
 
 <Shot
   name="dryrun-go-diff"
-  alt="Diff tab of the Go dry run: auth/token.go switching to jwt/v5, RegisteredClaims, NewNumericDate and errors.Is(err, jwt.ErrTokenExpired)."
+  alt="Diff tab of the Go dry run: auth/token.go switching to jwt/v5, RegisteredClaims and NewNumericDate."
   caption="The code Nemotron changed for golang-jwt v5."
 />
 
 <Callout type="warn" title="Limits">
-  Private modules that the public proxy can't serve fail the scan, and the report says so. Release notes are read only for modules hosted on GitHub. The sandbox has Go 1.27.2, and targets needing a newer Go aren't excluded. `-race` isn't run, because the sandbox has no cgo toolchain.
+  Private modules that the public proxy can't serve keep the versions `go.mod` states, with a note in the report. Release notes are read only for modules hosted on GitHub. The sandbox has Go 1.27.2, and targets needing a newer Go aren't excluded. `-race` isn't run, because the sandbox has no cgo toolchain.
 </Callout>

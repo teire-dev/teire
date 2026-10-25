@@ -57,9 +57,9 @@ Each change title links to its page in the [public catalog](/changes), with the 
 On an affected change, **Dry-run a fix** runs the whole fix as an installed repository would:
 
 1. the upgrade or model swap,
-2. the Nemotron agent,
+2. the Nemotron agent, when the swap or upgrade alone does not pass,
 3. your checks in two sandboxes, before and after,
-4. the review.
+4. the review of a passing agent fix.
 
 Nothing is written to GitHub. The run page shows each step live and keeps the pull request Teire would have opened. Runtime notices have no dry run, because Teire does not change runtimes.
 
@@ -76,12 +76,12 @@ The run page has five tabs:
 | **Timeline** | Every step as it happens, updated each second while the run is live |
 | **Diff** | The code change, file by file |
 | **Verification** | Each check's command and result on the baseline and after |
-| **Receipt** | Each model call with its tokens and cost, and the sandbox time |
+| **Receipt** | Model calls summed per model (count, tokens, cost), each sandbox command with its exit code and time, and the total |
 | **The PR** | The pull request (or the "needs a human" issue) Teire would open once installed |
 
 <Tabs items={["Timeline", "Verification", "Diff", "Receipt"]}>
 <Tab value="Timeline">
-<Shot name="dryrun-go-timeline" alt="The Timeline tab of the Go dry run: numbered events from cloning and installing to agent steps and verification." caption="The Go major dry run as it happened." />
+<Shot name="dryrun-go-timeline" alt="The Timeline tab of the Go dry run: 43 timestamped events, from reading the release notes and the go get and go mod tidy transaction to the sandbox checks and agent steps." caption="The Go major dry run as it happened." />
 </Tab>
 <Tab value="Verification">
 <Shot name="dryrun-go-verification" alt="Verification tab: build go build, typecheck go vet and test go test, pass on baseline and after, 4/4 tests." caption="Your checks, before and after, with the network off." />
@@ -90,7 +90,7 @@ The run page has five tabs:
 <Shot name="dryrun-go-diff" alt="Diff tab: auth/token.go moved from jwt/v4 StandardClaims to jwt/v5 RegisteredClaims and NumericDate." caption="What Nemotron changed in auth/token.go." />
 </Tab>
 <Tab value="Receipt">
-<Shot name="dryrun-go-receipt" alt="Receipt tab: Nemotron 3 Ultra calls for release notes, the fix and the review, with tokens and cost, then the sandbox time and the total." caption="Every model call of the run, priced." />
+<Shot name="dryrun-go-receipt" alt="Receipt tab: Nemotron-3-Ultra ×19 calls with tokens and $0.1377, each sandbox command on both sides with exit code and time, and the total." caption="Every model call of the run, priced." />
 </Tab>
 </Tabs>
 

@@ -50,14 +50,14 @@ The agent then gets one more attempt to address them.
 
 ## Failover
 
-- Each request retries rate limits, server errors and dropped connections 4 times, backing off from 2 seconds and honouring `Retry-After` up to 30 seconds.
+- Each request is tried up to 4 times on rate limits, server errors and dropped connections, backing off from 2 seconds and honouring `Retry-After` up to 30 seconds.
 - A model that keeps failing with a server error is marked unhealthy for 10 minutes. Its role moves to the failover model, Nemotron 3 Super.
 - If Ultra fails mid-attempt, the whole attempt reruns on Super from the same working copy.
 - The [trust page](/trust) shows which model is answering.
 
 ## Why Ultra
 
-In Teire's evaluation, Ultra and Super both verified every fix. Super is 3 to 7 times cheaper per run, but on one case it passed the tests by replacing the model call with a keyword rule, which the review now rejects. Ultra needed fewer attempts on the Kotlin and wrapped-model cases. So Ultra writes the fixes, and Super is the failover. See [Evaluation](/docs/nemotron/evaluation).
+In Teire's evaluation, Ultra and Super both verified every fix. Super is 3 to 7 times cheaper per run, but on one case it passed the tests by replacing the model call with a keyword rule. The review step added since is there to catch that kind of bypass. Ultra needed fewer attempts on the Kotlin and wrapped-model cases. So Ultra writes the fixes, and Super is the failover. See [Evaluation](/docs/nemotron/evaluation).
 
 <Cards>
   <Card title="Receipts and budget" href="/docs/nemotron/receipts" />

@@ -4,7 +4,7 @@ description: Twelve upgrades across six ecosystems, three model retirements and 
 icon: FlaskConical
 ---
 
-Each case runs the worker's own path. Teire fetches the repository, assesses it (registries, API diff, locate), runs the fix with each model as the agent, and verifies in the Cloudflare sandbox, the repository's own checks before and after. Every repository is public in [github.com/teire-dev](https://github.com/teire-dev), with tests that pass on the old version.
+Each case runs the worker's own path. Teire fetches the repository, assesses it (registries, API diff, locate), runs the fix with each model as the agent, and verifies in the Cloudflare sandbox, the repository's own checks before and after. Every repository is public in [github.com/teire-dev](https://github.com/teire-dev), with tests that pass on the old version. For the model retirements, the tests fail because the old model is gone.
 
 The columns read evidence · attempts · agent steps · model cost.
 
@@ -71,7 +71,7 @@ Each bug below was found by a failing case, fixed, and the case rerun:
 
 The plan set the bar as "Ultra ≥ Super on fixes, and the false-positive rate is recorded".
 
-- **Ultra:** every fix verified and correct on reading.
+- **Ultra:** every fix verified; on reading, its only flaw was the zod widening both models shared, which the review step now catches.
 - **Super:** every fix verified, one rejected on reading.
 - **False positives:** none, across six clean repositories.
 

@@ -12,7 +12,7 @@ sequenceDiagram
   Note over T: kept only where the quote matches the page:<br/>llama-3.1-8b-instant and llama-3.3-70b-versatile shut down 2026-08-16
   T->>N: the IDs sit in a tier registry: where do they reach a request?
   N-->>T: TIERS.quick.id → t.id → model: in src/llm.ts:12
-  T->>T: swap to the models Groq names, then the agent fixes what the swap breaks
+  T->>N: one model has one named replacement: swapped by Teire. The other has two: Nemotron picks one and fixes what breaks
   T->>S: baseline: install, tsc, vitest (0/4 pass: the models are gone)
   T->>S: after: the same checks (4/4 pass)
-  T->>G: a ready PR (Verified.) with quotes, call sites, verification and receipt
+  T->>G: the ready PR it would open (Verified.) with quotes, call sites, verification and receipt

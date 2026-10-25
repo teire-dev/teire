@@ -1,11 +1,12 @@
 flowchart LR
   a["A change reaches your code"] --> b["Upgrade transaction<br/>manifest and lockfile with the ecosystem's own tool"]
-  b --> c["Deterministic edits<br/>renames, model swaps, import rewrites from the source"]
+  b --> c["Deterministic edits<br/>model swaps (any language)<br/>renames and import rewrites (npm)"]
   c --> v1{"Your checks, before vs after<br/>in the sandbox"}
   v1 -->|pass| pr
   v1 -->|fail| agent["Nemotron 3 Ultra agent<br/>read · search · lookup_docs · edit · run_check<br/>up to 24 steps per attempt"]
   agent --> v2{"Checks pass?"}
   v2 -->|"no, attempts left (4 max; a fresh plan after 2)"| agent
   v2 -->|yes| review["Review pass<br/>behaviour kept, tests not weakened"]
+  review -->|"problems, once"| agent
   review --> pr["Pull request decided by the evidence<br/>ready when verified · draft with the reason · issue for a person"]
   v2 -->|out of attempts| pr

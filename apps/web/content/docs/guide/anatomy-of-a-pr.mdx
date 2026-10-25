@@ -34,7 +34,7 @@ This page walks through a real pull request: the dry run of `golang-jwt/jwt` v4.
 </Step>
 <Step>
 
-**Why this repo** lists each line that uses what changed, linked to the exact commit, and how it was resolved:
+**Why this repo** lists each line that uses what changed, linked to the exact commit, with what changed there (symbol removed, arity changed, …). The heading says how the lines were found: by type, or by name where the ecosystem's search is syntax-level.
 
 > - `auth/token.go:22` `jwt.StandardClaims` (symbol removed)
 > - `auth/token.go:49` `var ve *jwt.ValidationError` (symbol removed)
@@ -86,7 +86,7 @@ Up to 12 sites per change. Lines whose types merely changed are listed as "Also 
 </Step>
 <Step>
 
-**Risks not covered** lists behaviour changes from the notes that no test exercised, each with its quote, and anything the review raised. Every PR ends this section with "Lint, end-to-end and integration suites were not run; dependencies were installed without lifecycle scripts."
+**Risks not covered** lists the behaviour changes the release notes describe, each with its quote, the reasons when the evidence is not `verified`, and anything the review raised. Every package PR ends this section with "Lint, end-to-end and integration suites were not run; dependencies were installed without lifecycle scripts." Model and API PRs end with the network-off and prompt-tuning notes instead.
 
 </Step>
 <Step>

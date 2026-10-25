@@ -1,6 +1,6 @@
 ---
 title: Verification
-description: Two sandboxes from the same commit, your own checks with the network off, compared check by check and test by test. Rules decide the evidence, never a model.
+description: Two sandboxes from the same commit, your own checks with the network off, compared check by check and by test counts. Rules decide the evidence, never a model.
 icon: ShieldCheck
 ---
 
@@ -19,7 +19,7 @@ Every run opens two sandboxes from the same commit, in parallel:
 
 Each side goes through two phases:
 
-1. **Install.** Only `GET` and `HEAD` requests to package registries and toolchain hosts are allowed. Lifecycle scripts never run. The time limit is 600 seconds.
+1. **Install.** Only `GET` and `HEAD` requests to package registries, toolchain hosts and GitHub's release downloads are allowed. JavaScript installs run no lifecycle or build scripts. The time limit is 600 seconds.
 2. **Checks.** The network is **off**: every request is refused and recorded. Each check has a 300-second limit.
 
 If the baseline fails to install, Teire retries it once. If it still fails, the agent doesn't start, because no edit could be judged.

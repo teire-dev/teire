@@ -36,7 +36,7 @@ The worker listens for that notification and also polls every 5 seconds. It clai
 </Step>
 <Step>
 
-Scans and fix runs go onto pg-boss queues in the same database. These queues run one job at a time per repository, in order, so two runs never race on one repository. Handlers never throw: a failure is stored on the scan or run, and the next job proceeds.
+Scans and fix runs go onto pg-boss queues in the same database. Each queue runs one job at a time per repository, in order, so two scans or two fix runs never race on one repository. Handlers never throw: a failure is stored on the scan or run, and the next job proceeds.
 
 </Step>
 </Steps>
