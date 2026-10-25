@@ -10,9 +10,9 @@ import {
   openOrUpdatePullRequest,
 } from "@teire/engine/github";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
-import { type Assessment, assessJsRepo } from "@teire/engine/pipeline";
-import semver from "semver";
-import { cachedNpmSurfaceDiff, postgresRegistryCache } from "../caches";
+import { type AssessedProject, type Assessment, assessJsRepo, assessPyRepo } from "@teire/engine/pipeline";
+import { versionScheme } from "@teire/engine/registry";
+import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
   claimRun,
   finishScan,
@@ -37,7 +37,9 @@ export interface WorkerContext {
 export const ONBOARDING_BRANCH = "teire/onboarding";
 
 /** Upgrades that may open a PR under the repo's config, best first (D70 priority queue). */
-export function fixCandidates(assessments: Assessment[], config: TeireConfig) {
+type AnyAssessment = Assessment<AssessedProject>;
+
+export function fixCandidates(assessments: AnyAssessment[], config: TeireConfig) {
   return assessments
     .filter((a) => a.decision?.kind === "upgrade" && a.summary && a.priority !== null)
     .filter((a) => !config.ignore.includes(a.instance.name))
@@ -46,28 +48,33 @@ export function fixCandidates(assessments: Assessment[], config: TeireConfig) {
     .sort((x, y) => (x.priority ?? 9) - (y.priority ?? 9));
 }
 
-export function groupKeyOf(a: Assessment) {
-  return a.decision?.kind === "upgrade" ? `npm/${a.instance.name}/${a.decision.to}` : null;
+export function groupKeyOf(a: AnyAssessment) {
+  return a.decision?.kind === "upgrade"
+    ? `${a.instance.ecosystem}/${a.instance.name}/${a.decision.to}`
+    : null;
 }
 
-function onboardingRows(assessments: Assessment[]): OnboardingRow[] {
-  return assessments.map((a) => {
-    const latest = a.info?.defaultVersion ?? null;
-    const behind =
-      latest && a.instance.version && semver.valid(latest) && semver.valid(a.instance.version)
-        ? Math.max(0, semver.major(latest) - semver.major(a.instance.version))
-        : 0;
-    const c = a.summary?.coverage;
-    return {
-      instance: a.instance,
-      target: a.decision?.kind === "upgrade" ? a.decision.to : null,
-      majorsBehind: behind,
-      deprecated: a.deprecation ? a.deprecation.summary : null,
-      verdict: a.summary?.verdict ?? null,
-      breakingSites: (a.summary?.breaking ?? []).reduce((n, f) => n + f.callSites.length, 0),
-      coverage: c ? `${c.filesScanned} files, ${c.resolutionLevel}-resolved` : null,
-    };
-  });
+function onboardingRows(assessments: AnyAssessment[]): OnboardingRow[] {
+  return assessments
+    .filter((a) => a.purpose === "upgrade")
+    .map((a) => {
+      const scheme = versionScheme(a.instance.ecosystem);
+      const latest = a.info?.defaultVersion ?? null;
+      const behind =
+        latest && a.instance.version && scheme.valid(latest) && scheme.valid(a.instance.version)
+          ? Math.max(0, scheme.major(latest) - scheme.major(a.instance.version))
+          : 0;
+      const c = a.summary?.coverage;
+      return {
+        instance: a.instance,
+        target: a.decision?.kind === "upgrade" ? a.decision.to : null,
+        majorsBehind: behind,
+        deprecated: a.deprecation ? a.deprecation.summary : null,
+        verdict: a.summary?.verdict ?? null,
+        breakingSites: (a.summary?.breaking ?? []).reduce((n, f) => n + f.callSites.length, 0),
+        coverage: c ? `${c.filesScanned} files, ${c.resolutionLevel}-resolved` : null,
+      };
+    });
 }
 
 export async function scanRepo(
@@ -102,12 +109,20 @@ export async function scanRepo(
     const tree = directoryTree(checkout.dir);
     const config = readTeireConfig(tree);
     const cache = postgresRegistryCache(db);
-    const { projects, assessments } = await assessJsRepo(checkout.dir, tree, {
+    const js = await assessJsRepo(checkout.dir, tree, {
       cache,
       cooldownDays: config.upgrades.cooldownDays,
       githubToken: token,
-      surfaceDiff: (n, f, t) => cachedNpmSurfaceDiff(db, n, f, t, { cache }),
+      surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
     });
+    const py = await assessPyRepo(checkout.dir, tree, {
+      cache,
+      cooldownDays: config.upgrades.cooldownDays,
+      githubToken: token,
+      surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
+    });
+    const projects: AssessedProject[] = [...js.projects, ...py.projects];
+    const assessments: AnyAssessment[] = [...js.assessments, ...py.assessments];
     await saveInstances(
       db,
       scan.id,
@@ -125,7 +140,7 @@ export async function scanRepo(
     await setRepo(db, repoId, {
       lastScannedSha: sha,
       lastScannedAt: new Date(),
-      languages: [...new Set(projects.map(() => "javascript"))],
+      languages: [...(js.projects.length ? ["javascript"] : []), ...(py.projects.length ? ["python"] : [])],
       ...(config.present ? { config, configSource: config.path } : {}),
     });
 

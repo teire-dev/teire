@@ -138,6 +138,9 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: 3.0.77
         version: 3.0.77(zod@4.6.7)
+      '@renovatebot/pep440':
+        specifier: 5.0.1
+        version: 5.0.1
       '@yarnpkg/parsers':
         specifier: 3.1.0
         version: 3.1.0
@@ -1271,6 +1274,10 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
+
+  '@renovatebot/pep440@5.0.1':
+    resolution: {integrity: sha512-KmMz+X68YvrS6aN6TJWtDiH8aCIL2Igcvceh17STHxMUN3KxXsC24COoOXjMOl/Gb+okBwwduMm8PY/WY/0Cpg==}
+    engines: {node: ^22.11.0 || >=24.10.0, pnpm: '>=10.0.0'}
 
   '@rolldown/binding-android-arm-eabi@1.2.15':
     resolution: {integrity: sha512-aLcgK9gIJ3YRvrrtfSBbRa27F5WrpiTaPulnFpsHPxpUHgFlSgnU4854MHwoRGEBhfRJDWCS2WQ7lIjskE9Olw==}
@@ -3340,6 +3347,8 @@ snapshots:
       supports-color: 10.2.2
 
   '@poppinss/exception@1.2.3': {}
+
+  '@renovatebot/pep440@5.0.1': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.15':
     optional: true

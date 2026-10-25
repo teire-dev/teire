@@ -1,0 +1,110 @@
+/**
+ * The whole loop on one public repo, any supported ecosystem, through the same pipeline calls the
+ * worker makes (no GitHub writes): assess every dependency, then with --fix=<package> fix that one
+ * and print the diff, the baseline-vs-after table and the model per step.
+ * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/repo.ts owner/repo [--fix=<package>]
+ */
+import { directoryTree, fetchRepoTarball } from "../src/inventory";
+import type { PyProject } from "../src/inventory/python";
+import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "../src/llm";
+import {
+  type Assessment,
+  assessJsRepo,
+  assessPyRepo,
+  fixJsDependency,
+  fixPyDependency,
+} from "../src/pipeline";
+import { memoryCache } from "../src/registry";
+import { type SideResult, selectBackend } from "../src/verify";
+
+const args = process.argv.slice(2);
+const fixName = args.find((a) => a.startsWith("--fix="))?.slice("--fix=".length);
+const [slug = "teire-dev/demo-py-major"] = args.filter((a) => !a.startsWith("--"));
+const [owner, repo] = slug.split("/") as [string, string];
+const options = { cache: memoryCache(), githubToken: process.env.GITHUB_TOKEN };
+const log = (...parts: unknown[]) => console.log(...parts);
+
+const checkout = await fetchRepoTarball(
+  owner,
+  repo,
+  "main",
+  process.env.GITHUB_TOKEN ? { token: process.env.GITHUB_TOKEN } : {},
+);
+const tree = directoryTree(checkout.dir);
+log(`# ${slug}@${checkout.sha?.slice(0, 12)}`);
+
+const js = await assessJsRepo(checkout.dir, tree, options);
+const py = await assessPyRepo(checkout.dir, tree, options);
+const all: Assessment<{ root: string; manager: string; instances: Assessment["instance"][] }>[] = [
+  ...js.assessments,
+  ...py.assessments,
+];
+for (const p of [...js.projects, ...py.projects])
+  log(
+    `\n## ${p.root} (${p.manager}${p.lockfile ? `, ${p.lockfile}` : ""}): ${p.instances.filter((i) => i.direct).length} direct, ${p.instances.filter((i) => !i.direct).length} transitive`,
+  );
+for (const a of all) {
+  if (a.decision?.kind !== "upgrade") continue;
+  const s = a.summary;
+  const c = s?.coverage;
+  log(
+    `- [${a.purpose}] ${a.instance.ecosystem}:${a.instance.name} ${a.instance.version} → ${a.decision.to}${a.decision.isMajor ? " (major)" : ""}: ${s?.verdict ?? "?"}${s?.breaking.length ? `, ${s.breaking.reduce((n, f) => n + f.callSites.length, 0)} site(s)` : ""}${c ? ` · ${c.filesScanned} files ${c.resolutionLevel}-resolved, ${c.unresolvedSites} unresolved` : ""}`,
+  );
+  for (const f of s?.breaking ?? [])
+    for (const site of f.callSites)
+      log(`    ${site.file}:${site.line} ${f.changeKind} · ${site.snippet.slice(0, 100)}`);
+}
+
+if (fixName) {
+  const target = all.find((a) => a.instance.name === fixName && a.decision?.kind === "upgrade");
+  if (!target) throw new Error(`no upgrade for ${fixName}`);
+  const tf = createTokenFactory(tokenFactoryConfigFromEnv());
+  const prices = await fetchModelPrices();
+  const { backend, note } = await selectBackend();
+  const common = {
+    tf,
+    prices,
+    backend,
+    backendNote: note,
+    runId: `repo-${Date.now().toString(36)}`,
+    repoDir: checkout.dir,
+    tree,
+    repo: { owner, repo, baseSha: checkout.sha ?? "main" },
+    tarball: { url: `https://api.github.com/repos/${owner}/${repo}/tarball/${checkout.sha ?? "main"}` },
+    options: { ...options, context7Key: process.env.CONTEXT7_API_KEY },
+    onEvent: (e: { step: string; detail: string; model?: string; costUsd?: number }) =>
+      log(
+        `    [${e.step}${e.model ? ` · ${e.model}` : ""}] ${e.detail}${e.costUsd ? ` ($${e.costUsd.toFixed(4)})` : ""}`,
+      ),
+  };
+  log(`\n## Fix ${target.instance.ecosystem}:${target.instance.name} (${note})`);
+  const result =
+    target.instance.ecosystem === "pypi"
+      ? await fixPyDependency({ ...common, assessment: target as unknown as Assessment<PyProject> })
+      : await fixJsDependency({ ...common, assessment: target as unknown as Assessment });
+  const run = result.run;
+  log("\n## Diff");
+  for (const m of run.manifest) log(`  ${m.path}: ${m.from} → ${m.to}`);
+  if (run.lockfile) log(`  ${run.lockfile.path}: +${run.lockfile.added}/−${run.lockfile.removed} lines`);
+  for (const f of run.files.filter((x) => !run.transactionFiles.includes(x.path))) log(f.patch);
+  const cell = (side: SideResult, name: string) => {
+    const k = side.checks.find((x) => x.name === name);
+    return k
+      ? `exit ${k.exitCode}${k.counts ? `, ${k.counts.passed}/${k.counts.collected} passed` : ""}`
+      : "—";
+  };
+  log("  | check | baseline | after |");
+  for (const name of ["typecheck", "build", "test"])
+    if (run.baseline.checks.some((k) => k.name === name))
+      log(`  | ${name} | ${cell(run.baseline, name)} | ${cell(run.after, name)} |`);
+  log(
+    `\n  => ${run.evidence.kind.toUpperCase()} (${run.evidence.prMode}) — ${run.evidence.reasons.join("; ")}`,
+  );
+  if (result.notesReceipt)
+    log(`  notes: ${result.notesReceipt.model} $${result.notesReceipt.costUsd.toFixed(4)}`);
+  for (const a of run.attempts)
+    log(
+      `  attempt ${a.n}${a.replan ? " (replan)" : ""}: ${a.model}${a.failover ? " (failover)" : ""}, ${a.steps} steps, $${a.costUsd.toFixed(4)} → ${a.evidence}`,
+    );
+  log(`  run ${Math.round(run.ms / 1000)} s; PR title: ${result.pr.title}`);
+}

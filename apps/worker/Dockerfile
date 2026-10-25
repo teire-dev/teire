@@ -30,14 +30,26 @@ RUN curl -fsSL -o /usr/local/bin/osv-scanner \
     "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64" \
   && echo "${OSV_SCANNER_SHA256}  /usr/local/bin/osv-scanner" | sha256sum -c - \
   && chmod 0755 /usr/local/bin/osv-scanner
+# Python for Teire's helper (plan S03): uv-managed CPython 3.12 and a venv with the pinned readers.
+# The helper reads manifests, wheels and source; it never imports or runs a repo's code.
+COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /usr/local/bin/
+ENV UV_PYTHON_INSTALL_DIR=/opt/python UV_LINK_MODE=copy
+RUN uv python install 3.12 \
+  && uv venv /opt/teire-py --python 3.12 \
+  && uv pip install --python /opt/teire-py/bin/python packaging==26.3 griffe==2.4.1 jedi==0.20.1
 WORKDIR /app
+COPY packages/helpers/python/teire_py.py /app/helpers/teire_py.py
 ENV NODE_ENV=production \
     PORT=8080 \
-    MIGRATIONS_DIR=/app/drizzle
+    MIGRATIONS_DIR=/app/drizzle \
+    TEIRE_PYTHON=/opt/teire-py/bin/python \
+    TEIRE_PY_HELPER=/app/helpers/teire_py.py \
+    UV_PYTHON_DOWNLOADS=never
 COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist
 COPY --from=build --chown=node:node /out/drizzle ./drizzle
 USER node
 EXPOSE 8080
-CMD ["node", "--enable-source-maps", "--max-old-space-size=768", "dist/bundle/main.mjs"]
+# Heap sized from measured peaks: a TypeScript surface diff of a large SDK pair reached ~730 MB RSS.
+CMD ["node", "--enable-source-maps", "--max-old-space-size=2560", "dist/bundle/main.mjs"]

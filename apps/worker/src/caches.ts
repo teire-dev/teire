@@ -1,7 +1,12 @@
 import { and, type Database, eq, extractionCache, registryCache, surfaceDiffs } from "@teire/db";
-import { SURFACE } from "@teire/engine/constants";
+import { PYTHON, SURFACE } from "@teire/engine/constants";
 import type { RegistryCache } from "@teire/engine/registry";
-import { type NpmSurfaceOptions, npmSurfaceDiff, type SurfaceDiff } from "@teire/engine/surface";
+import {
+  type NpmSurfaceOptions,
+  npmSurfaceDiff,
+  pypiSurfaceDiff,
+  type SurfaceDiff,
+} from "@teire/engine/surface";
 
 /** `registry_cache` in Postgres: one row per (ecosystem, key), shared by every repo the worker scans. */
 export function postgresRegistryCache(db: Database): RegistryCache {
@@ -41,35 +46,43 @@ export function postgresRegistryCache(db: Database): RegistryCache {
  * `surface_diffs`: one API-surface diff per (package, from, to, tool, tool version, noise-filter
  * version), computed once and reused by every repo on the same jump (1–10 s and ~0.5 GB per pair).
  */
-export async function cachedNpmSurfaceDiff(
+export async function cachedSurfaceDiff(
   db: Database,
+  ecosystem: "npm" | "pypi",
   name: string,
   fromVersion: string,
   toVersion: string,
   options: NpmSurfaceOptions,
 ): Promise<SurfaceDiff> {
+  const tool =
+    ecosystem === "pypi"
+      ? { name: "griffe", version: PYTHON.packages.find((p) => p.startsWith("griffe"))?.split("==")[1] ?? "" }
+      : { name: SURFACE.tool, version: SURFACE.toolVersion };
   const key = and(
-    eq(surfaceDiffs.ecosystem, "npm"),
+    eq(surfaceDiffs.ecosystem, ecosystem),
     eq(surfaceDiffs.name, name),
     eq(surfaceDiffs.fromVersion, fromVersion),
     eq(surfaceDiffs.toVersion, toVersion),
-    eq(surfaceDiffs.tool, SURFACE.tool),
-    eq(surfaceDiffs.toolVersion, SURFACE.toolVersion),
+    eq(surfaceDiffs.tool, tool.name),
+    eq(surfaceDiffs.toolVersion, tool.version),
     eq(surfaceDiffs.noiseFilterVersion, SURFACE.noiseFilterVersion),
   );
   const [row] = await db.select({ result: surfaceDiffs.result }).from(surfaceDiffs).where(key).limit(1);
   if (row) return row.result as SurfaceDiff;
   const started = Date.now();
-  const diff = await npmSurfaceDiff(name, fromVersion, toVersion, options);
+  const diff =
+    ecosystem === "pypi"
+      ? await pypiSurfaceDiff(name, fromVersion, toVersion, options)
+      : await npmSurfaceDiff(name, fromVersion, toVersion, options);
   await db
     .insert(surfaceDiffs)
     .values({
-      ecosystem: "npm",
+      ecosystem,
       name,
       fromVersion,
       toVersion,
-      tool: SURFACE.tool,
-      toolVersion: SURFACE.toolVersion,
+      tool: tool.name,
+      toolVersion: tool.version,
       noiseFilterVersion: SURFACE.noiseFilterVersion,
       result: diff,
       symbolCount: diff.from.symbols + diff.to.symbols,

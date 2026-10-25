@@ -2,7 +2,7 @@ import { VERIFY } from "../constants";
 import type { VerifyBackend, VerifySession } from "./backend";
 import type { CheckPlan } from "./commands";
 import { type CheckResult, decideEvidence, type Evidence, type SideResult } from "./evidence";
-import { countsFromJson, countsFromOutput, typeErrorCount } from "./reports";
+import { countsFromJson, countsFromJunit, countsFromOutput, typeErrorCount } from "./reports";
 
 /**
  * Baseline vs after (card C5, D69): each side in its own sandbox from the same commit, each
@@ -83,6 +83,7 @@ export async function prepareSide(
   }
   const install = await session.run(`${side}-install`, plan.install, {
     cwd: plan.cwd,
+    ...(plan.installEnv ? { env: plan.installEnv } : {}),
     timeoutSec: VERIFY.installTimeoutSec,
   });
   result.install = {
@@ -123,7 +124,13 @@ export async function runChecks(
     let counts = null;
     if (check.name === "test") {
       const report = check.reportPath ? await session.readFile(check.reportPath) : null;
-      counts = (report && countsFromJson(decoder.decode(report))) ?? countsFromOutput(output);
+      const text = report ? decoder.decode(report) : null;
+      const fromReport = text
+        ? check.reportFormat === "junit"
+          ? countsFromJunit(text)
+          : countsFromJson(text)
+        : null;
+      counts = fromReport ?? countsFromOutput(output);
     }
     // `timeout` exits 124; 137 is a kill, a timeout only when it came at the limit (else memory).
     const timedOut =

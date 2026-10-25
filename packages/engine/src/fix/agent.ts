@@ -44,9 +44,9 @@ export interface AgentResult {
 }
 
 const NEVER_EDIT =
-  /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|yarn\.lock|bun\.lockb?|\.npmrc|\.yarnrc\.yml|tsconfig[^/]*\.json|[^/]*\.config\.[cm]?[jt]s|\.github\/.*|\.env[^/]*)$/;
+  /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|yarn\.lock|bun\.lockb?|\.npmrc|\.yarnrc\.yml|tsconfig[^/]*\.json|[^/]*\.config\.[cm]?[jt]s|\.github\/.*|\.env[^/]*|pyproject\.toml|uv\.lock|poetry\.lock|Pipfile(\.lock)?|pylock[^/]*\.toml|requirements[^/]*\.(txt|in)|setup\.(py|cfg)|tox\.ini|noxfile\.py|mypy\.ini|pytest\.ini)$/;
 const NEVER_READ = /(^|\/)(\.env[^/]*|\.git\/.*|node_modules\/.*|[^/]*\.(pem|key|p12))$/;
-const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md)$/;
+const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md|py|pyi|toml|cfg|ini)$/;
 
 function safePath(repoDir: string, path: string) {
   const rel = normalize(path).split(sep).join("/").replace(/^\.\//, "");
@@ -58,9 +58,12 @@ function safePath(repoDir: string, path: string) {
 export function filesNamed(output: string) {
   const out = new Set<string>();
   for (const m of output.matchAll(
-    /(?:^|\s)((?:[\w.-]+\/)*[\w.-]+\.(?:[cm]?[jt]sx?))(?:\(\d+,\d+\)|:\d+:\d+)/gm,
+    /(?:^|\s)((?:[\w.-]+\/)*[\w.-]+\.(?:[cm]?[jt]sx?|py))(?:\(\d+,\d+\)|:\d+(?::\d+)?)/gm,
   ))
-    if (m[1] && !m[1].includes("node_modules")) out.add(m[1]);
+    if (m[1] && !/node_modules|site-packages|\.venv\//.test(m[1])) out.add(m[1]);
+  // Python tracebacks: File "/work/app/llm.py", line 13
+  for (const m of output.matchAll(/File "\/work\/([^"]+\.py)", line \d+/g))
+    if (m[1] && !/site-packages|\.venv\//.test(m[1])) out.add(m[1]);
   return out;
 }
 
@@ -69,7 +72,8 @@ function listFiles(repoDir: string, limit = 5000) {
   const walk = (dir: string, rel: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       if (files.length >= limit) return;
-      if (e.name === "node_modules" || e.name === ".git" || e.isSymbolicLink()) continue;
+      if (["node_modules", ".git", ".venv", "venv", "__pycache__"].includes(e.name) || e.isSymbolicLink())
+        continue;
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) walk(join(dir, e.name), r);
       else if (e.isFile() && SOURCE.test(e.name)) files.push(r);

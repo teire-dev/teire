@@ -6,6 +6,7 @@ export {
   type RegistryOptions,
 } from "./clients";
 export { deprecationChange } from "./deprecation";
+export * from "./pypi";
 export {
   chooseFixedTarget,
   chooseTarget,
@@ -23,4 +24,4 @@ export {
   type RegistryCache,
   type VersionInfo,
 } from "./types";
-export { npmScheme, type VersionScheme, versionScheme } from "./versions";
+export { npmScheme, pypiScheme, type VersionScheme, versionScheme } from "./versions";

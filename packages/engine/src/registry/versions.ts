@@ -1,3 +1,4 @@
+import * as pep440 from "@renovatebot/pep440";
 import semver from "semver";
 import type { Ecosystem } from "../contract";
 
@@ -27,7 +28,24 @@ export const npmScheme: VersionScheme = {
   isRange: (range) => semver.validRange(range) !== null,
 };
 
-const SCHEMES: Partial<Record<Ecosystem, VersionScheme>> = { npm: npmScheme };
+/**
+ * PEP 440 for PyPI, through @renovatebot/pep440 (ordering agrees with `packaging` 26.3 on every
+ * case the research checked; range containment of explicit pre-releases differs, so pre-releases
+ * are excluded by `isPrerelease` before any range check, research python.md §2).
+ */
+export const pypiScheme: VersionScheme = {
+  valid: (v) => pep440.valid(v) !== null,
+  compare: (a, b) => pep440.compare(a, b),
+  isPrerelease: (v) => {
+    const parts = pep440.explain(v);
+    return !!parts && (parts.is_prerelease || parts.is_devrelease);
+  },
+  major: (v) => pep440.major(v),
+  satisfies: (v, range) => pep440.satisfies(v, range, { prereleases: false }),
+  isRange: (range) => range.trim() === "" || pep440.validRange(range),
+};
+
+const SCHEMES: Partial<Record<Ecosystem, VersionScheme>> = { npm: npmScheme, pypi: pypiScheme };
 
 export function versionScheme(ecosystem: Ecosystem): VersionScheme {
   const scheme = SCHEMES[ecosystem];

@@ -2,8 +2,10 @@ import { applyEdits, modify } from "jsonc-parser";
 import semver from "semver";
 import YAML from "yaml";
 import type { DependencyInstance } from "../contract";
-import type { JsManager } from "../inventory/js";
-import type { RepoTree } from "../inventory/tree";
+import { type JsManager, type JsProject, readJsProject } from "../inventory/js";
+import { memoryTree, type RepoTree } from "../inventory/tree";
+import { npmScheme } from "../registry/versions";
+import type { Transaction } from "./transaction";
 
 /**
  * The JS upgrade transaction, worker side (card C4 steps 2–3, research js-ts.md §7): edit the
@@ -183,4 +185,76 @@ export function overrideEdit(
     modify(text, path, range, { formattingOptions: { insertSpaces: true, tabSize: 2 } }),
   );
   return { path: manifestPath, before: text, after, from: current ?? "", to: range };
+}
+
+/** Versions of `name` a JS lockfile pins, read with Teire's own readers. */
+function lockedJsVersions(tree: RepoTree, project: JsProject, name: string, lockText: string) {
+  const root = project.root === "." ? "" : `${project.root}/`;
+  const files: Record<string, string> = {};
+  for (const f of tree.files())
+    if (f.startsWith(root) && f.endsWith("package.json")) files[f] = tree.read(f) ?? "";
+  if (project.lockfile) files[project.lockfile] = lockText;
+  return readJsProject(memoryTree(files), project.root)
+    .instances.filter((i) => i.name === name && i.version)
+    .map((i) => i.version as string);
+}
+
+/**
+ * The JS transaction (D71): a direct dependency gets its manifest line and a lockfile-only
+ * regeneration; a transitive one first the package manager's in-range update, confirmed from the
+ * new lock, then an override if the parents' ranges forbid the fix.
+ */
+export function jsTransaction(
+  tree: RepoTree,
+  project: JsProject,
+  instance: DependencyInstance,
+  target: string,
+): Transaction {
+  const manager = project.manager === "unknown" ? "npm" : project.manager;
+  const lockfile = project.lockfile;
+  const readBack = lockfile ? [lockfile] : [];
+  const regenerate = lockfileCommand(manager, project.lockfileVersion);
+  if (instance.direct) {
+    const manifest = planManifestEdits(tree, instance, target);
+    return {
+      describe:
+        manifest.map((e) => `${e.path}: ${e.from} → ${e.to}`).join(", ") || `${instance.name} → ${target}`,
+      manifest,
+      commands: [regenerate],
+      readBack,
+      ...(lockfile ? { lockfilePath: lockfile } : {}),
+    };
+  }
+  const check = (files: Record<string, string>) => {
+    const text = lockfile ? files[lockfile] : undefined;
+    if (!text) return "the lockfile was not regenerated";
+    const versions = lockedJsVersions(tree, project, instance.name, text);
+    if (versions.includes(instance.version ?? ""))
+      return `${instance.name} ${instance.version} is still locked`;
+    if (!versions.some((v) => npmScheme.compare(v, target) >= 0))
+      return `${instance.name} ${target} is not locked`;
+    return null;
+  };
+  const manifestPath = project.root === "." ? "package.json" : `${project.root}/package.json`;
+  const override = overrideEdit(tree, manager, manifestPath, instance.name, target);
+  const fallback: Transaction | undefined = override
+    ? {
+        describe: `pin ${instance.name} to ^${target} in ${manifestPath}`,
+        manifest: [override],
+        commands: [regenerate],
+        readBack,
+        ...(lockfile ? { lockfilePath: lockfile } : {}),
+        check,
+      }
+    : undefined;
+  const update = transitiveUpdateCommand(manager, instance.name, project.lockfileVersion);
+  return {
+    describe: `update ${instance.name} ${instance.version} → ${target} within its parents' ranges`,
+    manifest: [],
+    commands: update ? [update] : [],
+    readBack,
+    ...(lockfile ? { lockfilePath: lockfile } : {}),
+    check: update ? check : () => "no in-range update command for this package manager",
+    ...(fallback ? { fallback } : {}),
+  };
 }

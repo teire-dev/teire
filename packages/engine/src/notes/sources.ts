@@ -4,7 +4,8 @@ import { sha256 } from "../catalog/source";
 import { SURFACE } from "../constants";
 import { guardedFetch } from "../net/fetch";
 import { getNpmVersion, type RegistryOptions } from "../registry/clients";
-import { npmScheme } from "../registry/versions";
+import { getPypiVersion } from "../registry/pypi";
+import { npmScheme, pypiScheme, type VersionScheme } from "../registry/versions";
 import { type ChangelogEntry, sliceChangelog } from "./slicer";
 
 /**
@@ -90,71 +91,165 @@ export async function gatherNpmNotes(name: string, from: string, to: string, opt
     notes.push("no GitHub repository in the package metadata");
     return { sources, notes };
   }
-  const base = detail?.repository?.directory ? `${detail.repository.directory.replace(/\/$/, "")}/` : "";
-  const tags = [`v${to}`, to, `${name}@${to}`];
+  await gatherRepoNotes({
+    name,
+    from,
+    to,
+    scheme: npmScheme,
+    repo,
+    directory: detail?.repository?.directory ?? "",
+    sources,
+    notes,
+    checkedAt,
+    options,
+  });
+  return { sources, notes };
+}
 
-  // A migration guide the tarball does not ship, read at the target's tag.
-  if (!sources.some((s) => s.kind === "migration-guide")) {
-    search: for (const tag of tags) {
-      for (const path of GUIDE_PATHS) {
-        const res = await github(
-          `/repos/${repo.owner}/${repo.repo}/contents/${base}${path}?ref=${encodeURIComponent(tag)}`,
-          options,
-        ).catch(() => null);
-        // A missing tag or file: the next path or tag spelling decides.
-        if (res?.status !== 200) continue;
-        const text = res.text();
-        sources.push({
-          kind: "migration-guide",
+const REPO_CHANGELOGS = [
+  "CHANGELOG.md",
+  "HISTORY.md",
+  "CHANGES.md",
+  "CHANGELOG.rst",
+  "CHANGES.rst",
+  "HISTORY.rst",
+  "NEWS.md",
+];
+
+/**
+ * What the source repo says at the target's tag: a migration guide the package does not ship, the
+ * changelog file when none came with the package (Python packages keep theirs in the repo), and
+ * GitHub Releases when no changelog covers the range.
+ */
+async function gatherRepoNotes(input: {
+  name: string;
+  from: string;
+  to: string;
+  scheme: VersionScheme;
+  repo: { owner: string; repo: string };
+  directory: string;
+  sources: NoteSource[];
+  notes: string[];
+  checkedAt: string;
+  options: NotesOptions;
+}) {
+  const { repo, sources, notes, checkedAt, options, scheme, from, to } = input;
+  const base = input.directory ? `${input.directory.replace(/\/$/, "")}/` : "";
+  const tags = [`v${to}`, to, `${input.name}@${to}`, `${input.name}-${to}`, `${input.name}==${to}`];
+  const atTag = async (path: string) => {
+    for (const tag of tags) {
+      const res = await github(
+        `/repos/${repo.owner}/${repo.repo}/contents/${base}${path}?ref=${encodeURIComponent(tag)}`,
+        options,
+      ).catch(() => null);
+      // A missing tag or file: the next tag spelling decides.
+      if (res?.status === 200)
+        return {
+          text: res.text(),
           url: `https://github.com/${repo.owner}/${repo.repo}/blob/${tag}/${base}${path}`,
-          trustBasis: "source-repo",
-          text,
-          contentHash: sha256(text),
-          checkedAt,
-        });
-        break search;
-      }
+        };
     }
-  }
+    return null;
+  };
+
+  if (!sources.some((s) => s.kind === "migration-guide"))
+    for (const path of GUIDE_PATHS) {
+      const found = await atTag(path);
+      if (!found) continue;
+      sources.push({
+        kind: "migration-guide",
+        url: found.url,
+        trustBasis: "source-repo",
+        text: found.text,
+        contentHash: sha256(found.text),
+        checkedAt,
+      });
+      break;
+    }
+
+  if (!sources.some((s) => s.kind === "changelog"))
+    for (const path of REPO_CHANGELOGS) {
+      const found = await atTag(path);
+      if (!found) continue;
+      sources.push({
+        kind: "changelog",
+        url: found.url,
+        trustBasis: "source-repo",
+        text: found.text,
+        contentHash: sha256(found.text),
+        checkedAt,
+        entries: sliceChangelog(found.text, scheme, from, to),
+      });
+      break;
+    }
 
   // GitHub Releases only when no changelog entry covers the range.
-  const covered = sources.some((s) => s.kind === "changelog" && (s.entries?.length ?? 0) > 0);
-  if (!covered) {
-    for (let page = 1; page <= 5; page++) {
-      const res = await github(
-        `/repos/${repo.owner}/${repo.repo}/releases?per_page=100&page=${page}`,
-        options,
-        "application/vnd.github+json",
-      ).catch(() => null);
-      if (res?.status !== 200) {
-        notes.push(`GitHub releases: ${res ? `HTTP ${res.status}` : "unreachable"}`);
-        break;
-      }
-      const releases =
-        res.json<
-          { tag_name: string; body: string | null; draft: boolean; prerelease: boolean; html_url: string }[]
-        >();
-      let older = false;
-      for (const r of releases) {
-        const version = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(r.tag_name)?.[1];
-        if (!version || !npmScheme.valid(version) || r.draft || r.prerelease || !r.body) continue;
-        if (npmScheme.compare(version, from) <= 0) {
-          older = true;
-          continue;
-        }
-        if (npmScheme.compare(version, to) > 0) continue;
-        sources.push({
-          kind: "release-notes",
-          url: r.html_url,
-          trustBasis: "source-repo",
-          text: r.body,
-          contentHash: sha256(r.body),
-          checkedAt,
-          entries: [{ version, heading: r.tag_name, body: r.body, start: 0, end: r.body.length }],
-        });
-      }
-      if (older || releases.length < 100) break;
+  if (sources.some((s) => s.kind === "changelog" && (s.entries?.length ?? 0) > 0)) return;
+  for (let page = 1; page <= 5; page++) {
+    const res = await github(
+      `/repos/${repo.owner}/${repo.repo}/releases?per_page=100&page=${page}`,
+      options,
+      "application/vnd.github+json",
+    ).catch(() => null);
+    if (res?.status !== 200) {
+      notes.push(`GitHub releases: ${res ? `HTTP ${res.status}` : "unreachable"}`);
+      break;
     }
+    const releases =
+      res.json<
+        { tag_name: string; body: string | null; draft: boolean; prerelease: boolean; html_url: string }[]
+      >();
+    let older = false;
+    for (const r of releases) {
+      const version = r.tag_name.replace(
+        new RegExp(`^(${input.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[-@=]+|v)`),
+        "",
+      );
+      if (!scheme.valid(version) || r.draft || r.prerelease || !r.body) continue;
+      if (scheme.compare(version, from) <= 0) {
+        older = true;
+        continue;
+      }
+      if (scheme.compare(version, to) > 0) continue;
+      sources.push({
+        kind: "release-notes",
+        url: r.html_url,
+        trustBasis: "source-repo",
+        text: r.body,
+        contentHash: sha256(r.body),
+        checkedAt,
+        entries: [{ version, heading: r.tag_name, body: r.body, start: 0, end: r.body.length }],
+      });
+    }
+    if (older || releases.length < 100) break;
   }
+}
+
+/** PyPI: the repo from `project_urls` (Source, Repository, Homepage, …), its notes at the target's tag. */
+export async function gatherPypiNotes(name: string, from: string, to: string, options: NotesOptions) {
+  const checkedAt = new Date().toISOString();
+  const sources: NoteSource[] = [];
+  const notes: string[] = [];
+  const detail = await getPypiVersion(name, to, options);
+  const urls = Object.entries(detail?.projectUrls ?? {});
+  const preferred =
+    urls.find(([k]) => /source|repo|code|github/i.test(k)) ?? urls.find(([, v]) => /github\.com/.test(v));
+  const repo = githubRepoOf(preferred?.[1]) ?? urls.map(([, v]) => githubRepoOf(v)).find(Boolean) ?? null;
+  if (!repo) {
+    notes.push("no GitHub repository in the package's project URLs");
+    return { sources, notes };
+  }
+  await gatherRepoNotes({
+    name,
+    from,
+    to,
+    scheme: pypiScheme,
+    repo,
+    directory: "",
+    sources,
+    notes,
+    checkedAt,
+    options,
+  });
   return { sources, notes };
 }

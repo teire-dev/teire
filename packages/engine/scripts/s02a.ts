@@ -6,7 +6,7 @@
  */
 
 import type { ChangeV2, DependencyInstance } from "../src/contract";
-import { lockfileCommand, lookupDocs, planManifestEdits, runFix } from "../src/fix";
+import { jsTransaction, lockfileCommand, lookupDocs, planManifestEdits, runFix } from "../src/fix";
 import {
   assess,
   type DependencyVerdict,
@@ -121,7 +121,7 @@ for (const project of readJsInventory(tree)) {
       plan,
       change: {
         files: Object.fromEntries(edits.map((e) => [e.path, e.after])),
-        lockfile: lockfileCommand(plan.manager, project.lockfileVersion),
+        lockfile: lockfileCommand(project.manager, project.lockfileVersion),
         ...(project.lockfile ? { lockfilePath: project.lockfile } : {}),
       },
       onLog: (line) => log(`    ${line}`),
@@ -195,6 +195,7 @@ async function runFixStep(ctx: {
     tarball: { url: `https://api.github.com/repos/${owner}/${repo}/tarball/${checkout.sha ?? ref}` },
     project: ctx.project,
     plan,
+    transaction: jsTransaction(tree, ctx.project, instance, target),
     instance,
     target,
     findings: [...ctx.summary.breaking, ...ctx.summary.annotations],

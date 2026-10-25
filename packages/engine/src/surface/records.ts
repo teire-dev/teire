@@ -16,6 +16,8 @@ const KIND: Partial<Record<SurfaceChangeKind, ChangeKindV2>> = {
   "optional-to-required": "optional-to-required",
   "required-added": "required-added",
   "entry-removed": "deep-import-removed",
+  "parameter-removed": "parameter-change",
+  "parameter-changed": "parameter-change",
   "signature-changed": "symbol-changed",
   deprecated: "symbol-deprecated",
 };
@@ -41,14 +43,31 @@ const TITLE: Record<ChangeKindV2, string> = {
   "deep-import-removed": "removes {n} import path(s)",
   "symbol-changed": "changes the types of {n} API(s)",
   "symbol-deprecated": "deprecates {n} API(s)",
+  "parameter-change": "changes parameters of {n} function(s)",
 } as Record<ChangeKindV2, string>;
+
+const LANG = { npm: "ts", pypi: "py", maven: "jvm", go: "go", cargo: "rust", rubygems: "ruby" } as const;
+
+const REGISTRY_PAGE: Record<SurfaceDiff["ecosystem"], (name: string, version: string) => string> = {
+  npm: (n, v) => `https://registry.npmjs.org/${n}/${v}`,
+  pypi: (n, v) => `https://pypi.org/project/${n}/${v}/`,
+  maven: (n, v) => `https://central.sonatype.com/artifact/${n.replace(":", "/")}/${v}`,
+  go: (n, v) => `https://pkg.go.dev/${n}@${v}`,
+  cargo: (n, v) => `https://crates.io/crates/${n}/${v}`,
+  rubygems: (n, v) => `https://rubygems.org/gems/${n}/versions/${v}`,
+};
 
 const clip = (text: string | null) => (text ? text.slice(0, SURFACE.recordSignatureChars) : undefined);
 
-function symbolSignature(c: SurfaceChange, path = c.path, declKey = c.declKey ?? ""): Signature {
+function symbolSignature(
+  c: SurfaceChange,
+  path = c.path,
+  declKey = c.declKey ?? "",
+  ecosystem: SurfaceDiff["ecosystem"] = "npm",
+): Signature {
   return {
     kind: "symbol",
-    lang: "ts",
+    lang: LANG[ecosystem],
     declKey: declKey || path,
     path,
     memberKind: MEMBER_KIND[c.symbolKind ?? "unknown"],
@@ -58,10 +77,19 @@ function symbolSignature(c: SurfaceChange, path = c.path, declKey = c.declKey ??
   };
 }
 
-function signaturesOf(name: string, c: SurfaceChange): Signature[] {
+function signaturesOf(name: string, c: SurfaceChange, ecosystem: SurfaceDiff["ecosystem"]): Signature[] {
   if (c.kind === "entry-removed")
-    return [{ kind: "import-path", value: c.path === "." ? name : `${name}/${c.path.replace(/^\.\//, "")}` }];
-  const out = [symbolSignature(c)];
+    return [
+      {
+        kind: "import-path",
+        value:
+          ecosystem === "npm" ? (c.path === "." ? name : `${name}/${c.path.replace(/^\.\//, "")}`) : c.path,
+      },
+    ];
+  const out = [symbolSignature(c, c.path, c.declKey ?? "", ecosystem)];
+  // A removed keyword breaks only the calls that pass it: the locator checks the argument.
+  if (c.kind === "parameter-removed" && c.param)
+    out.push({ kind: "call-arg", callee: [c.declKey ?? c.path], arg: c.param });
   for (const path of c.alsoAt ?? []) out.push(symbolSignature(c, path));
   for (const child of c.children ?? [])
     out.push(symbolSignature({ ...c, before: null, after: null }, child.path, child.declKey));
@@ -71,7 +99,7 @@ function signaturesOf(name: string, c: SurfaceChange): Signature[] {
 export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().toISOString()): ChangeV2[] {
   const contentHash = sha256(JSON.stringify(diff.changes));
   const source = {
-    url: `https://registry.npmjs.org/${diff.name}/${diff.toVersion}`,
+    url: REGISTRY_PAGE[diff.ecosystem](diff.name, diff.toVersion),
     kind: "surface-diff" as const,
     trustBasis: "computed" as const,
     contentHash,
@@ -84,8 +112,8 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
     return [
       changeV2.parse({
         schemaVersion: 2,
-        id: `npm/${diff.name}/${diff.fromVersion}..${diff.toVersion}/package-major`,
-        subject: { kind: "package", ecosystem: "npm", name: diff.name },
+        id: `${diff.ecosystem}/${diff.name}/${diff.fromVersion}..${diff.toVersion}/package-major`,
+        subject: { kind: "package", ecosystem: diff.ecosystem, name: diff.name },
         kind: "package-major",
         title: `${diff.name} ${diff.toVersion}: API surface could not be compared with ${diff.fromVersion}`,
         summary: diff.notes.join("; ") || "One side's declarations could not be read.",
@@ -119,8 +147,8 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
     records.push(
       changeV2.parse({
         schemaVersion: 2,
-        id: `npm/${diff.name}/${diff.fromVersion}..${diff.toVersion}/${kind}`,
-        subject: { kind: "package", ecosystem: "npm", name: diff.name },
+        id: `${diff.ecosystem}/${diff.name}/${diff.fromVersion}..${diff.toVersion}/${kind}`,
+        subject: { kind: "package", ecosystem: diff.ecosystem, name: diff.name },
         kind,
         title: `${diff.name} ${diff.toVersion} ${(TITLE[kind] ?? "changes {n} API(s)").replace("{n}", String(list.length))}`,
         summary: `Compared with ${diff.fromVersion}: ${headline}${list.length > 5 ? `, and ${list.length - 5} more` : ""}.${newly ? ` ${newly} newly deprecated.` : ""}`,
@@ -130,7 +158,7 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
           fromVersion: diff.fromVersion,
           toVersion: diff.toVersion,
         },
-        signatures: list.flatMap((c) => signaturesOf(diff.name, c)),
+        signatures: list.flatMap((c) => signaturesOf(diff.name, c, diff.ecosystem)),
         migrationNotes: list
           .filter((c) => c.guidance)
           .slice(0, 50)

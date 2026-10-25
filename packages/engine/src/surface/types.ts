@@ -1,3 +1,5 @@
+import type { Ecosystem } from "../contract";
+
 /**
  * The public API of one package version, read from its declarations, and the diff between two.
  * Shapes follow emend's (MIT, refs/emend/src/types.ts) with what Teire adds: a declaration key per
@@ -81,7 +83,11 @@ export type SurfaceChangeKind =
   | "deprecated"
   | "signature-changed"
   | "added"
-  | "entry-removed";
+  | "entry-removed"
+  /** A parameter callers may no longer pass (Python keyword arguments: only calls that pass it break). */
+  | "parameter-removed"
+  /** A parameter that moved or changed kind (positional ↔ keyword). */
+  | "parameter-changed";
 
 export interface SurfaceChange {
   path: string;
@@ -103,6 +109,8 @@ export interface SurfaceChange {
   alsoAt?: string[];
   /** Removed members folded under a removed parent (path and declKey each). */
   children?: { path: string; declKey: string }[];
+  /** The parameter a parameter change is about. */
+  param?: string;
   /** Only in the version moved to: first deprecated there. */
   newlyDeprecated?: boolean;
   guidance?: string;
@@ -118,7 +126,7 @@ export interface SurfaceSide {
 }
 
 export interface SurfaceDiff {
-  ecosystem: "npm";
+  ecosystem: Ecosystem;
   name: string;
   fromVersion: string;
   toVersion: string;

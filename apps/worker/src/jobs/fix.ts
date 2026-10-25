@@ -7,11 +7,19 @@ import {
   openOrUpdatePullRequest,
   publishCheckRun,
 } from "@teire/engine/github";
+import type { PyProject } from "@teire/engine/inventory";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
-import { assessJsRepo, fixJsDependency } from "@teire/engine/pipeline";
+import {
+  type AssessedProject,
+  type Assessment,
+  assessJsRepo,
+  assessPyRepo,
+  fixJsDependency,
+  fixPyDependency,
+} from "@teire/engine/pipeline";
 import { selectBackend } from "@teire/engine/verify";
-import { cachedNpmSurfaceDiff, postgresRegistryCache } from "../caches";
+import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
   appendEvent,
   getArtifact,
@@ -35,6 +43,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   if (!repo?.installationId || !run.groupKey || !run.targetVersion || !run.baseSha)
     throw new Error(`run ${runId} is incomplete`);
   const [owner = "", name = ""] = repo.fullName.split("/");
+  const ecosystem = run.groupKey.split("/")[0] === "pypi" ? "pypi" : "npm";
   const packageName = run.groupKey.split("/").slice(1, -1).join("/");
   const installation = await gh.installation(repo.installationId);
   const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);
@@ -60,14 +69,18 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const tree = directoryTree(checkout.dir);
     const cache = postgresRegistryCache(db);
     const repoConfig = readTeireConfig(tree);
-    const { assessments } = await assessJsRepo(checkout.dir, tree, {
+    const assessOptions = {
       cache,
       cooldownDays: repoConfig.upgrades.cooldownDays,
       onlyPackage: packageName,
       githubToken: token,
-      surfaceDiff: (n, f, t) => cachedNpmSurfaceDiff(db, n, f, t, { cache }),
-    });
-    const assessment = assessments.find(
+      surfaceDiff: (n: string, f: string, t: string) => cachedSurfaceDiff(db, ecosystem, n, f, t, { cache }),
+    };
+    const { assessments } =
+      ecosystem === "pypi"
+        ? await assessPyRepo(checkout.dir, tree, assessOptions)
+        : await assessJsRepo(checkout.dir, tree, assessOptions);
+    const assessment = (assessments as Assessment<AssessedProject>[]).find(
       (a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion,
     );
     if (!assessment) {
@@ -84,7 +97,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const prices = await fetchModelPrices().catch(() => undefined);
     const { backend, note } = await selectBackend();
     await updateRun(db, runId, { step: "fix", backend: backend.name });
-    const result = await fixJsDependency({
+    const fixInput = {
       tf,
       prices,
       backend,
@@ -95,13 +108,16 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       tree,
       repo: { owner, repo: name, baseSha: run.baseSha },
       tarball: { url: `https://api.github.com/repos/${owner}/${name}/tarball/${run.baseSha}`, token },
-      assessment,
       options: { cache, githubToken: token, context7Key: process.env.CONTEXT7_API_KEY },
-      onEvent: (e) => {
+      onEvent: (e: { step: string }) => {
         void event(e.step, "log", e);
         void updateRun(db, runId, { step: e.step });
       },
-    });
+    };
+    const result =
+      ecosystem === "pypi"
+        ? await fixPyDependency({ ...fixInput, assessment: assessment as unknown as Assessment<PyProject> })
+        : await fixJsDependency({ ...fixInput, assessment: assessment as unknown as Assessment });
     const fix = result.run;
 
     // Receipts: every model call and every sandbox command.
@@ -212,10 +228,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     }
 
     const branch = `teire/${run.groupKey}`;
-    const files = [
-      ...fix.files.map((f) => ({ path: f.path, content: f.after })),
-      ...(fix.lockfile ? [{ path: fix.lockfile.path, content: fix.lockfile.after }] : []),
-    ];
+    // The lock and any manifest the package manager rewrote are among the run's files already.
+    const files = fix.files.map((f) => ({ path: f.path, content: f.after }));
     const commit = await commitToBranch({
       octokit: installation.octokit,
       owner,
@@ -238,8 +252,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       draft: prMode === "draft",
       labels: [
         "teire",
-        "npm",
-        assessment.decision?.kind === "upgrade" && assessment.decision.isMajor ? "major" : "upgrade",
+        ecosystem,
+        assessment.purpose === "security"
+          ? "security"
+          : assessment.decision?.kind === "upgrade" && assessment.decision.isMajor
+            ? "major"
+            : "upgrade",
+        // A draft says why in its label too: needs-live-access, typecheck-only, …
+        ...(prMode === "draft" ? [fix.evidence.kind.replace(/_/g, "-")] : []),
       ],
     });
     const sites = (assessment.summary?.breaking ?? []).flatMap((f) =>

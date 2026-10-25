@@ -50,6 +50,8 @@ export interface Hit extends CallSite {
   declKey: string;
   /** Arguments at the call, for arity changes. */
   argCount?: number;
+  /** Keyword arguments the call passes (Python). */
+  kwargs?: string[];
   /** Property names an object literal of a changed type spells out. */
   props?: string[];
 }

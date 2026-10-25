@@ -8,6 +8,7 @@ export {
 export { exportsOnlySurface } from "./lexer";
 export { type NpmSurfaceOptions, npmSurface, npmSurfaceDiff, npmTypesLayout } from "./npm";
 export { type FetchedPackage, fetchNpmPackage, IntegrityError, verifyIntegrity } from "./npm-package";
+export { type FetchedWheel, fetchPypiWheel, pypiSurfaceDiff } from "./pypi";
 export { surfaceChangeRecords } from "./records";
 export { diffSurfaces, positionalParams, widenedByDefaultedTypeParams } from "./ts-diff";
 export { canonicalType, extractTsSurface, normaliseSignature } from "./ts-walk";

@@ -2,4 +2,6 @@ export * from "./agent";
 export * from "./codemods";
 export * from "./context7";
 export * from "./run";
+export * from "./transaction";
 export * from "./upgrade-js";
+export * from "./upgrade-py";

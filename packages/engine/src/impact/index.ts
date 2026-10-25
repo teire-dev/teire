@@ -68,6 +68,11 @@ function sitesFor(record: ChangeV2, locate: LocateResult): { sites: CallSite[]; 
   const keys = new Set<string>();
   const literalChecks = new Map<string, string>();
   const importPaths = new Set<string>();
+  // A removed keyword breaks only the calls that pass it.
+  const callArgs = new Map<string, Set<string>>();
+  for (const s of record.signatures)
+    if (s.kind === "call-arg")
+      for (const callee of s.callee) callArgs.set(callee, (callArgs.get(callee) ?? new Set()).add(s.arg));
   for (const s of record.signatures) {
     if (s.kind === "symbol") {
       if (record.kind === "required-added" || record.kind === "optional-to-required") {
@@ -78,7 +83,10 @@ function sitesFor(record: ChangeV2, locate: LocateResult): { sites: CallSite[]; 
   }
   const sites: CallSite[] = [];
   for (const hit of locate.hits) {
-    if (keys.has(hit.declKey)) sites.push(strip(hit));
+    const args = callArgs.get(hit.declKey);
+    if (args) {
+      if (hit.kwargs?.some((k) => args.has(k))) sites.push(strip(hit));
+    } else if (keys.has(hit.declKey)) sites.push(strip(hit));
     // A literal of the changed type that leaves out the now-required property.
     const prop = literalChecks.get(hit.declKey);
     if (prop && hit.kind === "object" && !hit.props?.includes(prop)) sites.push(strip(hit));
@@ -127,7 +135,7 @@ function onePerLine(sites: CallSite[]) {
 }
 
 function strip(hit: Hit): CallSite {
-  const { argCount: _a, props: _p, ...site } = hit;
+  const { argCount: _a, props: _p, kwargs: _k, ...site } = hit;
   return site;
 }
 

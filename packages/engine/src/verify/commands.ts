@@ -14,17 +14,23 @@ export interface PlannedCheck {
   name: CheckName;
   argv: string[];
   source: "ci" | "script" | "default";
-  /** Where the runner writes its JSON report, when one was requested. */
+  /** Where the runner writes its report, when one was requested. */
   reportPath?: string;
+  /** jest/vitest JSON (default) or JUnit XML (pytest). */
+  reportFormat?: "json" | "junit";
 }
 
 export interface CheckPlan {
-  manager: JsManager;
+  manager: string;
+  /** Sandbox image with this ecosystem's toolchain (`node`, `python`). */
+  image: string;
   /** Exact package-manager version the repo pins (`packageManager`), run through corepack. */
   managerVersion?: string;
   /** Working directory inside the sandbox checkout. */
   cwd: string;
   install: string[];
+  /** Environment for the install (e.g. keep virtualenvs inside the project). */
+  installEnv?: Record<string, string>;
   /** Environment for check commands (offline-safe settings). */
   env: Record<string, string>;
   checks: PlannedCheck[];
@@ -212,6 +218,7 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
     notes.push(`${manager} installs are not yet proven in the sandbox; evidence is labelled accordingly`);
   return {
     manager,
+    image: "node",
     ...(project.managerVersion ? { managerVersion: project.managerVersion } : {}),
     cwd,
     install: installCommand(manager, project.lockfileVersion),

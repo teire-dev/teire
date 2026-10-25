@@ -37,6 +37,19 @@ export function countsFromJson(text: string): TestCounts | null {
   };
 }
 
+/** pytest `--junitxml`: sums the `<testsuite>` counters (a collection error counts as an error). */
+export function countsFromJunit(xml: string): TestCounts | null {
+  const suites = [...xml.matchAll(/<testsuite\b([^>]*)>/g)].map((m) => m[1] ?? "");
+  if (!suites.length) return null;
+  const attr = (s: string, name: string) => Number(new RegExp(`\\b${name}="(\\d+)"`).exec(s)?.[1] ?? 0);
+  const sum = (name: string) => suites.reduce((n, s) => n + attr(s, name), 0);
+  const collected = sum("tests");
+  const failed = sum("failures");
+  const errors = sum("errors");
+  const skipped = sum("skipped");
+  return { collected, passed: Math.max(0, collected - failed - errors - skipped), failed, skipped, errors };
+}
+
 /** Terminal colour codes (ESC [ … m), built from the code point so the source has no control character. */
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
 
@@ -68,6 +81,16 @@ export function countsFromOutput(output: string): TestCounts | null {
       skipped: part("skipped") + part("todo"),
       errors: part("failed") === 0 ? failedSuites : 0,
     };
+  }
+  // pytest: "===== 2 passed, 1 failed, 1 skipped in 0.12s =====" (or "1 error in …" on a collection error)
+  const pytest = /^=+ (.*?) in [\d.]+s/m.exec(text);
+  if (pytest?.[1] && /\b(passed|failed|error|errors|skipped)\b/.test(pytest[1])) {
+    const part = (word: string) => Number(new RegExp(`(\\d+) ${word}\\b`).exec(pytest[1] ?? "")?.[1] ?? 0);
+    const passed = part("passed");
+    const failed = part("failed");
+    const skipped = part("skipped") + part("xfailed");
+    const errors = part("errors") + part("error");
+    return { collected: passed + failed + skipped + errors, passed, failed, skipped, errors };
   }
   // node:test (TAP): "# tests 3", "# pass 3", "# fail 0", "# skipped 0"
   const tap = /^# tests (\d+)/m.exec(text);

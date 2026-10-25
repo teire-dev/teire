@@ -211,3 +211,10 @@ export const ADVISORIES = {
   ghsaPackagesPerCall: 100,
   maxResponseBytes: 32 * 1024 * 1024,
 } as const;
+
+/** Teire's Python helper (S03): the interpreter and pins it runs with outside the worker image. */
+export const PYTHON = {
+  version: "3.12",
+  packages: ["packaging==26.3", "griffe==2.4.1", "jedi==0.20.1"],
+  helperTimeoutMs: 180_000,
+} as const;

@@ -396,7 +396,7 @@ export function diffSurfaces(from: ApiSurface, to: ApiSurface): Omit<SurfaceDiff
   const counts: Partial<Record<SurfaceChangeKind, number>> = {};
   for (const c of kept) counts[c.kind] = (counts[c.kind] ?? 0) + 1;
   return {
-    ecosystem: "npm",
+    ecosystem: "npm" as const,
     name: from.name,
     fromVersion: from.version,
     toVersion: to.version,

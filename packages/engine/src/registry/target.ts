@@ -21,9 +21,12 @@ export interface TargetPolicy {
   pins: TargetPin[];
   allowPrerelease: boolean;
   fallbackMajors: number;
+  /** Why a version cannot be used here at all (e.g. it requires a newer Python), or null. */
+  exclude?: (version: string) => string | null;
 }
 
 export type SkipReason =
+  | "incompatible"
   | "prerelease"
   | "above-default"
   | "deprecated"
@@ -80,6 +83,8 @@ function reasonFor(
 ): { reason: SkipReason; detail: string } | null {
   if (!policy.allowPrerelease && scheme.isPrerelease(v.version))
     return { reason: "prerelease", detail: "pre-release versions are not proposed" };
+  const excluded = policy.exclude?.(v.version);
+  if (excluded) return { reason: "incompatible", detail: excluded };
   if (defaultVersion && scheme.compare(v.version, defaultVersion) > 0)
     return { reason: "above-default", detail: `newer than the registry's default version ${defaultVersion}` };
   if (v.deprecated !== null)

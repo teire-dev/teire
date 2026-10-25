@@ -28,7 +28,7 @@ export interface VerifyBackend {
   readonly name: "cloudflare" | "tokenfactory";
   open(
     id: string,
-    options: { tarball: { url: string; token?: string }; instance?: InstanceType },
+    options: { tarball: { url: string; token?: string }; instance?: InstanceType; image?: string },
   ): Promise<VerifySession>;
 }
 
@@ -37,7 +37,11 @@ export function cloudflareBackend(config = sandboxConfigFromEnv()): VerifyBacken
     name: "cloudflare",
     async open(id, options) {
       const sandbox = new CloudflareSandbox(config, id);
-      await sandbox.start({ instance: options.instance ?? "standard-2", tarball: options.tarball });
+      await sandbox.start({
+        instance: options.instance ?? "standard-2",
+        tarball: options.tarball,
+        ...(options.image ? { image: options.image } : {}),
+      });
       return {
         id,
         setPhase: async (phase) => {
