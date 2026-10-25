@@ -1,9 +1,30 @@
 import { and, changes, type Database, eq, inArray, providerSources, providers } from "@teire/db";
-import { ingestProvider, type PreviousFetch, type ProviderRecord } from "@teire/engine/catalog";
+import {
+  ingestProvider,
+  type PageReader,
+  type PreviousFetch,
+  type ProviderRecord,
+} from "@teire/engine/catalog";
 import { CATALOG } from "@teire/engine/constants";
 import type { ChangeV2 } from "@teire/engine/contract";
+import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
 import type { ProviderChanges } from "@teire/engine/pipeline";
+import { cachedExtraction } from "../caches";
 import { changeHash, upsertChange } from "../store";
+
+/**
+ * Nemotron for providers found by discovery (no hand-written reader): built on first use, with every
+ * reading cached per (model, prompt) in `extraction_cache`, so a page is paid for once.
+ */
+let reader: Promise<PageReader> | null = null;
+export function pageReader(db: Database): Promise<PageReader> {
+  reader ??= (async () => ({
+    tf: createTokenFactory(tokenFactoryConfigFromEnv()),
+    prices: await fetchModelPrices().catch(() => undefined),
+    cached: (model, promptHash, compute) => cachedExtraction(db, model, promptHash, compute),
+  }))();
+  return reader;
+}
 
 /**
  * Provider change sources, read on demand (D82): only when a scanned repo talks to the provider (its
@@ -17,9 +38,11 @@ async function refresh(db: Database, provider: ProviderRecord): Promise<number> 
     .from(providerSources)
     .where(eq(providerSources.providerSlug, provider.slug));
   const now = Date.now();
+  // Only the sources the provider lists now: a re-discovered provider may point at other pages.
+  const current = known.filter((k) => provider.sources.some((s) => s.url === k.url));
   const fresh =
     provider.sources.every((s) => known.some((k) => k.url === s.url)) &&
-    known.every(
+    current.every(
       (k) => k.status === "ok" && k.lastCheckedAt && now - k.lastCheckedAt.getTime() < CATALOG.freshForMs,
     );
   if (fresh) return 0;
@@ -31,7 +54,11 @@ async function refresh(db: Database, provider: ProviderRecord): Promise<number> 
   const previous = new Map<string, PreviousFetch>(
     known.map((s) => [s.url, { etag: s.etag, lastModified: s.lastModified, contentHash: s.lastHash }]),
   );
-  const run = await ingestProvider(provider, { previous });
+  const discovered = provider.sources.some((s) => s.adapter === "discovered");
+  const run = await ingestProvider(provider, {
+    previous,
+    ...(discovered ? { reader: await pageReader(db) } : {}),
+  });
   const kinds = new Map(provider.sources.map((s) => [s.url, s.kind]));
   for (const o of run.outcomes) {
     const ok = o.status !== "failed";
@@ -78,6 +105,13 @@ async function refresh(db: Database, provider: ProviderRecord): Promise<number> 
     written++;
   }
   for (const r of run.rejected) console.error(`[providers] ${provider.slug}: ${r.id} rejected: ${r.error}`);
+  for (const d of run.dropped)
+    console.log(`[providers] ${provider.slug}: dropped "${d.subject}": ${d.reason}`);
+  const cost = run.receipts.reduce((n, r) => n + (r.cached ? 0 : r.costUsd), 0);
+  if (run.receipts.length || run.tavily.length)
+    console.log(
+      `[providers] ${provider.slug}: ${run.receipts.length} page reading(s) by ${run.receipts[0]?.model ?? "-"} ($${cost.toFixed(4)}), Tavily ${run.tavily.reduce((n, u) => n + u.credits, 0)} credit(s)`,
+    );
   console.log(
     `[providers] ${provider.slug}: ${run.unchanged ? "unchanged" : `${run.records.length} records`}, ${written} written`,
   );

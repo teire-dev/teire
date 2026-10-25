@@ -1,4 +1,4 @@
-import { and, asc, changes, desc, eq, sql } from "@teire/db";
+import { and, asc, changes, desc, eq, providers, sql } from "@teire/db";
 import type { ChangeV2 } from "@teire/engine/contract";
 import { cacheLife, cacheTag } from "next/cache";
 import { database } from "./db";
@@ -18,24 +18,27 @@ export interface CatalogRow {
   record: ChangeV2;
 }
 
-/** Display names for providers Teire can read; a source appears only once a repo uses it. */
-export const PROVIDER_NAMES: Record<string, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  "google-gemini": "Google Gemini",
-  "nebius-token-factory": "Nebius Token Factory",
-  stripe: "Stripe",
-};
+/**
+ * Provider names as stored with each provider's record: curated readers and providers discovered from
+ * a scanned repo alike. A provider appears only once a repo uses it (D82).
+ */
+export async function providerNames(): Promise<Record<string, string>> {
+  "use cache";
+  cacheTag("catalog");
+  cacheLife("hours");
+  const rows = await database().select({ slug: providers.slug, name: providers.name }).from(providers);
+  return Object.fromEntries(rows.map((r) => [r.slug, r.name]));
+}
 
 /** Where a change belongs in the filters: its provider, or the package registry it came from. */
 export function sourceOf(row: Pick<CatalogRow, "provider" | "record">) {
   return row.provider ?? (row.record.subject.ecosystem ? `pkg:${row.record.subject.ecosystem}` : "other");
 }
 
-export function sourceLabel(key: string) {
+export function sourceLabel(key: string, names: Record<string, string>) {
   if (key.startsWith("pkg:"))
     return { npm: "npm packages", pypi: "PyPI packages" }[key.slice(4)] ?? `${key.slice(4)} packages`;
-  return PROVIDER_NAMES[key] ?? key;
+  return names[key] ?? key;
 }
 
 export async function listChanges(): Promise<CatalogRow[]> {

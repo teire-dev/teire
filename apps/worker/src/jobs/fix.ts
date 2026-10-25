@@ -36,7 +36,7 @@ import {
   updateRun,
   upsertArtifact,
 } from "../store";
-import { storedProviderChanges } from "./providers";
+import { pageReader, storedProviderChanges } from "./providers";
 import type { WorkerContext } from "./scan";
 
 const DEFER_SECONDS = 3600;
@@ -119,7 +119,11 @@ async function apiOutcome(
     repoDir,
     tree,
     await repoInstances(repoDir, tree),
-    storedProviderChanges(ctx.db),
+    {
+      changes: storedProviderChanges(ctx.db),
+      discover: { cache: postgresRegistryCache(ctx.db) },
+      triage: await pageReader(ctx.db),
+    },
   );
   const group = findings.filter((f) => f.groupKey === run.groupKey);
   if (!group.some((f) => f.verdict === "affected")) return null;

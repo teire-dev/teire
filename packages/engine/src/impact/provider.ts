@@ -107,3 +107,46 @@ export function assessProviderChanges(input: {
   }
   return findings;
 }
+
+/**
+ * `*_BASE_URL` → inconclusive (card C3): when the deployment sets the base URL of a provider's client
+ * (`OPENAI_BASE_URL`), a gateway or another provider may serve the request, so a retired model ID is
+ * a question for a human, not a PR. The variable belongs to the provider whose own variables or name
+ * share its first word (`OPENAI_BASE_URL` → OpenAI via `OPENAI_API_KEY`; `GROQ_BASE_URL` → Groq).
+ */
+export function overrideOwner(envVar: string, provider: { name: string; detection: { envVars: string[] } }) {
+  const word = envVar.split("_")[0] ?? "";
+  if (word.length < 3) return false;
+  const words = new Set([
+    ...provider.detection.envVars.map((v) => v.split("_")[0] ?? ""),
+    ...provider.name.toUpperCase().split(/[^A-Z0-9]+/),
+  ]);
+  return words.has(word);
+}
+
+export function applyBaseUrlOverrides(
+  findings: FindingDraft[],
+  records: ChangeV2[],
+  providers: { slug: string; name: string; detection: { envVars: string[] } }[],
+  overrides: { file: string; line: number; envVar: string }[],
+): FindingDraft[] {
+  if (!overrides.length) return findings;
+  return findings.map((f) => {
+    if (
+      f.verdict !== "affected" ||
+      (f.changeKind !== "model-retirement" && f.changeKind !== "model-rerouted")
+    )
+      return f;
+    const slug = records.find((r) => r.id === f.changeId)?.subject.provider;
+    const provider = providers.find((p) => p.slug === slug);
+    const set = provider ? overrides.filter((o) => overrideOwner(o.envVar, provider)) : [];
+    if (!set.length) return f;
+    return {
+      ...f,
+      verdict: "inconclusive" as const,
+      reachability: "reachability-unknown" as const,
+      priority: null,
+      reason: `${f.reason} The client's base URL comes from ${set.map((o) => `${o.envVar} (${o.file}:${o.line})`).join(", ")}, so the deployment decides which service answers this model: check by hand.`,
+    };
+  });
+}

@@ -303,3 +303,4 @@ export function summariseFindings(findings: FindingDraft[]): DependencyVerdict {
   return { verdict, breaking, annotations, coverage };
 }
 export * from "./provider";
+export * from "./triage";

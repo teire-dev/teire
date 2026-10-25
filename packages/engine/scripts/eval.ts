@@ -209,7 +209,9 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
 }
 
 // Provider sources are read live, only for the providers each repo talks to.
-const providerChanges = liveProviderChanges();
+const providerChanges = liveProviderChanges({
+  reader: { tf: createTokenFactory(tokenFactoryConfigFromEnv()), prices: await fetchModelPrices() },
+});
 for (const c of API_CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.endsWith(w)))) {
   const [owner, repo] = c.slug.split("/") as [string, string];
   try {
@@ -221,7 +223,10 @@ for (const c of API_CASES.filter((x) => !wanted.length || wanted.some((w) => x.s
       scan,
       findings,
       records: catalog,
-    } = await assessApiChanges(checkout.dir, tree, await repoInstances(checkout.dir, tree), providerChanges);
+    } = await assessApiChanges(checkout.dir, tree, await repoInstances(checkout.dir, tree), {
+      changes: providerChanges,
+      discover: { cache: memoryCache() },
+    });
     const group = findings.filter((f) => f.groupKey === c.group);
     const assessment = {
       case: c.slug,

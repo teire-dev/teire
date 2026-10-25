@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { getChange, PROVIDER_NAMES } from "@/lib/catalog";
+import { getChange, providerNames } from "@/lib/catalog";
 import { ClassChip } from "../class-chip";
 
 /** One change with every source quoted, its matchers and how it was read (card C10). */
@@ -20,7 +20,10 @@ export default function ChangePage({ params }: PageProps<"/changes/[...id]">) {
 
 async function Change({ params }: { params: PageProps<"/changes/[...id]">["params"] }) {
   const { id } = await params;
-  const record = await getChange(id.map(decodeURIComponent).join("/"));
+  const [record, names] = await Promise.all([
+    getChange(id.map(decodeURIComponent).join("/")),
+    providerNames(),
+  ]);
   if (!record) notFound();
   const a = record.applicability;
   const matchers = record.signatures.map((s) =>
@@ -41,7 +44,7 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/60">
           <span>
-            {PROVIDER_NAMES[record.subject.provider ?? ""] ?? record.subject.provider ?? record.subject.name}
+            {names[record.subject.provider ?? ""] ?? record.subject.provider ?? record.subject.name}
           </span>
           <ClassChip value={a.class} />
           <span>{record.kind.replace(/-/g, " ")}</span>

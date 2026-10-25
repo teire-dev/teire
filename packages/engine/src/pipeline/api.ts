@@ -1,18 +1,34 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { PageReader } from "../catalog/adapters/vendor-page";
 import { type IngestOptions, ingestProvider } from "../catalog/ingest";
 import { PROVIDERS } from "../catalog/providers";
 import type { ProviderRecord } from "../catalog/schema";
 import type { ChangeV2, DependencyInstance } from "../contract";
+import {
+  discoverProviders,
+  type ProviderCandidate,
+  type ProviderUse,
+  providerCandidates,
+  type TavilyUsage,
+} from "../discover";
 import type { CodemodEdit, MigrationNote } from "../fix/codemods";
 import { type FixRun, runFix } from "../fix/run";
 import type { Transaction } from "../fix/transaction";
 import { composeApiChangePullRequest } from "../github/compose";
-import { assessProviderChanges, type FindingDraft } from "../impact";
+import {
+  applyBaseUrlOverrides,
+  assessProviderChanges,
+  type FindingDraft,
+  type TriageReceipt,
+  triageModelSites,
+} from "../impact";
 import { readJsInventory } from "../inventory/js";
 import { readPythonInventory } from "../inventory/python";
 import type { RepoTree } from "../inventory/tree";
+import { findBaseUrlOverrides } from "../locate/base-url";
 import { type LiteralScan, locateLiterals } from "../locate/literals";
+import type { RegistryOptions } from "../registry/clients";
 import { detectJsChecks } from "../verify/commands";
 import { detectPyChecks } from "../verify/python-commands";
 import type { FixDependencyInput } from "./js";
@@ -31,13 +47,29 @@ export interface ApiAssessment {
   scan: LiteralScan;
   findings: FindingDraft[];
   /** Providers the repo uses, and why (the SDK package or host that names each). */
-  providers: { provider: ProviderRecord; via: string[] }[];
+  providers: ProviderUse[];
   /** The change records read for those providers. */
   records: ChangeV2[];
+  /** Providers found with no reader: candidates looked at, Tavily calls, and why any found nothing. */
+  discovery: { candidates: number; usage: TavilyUsage[]; notes: string[] };
+  /** Nemotron readings that traced wrapped model IDs (empty without `triage`). */
+  receipts: TriageReceipt[];
 }
 
 /** Reads a provider's change records (worker: stored and refreshed when stale; scripts: live). */
 export type ProviderChanges = (providers: ProviderRecord[]) => Promise<ChangeV2[]>;
+
+/** Where provider changes come from for one scan. */
+export interface ApiSources {
+  changes: ProviderChanges;
+  /**
+   * Finding providers with no reader (an API host in the code, an installed SDK's own base URL):
+   * registry access for reading the SDKs, and the discovery cache. Omitted, only the curated readers apply.
+   */
+  discover?: RegistryOptions & { cacheDir?: string };
+  /** Nemotron for model IDs the syntax cannot place (registries, wrappers). Omitted, they stay inconclusive. */
+  triage?: PageReader;
+}
 
 /** Every exact model ID the confirmed records name, for one scan of the repo. */
 export function catalogModelIds(records: ChangeV2[]) {
@@ -100,28 +132,102 @@ export async function repoInstances(repoDir: string, tree: RepoTree) {
 export async function assessApiChanges(
   repoDir: string,
   tree: RepoTree,
-  instances: Pick<DependencyInstance, "ecosystem" | "name">[],
-  changesFor: ProviderChanges,
+  instances: Pick<DependencyInstance, "ecosystem" | "name" | "version" | "direct" | "scope" | "source">[],
+  sources: ApiSources,
   now = new Date(),
 ): Promise<ApiAssessment> {
   // First pass: URLs only, to see which API hosts the code calls.
   const hostsScan = await locateLiterals({ repoDir, tree, modelIds: new Set() });
   const hosts = new Set(hostsScan.hits.flatMap((h) => (h.host ? [h.host] : [])));
-  const providers = providersUsed(instances, hosts);
-  if (!providers.length) return { scan: hostsScan, findings: [], providers, records: [] };
-  const records = await changesFor(providers.map((p) => p.provider));
+  const providers: ProviderUse[] = providersUsed(instances, hosts);
+  const discovery: ApiAssessment["discovery"] = { candidates: 0, usage: [], notes: [] };
+  if (sources.discover) {
+    const candidates: ProviderCandidate[] = await providerCandidates({
+      urls: hostsScan.hits.flatMap((h) => (h.host ? [{ host: h.host, path: h.path ?? "/" }] : [])),
+      instances,
+      known: PROVIDERS,
+      options: sources.discover,
+    });
+    discovery.candidates = candidates.length;
+    if (candidates.length) {
+      const found = await discoverProviders(candidates, { ...sources.discover, now });
+      providers.push(...found.used);
+      discovery.usage = found.usage;
+      discovery.notes = found.notes;
+    }
+  }
+  if (!providers.length)
+    return { scan: hostsScan, findings: [], providers, records: [], discovery, receipts: [] };
+  const records = await sources.changes(providers.map((p) => p.provider));
   const scan = await locateLiterals({ repoDir, tree, modelIds: catalogModelIds(records) });
-  return { scan, findings: assessProviderChanges({ records, scan, now }), providers, records };
+  let findings = assessProviderChanges({ records, scan, now });
+  let receipts: TriageReceipt[] = [];
+  if (sources.triage) {
+    const triaged = await triageModelSites({
+      repoDir,
+      tree,
+      findings,
+      records,
+      providers: new Map(providers.map((p) => [p.provider.slug, { name: p.provider.name, via: p.via }])),
+      reader: sources.triage,
+      now,
+    });
+    findings = triaged.findings;
+    receipts = triaged.receipts;
+  }
+  // Last: a client whose base URL the deployment sets makes its provider's model findings a question.
+  findings = applyBaseUrlOverrides(
+    findings,
+    records,
+    providers.map((p) => p.provider),
+    findBaseUrlOverrides(repoDir, tree),
+  );
+  return { scan, findings, providers, records, discovery, receipts };
+}
+
+/** A confirmed retirement of this exact model ID (shut down already or on a date). */
+function retirementOf(id: string, related: ChangeV2[]) {
+  return related.find(
+    (r) =>
+      r.status === "confirmed" &&
+      r.kind === "model-retirement" &&
+      (r.applicability.class === "already-broken" || r.applicability.class === "breaks-on-date") &&
+      r.signatures.some((s) => s.kind === "string-literal" && s.value === id),
+  );
+}
+
+/**
+ * Where a named replacement leads when the provider has retired it too (Groq named
+ * `qwen/qwen3.6-27b` for `llama-3.3-70b-versatile`, then shut `qwen/qwen3.6-27b` down in favour of
+ * `qwen/qwen3.8-27b`): followed while each step names exactly one replacement.
+ */
+export function replacementChain(id: string, related: ChangeV2[], maxHops = 5) {
+  const hops: { from: string; to: string | null; record: ChangeV2 }[] = [];
+  let current = id;
+  const seen = new Set([id]);
+  for (let i = 0; i < maxHops; i++) {
+    const r = retirementOf(current, related);
+    if (!r) break;
+    const next = r.replacement?.modelIds.length === 1 ? (r.replacement.modelIds[0] ?? null) : null;
+    hops.push({ from: current, to: next, record: r });
+    if (!next || seen.has(next)) break;
+    seen.add(next);
+    current = next;
+  }
+  const last = hops.at(-1);
+  return { final: last && !last.to ? null : current, hops };
 }
 
 /**
  * Model swaps at the located literals: every affected finding's sites whose record names exactly
- * one replacement. Several swaps on one line become one edit.
+ * one replacement, followed to the provider's current model when that replacement was retired too.
+ * Several swaps on one line become one edit.
  */
 export function planModelSwaps(
   repoDir: string,
   findings: FindingDraft[],
   records: ChangeV2[],
+  related: ChangeV2[] = records,
 ): CodemodEdit[] {
   const byLine = new Map<
     string,
@@ -136,10 +242,13 @@ export function planModelSwaps(
         : null;
     const from = f.position.version;
     if (!record || !spec?.to || !from) continue;
+    // A replacement retired in turn leads to its own replacement; a chain that forks stops the swap.
+    const to = replacementChain(spec.to, related).final;
+    if (!to) continue;
     for (const site of f.callSites) {
       const key = `${site.file}:${site.line}`;
       const entry = byLine.get(key) ?? { file: site.file, line: site.line, swaps: [] };
-      entry.swaps.push({ column: site.column - 1, from, to: spec.to, record });
+      entry.swaps.push({ column: site.column - 1, from, to, record });
       byLine.set(key, entry);
     }
   }
@@ -175,6 +284,24 @@ export function planModelSwaps(
 /** The provider's own words for each change, plus its parameter changes (what a new model may reject). */
 function providerNotes(group: ChangeV2[], related: ChangeV2[]): MigrationNote[] {
   const notes: MigrationNote[] = [];
+  // Replacements the provider has retired since: their own notices travel with the change.
+  const chained = new Set<ChangeV2>();
+  for (const r of group)
+    for (const id of r.replacement?.modelIds ?? [])
+      for (const hop of replacementChain(id, related).hops)
+        if (!group.includes(hop.record)) chained.add(hop.record);
+  for (const r of chained) {
+    const source = r.sources[0];
+    const id = r.signatures.find((s) => s.kind === "string-literal");
+    if (!source?.quote || id?.kind !== "string-literal") continue;
+    notes.push({
+      summary: `${id.value}, named as a replacement, was itself retired${r.applicability.effectiveOn ? ` on ${r.applicability.effectiveOn}` : ""}${r.replacement ? `; the provider names ${r.replacement.value}` : ""}`,
+      apis: [id.value],
+      replacement: r.replacement?.value ?? null,
+      quote: source.quote,
+      url: source.url,
+    });
+  }
   for (const r of [...group, ...related.filter((x) => x.kind === "parameter-change" && !group.includes(x))]) {
     const source = r.sources[0];
     if (!source?.quote) continue;
@@ -226,13 +353,26 @@ export async function fixApiChanges(
   const affected = input.findings.filter((f) => f.verdict === "affected");
   const groupKey = affected[0]?.groupKey ?? input.findings[0]?.groupKey ?? "api";
   const records = input.records.filter((r) => affected.some((f) => f.changeId === r.id));
-  const edits = planModelSwaps(input.repoDir, affected, records);
+  const related = [...records, ...input.related.filter((r) => !records.includes(r))];
+  const edits = planModelSwaps(input.repoDir, affected, records, related);
   const files = [...new Set(affected.flatMap((f) => f.callSites.map((s) => s.file)))];
   const { plan, project } = await checksFor(input.repoDir, input.tree, files);
-  const swaps = affected
-    .filter((f) => f.position.target)
-    .map((f) => `${f.position.version} → ${f.position.target}`)
+  const swapped = edits.flatMap((e) => e.reason.replace(/^model swap /, "").split(", "));
+  // Changes Teire could not swap on its own: several replacements, or a chain that forks.
+  const choices = affected
+    .filter((f) => !swapped.some((s) => s.startsWith(`${f.position.version} → `)))
+    .map((f) => {
+      const r = records.find((x) => x.id === f.changeId);
+      const options = (r?.replacement?.modelIds ?? []).map((id) => {
+        const chain = replacementChain(id, related);
+        return chain.hops.length
+          ? `${id} (itself retired; ${chain.final ? `now ${chain.final}` : "the provider names several replacements"})`
+          : id;
+      });
+      return `${f.position.version}: ${options.length ? `the provider names ${options.join(" or ")}` : "the provider names no replacement"}`;
+    })
     .filter((v, i, all) => all.indexOf(v) === i);
+  const swaps = [...new Set([...swapped, ...choices])];
   const transaction: Transaction = {
     describe: "no package change: code edits only",
     manifest: [],
@@ -252,7 +392,18 @@ export async function fixApiChanges(
     plan,
     transaction,
     target: swaps.join(", "),
-    headline: `API change: ${records.map((r) => r.title).join("; ")}. Teire swapped the model IDs where they are used as models (${swaps.join(", ")}); make the code and tests pass with the new model${swaps.length > 1 ? "s" : ""}, and check the parameter changes quoted below.`,
+    headline: [
+      `API change: ${records.map((r) => r.title).join("; ")}.`,
+      swapped.length
+        ? `Teire swapped the model IDs where they are used as models (${swapped.join(", ")}).`
+        : "",
+      choices.length
+        ? `Choose the replacement for each of these from the provider's own options, and never one it has retired: ${choices.join("; ")}.`
+        : "",
+      "Make the code and tests pass with the new models, and check the parameter changes quoted below.",
+    ]
+      .filter(Boolean)
+      .join(" "),
     edits,
     // A retired model already fails on the baseline: only passing checks prove the fix.
     requirePassing: records.some((r) => r.applicability.class === "already-broken"),

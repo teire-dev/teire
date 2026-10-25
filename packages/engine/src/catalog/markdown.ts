@@ -139,7 +139,18 @@ export function normalizeForQuote(text: string) {
 export function quoteAppearsIn(quote: string, source: string) {
   const q = normalizeForQuote(quote);
   if (q.length === 0) return false;
-  if (normalizeForQuote(source).includes(q)) return true;
+  const text = normalizeForQuote(source);
+  if (text.includes(q)) return true;
+  // A quote that skips text shows " … " at each gap; every part must be there, in order.
+  if (q.includes(" … ")) {
+    let from = 0;
+    for (const part of q.split(" … ")) {
+      const at = text.indexOf(part, from);
+      if (!part || at === -1) return false;
+      from = at + part.length;
+    }
+    return true;
+  }
   // Registry responses are JSON: compare against the decoded string values too.
   const decoded = jsonStrings(source);
   return decoded !== null && normalizeForQuote(decoded).includes(q);

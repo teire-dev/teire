@@ -18,7 +18,7 @@ const NOTABLE =
   /breaking|BREAKING|\bremov|deprecat|renam|no longer|must now|now requires?|migrat|drop(?:ped|s)? support|minimum|Node(?:\.js)? \d|default(?:s)? (?:to|changed|is now)|replac/i;
 
 /** Markdown as plain text: fence lines, heading, list and quote markers and emphasis go; words stay. */
-function plain(text: string) {
+export function plainText(text: string) {
   return normalizeForQuote(
     text
       .split("\n")
@@ -36,8 +36,8 @@ function plain(text: string) {
  * Returns the quote to store, or null.
  */
 export function quoteInSource(quote: string, source: string): string | null {
-  const haystack = plain(source);
-  const q = plain(quote);
+  const haystack = plainText(source);
+  const q = plainText(quote);
   if (q.length >= 12 && haystack.includes(q)) return q;
   const parts = q
     .split(/\s*(?:\.\.\.|…)\s*|(?<=[.!?:;])\s+(?=[A-Z`/([])/)

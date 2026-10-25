@@ -28,8 +28,12 @@ export interface CacheEntry {
   fetchedAt: string;
 }
 
-/** A package registry, or another source cached the same way (runtime end-of-life dates). */
-export type CacheScope = Ecosystem | "endoflife";
+/**
+ * A package registry, or another source cached the same way: runtime end-of-life dates, what an
+ * installed SDK's files say about its API (per exact version), and a provider's discovered notice
+ * pages (per registrable domain).
+ */
+export type CacheScope = Ecosystem | "endoflife" | "sdk-profile" | "discovery";
 
 /** Storage for registry answers. The worker backs it with Postgres; scripts and tests use memory. */
 export interface RegistryCache {

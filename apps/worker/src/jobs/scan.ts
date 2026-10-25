@@ -34,7 +34,7 @@ import {
   upsertFinding,
 } from "../store";
 import { revalidateWeb } from "../web";
-import { storedProviderChanges } from "./providers";
+import { pageReader, storedProviderChanges } from "./providers";
 
 export interface WorkerContext {
   db: Database;
@@ -162,8 +162,21 @@ export async function scanRepo(
       checkout.dir,
       tree,
       projects.flatMap((p) => p.instances),
-      storedProviderChanges(db, () => revalidateWeb(["catalog"])),
+      {
+        changes: storedProviderChanges(db, () => revalidateWeb(["catalog"])),
+        discover: { cache },
+        triage: await pageReader(db),
+      },
     );
+    if (api.discovery.candidates)
+      console.log(
+        `[scan] ${repo.fullName}: ${api.discovery.candidates} provider(s) with no reader; found ${
+          api.providers
+            .filter((p) => p.provider.discovery)
+            .map((p) => p.provider.slug)
+            .join(", ") || "none"
+        }; Tavily ${api.discovery.usage.reduce((n, u) => n + u.credits, 0)} credit(s)${api.discovery.notes.length ? `; ${api.discovery.notes.join("; ")}` : ""}`,
+      );
     const recordHashes = new Map(api.records.map((r) => [r.id, changeHash(r)]));
     for (const f of api.findings)
       await upsertFinding(db, repoId, scan.id, f, recordHashes.get(f.changeId) ?? "");

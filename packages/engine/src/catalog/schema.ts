@@ -128,6 +128,19 @@ export const providerRecord = z.object({
   }),
   /** Header that pins the API version a request is served under (`Stripe-Version`). */
   apiVersionHeader: z.string().optional(),
+  /**
+   * Set when Teire found this provider from a scanned repo instead of a curated record: when, how the
+   * pages were nominated (llms.txt, Tavily), and what in the repo pointed at it.
+   */
+  discovery: z
+    .object({
+      at: z.iso.datetime(),
+      via: z.array(z.enum(["llms.txt", "tavily"])),
+      query: z.string().optional(),
+      tavilyCredits: z.number().min(0).default(0),
+      evidence: z.array(z.string()).default([]),
+    })
+    .optional(),
 });
 export type ProviderRecord = z.infer<typeof providerRecord>;
 

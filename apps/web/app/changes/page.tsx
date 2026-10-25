@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { listChanges, plainQuote, sourceLabel, sourceOf } from "@/lib/catalog";
+import { listChanges, plainQuote, providerNames, sourceLabel, sourceOf } from "@/lib/catalog";
 import { ClassChip } from "./class-chip";
 
 export const metadata = {
@@ -30,7 +30,7 @@ export default function ChangesPage({ searchParams }: PageProps<"/changes">) {
 
 async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes">["searchParams"] }) {
   const params = await searchParams;
-  const all = await listChanges();
+  const [all, names] = await Promise.all([listChanges(), providerNames()]);
   const sources = [...new Set(all.map(sourceOf))];
   const source = typeof params.source === "string" && sources.includes(params.source) ? params.source : null;
   const rows = source ? all.filter((r) => sourceOf(r) === source) : all;
@@ -56,14 +56,14 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
               href={`/changes?source=${encodeURIComponent(key)}`}
               className={`rounded-full border px-3 py-1 ${source === key ? "border-foreground bg-foreground text-background" : "border-foreground/15 text-foreground/70"}`}
             >
-              {sourceLabel(key)}
+              {sourceLabel(key, names)}
             </Link>
           ))}
         </nav>
       ) : null}
       <p className="text-sm text-foreground/60">
         {rows.length} change{rows.length === 1 ? "" : "s"}
-        {source ? ` from ${sourceLabel(source)}` : ""}
+        {source ? ` from ${sourceLabel(source, names)}` : ""}
       </p>
       <ul className="flex flex-col divide-y divide-foreground/10 rounded-lg border border-foreground/10">
         {rows.map((r) => {
@@ -72,7 +72,7 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
           return (
             <li key={r.id} className="flex flex-col gap-2 p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/60">
-                <span>{sourceLabel(sourceOf(r))}</span>
+                <span>{sourceLabel(sourceOf(r), names)}</span>
                 <ClassChip value={r.class} />
                 {r.deadline ? <span className="font-mono">{r.deadline}</span> : null}
               </div>

@@ -131,6 +131,39 @@ export const CATALOG = {
   stripeSince: "2019-01-01",
 } as const;
 
+/**
+ * Providers with no reader (plan S04, D82): found from what the repo uses (an API host in its code,
+ * an installed SDK's own base URL), their notice pages nominated by llms.txt and Tavily, read by
+ * Nemotron 3 Ultra behind the quote gate.
+ */
+export const DISCOVERY = {
+  /** A provider's discovered notice pages are reused this long before the search runs again. */
+  freshForMs: 7 * 24 * 60 * 60 * 1000,
+  /** Direct dependencies whose published files are read for a default API base URL, per scan. */
+  maxSdkPackages: 40,
+  sdkConcurrency: 4,
+  /** Per package: files and bytes of JS/Python read when looking for base URLs. */
+  sdkMaxFiles: 12_000,
+  sdkMaxBytes: 48 * 1024 * 1024,
+  /** Notice pages read per provider (deprecations first, then changelogs). */
+  maxPagesPerProvider: 3,
+  tavily: {
+    url: "https://api.tavily.com",
+    searchDepth: "basic",
+    maxResults: 8,
+    timeoutMs: 30_000,
+  },
+  /** Text sent to Nemotron per call; longer pages are read in heading-aligned chunks. */
+  chunkChars: 32_000,
+  maxChunks: 4,
+  readerMaxOutputTokens: 16_000,
+  /** A page whose own text is shorter than this is rendered by script: Tavily extract reads it. */
+  minPageChars: 1_500,
+  /** Ambiguous model-ID sites (wrappers, registries) Nemotron traces per scan. */
+  maxTriageSites: 24,
+  triageMaxChars: 40_000,
+} as const;
+
 /** Teire's sandbox service (apps/sandbox). Timeouts are set from context/11-build-notes/sandbox-measurements.md. */
 export const SANDBOX = {
   /** Lifetime of a signed per-sandbox token. */

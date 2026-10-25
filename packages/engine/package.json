@@ -20,7 +20,8 @@
     "./notes": "./src/notes/index.ts",
     "./github": "./src/github/index.ts",
     "./pipeline": "./src/pipeline/index.ts",
-    "./config": "./src/config/index.ts"
+    "./config": "./src/config/index.ts",
+    "./discover": "./src/discover/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -42,6 +43,7 @@
     "octokit": "5.0.5",
     "semver": "7.8.5",
     "smol-toml": "1.9.1",
+    "tldts": "7.4.19",
     "ts-morph": "28.0.0",
     "typescript6": "npm:typescript@6.0.3",
     "yaml": "2.9.1",

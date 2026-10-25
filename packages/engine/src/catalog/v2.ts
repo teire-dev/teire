@@ -236,12 +236,41 @@ function safeHost(url: string) {
   }
 }
 
-/** Every date a quote states, in ISO form. */
-function datesIn(text: string) {
-  const out: string[] = [];
-  for (const piece of text.split(/[|.;\n]/)) {
-    const date = isoDate(piece);
-    if (date) out.push(date);
+const MONTH_NAMES = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const pad = (n: number) => String(n).padStart(2, "0");
+const validDay = (y: number, m: number, d: number) => {
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+};
+
+/**
+ * Every date a quote states, in ISO form: ISO, "August 16, 2026", "16 August 2026", and numeric
+ * `MM/DD/YY(YY)` (Groq) or `DD/MM/YYYY`. A numeric date both readings allow yields both; the gate
+ * only asks that the record's date is one of them.
+ */
+export function datesIn(text: string) {
+  const out = new Set<string>();
+  // OpenAI writes some dates with non-breaking hyphens (2026‑05‑12).
+  const plain = text.replace(/[\u2010-\u2015\u2212]/g, "-");
+  for (const m of plain.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)) out.add(m[0]);
+  for (const m of plain.matchAll(
+    /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b/gi,
+  )) {
+    const date = isoDate(m[0]);
+    if (date) out.add(date);
   }
-  return out;
+  for (const m of text.matchAll(
+    /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?,?\s+(\d{4})\b/gi,
+  )) {
+    const month = MONTH_NAMES.indexOf((m[2] ?? "").slice(0, 3).toLowerCase()) + 1;
+    const [y, d] = [Number(m[3]), Number(m[1])];
+    if (month && validDay(y, month, d)) out.add(`${y}-${pad(month)}-${pad(d)}`);
+  }
+  for (const m of text.matchAll(/(?<![\d/])(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})(?![\d/])/g)) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    const y = (m[3] ?? "").length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    if (validDay(y, a, b)) out.add(`${y}-${pad(a)}-${pad(b)}`);
+    if (validDay(y, b, a)) out.add(`${y}-${pad(b)}-${pad(a)}`);
+  }
+  return [...out];
 }

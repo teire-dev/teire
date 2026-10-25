@@ -121,15 +121,27 @@ if (fixName) {
 if (api) {
   // Only the providers this repo talks to are read, live (the worker caches them across repos).
   const instances = await repoInstances(checkout.dir, tree);
-  const { scan, findings, providers, records } = await assessApiChanges(
+  const reader = { tf: createTokenFactory(tokenFactoryConfigFromEnv()), prices: await fetchModelPrices() };
+  const { scan, findings, providers, records, discovery } = await assessApiChanges(
     checkout.dir,
     tree,
     instances,
-    liveProviderChanges(),
+    {
+      changes: liveProviderChanges({ reader }),
+      discover: options,
+    },
   );
   log(
-    `\n## Providers this repo uses: ${providers.map((p) => `${p.provider.name} (${p.via.join(", ")})`).join("; ") || "none"}`,
+    `\n## Providers this repo uses: ${providers.map((p) => `${p.provider.name}${p.provider.discovery ? " [discovered]" : ""} (${p.via.join(", ")})`).join("; ") || "none"}`,
   );
+  for (const p of providers.filter((x) => x.provider.discovery))
+    log(
+      `   ${p.provider.name}: ${p.provider.sources.map((s) => s.url).join(", ")} (via ${p.provider.discovery?.via.join(" + ")})`,
+    );
+  if (discovery.usage.length || discovery.notes.length)
+    log(
+      `   discovery: ${discovery.candidates} candidate(s), Tavily ${discovery.usage.map((u) => `${u.endpoint} ${u.credits} credit(s)`).join(", ") || "not called"}${discovery.notes.length ? `; ${discovery.notes.join("; ")}` : ""}`,
+    );
   log(
     `## Provider changes (${records.length} records read; ${scan.filesScanned} files, ${scan.languages.join(", ")}, ${scan.ms} ms)`,
   );

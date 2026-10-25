@@ -36,6 +36,13 @@
       "when": 1792886889220,
       "tag": "0004_web_auth_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792914277434,
+      "tag": "0005_web_providers_read",
+      "breakpoints": true
     }
   ]
 }
