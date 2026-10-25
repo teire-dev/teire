@@ -66,6 +66,7 @@ export function DiffView({ patch, maxLines = 400 }: { patch: string | null; maxL
             </div>
             <pre className="overflow-x-auto leading-5">
               {shown.map((l, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: a static diff; line order is the identity
                 <span key={`${f.path}-${i}`} className={`block px-3 ${ROW[l.kind]}`}>
                   <span className="mr-3 inline-block w-3 select-none opacity-60">{MARK[l.kind]}</span>
                   {l.text || " "}
