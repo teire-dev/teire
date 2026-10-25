@@ -1,0 +1,61 @@
+---
+title: Security and trust
+description: Your code runs only in an isolated sandbox with the network off for checks. No secret enters it. Only Nemotron on Token Factory reads code, and nothing reaches your default branch without your merge.
+icon: Lock
+---
+
+<Shot
+  name="trust"
+  alt="How Teire runs on teire.vercel.app: worker heartbeat 10 s ago at commit 97c12c2, model credits available, primary models answering (Nemotron 3 Ultra), 0 failed GitHub deliveries; model spend and runs for the last 7 days; GitHub permissions and why; where your code goes."
+  caption="The live trust page in production: the worker's heartbeat and version, credits, model routing and missed deliveries, then spend, permissions and where code goes."
+/>
+
+## The sandbox
+
+Every install and check runs on **Cloudflare Containers**. One Durable Object drives one container, and each side of a run gets its own.
+
+| Rule | How |
+|---|---|
+| No direct internet | Containers start with `enableInternet: false`. All HTTP and HTTPS goes through Teire's egress handler |
+| Install: registries only | `GET` and `HEAD` over HTTPS to 25 hosts: npm and Yarn, PyPI, Maven Central and Google's mirror, Gradle, the Go proxy, crates.io and the Rust toolchain, RubyGems, Adoptium, and GitHub with its release assets |
+| Checks: nothing | Every request is answered `403` and recorded with its host, method and path. Denied hosts appear in the PR |
+| No secrets inside | The repository arrives as a tarball the egress handler fetches **outside** the container, adding the GitHub token itself. The token is dropped after the fetch. Model keys never enter |
+| No install scripts | npm, pnpm, Yarn and Bun install with `--ignore-scripts` |
+| One token per sandbox | Each sandbox needs its own signed token (HMAC-SHA256). The worker signs it for 15 minutes; the service refuses anything valid for over 2 hours |
+| Bounded | Each job has a 60-minute ceiling, each command's output is capped, and an idle container stops after 15 minutes |
+| Nothing left behind | Tearing a sandbox down deletes its container and all its stored state |
+
+The worker never runs your repository's code. It reads packages with static tools: TypeScript declarations, griffe, apidiff, Prism, japicmp on jars, and ast-grep. Tarballs are integrity-checked and unpacked by Teire's own extractor, which refuses links and `..` paths.
+
+## The agent
+
+The model is handed file contents, documentation, check output and provider pages **as data, never as instructions**. Code limits what it can do:
+
+- It edits only the files the change reaches and the files your check output names.
+- It never edits manifests, lockfiles, `tsconfig`, build config, CI, `.env` files or credentials.
+- It can't read `.env*`, `.git/`, `node_modules/` or key files.
+- It must not delete, skip or weaken tests, or add new casts, `any` or type-ignore comments. The review checks the final diff for exactly these.
+
+## Provider data
+
+A provider's change is acted on only when its quote is found word for word in the page Teire fetched from the provider's own domain. See [the quote gate](/docs/ecosystems/providers#the-quote-gate). Records that fail stay visible as unconfirmed and are never applied.
+
+## On GitHub
+
+| Permission | Access | Why |
+|---|---|---|
+| Contents | write | Read the code and dependency files; push one branch per fix (`teire/…`). Never the default branch |
+| Pull requests | write | Open and update fix PRs, and the Configure Teire onboarding PR |
+| Issues | write | Keep the Teire Dashboard issue, open needs-a-human issues, and answer `@teire` commands |
+| Checks | write | Publish the Teire check run with an annotation on every line a change reaches |
+| Actions | read | Read your CI's logs when it fails on a Teire PR, for one repair attempt |
+| Metadata | read | Repository names and default branches; GitHub requires it for every app |
+| Email addresses | read | Your account's email when you sign in with GitHub, to name your account; never emailed |
+
+Teire never merges and never pushes to your default branch. Commands and dashboard actions need write access to the repository.
+
+## Where your code goes
+
+- **Models.** Only NVIDIA Nemotron on Nebius Token Factory reads code.
+- **Search.** Tavily receives search queries that name a provider, such as "Groq API deprecations…", never code.
+- **Storage.** A scan downloads the repository at one commit and deletes it when the scan ends. Teire keeps the findings (file, line and the matching line), the diffs it proposes, run logs, receipts, and the tail of each sandbox command's output.

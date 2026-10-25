@@ -1,0 +1,90 @@
+---
+title: Architecture
+description: A Next.js app on Vercel, a worker and Postgres on Coolify, sandboxes on Cloudflare Containers, and Nemotron on Nebius Token Factory, joined by a Postgres outbox.
+icon: Network
+---
+
+<Diagram
+  name="system"
+  width={1568}
+  height={552}
+  alt="System: developers install the GitHub App and use the web app; GitHub webhooks reach the web app, which writes to a Postgres outbox; the worker claims them, reads registries, provider pages and Tavily, calls Nemotron on Token Factory, verifies in Cloudflare Containers, and writes branches, PRs, check runs and issues back to GitHub."
+  caption="Every part of Teire and every outside service it calls."
+/>
+
+| Part | Runs on | Does |
+|---|---|---|
+| Web app | Next.js 16 on Vercel | The landing page, sign-in, the dashboard, public scans and reports, run pages, the change catalog, these docs, and the GitHub webhook endpoint |
+| Worker | Node 24 on Coolify | Webhooks, scans, fix runs, commands, the Dashboard issue, and the reliability ticker |
+| Postgres | Coolify | Findings, runs, events, receipts, the catalog, sessions, the outbox, and the job queues |
+| Sandbox | Cloudflare Containers | Installs and checks, one isolated container per side of a run |
+| Models | Nebius Token Factory | NVIDIA Nemotron 3 Ultra, with Super as failover |
+| Search | Tavily | Finding the notices of a provider that has no reader |
+
+## From GitHub to the worker
+
+<Steps>
+<Step>
+
+`POST /api/github/webhooks` checks the `X-Hub-Signature-256` signature. It stores the delivery once, keyed by GitHub's delivery ID, so a redelivery is a no-op. It wakes the worker with `pg_notify`, then answers **202**.
+
+</Step>
+<Step>
+
+The worker listens for that notification and also polls every 5 seconds. It claims up to 10 deliveries at a time (`FOR UPDATE SKIP LOCKED`). A claim older than 5 minutes is taken again, and a delivery that fails 5 times is set aside with its error.
+
+</Step>
+<Step>
+
+Scans and fix runs go onto pg-boss queues in the same database. These queues run one job at a time per repository, in order, so two runs never race on one repository. Handlers never throw: a failure is stored on the scan or run, and the next job proceeds.
+
+</Step>
+</Steps>
+
+The web app's own requests travel the same outbox as synthetic events: public scans, dry runs and the dashboard's buttons. So the web app never calls the worker directly.
+
+## Reliability
+
+A ticker runs every 60 seconds. It:
+
+- writes the worker's heartbeat,
+- fails runs whose heartbeat stopped for 10 minutes (runs beat every 15 seconds) and scans running over 45 minutes,
+- publishes which models are healthy,
+- re-checks Token Factory credits every 15 minutes,
+- starts scheduled rescans (`schedule: daily | weekly`),
+- every 10 minutes, asks GitHub for failed webhook deliveries from the last 6 hours and redelivers the ones it never stored.
+
+The [trust page](/trust) shows all of it live.
+
+## Public endpoints
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/catalog/changes` | Every public, confirmed change, filterable by `provider`, `ecosystem`, `kind` and `subject` |
+| `GET /api/catalog/changes/<id>` | One change record |
+| `GET /api/catalog/providers` | Every provider Teire can read, with its pages and SDKs |
+| `GET /api/runs/<id>/events` | A run's events, the feed behind the live timeline |
+| `GET /schema.json` | The JSON Schema of `teire.yml` |
+| `GET /llms.txt`, `/llms-full.txt` | These docs as plain text for language models |
+
+The CLI reads the catalog endpoints; they need no key.
+
+## Source
+
+[github.com/teire-dev/teire](https://github.com/teire-dev/teire) is a pnpm and Turborepo monorepo:
+
+<Files>
+  <Folder name="apps" defaultOpen>
+    <Folder name="web" />
+    <Folder name="worker" />
+    <Folder name="sandbox" />
+  </Folder>
+  <Folder name="packages" defaultOpen>
+    <Folder name="engine" />
+    <Folder name="db" />
+    <Folder name="cli" />
+    <Folder name="helpers" />
+  </Folder>
+</Files>
+
+The engine holds everything that reads, diffs, locates, fixes and verifies. The worker, the CLI and the MCP server all call it the same way.

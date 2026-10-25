@@ -7,6 +7,8 @@ node_modules/
 dist/
 out/
 build/
+# …except the docs section of that name
+!apps/web/content/docs/build/
 .turbo/
 .vercel/
 next-env.d.ts

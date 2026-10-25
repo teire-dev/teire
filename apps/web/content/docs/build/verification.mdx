@@ -1,0 +1,69 @@
+---
+title: Verification
+description: Two sandboxes from the same commit, your own checks with the network off, compared check by check and test by test. Rules decide the evidence, never a model.
+icon: ShieldCheck
+---
+
+<Shot
+  name="dryrun-go-verification"
+  alt="Verification tab: build, typecheck and test for the Go dry run, with commands, pass on baseline and after, and 4/4 tests on both sides."
+  caption="Each check's command and result on the baseline and after the change."
+/>
+
+## Two sides, one commit
+
+Every run opens two sandboxes from the same commit, in parallel:
+
+- **baseline**: your repository as it is, with your lockfile,
+- **after**: the upgrade or swap, plus any code changes.
+
+Each side goes through two phases:
+
+1. **Install.** Only `GET` and `HEAD` requests to package registries and toolchain hosts are allowed. Lifecycle scripts never run. The time limit is 600 seconds.
+2. **Checks.** The network is **off**: every request is refused and recorded. Each check has a 300-second limit.
+
+If the baseline fails to install, Teire retries it once. If it still fails, the agent doesn't start, because no edit could be judged.
+
+## Which checks
+
+Teire runs the checks your project already has. It reads your CI workflows first, then your scripts or tool configuration, then sensible defaults. The full rules are on each ecosystem's page. `verify` in `teire.yml` replaces them per workspace. Lint, format, e2e and deploy steps are skipped.
+
+## How the evidence is decided
+
+The rules apply in this order, and the first that matches wins:
+
+| # | When | Evidence |
+|---|---|---|
+| 1 | Any check on either side hit its time limit | `timeout` |
+| 2 | The baseline didn't install | `environment_mismatch` |
+| 3 | The after side didn't install | `regression` |
+| 4 | No typecheck, build or test was found | `unverified` |
+| 5 | A check passes on the baseline and fails after | `regression` |
+| 6 | Both fail, but more tests fail, fewer pass, or more type errors appear after | `regression` |
+| 7 | Fewer tests were collected, or more were skipped | `regression` |
+| 8 | Both fail and nothing got worse | `needs_live_access`, `needs_local_service`, `environment_mismatch`, or else `pre_existing_failure` |
+| 9 | Tests ran and were counted, and everything passes after | `verified` |
+| 10 | No counted tests, but a typecheck or build passes | `typecheck_only` |
+| 11 | Anything else | `unverified` |
+
+Rule 9 also covers checks that failed before and pass after: the change itself had already broken the repository, as a retired model does.
+
+Rule 8 sorts out why both sides failed:
+
+- **needs_local_service**: connection refused on localhost to PostgreSQL, MySQL, Redis, MongoDB, Elasticsearch, RabbitMQ or Memcached.
+- **environment_mismatch**: Node engine, native binary or offline build errors.
+- **needs_live_access**: requests the sandbox denied during the checks, or network errors in the output.
+
+`verified` opens a ready PR. The middle kinds open a draft that names the reason. `regression`, `unverified` and `timeout` open an issue for a person. The model's review never changes this.
+
+## What is kept
+
+For each install and check, Teire keeps:
+
+- the command,
+- its exit code and duration,
+- the test counts,
+- the last 4,000 characters of its output,
+- the hosts it was denied.
+
+The PR shows the before/after table, and the run page shows every command with its time.
