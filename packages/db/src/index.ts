@@ -1,11 +1,13 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
+import * as authSchema from "./auth-schema";
 import * as schema from "./schema";
 
 export { and, asc, desc, eq, gt, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
+export * from "./auth-schema";
 export * from "./schema";
-export { schema };
+export { authSchema, schema };
 
 export type Database = ReturnType<typeof createDb>["db"];
 
@@ -28,7 +30,7 @@ export function tlsOptions(caCert: string) {
  */
 export function createDb({ connectionString, caCert, max = 10 }: CreateDbOptions) {
   const pool = new pg.Pool({ connectionString, max, ssl: tlsOptions(caCert) });
-  const db = drizzle({ client: pool, schema });
+  const db = drizzle({ client: pool, schema: { ...schema, ...authSchema } });
   return { db, pool };
 }
 

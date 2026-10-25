@@ -13,6 +13,7 @@
     "@teire/db": "workspace:*",
     "@teire/engine": "workspace:*",
     "@vercel/functions": "3.10.3",
+    "better-auth": "1.7.12",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1"
