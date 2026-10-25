@@ -55,9 +55,7 @@ export async function cachedSurfaceDiff(
   options: NpmSurfaceOptions,
 ): Promise<SurfaceDiff> {
   const tool =
-    ecosystem === "pypi"
-      ? { name: "griffe", version: PYTHON.packages.find((p) => p.startsWith("griffe"))?.split("==")[1] ?? "" }
-      : { name: SURFACE.tool, version: SURFACE.toolVersion };
+    ecosystem === "pypi" ? PYTHON.surfaceTool : { name: SURFACE.tool, version: SURFACE.toolVersion };
   const key = and(
     eq(surfaceDiffs.ecosystem, ecosystem),
     eq(surfaceDiffs.name, name),

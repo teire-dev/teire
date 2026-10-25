@@ -494,7 +494,12 @@ def cmd_surface_diff(old_dir: str, new_dir: str) -> None:
                 partial.append(name)
                 break
             obj = b.obj
-            canonical = (safe(lambda: obj.target_path, obj.path) if safe(lambda: obj.is_alias, False) else obj.path) or obj.path
+            # jedi resolves a name to its final definition, so the join key follows re-exports to
+            # the end (`openai.ChatCompletion` → `openai.api_resources.chat_completion.ChatCompletion`);
+            # an alias leaving the wheel (stdlib, another package) keeps its first hop.
+            canonical = obj.path
+            if safe(lambda: obj.is_alias, False):
+                canonical = safe(lambda: obj.final_target.path) or safe(lambda: obj.target_path) or obj.path
             kind = safe(lambda: obj.kind)
             breakages.append({
                 "kind": b.kind.name,

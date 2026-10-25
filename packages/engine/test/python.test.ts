@@ -186,7 +186,7 @@ describe("python surface diff and call sites (live)", () => {
     expect(diff).toMatchObject({
       ecosystem: "pypi",
       unanalyzable: false,
-      tool: { name: "griffe", version: "2.4.1" },
+      tool: { name: "griffe", version: "2.4.1+teire2" },
     });
     expect(diff.counts).toMatchObject({ removed: 48, "parameter-removed": 54 });
     const paths = diff.changes.map((c) => `${c.kind} ${c.path}${c.param ? ` ${c.param}` : ""}`);

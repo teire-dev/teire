@@ -189,10 +189,6 @@ export async function pypiSurfaceDiff(
       ...(unanalyzable ? ["griffe read no module from either wheel"] : []),
       "griffe does not compare return or attribute types, or dependency swaps; release notes cover those",
     ],
-    tool: {
-      name: "griffe",
-      version: PYTHON.packages.find((p) => p.startsWith("griffe"))?.split("==")[1] ?? "",
-      noiseFilterVersion: SURFACE.noiseFilterVersion,
-    },
+    tool: { ...PYTHON.surfaceTool, noiseFilterVersion: SURFACE.noiseFilterVersion },
   };
 }

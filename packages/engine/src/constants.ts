@@ -145,6 +145,14 @@ export const NET = {
 } as const;
 
 /** Registry access and the target-version policy (plan D71). */
+/** String-literal scan for model IDs and API hosts (ast-grep 0.50 plus config files). */
+export const LITERALS = {
+  timeoutMs: 120_000,
+  maxOutputBytes: 64 * 1024 * 1024,
+  /** Config files above this size (generated JSON, fixtures) are not searched. */
+  maxConfigBytes: 512 * 1024,
+} as const;
+
 export const REGISTRY = {
   /** A version must be at least this old before Teire proposes it (repos may lower or raise it). */
   cooldownDays: 7,
@@ -220,4 +228,6 @@ export const PYTHON = {
   version: "3.12",
   packages: ["packaging==26.3", "griffe==2.4.1", "jedi==0.20.1"],
   helperTimeoutMs: 180_000,
+  /** Version of Teire's griffe step (join keys, guards); with griffe's own version it keys cached diffs. */
+  surfaceTool: { name: "griffe", version: "2.4.1+teire2" },
 } as const;

@@ -44,8 +44,14 @@ export interface FixInput {
   plan: CheckPlan;
   /** Manifest edits and lock commands for this upgrade, built by the ecosystem's pipeline. */
   transaction: Transaction;
-  instance: DependencyInstance;
+  /** The package being upgraded; absent for API changes (a retired model), which edit code only. */
+  instance?: DependencyInstance;
+  /** Target version, or the replacement an API change moves to. */
   target: string;
+  /** First line of the agent's brief when there is no package upgrade ("Replace retired models: …"). */
+  headline?: string;
+  /** Deterministic edits the caller planned (model swaps at located literals), applied before the agent. */
+  edits?: CodemodEdit[];
   findings: FindingDraft[];
   records: ChangeV2[];
   notes: MigrationNote[];
@@ -95,9 +101,9 @@ export interface FixRun {
 
 const acceptable = (e: Evidence) => PR_MODE_BY_EVIDENCE[e.kind] !== "issue";
 
-const SYSTEM = `You are Teire's fix agent. A dependency in this repository was upgraded (manifest and lockfile are already done) and the code must be adapted so the repo's own typecheck and tests pass again, with the smallest correct change.
+const SYSTEM = `You are Teire's fix agent. Something this repository depends on changed: a package was upgraded (manifest and lockfile are already done), or an API it calls changed (a model was retired, a parameter removed). The code must be adapted so the repo's own typecheck and tests pass again, with the smallest correct change.
 Rules:
-- Edit only the allowed files. Never edit manifests, lockfiles, config or CI (the upgrade already changed them).
+- Edit only the allowed files. Never edit manifests, lockfiles, config or CI (an upgrade already changed them).
 - Keep behaviour the same. Never delete, skip or weaken tests or assertions. Do not silence errors (\`any\`, casts, @ts-ignore, # type: ignore) unless the original code already did so at that spot.
 - Prefer the replacements the migration notes give: they are quoted from the package's own documentation.
 - After editing, call run_check. When it passes, call finish with a short summary of what changed and why.
@@ -266,14 +272,19 @@ export async function runFix(input: FixInput): Promise<FixRun> {
 
     // 3. Deterministic edits at located sites, backed by quoted notes and the target's surface.
     const sites = input.findings.flatMap((f) => f.callSites);
-    const codemods = planCodemods({
-      repoDir: input.repoDir,
-      packageName: input.instance.name,
-      sites,
-      notes: input.notes,
-      targetDir: input.targetDir,
-      targetPaths: input.targetPaths,
-    });
+    const codemods = [
+      ...(input.edits ?? []),
+      ...(input.instance
+        ? planCodemods({
+            repoDir: input.repoDir,
+            packageName: input.instance.name,
+            sites,
+            notes: input.notes,
+            targetDir: input.targetDir,
+            targetPaths: input.targetPaths,
+          })
+        : []),
+    ];
     for (const e of codemods) remember(e.file);
     applyCodemods(input.repoDir, codemods);
     for (const e of codemods) emit({ step: "codemod", detail: `${e.file}:${e.line} ${e.reason}` });
@@ -322,7 +333,9 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       }
       const changed = new Set<string>();
       const prompt = [
-        `Upgrade: ${input.instance.name} ${input.instance.version} → ${input.target}. ${manifest.map((e) => `${e.path}: "${e.from}" → "${e.to}"`).join(", ")}; lockfile regenerated.`,
+        input.instance
+          ? `Upgrade: ${input.instance.name} ${input.instance.version} → ${input.target}. ${manifest.map((e) => `${e.path}: "${e.from}" → "${e.to}"`).join(", ")}; lockfile regenerated.`
+          : (input.headline ?? `Change: move to ${input.target}.`),
         `Located breaks (type-resolved):\n${describeFindings(input)}`,
         input.notes.length
           ? `Migration notes, quoted from the package's own docs:\n${input.notes

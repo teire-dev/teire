@@ -54,5 +54,11 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "5.0.4"
+  },
+  "optionalDependencies": {
+    "@ast-grep/cli-darwin-arm64": "0.50.0",
+    "@ast-grep/cli-darwin-x64": "0.50.0",
+    "@ast-grep/cli-linux-arm64-gnu": "0.50.0",
+    "@ast-grep/cli-linux-x64-gnu": "0.50.0"
   }
 }
