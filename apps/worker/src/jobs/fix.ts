@@ -9,7 +9,7 @@ import {
   openOrUpdatePullRequest,
   publishCheckRun,
 } from "@teire/engine/github";
-import type { PyProject, RepoTree } from "@teire/engine/inventory";
+import type { PyProject, RepoTree, RustProject } from "@teire/engine/inventory";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
 import {
@@ -19,14 +19,16 @@ import {
   assessGoRepo,
   assessJsRepo,
   assessPyRepo,
+  assessRustRepo,
   fixApiChanges,
   fixGoDependency,
   fixJsDependency,
   fixPyDependency,
+  fixRustDependency,
   type GoAssessment,
   repoInstances,
 } from "@teire/engine/pipeline";
-import { goSurfaceDiff } from "@teire/engine/surface";
+import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
 import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
@@ -67,7 +69,7 @@ async function packageOutcome(
   common: Common,
 ): Promise<Outcome | null> {
   const head = run.groupKey.split("/")[0];
-  const ecosystem = head === "pypi" ? "pypi" : head === "go" ? "go" : "npm";
+  const ecosystem = head === "pypi" ? "pypi" : head === "go" ? "go" : head === "cargo" ? "cargo" : "npm";
   const packageName = run.groupKey.split("/").slice(1, -1).join("/");
   const cache = postgresRegistryCache(ctx.db);
   const assessOptions = {
@@ -89,7 +91,13 @@ async function packageOutcome(
                 goSurfaceDiff(oldPath, f, newPath, t),
               ),
           })
-        : await assessJsRepo(repoDir, tree, assessOptions);
+        : ecosystem === "cargo"
+          ? await assessRustRepo(repoDir, tree, {
+              ...assessOptions,
+              surfaceDiff: (n: string, f: string, t: string) =>
+                cachedSurfaceDiff(ctx.db, "cargo", n, f, t, { cache }, () => cargoSurfaceDiff(n, f, t)),
+            })
+          : await assessJsRepo(repoDir, tree, assessOptions);
   const assessment = (assessments as Assessment<AssessedProject>[]).find(
     (a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion,
   );
@@ -99,7 +107,12 @@ async function packageOutcome(
       ? await fixPyDependency({ ...common, assessment: assessment as unknown as Assessment<PyProject> })
       : ecosystem === "go"
         ? await fixGoDependency({ ...common, assessment: assessment as unknown as GoAssessment })
-        : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
+        : ecosystem === "cargo"
+          ? await fixRustDependency({
+              ...common,
+              assessment: assessment as unknown as Assessment<RustProject>,
+            })
+          : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
   return {
     fix: result.run,
     pr: result.pr,

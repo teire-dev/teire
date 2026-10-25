@@ -113,6 +113,15 @@ export function goJsonToText(output: string) {
 export function countsFromOutput(output: string): TestCounts | null {
   if (/^\{"Time":"[^"]+","Action":/m.test(output)) return countsFromGoJson(output);
   const text = output.replace(ANSI, "");
+  // cargo test: one "test result:" line per test binary (unit, each integration file, doc-tests).
+  const cargo = [...text.matchAll(/^test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored/gm)];
+  if (cargo.length) {
+    const sum = (i: number) => cargo.reduce((n, m) => n + Number(m[i] ?? 0), 0);
+    const [passed, failed, skipped] = [sum(1), sum(2), sum(3)];
+    // A binary that fails to compile prints "error: could not compile" and no result line.
+    const errors = (text.match(/^error: could not compile/gm) ?? []).length;
+    return { collected: passed + failed + skipped, passed, failed, skipped, errors };
+  }
   // vitest: "Tests  2 passed | 1 failed | 1 skipped (4)"
   const vitest = /^\s*Tests\s+(.+?)\s+\((\d+)\)\s*$/m.exec(text);
   if (vitest?.[1] && vitest[2]) {

@@ -1,5 +1,5 @@
 import { and, type Database, eq, extractionCache, registryCache, surfaceDiffs } from "@teire/db";
-import { GO, PYTHON, SURFACE } from "@teire/engine/constants";
+import { GO, PYTHON, RUST, SURFACE } from "@teire/engine/constants";
 import type { RegistryCache } from "@teire/engine/registry";
 import {
   type NpmSurfaceOptions,
@@ -48,7 +48,7 @@ export function postgresRegistryCache(db: Database): RegistryCache {
  */
 export async function cachedSurfaceDiff(
   db: Database,
-  ecosystem: "npm" | "pypi" | "go",
+  ecosystem: "npm" | "pypi" | "go" | "cargo",
   name: string,
   fromVersion: string,
   toVersion: string,
@@ -61,7 +61,9 @@ export async function cachedSurfaceDiff(
       ? PYTHON.surfaceTool
       : ecosystem === "go"
         ? { name: "apidiff", version: GO.apidiffVersion }
-        : { name: SURFACE.tool, version: SURFACE.toolVersion };
+        : ecosystem === "cargo"
+          ? { name: "cargo-semver-checks", version: RUST.semverChecksVersion }
+          : { name: SURFACE.tool, version: SURFACE.toolVersion };
   const key = and(
     eq(surfaceDiffs.ecosystem, ecosystem),
     eq(surfaceDiffs.name, name),

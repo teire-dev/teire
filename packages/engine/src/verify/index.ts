@@ -7,3 +7,4 @@ export * from "./go-commands";
 export * from "./python-commands";
 export * from "./reports";
 export * from "./run";
+export * from "./rust-commands";

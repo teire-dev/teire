@@ -19,10 +19,11 @@ import {
   assessJsRepo,
   assessPyRepo,
   assessRuntimes,
+  assessRustRepo,
   runtimesOf,
 } from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
-import { goSurfaceDiff } from "@teire/engine/surface";
+import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
   changeHash,
@@ -167,7 +168,14 @@ export async function scanRepo(
       surfaceDiff: (oldPath, f, newPath, t) =>
         cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () => goSurfaceDiff(oldPath, f, newPath, t)),
     });
-    const projects: AssessedProject[] = [...js.projects, ...py.projects, ...go.projects];
+    const rust = await assessRustRepo(checkout.dir, tree, {
+      cache,
+      cooldownDays: config.upgrades.cooldownDays,
+      githubToken: token,
+      surfaceDiff: (n, f, t) =>
+        cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, () => cargoSurfaceDiff(n, f, t)),
+    });
+    const projects: AssessedProject[] = [...js.projects, ...py.projects, ...go.projects, ...rust.projects];
     // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.
     const api = await assessApiChanges(
       checkout.dir,
@@ -206,7 +214,12 @@ export async function scanRepo(
     const recordHashes = new Map(api.records.map((r) => [r.id, changeHash(r)]));
     for (const f of api.findings)
       await upsertFinding(db, repoId, scan.id, f, recordHashes.get(f.changeId) ?? "");
-    const assessments: AnyAssessment[] = [...js.assessments, ...py.assessments, ...go.assessments];
+    const assessments: AnyAssessment[] = [
+      ...js.assessments,
+      ...py.assessments,
+      ...go.assessments,
+      ...rust.assessments,
+    ];
     await saveInstances(
       db,
       scan.id,
@@ -228,6 +241,7 @@ export async function scanRepo(
         ...(js.projects.length ? ["javascript"] : []),
         ...(py.projects.length ? ["python"] : []),
         ...(go.projects.length ? ["go"] : []),
+        ...(rust.projects.length ? ["rust"] : []),
       ],
       ...(config.present ? { config, configSource: config.path } : {}),
     });

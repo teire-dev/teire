@@ -1,11 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sha256 } from "../catalog/source";
-import { SURFACE } from "../constants";
+import { RUST, SURFACE } from "../constants";
 import { guardedFetch } from "../net/fetch";
 import { getNpmVersion, type RegistryOptions } from "../registry/clients";
 import { getPypiVersion } from "../registry/pypi";
-import { goScheme, npmScheme, pypiScheme, type VersionScheme } from "../registry/versions";
+import { cargoScheme, goScheme, npmScheme, pypiScheme, type VersionScheme } from "../registry/versions";
 import { type ChangelogEntry, sliceChangelog } from "./slicer";
 
 /**
@@ -275,6 +275,42 @@ export async function gatherGoNotes(path: string, from: string, to: string, opti
     scheme: goScheme,
     repo: { owner: m[1], repo: m[2] },
     directory: m[3] ?? "",
+    sources,
+    notes,
+    checkedAt,
+    options,
+  });
+  return { sources, notes };
+}
+
+/** A crate's notes: its repository from the crates.io API (≤ 1 request/s, identified), then the repo at the tag. */
+export async function gatherCargoNotes(name: string, from: string, to: string, options: NotesOptions) {
+  const checkedAt = new Date().toISOString();
+  const sources: NoteSource[] = [];
+  const notes: string[] = [];
+  let repository: string | null = null;
+  try {
+    const res = await guardedFetch(`https://crates.io/api/v1/crates/${encodeURIComponent(name)}`, {
+      allowHosts: ["crates.io"],
+      headers: { "user-agent": RUST.userAgent },
+    });
+    if (res.status === 200)
+      repository = res.json<{ crate?: { repository?: string | null } }>().crate?.repository ?? null;
+  } catch {
+    // No repository link: no notes.
+  }
+  const repo = githubRepoOf(repository);
+  if (!repo) {
+    notes.push("no GitHub repository on crates.io");
+    return { sources, notes };
+  }
+  await gatherRepoNotes({
+    name,
+    from,
+    to,
+    scheme: cargoScheme,
+    repo,
+    directory: "",
     sources,
     notes,
     checkedAt,
