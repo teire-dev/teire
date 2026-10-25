@@ -41,3 +41,10 @@ export function createDb({ connectionString, caCert, max = 10 }: CreateDbOptions
 export async function runMigrations(db: Database, migrationsFolder: string) {
   await migrate(db, { migrationsFolder });
 }
+
+/** A database without TLS, for integration tests against a throwaway local Postgres only. */
+export function createLocalDb(connectionString: string) {
+  const pool = new pg.Pool({ connectionString, max: 2 });
+  const db = drizzle({ client: pool, schema: { ...schema, ...authSchema } });
+  return { db, pool };
+}
