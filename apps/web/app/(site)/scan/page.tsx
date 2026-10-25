@@ -73,7 +73,7 @@ async function Recent() {
         <li key={r.id}>
           <Link
             href={`/scan/${r.id}`}
-            className="flex items-center justify-between gap-4 px-4 py-3 text-sm hover:bg-accent"
+            className="row-link flex items-center justify-between gap-4 px-4 py-3 pr-10 text-sm hover:bg-accent"
           >
             <span className="truncate font-mono">{r.repo}</span>
             <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">

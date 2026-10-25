@@ -8,17 +8,26 @@ import { providerLogo } from "@/lib/logos";
 export async function DeadlineStrip() {
   await connection();
   const today = new Date().toISOString().slice(0, 10);
-  const next = (await listChanges())
-    .filter((r) => r.deadline && r.deadline.slice(0, 10) >= today)
-    .slice(0, 3);
+  const all = await listChanges();
+  const next = all.filter((r) => r.deadline && r.deadline.slice(0, 10) >= today).slice(0, 3);
   if (!next.length)
-    return (
+    return all.length ? (
       <p className="text-sm text-muted-foreground">
         No upcoming shutdowns in the catalog right now.{" "}
         <Link href="/changes" className="text-link hover:underline">
           See every change Teire has read
         </Link>
         .
+      </p>
+    ) : (
+      // Nothing is read ahead of time: the catalog holds what scanned repositories use.
+      <p className="text-sm text-muted-foreground">
+        The catalog fills as repositories are scanned: Teire reads a provider&apos;s pages only when a scanned
+        repository calls it.{" "}
+        <Link href="/scan" className="text-link hover:underline">
+          Scan a public repository
+        </Link>{" "}
+        to see its deadlines here.
       </p>
     );
   return (
@@ -29,7 +38,7 @@ export async function DeadlineStrip() {
           <li key={r.id} className="bg-card">
             <Link
               href={`/changes/${r.id}`}
-              className="flex h-full flex-col gap-2 p-4 transition-colors hover:bg-accent"
+              className="row-link flex h-full flex-col gap-2 p-4 pr-10 transition-colors hover:bg-accent"
             >
               <span className="flex items-center gap-2 text-xs text-muted-foreground">
                 <BrandLogo light={logo.light} dark={logo.dark} alt="" className="h-4" />

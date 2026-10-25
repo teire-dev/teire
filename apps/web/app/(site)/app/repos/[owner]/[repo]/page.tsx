@@ -195,7 +195,13 @@ async function Repo({
               <ul className="divide-y overflow-hidden rounded-lg bg-card text-sm shadow-card">
                 {ignoredGroups.map((g) => (
                   <li key={g.key} className="flex items-center justify-between gap-3 px-4 py-2">
-                    <span className="truncate">{g.title}</span>
+                    {g.changeIds[0] ? (
+                      <Link href={`/changes/${g.changeIds[0]}`} className="truncate entity-link">
+                        {g.title}
+                      </Link>
+                    ) : (
+                      <span className="truncate">{g.title}</span>
+                    )}
                     <ActionButton
                       repo={fullName}
                       action="unignore"
@@ -241,7 +247,7 @@ async function Repo({
                       <td className="px-3 py-1.5">
                         <Link
                           href={`/packages/${i.ecosystem}/${i.name.split("/").map(encodeURIComponent).join("/")}`}
-                          className="hover:underline"
+                          className="entity-link"
                         >
                           {i.name}
                         </Link>
@@ -292,7 +298,7 @@ async function Repo({
                 <li key={r.id}>
                   <Link
                     href={`/runs/${r.id}`}
-                    className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-accent"
+                    className="row-link flex items-center justify-between gap-3 px-4 py-3 pr-10 hover:bg-accent"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-mono text-xs">{r.groupKey}</span>

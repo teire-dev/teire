@@ -137,12 +137,28 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium">Deadlines</h2>
           <ul className="divide-y overflow-hidden rounded-lg bg-card text-sm shadow-card">
-            {b.deadlines.slice(0, 8).map((g) => (
-              <li key={g.key} className="flex items-center justify-between gap-4 px-4 py-2.5">
-                <span className="truncate">{g.title}</span>
-                <span className="shrink-0 font-mono text-xs text-human">{g.deadline?.slice(0, 10)}</span>
-              </li>
-            ))}
+            {b.deadlines.slice(0, 8).map((g) => {
+              const row = (
+                <>
+                  <span className="truncate">{g.title}</span>
+                  <span className="shrink-0 font-mono text-xs text-human">{g.deadline?.slice(0, 10)}</span>
+                </>
+              );
+              return (
+                <li key={g.key}>
+                  {g.changeIds[0] ? (
+                    <Link
+                      href={`/changes/${g.changeIds[0]}`}
+                      className="row-link flex items-center justify-between gap-4 px-4 py-2.5 pr-10 hover:bg-accent"
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center justify-between gap-4 px-4 py-2.5">{row}</div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}
@@ -193,7 +209,10 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
           <p className="font-medium">Get these as pull requests</p>
           <p className="text-sm text-muted-foreground">
             Installed, Teire rescans when a push to your default branch changes dependencies or code, and
-            opens a pull request per change, ready once your own checks pass before and after.
+            opens a pull request per change, ready once your own checks pass before and after.{" "}
+            <Link href="/docs/guide/how-it-works" className="text-link hover:underline">
+              How Teire works
+            </Link>
           </p>
         </div>
         <Button asChild shape="pill">
@@ -219,12 +238,12 @@ function RepoHeader({
   return (
     <header className="flex flex-col gap-2">
       <p className="text-xs text-muted-foreground">
-        <Link href="/scan" className="hover:text-foreground">
+        <Link href="/scan" className="entity-link hover:text-foreground">
           Public scan
         </Link>
       </p>
       <h1 className="flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">
-        <a href={`https://github.com/${name}`} className="font-mono hover:underline">
+        <a href={`https://github.com/${name}`} className="font-mono entity-link">
           {name}
         </a>
       </h1>

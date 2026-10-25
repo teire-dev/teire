@@ -26,11 +26,7 @@ export function ProviderRow() {
   return (
     <div className="not-prose my-6 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-fd-border bg-fd-card p-4">
       {CURATED.map((p) => (
-        <a
-          key={p.slug}
-          href={`/providers/${p.slug}`}
-          className="flex items-center gap-2 text-sm hover:underline"
-        >
+        <a key={p.slug} href={`/providers/${p.slug}`} className="flex items-center gap-2 text-sm entity-link">
           <BrandLogo light={p.light} dark={p.dark} alt="" className="h-5" />
           {p.name}
         </a>

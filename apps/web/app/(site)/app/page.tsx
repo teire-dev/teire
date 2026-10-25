@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { RowChevron } from "@/components/row-chevron";
 import { EvidenceBadge } from "@/components/run/evidence-badge";
 import { overview } from "@/lib/dashboard";
 import { ago } from "@/lib/languages";
@@ -28,6 +29,8 @@ async function Overview() {
   if (!data.repos.length) return <InstallCard />;
   const affected = data.repos.reduce((n, r) => n + r.affected, 0);
   const next = data.deadlines.find((d) => d.deadline && d.deadline.getTime() >= Date.now());
+  // With no deadline ahead, a passed one still matters: the code already calls something that stopped.
+  const passed = data.deadlines.filter((d) => d.deadline && d.deadline.getTime() < Date.now()).length;
   return (
     <>
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border shadow-card md:grid-cols-4">
@@ -39,9 +42,9 @@ async function Overview() {
         />
         <Stat label="Open Teire PRs" value={String(data.repos.reduce((n, r) => n + r.openPrs, 0))} />
         <Stat
-          label="Next deadline"
-          value={next?.deadline ? next.deadline.toISOString().slice(0, 10) : "none"}
-          tone={next ? "text-human" : undefined}
+          label={next || !passed ? "Next deadline" : "Deadlines passed"}
+          value={next?.deadline ? next.deadline.toISOString().slice(0, 10) : passed ? String(passed) : "none"}
+          tone={next ? "text-human" : passed ? "text-affected" : undefined}
           mono
         />
       </dl>
@@ -54,7 +57,7 @@ async function Overview() {
               <li key={`${d.repo}-${d.changeId}`}>
                 <Link
                   href={`/app/repos/${d.repo}`}
-                  className="grid gap-1 px-4 py-3 hover:bg-accent sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-4"
+                  className="row-link grid gap-1 px-4 py-3 pr-10 hover:bg-accent sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-4"
                 >
                   <span className="truncate">{d.title}</span>
                   <span className="truncate font-mono text-xs text-muted-foreground">{d.repo}</span>
@@ -80,7 +83,7 @@ async function Overview() {
                 <li key={r.id}>
                   <Link
                     href={`/runs/${r.id}`}
-                    className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-accent"
+                    className="row-link flex items-center justify-between gap-3 px-4 py-3 pr-10 hover:bg-accent"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-mono text-xs">{r.groupKey}</span>
@@ -163,8 +166,11 @@ function Stat({
     </>
   );
   return href ? (
-    <Link href={href} className="flex flex-col gap-1 bg-card p-5 hover:bg-accent">
+    <Link href={href} className="relative flex flex-col gap-1 bg-card p-5 hover:bg-accent">
       {body}
+      <span className="absolute top-5 right-4 flex">
+        <RowChevron />
+      </span>
     </Link>
   ) : (
     <div className="flex flex-col gap-1 bg-card p-5">{body}</div>

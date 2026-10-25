@@ -1,5 +1,5 @@
-import { and, artifacts, asc, eq, llmCalls, runEvents, sandboxExecs } from "@teire/db";
-import { ExternalLink, Loader } from "lucide-react";
+import { and, artifacts, asc, desc, eq, llmCalls, publicScans, runEvents, sandboxExecs } from "@teire/db";
+import { ArrowRight, ExternalLink, Loader } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -11,9 +11,12 @@ import { EvidenceBadge } from "@/components/run/evidence-badge";
 import { Receipt } from "@/components/run/receipt";
 import { VerificationTable } from "@/components/run/verification-table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { visibleRun } from "@/lib/access";
 import { database } from "@/lib/db";
+import { groupHref } from "@/lib/links";
+import { INSTALL_URL } from "@/lib/site";
 import { Timeline } from "./timeline";
 
 export const metadata: Metadata = { title: "Run", robots: { index: false } };
@@ -47,7 +50,8 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
   if (!row) return <Pending id={id} />;
   const { run, repo } = row;
   const db = database();
-  const [[pr], calls, execs, dryRunEvents] = await Promise.all([
+  const dry = run.kind === "dry_run";
+  const [[pr], calls, execs, dryRunEvents, [report]] = await Promise.all([
     db
       .select()
       .from(artifacts)
@@ -60,12 +64,21 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
       .from(runEvents)
       .where(and(eq(runEvents.runId, run.id), eq(runEvents.step, "pr"), eq(runEvents.type, "dry-run")))
       .limit(1),
+    // A dry run starts from a public report; the latest finished one is the way back.
+    dry
+      ? db
+          .select({ id: publicScans.id })
+          .from(publicScans)
+          .where(and(eq(publicScans.repoId, repo.id), eq(publicScans.status, "done")))
+          .orderBy(desc(publicScans.createdAt))
+          .limit(1)
+      : Promise.resolve([]),
   ]);
   const preview = dryRunEvents[0]?.payload as { title?: string; body?: string; mode?: string } | undefined;
-  const dry = run.kind === "dry_run";
   const [head, ...rest] = (run.groupKey ?? "").split("/");
   const isApi = head === "models" || head === "api";
   const subject = isApi ? (rest[0] ?? "") : rest.slice(0, -1).join("/");
+  const subjectHref = run.groupKey ? groupHref(run.groupKey) : null;
   const ms = run.startedAt && run.finishedAt ? run.finishedAt.getTime() - run.startedAt.getTime() : null;
   const duration =
     ms === null
@@ -79,15 +92,30 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
     <>
       <header className="flex flex-col gap-2">
         <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <a href={`https://github.com/${repo.fullName}`} className="font-mono hover:text-foreground">
+          <a
+            href={`https://github.com/${repo.fullName}`}
+            className="flex items-center gap-1 font-mono entity-link hover:text-foreground"
+          >
             {repo.fullName}
+            <ExternalLink className="size-3" aria-hidden />
           </a>
           <span>/</span>
           <span>{dry ? "dry run" : "fix run"}</span>
           {dry ? <Badge variant="outline">no PR opened</Badge> : null}
+          {report ? (
+            <Link href={`/scan/${report.id}`} className="text-link hover:underline">
+              ← Back to the report
+            </Link>
+          ) : null}
         </p>
         <h1 className="text-2xl font-semibold tracking-tight">
-          <span className="font-mono">{subject}</span>{" "}
+          {subjectHref ? (
+            <Link href={subjectHref} className="font-mono entity-link">
+              {subject}
+            </Link>
+          ) : (
+            <span className="font-mono">{subject}</span>
+          )}{" "}
           {run.fromVersion ? (
             <span className="font-mono text-muted-foreground line-through">{run.fromVersion}</span>
           ) : null}
@@ -155,6 +183,12 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
           <VerificationTable
             verification={run.verification as Parameters<typeof VerificationTable>[0]["verification"]}
           />
+          <p className="mt-3 text-xs text-muted-foreground">
+            The evidence comes from these results by fixed rules, never from a model.{" "}
+            <Link href="/docs/build/verification" className="text-link hover:underline">
+              How the evidence is decided
+            </Link>
+          </p>
         </TabsContent>
         <TabsContent value="receipt">
           <Receipt calls={calls} execs={execs} total={Number(run.costUsd)} />
@@ -174,6 +208,23 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
               </h2>
               <Markdown>{preview.body ?? ""}</Markdown>
             </article>
+            <aside className="mt-4 flex flex-col gap-3 rounded-lg bg-card p-5 shadow-card sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-1">
+                <p className="font-medium">Get changes like this as pull requests</p>
+                <p className="text-sm text-muted-foreground">
+                  Installed on {repo.fullName}, Teire opens this on GitHub, with the same evidence.{" "}
+                  <Link href="/docs/guide/anatomy-of-a-pr" className="text-link hover:underline">
+                    How to read a Teire PR
+                  </Link>
+                </p>
+              </div>
+              <Button asChild shape="pill" size="sm" className="shrink-0">
+                <a href={INSTALL_URL}>
+                  Install on GitHub
+                  <ArrowRight data-icon="inline-end" />
+                </a>
+              </Button>
+            </aside>
           </TabsContent>
         ) : null}
       </Tabs>

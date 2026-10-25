@@ -3,7 +3,17 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { Input } from "@/components/ui/input";
-import { listChanges, plainQuote, providerNames, sourceLabel, sourceLogo, sourceOf } from "@/lib/catalog";
+import { ECOSYSTEMS } from "@/lib/brands";
+import {
+  type CatalogRow,
+  listChanges,
+  plainQuote,
+  providerNames,
+  sourceLabel,
+  sourceLogo,
+  sourceOf,
+} from "@/lib/catalog";
+import { packageHref, providerHref } from "@/lib/links";
 import { CLASSES, ClassChip } from "./class-chip";
 
 export const metadata = {
@@ -154,13 +164,13 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
                   <li key={r.id} className="flex flex-col gap-2 p-4">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <BrandLogo light={logo.light} dark={logo.dark} alt="" className="h-3.5" />
-                      <span>{sourceLabel(key, names)}</span>
+                      <SourceName row={r} sourceKey={key} names={names} />
                       <ClassChip value={r.class} />
                       {r.deadline ? (
                         <span className="font-mono text-human">{r.deadline.slice(0, 10)}</span>
                       ) : null}
                     </div>
-                    <Link href={`/changes/${r.id}`} className="font-medium hover:underline">
+                    <Link href={`/changes/${r.id}`} className="w-fit font-medium entity-link">
                       {r.title}
                     </Link>
                     {r.record.replacement ? (
@@ -207,5 +217,38 @@ function FilterLink({
     >
       {children}
     </Link>
+  );
+}
+
+/** Who the change belongs to, leading to its page: the provider, or the package (not the ecosystem). */
+function SourceName({
+  row,
+  sourceKey,
+  names,
+}: {
+  row: CatalogRow;
+  sourceKey: string;
+  names: Record<string, string>;
+}) {
+  if (sourceKey.startsWith("pkg:")) {
+    const eco = sourceKey.slice(4);
+    const href = packageHref(eco, row.record.subject.name);
+    const label = `${ECOSYSTEMS[eco]?.label ?? eco} · ${row.record.subject.name}`;
+    return href ? (
+      <Link href={href} className="entity-link">
+        {label}
+      </Link>
+    ) : (
+      <span>{label}</span>
+    );
+  }
+  const href = providerHref(sourceKey);
+  const label = sourceLabel(sourceKey, names);
+  return href && sourceKey !== "runtime" && sourceKey !== "other" ? (
+    <Link href={href} className="entity-link">
+      {label}
+    </Link>
+  ) : (
+    <span>{label}</span>
   );
 }

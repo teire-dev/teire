@@ -114,7 +114,7 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
                   <li key={m.id}>
                     <Link
                       href={`/changes/${m.change.id}`}
-                      className="flex flex-col gap-0.5 px-4 py-2 hover:bg-accent"
+                      className="row-link flex flex-col gap-0.5 px-4 py-2 pr-10 hover:bg-accent"
                     >
                       <span>
                         <span className="text-muted-foreground line-through decoration-affected/60">
@@ -141,7 +141,7 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
                     <li key={`${s.ecosystem}:${s.name}`}>
                       <Link
                         href={`/packages/${s.ecosystem}/${s.name.split("/").map(encodeURIComponent).join("/")}`}
-                        className="flex items-center gap-2 px-4 py-2 hover:bg-accent"
+                        className="row-link flex items-center gap-2 px-4 py-2 pr-10 hover:bg-accent"
                       >
                         {e ? <BrandLogo light={e.light} dark={e.dark} alt="" className="h-3.5" /> : null}
                         <span className="font-mono text-xs">{s.name}</span>
@@ -169,7 +169,7 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
               <li key={r.id}>
                 <Link
                   href={`/changes/${r.id}`}
-                  className="flex flex-col gap-1 px-4 py-3 hover:bg-accent sm:flex-row sm:items-center sm:justify-between"
+                  className="row-link flex flex-col gap-1 px-4 py-3 pr-10 hover:bg-accent sm:flex-row sm:items-center sm:justify-between"
                 >
                   <span className="text-sm">{r.title}</span>
                   <span className="flex shrink-0 items-center gap-2">
@@ -183,7 +183,13 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">No confirmed public change yet.</p>
+          <p className="text-sm text-muted-foreground">
+            No confirmed public change yet. Teire reads these pages the next time a scanned repository uses{" "}
+            {record.name}.{" "}
+            <Link href="/scan" className="text-link hover:underline">
+              Scan a public repository
+            </Link>
+          </p>
         )}
       </section>
     </>

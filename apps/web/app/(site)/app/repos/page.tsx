@@ -71,7 +71,7 @@ async function Repos({ searchParams }: { searchParams: PageProps<"/app/repos">["
                   <div className="min-w-0">
                     <Link
                       href={`/app/repos/${r.fullName}`}
-                      className="block truncate font-mono text-sm hover:underline"
+                      className="block truncate font-mono text-sm entity-link"
                     >
                       {r.fullName}
                     </Link>

@@ -104,7 +104,7 @@ async function Package({ params }: { params: Params }) {
                   <li key={r.id}>
                     <Link
                       href={`/changes/${r.id}`}
-                      className="flex flex-col gap-1 px-4 py-3 hover:bg-accent sm:flex-row sm:items-center sm:justify-between"
+                      className="row-link flex flex-col gap-1 px-4 py-3 pr-10 hover:bg-accent sm:flex-row sm:items-center sm:justify-between"
                     >
                       <span className="text-sm">{r.title}</span>
                       <span className="flex shrink-0 items-center gap-2">

@@ -25,11 +25,11 @@ export function CallSites({
             className="flex flex-col gap-0.5 border-b px-3 py-2 last:border-0 sm:flex-row sm:items-baseline sm:gap-3"
           >
             {href ? (
-              <a href={href} className="shrink-0 text-link hover:underline">
+              <a href={href} className="shrink-0 break-all text-link hover:underline">
                 {where}
               </a>
             ) : (
-              <span className="shrink-0">{where}</span>
+              <span className="shrink-0 break-all">{where}</span>
             )}
             <span className="truncate text-muted-foreground">{s.snippet}</span>
           </li>

@@ -5,6 +5,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { GithubMark } from "@/components/icons";
 import { DeadlineStrip, DeadlineStripSkeleton } from "@/components/landing/deadline-strip";
 import { ExamplePr } from "@/components/landing/example-pr";
+import { RowChevron } from "@/components/row-chevron";
 import { Button } from "@/components/ui/button";
 import { ECOSYSTEMS, SPONSORS } from "@/lib/brands";
 import { CURATED } from "@/lib/logos";
@@ -131,6 +132,9 @@ export default function Home() {
               removes or renames, edits the lines that use it, and proves the result with the checks you
               already trust.
             </p>
+            <Link href="/docs/guide/how-it-works" className="w-fit text-sm text-link hover:underline">
+              How Teire works, step by step
+            </Link>
           </div>
           <ol className="grid gap-px overflow-hidden rounded-lg bg-border shadow-card md:grid-cols-5">
             {STEPS.map((s, i) => (
@@ -159,10 +163,18 @@ export default function Home() {
           </p>
           <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border shadow-card sm:grid-cols-3">
             {Object.entries(ECOSYSTEMS).map(([key, e]) => (
-              <li key={key} className="flex flex-col gap-2 bg-card p-4">
-                <BrandLogo light={e.light} dark={e.dark} alt="" className="h-6" />
-                <span className="text-sm font-medium">{e.label}</span>
-                <span className="font-mono text-xs text-muted-foreground">{e.reads}</span>
+              <li key={key} className="bg-card">
+                <Link
+                  href={`/docs/ecosystems/${key}`}
+                  className="flex h-full flex-col gap-2 p-4 transition-colors hover:bg-accent"
+                >
+                  <span className="flex items-start justify-between">
+                    <BrandLogo light={e.light} dark={e.dark} alt="" className="h-6" />
+                    <RowChevron />
+                  </span>
+                  <span className="text-sm font-medium">{e.label}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{e.reads}</span>
+                </Link>
               </li>
             ))}
           </ul>
@@ -177,15 +189,20 @@ export default function Home() {
             <p className="mb-4 text-xs text-muted-foreground">Readers built for their change pages</p>
             <ul className="flex flex-wrap items-center gap-x-6 gap-y-4">
               {CURATED.map((p) => (
-                <li key={p.slug} className="flex items-center gap-2 text-sm">
-                  <BrandLogo light={p.light} dark={p.dark} alt="" className="h-5" />
-                  {p.name}
+                <li key={p.slug}>
+                  <Link href={`/providers/${p.slug}`} className="flex items-center gap-2 text-sm">
+                    <BrandLogo light={p.light} dark={p.dark} alt="" className="h-5" />
+                    <span className="entity-link">{p.name}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
             <p className="mt-5 border-t pt-4 text-sm text-muted-foreground">
               Any other API host in your code or your SDKs is discovered from the code itself, and its notices
-              are read by Nemotron the same way.
+              are read by Nemotron the same way.{" "}
+              <Link href="/docs/ecosystems/providers" className="text-link hover:underline">
+                How providers are read
+              </Link>
             </p>
           </div>
         </div>
@@ -201,6 +218,9 @@ export default function Home() {
               Nemotron 3 Ultra reads every change page and writes every fix; Nemotron 3 Super steps in only
               while Ultra is unavailable. Each call, its tokens and its cost appear on the run&apos;s receipt.
             </p>
+            <Link href="/docs/nemotron" className="w-fit text-sm text-link hover:underline">
+              What Nemotron does in Teire
+            </Link>
             <div className="flex flex-wrap items-center gap-8 pt-2">
               <BrandLogo
                 light={SPONSORS.nvidia.light}
@@ -223,8 +243,11 @@ export default function Home() {
             </div>
           </div>
           <div className="overflow-hidden rounded-lg bg-card shadow-card">
-            <div className="flex gap-1 border-b px-3 py-2 font-mono text-xs text-muted-foreground">
+            <div className="flex justify-between gap-1 border-b px-3 py-2 font-mono text-xs text-muted-foreground">
               <span>terminal</span>
+              <Link href="/docs/build/cli" className="text-link hover:underline">
+                CLI and MCP docs
+              </Link>
             </div>
             <pre className="overflow-x-auto px-4 py-3 font-mono text-xs leading-6">
               <span className="text-muted-foreground"># the same scan, on your machine</span>
