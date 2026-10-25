@@ -46,9 +46,10 @@ export interface AgentResult {
 }
 
 const NEVER_EDIT =
-  /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|yarn\.lock|bun\.lockb?|\.npmrc|\.yarnrc\.yml|tsconfig[^/]*\.json|[^/]*\.config\.[cm]?[jt]s|\.github\/.*|\.env[^/]*|pyproject\.toml|uv\.lock|poetry\.lock|Pipfile(\.lock)?|pylock[^/]*\.toml|requirements[^/]*\.(txt|in)|setup\.(py|cfg)|tox\.ini|noxfile\.py|mypy\.ini|pytest\.ini|go\.(mod|sum|work)|Cargo\.(toml|lock)|rust-toolchain(\.toml)?|\.cargo\/.*|Gemfile(\.lock)?|gems\.(rb|locked)|[^/]*\.gemspec|\.ruby-version|\.bundle\/.*|config\/(database|credentials)[^/]*\.yml)$/;
+  /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|yarn\.lock|bun\.lockb?|\.npmrc|\.yarnrc\.yml|tsconfig[^/]*\.json|[^/]*\.config\.[cm]?[jt]s|\.github\/.*|\.env[^/]*|pyproject\.toml|uv\.lock|poetry\.lock|Pipfile(\.lock)?|pylock[^/]*\.toml|requirements[^/]*\.(txt|in)|setup\.(py|cfg)|tox\.ini|noxfile\.py|mypy\.ini|pytest\.ini|go\.(mod|sum|work)|Cargo\.(toml|lock)|rust-toolchain(\.toml)?|\.cargo\/.*|Gemfile(\.lock)?|gems\.(rb|locked)|[^/]*\.gemspec|\.ruby-version|\.bundle\/.*|config\/(database|credentials)[^/]*\.yml|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties|gradle\.lockfile|libs\.versions\.toml|gradle\/wrapper\/.*|\.mvn\/.*|mvnw(\.cmd)?|gradlew(\.bat)?)$/;
 const NEVER_READ = /(^|\/)(\.env[^/]*|\.git\/.*|node_modules\/.*|[^/]*\.(pem|key|p12))$/;
-const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md|py|pyi|toml|cfg|ini|go|rs|rb|rake|ru|erb|yml)$/;
+const SOURCE =
+  /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md|py|pyi|toml|cfg|ini|go|rs|rb|rake|ru|erb|yml|java|kt|kts|xml|gradle|properties)$/;
 
 function safePath(repoDir: string, path: string) {
   const rel = normalize(path).split(sep).join("/").replace(/^\.\//, "");
@@ -60,7 +61,8 @@ function safePath(repoDir: string, path: string) {
 export function filesNamed(output: string) {
   const out = new Set<string>();
   for (const m of output.matchAll(
-    /(?:^|\s|-->\s?)((?:[\w.-]+\/)*[\w.-]+\.(?:[cm]?[jt]sx?|py|go|rs|rb|java|kt))(?:\(\d+,\d+\)|:\d+(?::\d+)?)/gm,
+    // `src/a.ts(5,57)`, `--> src/lib.rs:3:11`, javac `/work/src/A.java:[37,19]`, kotlinc `file:///work/src/B.kt:12:30`.
+    /(?:^|\s|-->\s?|file:\/\/)(?:\/work\/)?((?:[\w.-]+\/)*[\w.-]+\.(?:[cm]?[jt]sx?|py|go|rs|rb|java|kt))(?:\(\d+,\d+\)|:\[\d+,\d+\]|:\d+(?::\d+)?)/gm,
   ))
     if (m[1] && !/node_modules|site-packages|\.venv\//.test(m[1])) out.add(m[1]);
   // Python tracebacks: File "/work/app/llm.py", line 13

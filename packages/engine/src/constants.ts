@@ -262,6 +262,8 @@ export const JVM = {
     "https://repo1.maven.org/maven2/com/github/siom79/japicmp/japicmp/0.26.3/japicmp-0.26.3-jar-with-dependencies.jar",
   japicmpSha1: "2452e6844f44657acd680656f78641205001bca0",
   japicmpTimeoutMs: 180_000,
+  /** The fix agent's `lookup_docs` answer (API changes + the target's sources jar). */
+  docsLookupMaxChars: 7000,
   maxJarBytes: 128 * 1024 * 1024,
   /** Central first, then Google's mirror of it (Sonatype rate-limits shared egress with 429s). */
   mavenMirrors: [
@@ -276,6 +278,9 @@ export const SANDBOX = {
   tokenTtlSeconds: 15 * 60,
   /** One HTTP call to the service (start includes the tarball fetch). */
   requestTimeoutMs: 6 * 60 * 1000,
+  /** Calls to the service retried on Cloudflare's transient Durable Object errors and dropped connections. */
+  requestAttempts: 3,
+  retryBackoffMs: 1500,
   /** How often a running job is polled for status and new log bytes. */
   pollIntervalMs: 2000,
 } as const;

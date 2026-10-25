@@ -2,6 +2,7 @@ export * from "./archive";
 export * from "./go";
 export * from "./js";
 export * from "./js-policy";
+export * from "./jvm";
 export * from "./osv";
 export * from "./python";
 export * from "./repo";

@@ -61,6 +61,9 @@ export function signSandboxToken(key: string, sid: string, ttlSeconds: number = 
   return `${expiry}.${signature}`;
 }
 
+const SANDBOX_RETRYABLE =
+  /no longer active|Reconnect or retry|Network connection lost|internal error|Durable Object reset/i;
+
 export class CloudflareSandbox {
   readonly #config: SandboxServiceConfig;
   readonly sid: string;
@@ -82,18 +85,37 @@ export class CloudflareSandbox {
       payload = JSON.stringify(body);
       headers["content-type"] = "application/json";
     }
-    const response = await fetch(`${this.#config.baseUrl}/v1/sandboxes/${this.sid}${path}`, {
-      method,
-      headers,
-      body: payload,
-      signal: AbortSignal.timeout(SANDBOX.requestTimeoutMs),
-    });
-    if (!raw && !response.ok) {
-      throw new Error(
-        `sandbox ${method} ${path || "/"} → ${response.status}: ${(await response.text()).slice(0, 500)}`,
-      );
+    // Cloudflare says when a Durable Object call may simply be repeated ("Reconnect or retry the
+    // request"); those and dropped connections are retried, never a container that stopped.
+    for (let attempt = 1; ; attempt++) {
+      let response: Response;
+      try {
+        response = await fetch(`${this.#config.baseUrl}/v1/sandboxes/${this.sid}${path}`, {
+          method,
+          headers,
+          body: payload,
+          signal: AbortSignal.timeout(SANDBOX.requestTimeoutMs),
+        });
+      } catch (error) {
+        const transient =
+          error instanceof TypeError ||
+          /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|socket/i.test(String(error));
+        if (transient && attempt < SANDBOX.requestAttempts) {
+          await new Promise((r) => setTimeout(r, SANDBOX.retryBackoffMs * attempt));
+          continue;
+        }
+        throw error;
+      }
+      if (!raw && !response.ok) {
+        const text = (await response.text()).slice(0, 500);
+        if (response.status >= 500 && SANDBOX_RETRYABLE.test(text) && attempt < SANDBOX.requestAttempts) {
+          await new Promise((r) => setTimeout(r, SANDBOX.retryBackoffMs * attempt));
+          continue;
+        }
+        throw new Error(`sandbox ${method} ${path || "/"} → ${response.status}: ${text}`);
+      }
+      return response;
     }
-    return response;
   }
 
   async #json<T>(method: string, path: string, body?: unknown): Promise<T> {

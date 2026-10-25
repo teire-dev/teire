@@ -122,6 +122,22 @@ export function countsFromOutput(output: string): TestCounts | null {
     const errors = (text.match(/^error: could not compile/gm) ?? []).length;
     return { collected: passed + failed + skipped, passed, failed, skipped, errors };
   }
+  // Maven surefire/failsafe: one summary per module ("Tests run: 5, Failures: 0, Errors: 0, Skipped: 0"
+  // without "Time elapsed", which the per-class lines carry).
+  const surefire = [
+    ...text.matchAll(/^\[\w+\] Tests run: (\d+), Failures: (\d+), Errors: (\d+), Skipped: (\d+)\s*$/gm),
+  ];
+  if (surefire.length) {
+    const sum = (i: number) => surefire.reduce((n, m) => n + Number(m[i] ?? 0), 0);
+    const [collected, failed, errors, skipped] = [sum(1), sum(2), sum(3), sum(4)];
+    return { collected, passed: collected - failed - errors - skipped, failed, skipped, errors };
+  }
+  // Gradle, through Teire's init script: "TEIRE-TESTS total=5 passed=4 failed=1 skipped=0" per Test task.
+  const gradle = [...text.matchAll(/^TEIRE-TESTS total=(\d+) passed=(\d+) failed=(\d+) skipped=(\d+)$/gm)];
+  if (gradle.length) {
+    const sum = (i: number) => gradle.reduce((n, m) => n + Number(m[i] ?? 0), 0);
+    return { collected: sum(1), passed: sum(2), failed: sum(3), skipped: sum(4), errors: 0 };
+  }
   // RSpec: "12 examples, 1 failure, 2 pending" (+ "1 error occurred outside of examples").
   const rspec = [
     ...text.matchAll(

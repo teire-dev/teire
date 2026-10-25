@@ -49,6 +49,8 @@ export const REGISTRY_HOSTS = new Set([
   "static.crates.io",
   "crates.io",
   "static.rust-lang.org",
+  // JDKs a JVM repo needs beyond the image's 17/21/25 (Temurin; the binaries come from github.com)
+  "api.adoptium.net",
   // Ruby
   "rubygems.org",
   "index.rubygems.org",

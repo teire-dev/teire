@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# The JVM sandbox's helper (plan S08, research jvm.md Jobs 7 and 8).
+#   teire-jvm warmup maven|gradle         install phase: the JDK, then the repo's real build online
+#                                         with failures ignored; fails only if dependencies do not resolve
+#   teire-jvm maven ARGS...               ./mvnw or mvn in batch mode on the repo's JDK
+#   teire-jvm gradle ARGS...              ./gradlew or gradle with Teire's init script
+#   teire-jvm lock-gradle G:A PROJECT...  `PROJECT:dependencies --update-locks G:A` per locked project
+# Inputs from the plan's environment: TEIRE_JDK (major version).
+set -uo pipefail
+JDK="${TEIRE_JDK:-21}"
+[[ "$JDK" =~ ^[0-9]+$ ]] || { echo "teire-jvm: bad TEIRE_JDK"; exit 2; }
+INSTALLS="$(ls -d /opt/jdk/* | paste -sd, -)"
+
+# The sandbox signs intercepted HTTPS with its own CA, which it adds to the system store; Java keeps
+# a separate truststore, so every JVM here gets one with that CA added.
+trust_sandbox_ca() {
+  local ca=/etc/cloudflare/certs/cloudflare-containers-ca.crt store=/tmp/teire-cacerts
+  [ -f "$ca" ] || return 0
+  if [ ! -f "$store" ]; then
+    cp /opt/jdk/21/lib/security/cacerts "$store" && chmod u+w "$store"
+    /opt/jdk/21/bin/keytool -importcert -noprompt -alias cloudflare-containers -file "$ca" \
+      -keystore "$store" -storepass changeit >/dev/null 2>&1 || { rm -f "$store"; return 0; }
+  fi
+  export JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=$store -Djavax.net.ssl.trustStorePassword=changeit ${JAVA_TOOL_OPTIONS:-}"
+}
+trust_sandbox_ca
+
+ensure_jdk() {
+  [ -x "/opt/jdk/$1/bin/java" ] && return 0
+  echo "teire-jvm: fetching Temurin $1"
+  local meta url sum
+  meta="$(curl -fsSL "https://api.adoptium.net/v3/assets/latest/$1/hotspot?architecture=x64&image_type=jdk&os=linux&vendor=eclipse")" || return 3
+  url="$(jq -r '.[0].binary.package.link' <<<"$meta")"; sum="$(jq -r '.[0].binary.package.checksum' <<<"$meta")"
+  curl -fsSL -o "/tmp/jdk$1.tgz" "$url" && echo "$sum  /tmp/jdk$1.tgz" | sha256sum -c - >/dev/null || return 3
+  mkdir -p "/opt/jdk/$1" && tar -xzf "/tmp/jdk$1.tgz" -C "/opt/jdk/$1" --strip-components=1 && rm "/tmp/jdk$1.tgz"
+  INSTALLS="$(ls -d /opt/jdk/* | paste -sd, -)"
+}
+
+maven() {
+  local mvn=mvn
+  [ -x ./mvnw ] && mvn=./mvnw
+  JAVA_HOME="/opt/jdk/$JDK" PATH="/opt/jdk/$JDK/bin:$PATH" "$mvn" -B -ntp -Dstyle.color=never -Dgpg.skip=true "$@"
+}
+
+gradle_cmd() {
+  local g=gradle runtime=21 v
+  if [ -x ./gradlew ]; then
+    g=./gradlew
+    # Gradle below 8.5 cannot run on JDK 21 (compatibility matrix): run it on 17.
+    v="$(grep -o 'gradle-[0-9][0-9.]*' gradle/wrapper/gradle-wrapper.properties 2>/dev/null | head -1 | cut -d- -f2)"
+    if [ -n "$v" ] && [ "$(printf '%s\n8.5\n' "$v" | sort -V | head -1)" != "8.5" ]; then runtime=17; fi
+  fi
+  JAVA_HOME="/opt/jdk/$runtime" PATH="/opt/jdk/$runtime/bin:$PATH" "$g" --no-daemon --console=plain --no-configuration-cache \
+    -I /usr/local/share/teire/teire.init.gradle \
+    "-Dorg.gradle.java.installations.paths=$INSTALLS" -Dorg.gradle.java.installations.auto-download=false "$@"
+}
+
+resolution_failed() {
+  grep -E "Could not resolve dependencies|Could not transfer artifact|Non-resolvable (parent|import)|Plugin .* could not be resolved|Could not resolve all (files|dependencies)|Could not find [a-z0-9.-]+:|teire: could not resolve|PKIX path building failed|SSLHandshakeException|Could not install Gradle distribution|UnknownHostException|Exception in thread \"main\"" "$1"
+}
+
+case "${1:-}" in
+  warmup)
+    ensure_jdk "$JDK" || { echo "teire-jvm: JDK $JDK could not be installed"; exit 3; }
+    log=/tmp/teire-warmup.log
+    if [ "${2:-}" = maven ]; then
+      # Compile errors must not stop the warm-up: surefire's provider downloads only when tests run.
+      maven -fae -Dmaven.compiler.failOnError=false -Dmaven.test.failure.ignore=true verify >"$log" 2>&1
+    else
+      gradle_cmd --continue teireResolveAll test >"$log" 2>&1
+    fi
+    tail -40 "$log"
+    # Outputs of a build that ignored failures must not stand in for the checks' own compile.
+    find . -type d \( -name target -o -name build \) -prune -not -path "*/src/*" -exec rm -rf {} + 2>/dev/null
+    if resolution_failed "$log" >/dev/null; then echo "teire-jvm: dependency resolution failed:"; resolution_failed "$log" | head -20; exit 1; fi
+    ;;
+  maven) shift; maven "$@" ;;
+  gradle) shift; gradle_cmd "$@" ;;
+  lock-gradle)
+    ga="${2:?G:A}"; shift 2
+    [[ "$ga" =~ ^[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$ ]] || { echo "teire-jvm: bad module"; exit 2; }
+    for p in "$@"; do
+      [[ "$p" =~ ^:?[A-Za-z0-9_.:-]*$ ]] || { echo "teire-jvm: bad project"; exit 2; }
+      task="${p%:}:dependencies"; [ "$p" = ":" ] && task="dependencies"
+      gradle_cmd -q "$task" --update-locks "$ga" || exit $?
+    done
+    ;;
+  *) echo "usage: teire-jvm warmup maven|gradle | maven ARGS | gradle ARGS | lock-gradle G:A PROJECT..."; exit 2 ;;
+esac

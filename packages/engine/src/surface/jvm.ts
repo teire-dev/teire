@@ -204,6 +204,15 @@ export function classesLosingMembers(xmlText: string) {
     .map((c) => attr(c, "fullyQualifiedName"));
 }
 
+/** Method names a report shows alive in the new version (any class). */
+export function liveMethodNames(xmlText: string) {
+  const names = new Set<string>();
+  for (const c of classesOf(parseXml(xmlText)))
+    for (const m of list((c.methods as X | undefined)?.method))
+      if (attr(m, "changeStatus") !== "REMOVED") names.add(attr(m, "name").replace(/^-deprecated_/, ""));
+  return names;
+}
+
 /** Every surviving method (`Class#name` → parameter lists) of a full report on selected classes. */
 export function memberIndex(xmlText: string) {
   const index = new Map<string, string[][]>();
@@ -231,7 +240,8 @@ export function parseJapicmp(xmlText: string, members: Map<string, string[][]> =
     const cls = attr(c, "fullyQualifiedName");
     if (!cls || /\$\d+$/.test(cls)) continue;
     const status = attr(c, "changeStatus");
-    if (status === "NEW") continue;
+    // A new class matters only for its Kotlin errors (a Kotlin companion replacing Java statics).
+    if (status === "NEW" && !/\$Companion$/.test(cls)) continue;
     // Kotlin calls a companion's members on the class itself (`HttpUrl.parse`).
     const owner = cls.replace(/\$Companion$/, "");
     if (status === "REMOVED") {
@@ -308,7 +318,7 @@ export function parseJapicmp(xmlText: string, members: Map<string, string[][]> =
         }
         continue;
       }
-      if (!name || INTERNAL_MEMBER.test(name)) continue;
+      if (!name || INTERNAL_MEMBER.test(name) || status === "NEW") continue;
       const sig = `${display(owner)}.${name}(${params(m).join(", ")})`;
       const key = `${owner}#${name}`;
       if (
@@ -450,6 +460,7 @@ export async function jvmSurfaceDiff(name: string, from: string, to: string): Pr
   const notes: string[] = [];
   let changes: SurfaceChange[] = [];
   let unanalyzable = false;
+  let kept: string[] = [];
   const scratch = await mkdtemp(join(tmpdir(), "teire-jar-"));
   try {
     const [a, b] = await Promise.all([jarOf(name, from), jarOf(name, to)]);
@@ -479,6 +490,12 @@ export async function jvmSurfaceDiff(name: string, from: string, to: string): Pr
       members = memberIndex(await readFile(join(scratch, "members.xml"), "utf8"));
     }
     changes = parseJapicmp(report, members);
+    kept = [
+      ...new Set([
+        ...liveMethodNames(report),
+        ...[...members.keys()].map((k) => k.slice(k.indexOf("#") + 1)),
+      ]),
+    ];
     notes.push(
       `japicmp ${JVM.japicmpVersion} on ${a.artifact === b.artifact ? a.artifact : `${a.artifact}/${b.artifact}`} bytecode (internal/impl/shaded packages excluded; missing optional classes ignored)`,
     );
@@ -509,6 +526,7 @@ export async function jvmSurfaceDiff(name: string, from: string, to: string): Pr
     moved: {},
     unanalyzable,
     notes,
+    keptMethodNames: kept,
     tool: { name: "japicmp", version: JVM.japicmpVersion, noiseFilterVersion: SURFACE.noiseFilterVersion },
   };
 }

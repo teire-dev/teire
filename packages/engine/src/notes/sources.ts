@@ -9,6 +9,7 @@ import { gemVersions } from "../registry/rubygems";
 import {
   cargoScheme,
   goScheme,
+  mavenScheme,
   npmScheme,
   pypiScheme,
   rubygemsScheme,
@@ -148,7 +149,16 @@ async function gatherRepoNotes(input: {
 }) {
   const { repo, sources, notes, checkedAt, options, scheme, from, to } = input;
   const base = input.directory ? `${input.directory.replace(/\/$/, "")}/` : "";
-  const tags = [`v${to}`, to, `${input.name}@${to}`, `${input.name}-${to}`, `${input.name}==${to}`];
+  // `parent-5.5.0` and `release-…` are common on the JVM (research jvm.md Job 3).
+  const tags = [
+    `v${to}`,
+    to,
+    `${input.name}@${to}`,
+    `${input.name}-${to}`,
+    `${input.name}==${to}`,
+    `parent-${to}`,
+    `release-${to}`,
+  ];
   const atTag = async (path: string) => {
     for (const tag of tags) {
       const res = await github(
@@ -180,9 +190,20 @@ async function gatherRepoNotes(input: {
       break;
     }
 
+  // No tag spelling matched: the default branch's changelog, sliced to the range, still says it.
+  const atTagOrHead = async (path: string) => {
+    const tagged = await atTag(path);
+    if (tagged) return tagged;
+    const res = await github(`/repos/${repo.owner}/${repo.repo}/contents/${base}${path}`, options).catch(
+      () => null,
+    );
+    return res?.status === 200
+      ? { text: res.text(), url: `https://github.com/${repo.owner}/${repo.repo}/blob/HEAD/${base}${path}` }
+      : null;
+  };
   if (!sources.some((s) => s.kind === "changelog"))
     for (const path of REPO_CHANGELOGS) {
-      const found = await atTag(path);
+      const found = await atTagOrHead(path);
       if (!found) continue;
       sources.push({
         kind: "changelog",
@@ -360,6 +381,58 @@ export async function gatherRubyNotes(name: string, from: string, to: string, op
     scheme: rubygemsScheme,
     repo,
     directory: file?.includes("/") ? file.slice(0, file.lastIndexOf("/")) : "",
+    sources,
+    notes,
+    checkedAt,
+    options,
+  });
+  return { sources, notes };
+}
+
+/**
+ * A Maven artifact's notes (plan S08, research jvm.md Job 3): the repository from deps.dev's
+ * SOURCE_REPO link, else the POM's `<scm><url>`; tags carry the release without a flavor
+ * (`33.7.2-jre` is tagged `v33.7.2`), and GitHub follows a moved repository's redirect.
+ */
+export async function gatherJvmNotes(name: string, from: string, to: string, options: NotesOptions) {
+  const checkedAt = new Date().toISOString();
+  const sources: NoteSource[] = [];
+  const notes: string[] = [];
+  const [group, artifact] = name.split(":") as [string, string];
+  let repoUrl: string | null = null;
+  try {
+    const res = await guardedFetch(
+      `https://api.deps.dev/v3/systems/maven/packages/${encodeURIComponent(name)}/versions/${encodeURIComponent(to)}`,
+      { allowHosts: ["api.deps.dev"] },
+    );
+    if (res.status === 200)
+      repoUrl =
+        res
+          .json<{ links?: { label?: string; url?: string }[] }>()
+          .links?.find((l) => l.label === "SOURCE_REPO")?.url ?? null;
+  } catch {
+    // The POM below.
+  }
+  if (!githubRepoOf(repoUrl)) {
+    const pom = await guardedFetch(
+      `https://repo1.maven.org/maven2/${group.replace(/\./g, "/")}/${artifact}/${to}/${artifact}-${to}.pom`,
+      { allowHosts: ["repo1.maven.org"] },
+    ).catch(() => null);
+    if (pom?.status === 200)
+      repoUrl = /<scm>[\s\S]*?<url>\s*([^<]+?)\s*<\/url>/.exec(pom.text())?.[1] ?? null;
+  }
+  const repo = githubRepoOf(repoUrl);
+  if (!repo) {
+    notes.push("no GitHub repository in deps.dev or the POM");
+    return { sources, notes };
+  }
+  await gatherRepoNotes({
+    name: artifact,
+    from,
+    to: to.replace(/-(?:jre|android|jdk\d*|java\d*)$/i, ""),
+    scheme: mavenScheme,
+    repo,
+    directory: "",
     sources,
     notes,
     checkedAt,

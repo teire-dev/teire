@@ -1,0 +1,23 @@
+// Teire's Gradle init script (plan S08): one test summary line per Test task, and a task that
+// resolves every resolvable configuration, so the online warm-up downloads what offline checks need.
+allprojects { p ->
+  p.tasks.withType(Test).configureEach { t ->
+    t.addTestListener(new TestListener() {
+      void beforeSuite(TestDescriptor d) {}
+      void afterSuite(TestDescriptor d, TestResult r) {
+        if (d.parent == null)
+          println "TEIRE-TESTS total=${r.testCount} passed=${r.successfulTestCount} failed=${r.failedTestCount} skipped=${r.skippedTestCount}"
+      }
+      void beforeTest(TestDescriptor d) {}
+      void afterTest(TestDescriptor d, TestResult r) {}
+    })
+  }
+  p.tasks.register("teireResolveAll") {
+    notCompatibleWithConfigurationCache("resolves configurations at execution time")
+    doLast {
+      p.configurations.findAll { it.canBeResolved }.each { c ->
+        try { c.resolve() } catch (e) { println "teire: could not resolve ${p.path}:${c.name}: ${e.message?.readLines()?.first()}" }
+      }
+    }
+  }
+}

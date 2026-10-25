@@ -1,7 +1,8 @@
 import { and, type Database, eq, extractionCache, registryCache, surfaceDiffs } from "@teire/db";
-import { GO, PYTHON, RUBY, RUST, SURFACE } from "@teire/engine/constants";
+import { GO, JVM, PYTHON, RUBY, RUST, SURFACE } from "@teire/engine/constants";
 import type { RegistryCache } from "@teire/engine/registry";
 import {
+  jvmSurfaceDiff,
   type NpmSurfaceOptions,
   npmSurfaceDiff,
   pypiSurfaceDiff,
@@ -49,7 +50,7 @@ export function postgresRegistryCache(db: Database): RegistryCache {
  */
 export async function cachedSurfaceDiff(
   db: Database,
-  ecosystem: "npm" | "pypi" | "go" | "cargo" | "rubygems",
+  ecosystem: "npm" | "pypi" | "go" | "cargo" | "rubygems" | "maven",
   name: string,
   fromVersion: string,
   toVersion: string,
@@ -66,7 +67,9 @@ export async function cachedSurfaceDiff(
           ? { name: "cargo-semver-checks", version: RUST.semverChecksVersion }
           : ecosystem === "rubygems"
             ? { name: "teire-prism-surface", version: RUBY.extractorVersion }
-            : { name: SURFACE.tool, version: SURFACE.toolVersion };
+            : ecosystem === "maven"
+              ? { name: "japicmp", version: JVM.japicmpVersion }
+              : { name: SURFACE.tool, version: SURFACE.toolVersion };
   const key = and(
     eq(surfaceDiffs.ecosystem, ecosystem),
     eq(surfaceDiffs.name, name),
@@ -85,7 +88,9 @@ export async function cachedSurfaceDiff(
       ? await pypiSurfaceDiff(name, fromVersion, toVersion, options)
       : ecosystem === "rubygems"
         ? await rubySurfaceDiff(name, fromVersion, toVersion)
-        : await npmSurfaceDiff(name, fromVersion, toVersion, options);
+        : ecosystem === "maven"
+          ? await jvmSurfaceDiff(name, fromVersion, toVersion)
+          : await npmSurfaceDiff(name, fromVersion, toVersion, options);
   // A Go diff that could not be computed (a private module, a toolchain error) is not cached.
   if (diff.unanalyzable) return diff;
   await db

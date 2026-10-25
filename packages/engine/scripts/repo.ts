@@ -9,6 +9,7 @@
  */
 import { readTeireConfig } from "../src/config";
 import { directoryTree, fetchRepoTarball } from "../src/inventory";
+import type { JvmProject } from "../src/inventory/jvm";
 import type { PyProject } from "../src/inventory/python";
 import type { RubyProject } from "../src/inventory/ruby";
 import type { RustProject } from "../src/inventory/rust";
@@ -18,12 +19,14 @@ import {
   assessApiChanges,
   assessGoRepo,
   assessJsRepo,
+  assessJvmRepo,
   assessPyRepo,
   assessRubyRepo,
   assessRustRepo,
   fixApiChanges,
   fixGoDependency,
   fixJsDependency,
+  fixJvmDependency,
   fixPyDependency,
   fixRubyDependency,
   fixRustDependency,
@@ -57,14 +60,23 @@ const py = await assessPyRepo(checkout.dir, tree, options);
 const go = await assessGoRepo(checkout.dir, tree, options);
 const rust = await assessRustRepo(checkout.dir, tree, options);
 const ruby = await assessRubyRepo(checkout.dir, tree, options);
+const jvm = await assessJvmRepo(checkout.dir, tree, options);
 const all: Assessment<{ root: string; manager: string; instances: Assessment["instance"][] }>[] = [
   ...js.assessments,
   ...py.assessments,
   ...go.assessments,
   ...rust.assessments,
   ...ruby.assessments,
+  ...jvm.assessments,
 ];
-for (const p of [...js.projects, ...py.projects, ...go.projects, ...rust.projects, ...ruby.projects])
+for (const p of [
+  ...js.projects,
+  ...py.projects,
+  ...go.projects,
+  ...rust.projects,
+  ...ruby.projects,
+  ...jvm.projects,
+])
   log(
     `\n## ${p.root} (${p.manager}${p.lockfile ? `, ${p.lockfile}` : ""}): ${p.instances.filter((i) => i.direct).length} direct, ${p.instances.filter((i) => !i.direct).length} transitive`,
   );
@@ -114,7 +126,9 @@ if (fixName) {
           ? await fixRustDependency({ ...common, assessment: target as unknown as Assessment<RustProject> })
           : target.instance.ecosystem === "rubygems"
             ? await fixRubyDependency({ ...common, assessment: target as unknown as Assessment<RubyProject> })
-            : await fixJsDependency({ ...common, assessment: target as unknown as Assessment });
+            : target.instance.ecosystem === "maven"
+              ? await fixJvmDependency({ ...common, assessment: target as unknown as Assessment<JvmProject> })
+              : await fixJsDependency({ ...common, assessment: target as unknown as Assessment });
   const run = result.run;
   log("\n## Diff");
   for (const m of run.manifest) log(`  ${m.path}: ${m.from} → ${m.to}`);
@@ -127,7 +141,10 @@ if (fixName) {
       : "—";
   };
   for (const side of [run.baseline, run.after])
-    if (!side.install.ok) log(`\n  ${side.side} install failed (exit ${side.install.exitCode}):\n${side.install.output.slice(-2500)}`);
+    if (!side.install.ok)
+      log(
+        `\n  ${side.side} install failed (exit ${side.install.exitCode}):\n${side.install.output.slice(-2500)}`,
+      );
   log("  | check | baseline | after |");
   for (const name of ["typecheck", "build", "test"])
     if (run.baseline.checks.some((k) => k.name === name))

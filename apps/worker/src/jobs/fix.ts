@@ -9,7 +9,7 @@ import {
   openOrUpdatePullRequest,
   publishCheckRun,
 } from "@teire/engine/github";
-import type { PyProject, RepoTree, RubyProject, RustProject } from "@teire/engine/inventory";
+import type { JvmProject, PyProject, RepoTree, RubyProject, RustProject } from "@teire/engine/inventory";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
 import {
@@ -18,12 +18,14 @@ import {
   assessApiChanges,
   assessGoRepo,
   assessJsRepo,
+  assessJvmRepo,
   assessPyRepo,
   assessRubyRepo,
   assessRustRepo,
   fixApiChanges,
   fixGoDependency,
   fixJsDependency,
+  fixJvmDependency,
   fixPyDependency,
   fixRubyDependency,
   fixRustDependency,
@@ -80,7 +82,9 @@ async function packageOutcome(
           ? "cargo"
           : head === "gem"
             ? "rubygems"
-            : "npm";
+            : head === "maven"
+              ? "maven"
+              : "npm";
   const packageName = run.groupKey.split("/").slice(1, -1).join("/");
   const cache = postgresRegistryCache(ctx.db);
   const assessOptions = {
@@ -112,7 +116,9 @@ async function packageOutcome(
             })
           : ecosystem === "rubygems"
             ? await assessRubyRepo(repoDir, tree, assessOptions)
-            : await assessJsRepo(repoDir, tree, assessOptions);
+            : ecosystem === "maven"
+              ? await assessJvmRepo(repoDir, tree, assessOptions)
+              : await assessJsRepo(repoDir, tree, assessOptions);
   const assessment = (assessments as Assessment<AssessedProject>[]).find(
     (a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion,
   );
@@ -132,7 +138,12 @@ async function packageOutcome(
                 ...common,
                 assessment: assessment as unknown as Assessment<RubyProject>,
               })
-            : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
+            : ecosystem === "maven"
+              ? await fixJvmDependency({
+                  ...common,
+                  assessment: assessment as unknown as Assessment<JvmProject>,
+                })
+              : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
   return {
     fix: result.run,
     pr: result.pr,

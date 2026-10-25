@@ -6,6 +6,7 @@ export {
   resolveSubpath,
 } from "./entries";
 export { goSurfaceDiff } from "./go";
+export { jvmSurfaceDiff } from "./jvm";
 export { exportsOnlySurface } from "./lexer";
 export { type NpmSurfaceOptions, npmSurface, npmSurfaceDiff, npmTypesLayout } from "./npm";
 export { type FetchedPackage, fetchNpmPackage, IntegrityError, verifyIntegrity } from "./npm-package";

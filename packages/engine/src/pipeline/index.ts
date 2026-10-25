@@ -1,6 +1,7 @@
 export * from "./api";
 export * from "./go";
 export * from "./js";
+export * from "./jvm";
 export * from "./python";
 export * from "./ruby";
 export * from "./runtimes";

@@ -56,6 +56,14 @@ RUN curl -fsSL -o /tmp/csc.tar.gz \
   && echo "${CSC_SHA256}  /tmp/csc.tar.gz" | sha256sum -c - \
   && tar -xzf /tmp/csc.tar.gz -C /usr/local/bin cargo-semver-checks \
   && rm /tmp/csc.tar.gz && cargo-semver-checks --version
+# JVM API-surface diff (plan S08): japicmp reads both published jars' bytecode on a JRE; no library
+# code runs. Temurin 21's JRE copied from the official image; japicmp pinned by Central's SHA-1.
+COPY --from=docker.io/library/eclipse-temurin:21-jre-noble /opt/java/openjdk /opt/java/openjdk
+ARG JAPICMP_SHA1=2452e6844f44657acd680656f78641205001bca0
+RUN mkdir -p /app/helpers && curl -fsSL -o /app/helpers/japicmp.jar \
+    https://repo1.maven.org/maven2/com/github/siom79/japicmp/japicmp/0.26.3/japicmp-0.26.3-jar-with-dependencies.jar \
+  && echo "${JAPICMP_SHA1}  /app/helpers/japicmp.jar" | sha1sum -c - \
+  && /opt/java/openjdk/bin/java -version
 # Python for Teire's helper (plan S03): uv-managed CPython 3.12 and a venv with the pinned readers.
 # The helper reads manifests, wheels and source; it never imports or runs a repo's code.
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /usr/local/bin/
@@ -81,6 +89,8 @@ ENV NODE_ENV=production \
     TEIRE_GOVULNCHECK=/app/helpers/govulncheck \
     TEIRE_CARGO_SEMVER_CHECKS=/usr/local/bin/cargo-semver-checks \
     TEIRE_GO_CACHE=/var/cache/teire-go \
+    TEIRE_JAVA=/opt/java/openjdk/bin/java \
+    TEIRE_JAPICMP_JAR=/app/helpers/japicmp.jar \
     UV_PYTHON_DOWNLOADS=never
 COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
