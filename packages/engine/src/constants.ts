@@ -218,6 +218,19 @@ export const GO = {
   sandboxGo: "1.27.2",
 } as const;
 
+/** Rust (plan S06, research generic/rust.md). */
+export const RUST = {
+  /** crates.io asks every client to identify itself (403 without a User-Agent). */
+  userAgent: "TeireBot/0.1 (+https://teire.vercel.app; dependency upgrades)",
+  semverChecksVersion: "0.51.0",
+  /** rustdoc JSON format versions cargo-semver-checks 0.51.0 reads ("supported formats are v57, v60, v61"). */
+  rustdocFormats: [57, 60, 61] as number[],
+  maxRustdocBytes: 256 * 1024 * 1024,
+  semverChecksTimeoutMs: 300_000,
+  /** The sandbox's stable toolchain; checks never let rustup install another (RUSTUP_AUTO_INSTALL=0). */
+  sandboxRust: "1.99.1",
+} as const;
+
 /** Teire's sandbox service (apps/sandbox). Timeouts are set from context/11-build-notes/sandbox-measurements.md. */
 export const SANDBOX = {
   /** Lifetime of a signed per-sandbox token. */

@@ -237,7 +237,11 @@ export async function runFix(input: FixInput): Promise<FixRun> {
 
   // 2. Baseline (once) and the after side's transaction and install, in parallel sandboxes.
   const open = (suffix: string) =>
-    input.backend.open(`${input.runId}-${suffix}`, { tarball: input.tarball, image: input.plan.image });
+    input.backend.open(`${input.runId}-${suffix}`, {
+      tarball: input.tarball,
+      image: input.plan.image,
+      ...(input.plan.instance ? { instance: input.plan.instance } : {}),
+    });
   const [base, after] = await Promise.all([open("base"), open("after")]);
   try {
     const log = (line: string) =>
@@ -263,6 +267,11 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       writeFileSync(join(input.repoDir, path), content);
       transactionFiles.add(path);
     }
+    // What each transaction file held when the transaction landed. A file edited after that (Go's
+    // import rewrite is part of the transaction, and the agent then fixes the same file) is code again:
+    // sent to the sandbox, reviewed, and listed as a change.
+    const landed = new Map([...transactionFiles].map((p) => [p, read(p)]));
+    const editedSince = (p: string) => transactionFiles.has(p) && read(p) !== landed.get(p);
     const lockfilePath = txn.applied.at(-1)?.lockfilePath ?? input.transaction.lockfilePath;
     const lockfile =
       lockfilePath && transactionFiles.has(lockfilePath)
@@ -304,7 +313,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         after: afterSide,
         manifest,
         lockfile,
-        transactionFiles: [...transactionFiles],
+        transactionFiles: [...transactionFiles].filter((p) => !editedSince(p)),
         files,
         codemods,
         attempts,
@@ -350,7 +359,9 @@ export async function runFix(input: FixInput): Promise<FixRun> {
 
     const changedContent = () =>
       Object.fromEntries(
-        [...originals.keys()].filter((p) => !transactionFiles.has(p)).map((p) => [p, read(p)]),
+        [...originals.keys()]
+          .filter((p) => !transactionFiles.has(p) || editedSince(p))
+          .map((p) => [p, read(p)]),
       );
     let lastAfter: SideResult = prepared;
     const verify = async (label: string) => {
@@ -378,7 +389,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     // The review of a passing fix (S03 evaluation: checks miss bypassed APIs and widened validators).
     const codePatch = () =>
       [...originals.entries()]
-        .filter(([path]) => !transactionFiles.has(path))
+        .filter(([path]) => !transactionFiles.has(path) || editedSince(path))
         .map(([path, before]) =>
           createTwoFilesPatch(`a/${path}`, `b/${path}`, before, read(path), "", "", { context: 3 }),
         )
@@ -403,8 +414,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         // Discard the failed plan: back to the state after the deterministic edits.
         for (const path of [...originals.keys()]) {
           const base = postCodemod.get(path) ?? originals.get(path);
-          if (base !== undefined && !transactionFiles.has(path))
-            writeFileSync(join(input.repoDir, path), base);
+          if (base !== undefined && read(path) !== base) writeFileSync(join(input.repoDir, path), base);
         }
         current = await verify("reset for a new plan");
         emit({

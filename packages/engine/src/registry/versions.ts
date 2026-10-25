@@ -82,7 +82,35 @@ export const goScheme: VersionScheme = {
   isRange: (range) => /^v\d/.test(range) && semver.valid(goSemver(range)) !== null,
 };
 
-const SCHEMES: Partial<Record<Ecosystem, VersionScheme>> = { npm: npmScheme, pypi: pypiScheme, go: goScheme };
+/**
+ * Cargo (doc.rust-lang.org/cargo/reference/specifying-dependencies.html): versions are semver;
+ * a requirement's bare version means caret (`"1.2"` = `^1.2`) and a comma means AND.
+ */
+export function cargoRange(req: string) {
+  return req
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => (/^\d/.test(part) ? `^${part}` : part.replace(/^=\s*/, "")))
+    .join(" ");
+}
+
+export const cargoScheme: VersionScheme = {
+  valid: (v) => semver.valid(v) !== null,
+  compare: (a, b) => semver.compare(a, b),
+  isPrerelease: (v) => (semver.prerelease(v)?.length ?? 0) > 0,
+  major: (v) => semver.major(v),
+  breaking: (from, to) => caretBreak(semverRelease(from), semverRelease(to)),
+  satisfies: (v, range) => semver.satisfies(v, cargoRange(range), { includePrerelease: false }),
+  isRange: (range) => semver.validRange(cargoRange(range)) !== null,
+};
+
+const SCHEMES: Partial<Record<Ecosystem, VersionScheme>> = {
+  npm: npmScheme,
+  pypi: pypiScheme,
+  go: goScheme,
+  cargo: cargoScheme,
+};
 
 export function versionScheme(ecosystem: Ecosystem): VersionScheme {
   const scheme = SCHEMES[ecosystem];

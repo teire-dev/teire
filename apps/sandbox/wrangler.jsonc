@@ -11,11 +11,12 @@
     {
       "class_name": "VerifySandbox",
       "scheduling_policy": "durable_object",
-      // One image per toolchain set (plan D60): Node (S02a), Python (S03), Go (S05); later stages add theirs.
+      // One image per toolchain set (plan D60): Node (S02a), Python (S03), Go (S05), Rust (S06); later stages add theirs.
       "images": {
         "node": { "dockerfile": "./images/node/Dockerfile" },
         "python": { "dockerfile": "./images/python/Dockerfile" },
-        "go": { "dockerfile": "./images/go/Dockerfile" }
+        "go": { "dockerfile": "./images/go/Dockerfile" },
+        "rust": { "dockerfile": "./images/rust/Dockerfile" }
       }
     }
   ],

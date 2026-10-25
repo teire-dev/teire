@@ -22,8 +22,10 @@ export interface PlannedCheck {
 
 export interface CheckPlan {
   manager: string;
-  /** Sandbox image with this ecosystem's toolchain (`node`, `python`). */
+  /** Sandbox image with this ecosystem's toolchain (`node`, `python`, `go`, `rust`). */
   image: string;
+  /** Instance size: compiled ecosystems (Rust, JVM) need `standard-3` (plan, sandbox measurements). */
+  instance?: "standard-1" | "standard-2" | "standard-3" | "standard-4";
   /** Exact package-manager version the repo pins (`packageManager`), run through corepack. */
   managerVersion?: string;
   /** Working directory inside the sandbox checkout. */
