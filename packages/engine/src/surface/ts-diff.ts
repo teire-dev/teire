@@ -222,6 +222,25 @@ export function diffSurfaces(from: ApiSurface, to: ApiSurface): Omit<SurfaceDiff
       if (!after) {
         if (suppressRemovals) continue;
         const elsewhere = toByDecl.get(before.declKey);
+        // The root entry is walked first and claims everything it reaches, so a root path whose
+        // declaration is now claimed only under a subpath is gone from the root: `import { z }
+        // from "zod"` lost `ZodError.errors` although `zod/v3` still has it. That is a removal
+        // with a replacement, not a move.
+        const subpath = elsewhere ? /^([^:]+):/.exec(elsewhere)?.[1] : undefined;
+        if (elsewhere && subpath && !path.includes(":")) {
+          changes.push({
+            path,
+            declKey: before.declKey,
+            kind: "removed",
+            symbolKind: before.kind,
+            severity: "breaking",
+            before: before.signature,
+            after: null,
+            movedTo: elsewhere,
+            guidance: `still exported from \`${from.name}/${subpath}\``,
+          });
+          continue;
+        }
         if (elsewhere) {
           moved[path] = elsewhere;
           continue;

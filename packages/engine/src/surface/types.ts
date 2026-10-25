@@ -138,6 +138,8 @@ export interface SurfaceDiff {
   moved: Record<string, string>;
   /** True when either side could not be read; then the diff proves nothing either way. */
   unanalyzable: boolean;
+  /** Modules compared only in part (or not at all) while others were: the changes listed stand, more may exist. */
+  partial?: string[];
   notes: string[];
   tool: { name: string; version: string; noiseFilterVersion: string };
 }

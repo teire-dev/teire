@@ -110,7 +110,8 @@ function lockedCheck(manager: PyProject["manager"], lock: string | undefined, na
     poetry: new RegExp(`name = "${n}"\\s*\\nversion = "${v}"`, "i"),
     pipenv: new RegExp(`"${n}":\\s*\\{[^}]*"version":\\s*"==${v}"`, "is"),
   };
-  const re = patterns[manager] ?? new RegExp(`^\\s*${n}\\s*(?:\\[[^\\]]*\\])?\\s*==\\s*${v}(?![\\w.+-])`, "im");
+  const re =
+    patterns[manager] ?? new RegExp(`^\\s*${n}\\s*(?:\\[[^\\]]*\\])?\\s*==\\s*${v}(?![\\w.+-])`, "im");
   return (files: Record<string, string>) => {
     const text = lock ? files[lock] : Object.values(files).join("\n");
     if (text === undefined) return `${lock} was not read back`;

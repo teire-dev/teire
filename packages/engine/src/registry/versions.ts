@@ -13,17 +13,36 @@ export interface VersionScheme {
   isPrerelease(version: string): boolean;
   /** Release line used for "fall back one major". */
   major(version: string): number;
+  /**
+   * True when `to` leaves the caret range of `from`: the leftmost non-zero release number changes
+   * or anything left of it does (4.x → 5.x, and 0.27 → 0.28 too, which semver lets break).
+   */
+  breaking(from: string, to: string): boolean;
   /** True when `version` satisfies `range` in the ecosystem's own range grammar. */
   satisfies(version: string, range: string): boolean;
   /** True when `range` is a registry range this grammar understands (not a tag, alias, URL or path). */
   isRange(range: string): boolean;
 }
 
+/** Caret rule over release numbers: anything up to the first non-zero component of `from` changed. */
+function caretBreak(from: number[], to: number[]) {
+  const first = from.findIndex((n) => n !== 0);
+  const upTo = first < 0 ? from.length - 1 : first;
+  for (let i = 0; i <= upTo; i++) if ((from[i] ?? 0) !== (to[i] ?? 0)) return true;
+  return false;
+}
+
+const semverRelease = (v: string) => {
+  const p = semver.parse(v);
+  return p ? [p.major, p.minor, p.patch] : [];
+};
+
 export const npmScheme: VersionScheme = {
   valid: (v) => semver.valid(v) !== null,
   compare: (a, b) => semver.compare(a, b),
   isPrerelease: (v) => (semver.prerelease(v)?.length ?? 0) > 0,
   major: (v) => semver.major(v),
+  breaking: (from, to) => caretBreak(semverRelease(from), semverRelease(to)),
   satisfies: (v, range) => semver.satisfies(v, range, { includePrerelease: false }),
   isRange: (range) => semver.validRange(range) !== null,
 };
@@ -41,6 +60,7 @@ export const pypiScheme: VersionScheme = {
     return !!parts && (parts.is_prerelease || parts.is_devrelease);
   },
   major: (v) => pep440.major(v),
+  breaking: (from, to) => caretBreak(pep440.explain(from)?.release ?? [], pep440.explain(to)?.release ?? []),
   satisfies: (v, range) => pep440.satisfies(v, range, { prereleases: false }),
   isRange: (range) => range.trim() === "" || pep440.validRange(range),
 };

@@ -48,6 +48,7 @@ export type TargetDecision =
       kind: "upgrade";
       from: string;
       to: string;
+      /** Outside the caret range of `from` (a new major, or a new minor on 0.x): the surface is diffed. */
       isMajor: boolean;
       publishedAt: string | null;
       fallbackMajors: number;
@@ -164,7 +165,7 @@ export function chooseTarget(
     kind: "upgrade",
     from: current,
     to: pick.version,
-    isMajor: scheme.major(pick.version) > scheme.major(current),
+    isMajor: scheme.breaking(current, pick.version),
     publishedAt: pick.publishedAt,
     fallbackMajors: policy.fallbackMajors,
     cooldownWaived: false,
@@ -228,7 +229,7 @@ export function chooseFixedTarget(
     kind: "upgrade",
     from: current,
     to: pick.version,
-    isMajor: scheme.major(pick.version) > scheme.major(current),
+    isMajor: scheme.breaking(current, pick.version),
     publishedAt: pick.publishedAt,
     fallbackMajors: 0,
     cooldownWaived: young,

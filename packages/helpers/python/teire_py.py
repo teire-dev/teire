@@ -452,6 +452,15 @@ def top_level(directory: Path) -> list[str]:
 KIND_MAP = {"class": "class", "function": "function", "attribute": "property", "module": "module", "alias": "variable", "type alias": "type", "type_alias": "type"}
 
 
+def safe(read, default=None):
+    """An alias to something outside the wheel (stdlib, another package) cannot be resolved offline;
+    reading through it raises instead of returning, so every read through an object is guarded."""
+    try:
+        return read()
+    except Exception:
+        return default
+
+
 def cmd_surface_diff(old_dir: str, new_dir: str) -> None:
     import griffe
 
@@ -460,6 +469,8 @@ def cmd_surface_diff(old_dir: str, new_dir: str) -> None:
     breakages = []
     notes = []
     counts = {}
+    # Modules griffe could not read, or stopped comparing part-way: never reported as "no changes".
+    partial: list[str] = []
     for name in old_tops:
         if name not in new_tops:
             breakages.append({"kind": "MODULE_REMOVED", "path": name, "canonical": name, "old": None, "new": None, "line": None, "memberKind": "module"})
@@ -469,27 +480,32 @@ def cmd_surface_diff(old_dir: str, new_dir: str) -> None:
             new = griffe.load(name, search_paths=[new_dir], allow_inspection=False, try_relative_path=False, resolve_aliases=False)
         except Exception as error:  # a package griffe cannot read is reported, never "no changes"
             notes.append(f"{name}: {type(error).__name__}: {error}")
+            partial.append(name)
             continue
         counts[name] = {"old": sum(1 for _ in iter_objects(old)), "new": sum(1 for _ in iter_objects(new))}
-        for b in griffe.find_breaking_changes(old, new):
-            obj = b.obj
-            canonical = obj.path
+        found = griffe.find_breaking_changes(old, new)
+        while True:
             try:
-                if getattr(obj, "is_alias", False):
-                    canonical = obj.target_path
-            except Exception:
-                pass
-            kind = getattr(obj, "kind", None)
+                b = next(found)
+            except StopIteration:
+                break
+            except Exception as error:  # the generator is spent: what came before stands, the rest is unknown
+                notes.append(f"{name}: comparison stopped: {type(error).__name__}: {error}")
+                partial.append(name)
+                break
+            obj = b.obj
+            canonical = (safe(lambda: obj.target_path, obj.path) if safe(lambda: obj.is_alias, False) else obj.path) or obj.path
+            kind = safe(lambda: obj.kind)
             breakages.append({
                 "kind": b.kind.name,
                 "path": obj.path,
                 "canonical": canonical,
-                "old": None if b.old_value is None else str(b.old_value)[:600],
-                "new": None if b.new_value is None else str(b.new_value)[:600],
-                "line": getattr(obj, "lineno", None),
+                "old": None if b.old_value is None else safe(lambda: str(b.old_value)[:600]),
+                "new": None if b.new_value is None else safe(lambda: str(b.new_value)[:600]),
+                "line": safe(lambda: obj.lineno),
                 "memberKind": KIND_MAP.get(getattr(kind, "value", str(kind)), "unknown"),
             })
-    out({"breakages": breakages, "notes": notes, "counts": counts, "modules": old_tops})
+    out({"breakages": breakages, "notes": notes, "counts": counts, "modules": old_tops, "partial": partial})
 
 
 def iter_objects(obj, depth=0):

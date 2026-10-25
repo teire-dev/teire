@@ -106,29 +106,29 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
     checkedAt,
     tool: { name: diff.tool.name, version: diff.tool.version },
   };
-  // Could not read one side: say so as a change with nothing to search for ("check by hand"),
-  // never as an empty diff that would read as "no breaking changes" (D74).
+  // Could not read one side (or part of it): say so as a change with nothing to search for
+  // ("check by hand"), never as an empty diff that would read as "no breaking changes" (D74).
+  const uncompared = (title: string, suffix: string) =>
+    changeV2.parse({
+      schemaVersion: 2,
+      id: `${diff.ecosystem}/${diff.name}/${diff.fromVersion}..${diff.toVersion}/${suffix}`,
+      subject: { kind: "package", ecosystem: diff.ecosystem, name: diff.name },
+      kind: "package-major",
+      title,
+      summary: diff.notes.join("; ") || "One side's declarations could not be read.",
+      applicability: {
+        class: "breaks-on-upgrade",
+        affectedRange: diff.fromVersion,
+        fromVersion: diff.fromVersion,
+        toVersion: diff.toVersion,
+      },
+      sources: [source],
+      provenance: { method: "tool", tool: diff.tool, confidence: { overall: 0.3 } },
+      visibility: "public",
+      status: "candidate",
+    });
   if (diff.unanalyzable)
-    return [
-      changeV2.parse({
-        schemaVersion: 2,
-        id: `${diff.ecosystem}/${diff.name}/${diff.fromVersion}..${diff.toVersion}/package-major`,
-        subject: { kind: "package", ecosystem: diff.ecosystem, name: diff.name },
-        kind: "package-major",
-        title: `${diff.name} ${diff.toVersion}: API surface could not be compared with ${diff.fromVersion}`,
-        summary: diff.notes.join("; ") || "One side's declarations could not be read.",
-        applicability: {
-          class: "breaks-on-upgrade",
-          affectedRange: diff.fromVersion,
-          fromVersion: diff.fromVersion,
-          toVersion: diff.toVersion,
-        },
-        sources: [source],
-        provenance: { method: "tool", tool: diff.tool, confidence: { overall: 0.3 } },
-        visibility: "public",
-        status: "candidate",
-      }),
-    ];
+    return [uncompared(`${diff.name} ${diff.toVersion}: API surface could not be compared with ${diff.fromVersion}`, "package-major")];
   const groups = new Map<ChangeKindV2, SurfaceChange[]>();
   for (const c of diff.changes) {
     const kind = KIND[c.kind];
@@ -174,5 +174,12 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
       }),
     );
   }
+  if (diff.partial?.length)
+    records.push(
+      uncompared(
+        `${diff.name} ${diff.toVersion}: ${diff.partial.map((m) => `\`${m}\``).join(", ")} compared only in part with ${diff.fromVersion}`,
+        "package-major-partial",
+      ),
+    );
   return records;
 }

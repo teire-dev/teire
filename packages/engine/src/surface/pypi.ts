@@ -136,6 +136,7 @@ export async function pypiSurfaceDiff(
     breakages: Breakage[];
     notes: string[];
     counts: Record<string, { old: number; new: number }>;
+    partial?: string[];
   }>("surface-diff", [from.dir, to.dir]);
   const changes: SurfaceChange[] = [];
   for (const b of result.breakages) {
@@ -182,6 +183,7 @@ export async function pypiSurfaceDiff(
     counts,
     moved: {},
     unanalyzable,
+    ...(result.partial?.length && !unanalyzable ? { partial: result.partial } : {}),
     notes: [
       ...result.notes,
       ...(unanalyzable ? ["griffe read no module from either wheel"] : []),

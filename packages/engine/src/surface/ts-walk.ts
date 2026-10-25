@@ -421,7 +421,9 @@ export function extractTsSurface(input: WalkInput): ApiSurface {
       const dep = deprecation(sym, checker);
       let arity: Arity | undefined;
       try {
-        if (type && (kind === "function" || kind === "method"))
+        // A `const` or property holding a function (`export const record = ZodRecord.create`) is
+        // called like one, so its call signatures count too.
+        if (type && (kind === "function" || kind === "method" || kind === "variable" || kind === "property"))
           arity = arityOf(type.getCallSignatures(), checker);
         else if (type && kind === "class") arity = arityOf(type.getConstructSignatures(), checker);
       } catch {

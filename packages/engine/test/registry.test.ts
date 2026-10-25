@@ -8,6 +8,7 @@ import {
   deprecationChange,
   npmScheme,
   parseDepsDevPackage,
+  pypiScheme,
   type TargetPolicy,
 } from "../src/registry";
 import { fixture } from "./helpers";
@@ -195,5 +196,17 @@ describe("guarded fetch", () => {
     await expect(guardedFetch("https://example.com/", { allowHosts: ["api.deps.dev"] })).rejects.toThrow(
       BlockedUrlError,
     );
+  });
+});
+
+describe("breaking-capable bumps", () => {
+  it("follows the caret rule in both grammars", () => {
+    expect(npmScheme.breaking("4.104.0", "7.38.0")).toBe(true);
+    expect(npmScheme.breaking("0.27.2", "0.28.0")).toBe(true);
+    expect(npmScheme.breaking("0.0.3", "0.0.4")).toBe(true);
+    expect(npmScheme.breaking("1.2.3", "1.9.0")).toBe(false);
+    expect(pypiScheme.breaking("0.27.2", "0.28.1")).toBe(true);
+    expect(pypiScheme.breaking("2.1.0", "2.3")).toBe(false);
+    expect(pypiScheme.breaking("2026.10.23", "2026.11.1")).toBe(false);
   });
 });

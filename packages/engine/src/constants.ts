@@ -181,8 +181,8 @@ export const SURFACE = {
   /** Signature text kept per symbol inside a change record; the full diff stays in `surface_diffs`. */
   recordSignatureChars: 600,
   tool: "teire-dts-walker",
-  toolVersion: "1+typescript@6.0.3",
-  noiseFilterVersion: "1",
+  toolVersion: "2+typescript@6.0.3",
+  noiseFilterVersion: "2",
 } as const;
 
 /** Baseline-vs-after verification (card C5), from context/11-build-notes/sandbox-measurements.md. */

@@ -123,4 +123,19 @@ describe("API-surface diff on real packages", () => {
     expect(paths).toEqual(expect.arrayContaining(["query", "request.param", "response.sendfile"]));
     expect(diff.changes.some((c) => c.kind === "arity-changed" && c.path === "Router.param")).toBe(true);
   });
+
+  it("zod 3 → 4: a function-valued const's arity, and a root export left only under a subpath", async () => {
+    const diff = await npmSurfaceDiff("zod", "3.25.76", "4.6.7", { cache: memoryCache(), cacheDir });
+    // `export const record = ZodRecord.create`: one required argument became two.
+    expect(diff.changes.find((c) => c.path === "record")).toMatchObject({
+      kind: "arity-changed",
+      arity: { minBefore: 1, minAfter: 2 },
+    });
+    // zod 4 still ships the old ZodError under `zod/v3`, but `import { z } from "zod"` no longer reaches it.
+    expect(diff.changes.find((c) => c.path === "ZodError.errors")).toMatchObject({
+      kind: "removed",
+      movedTo: "v3:ZodError.errors",
+      guidance: "still exported from `zod/v3`",
+    });
+  }, 120_000);
 });
