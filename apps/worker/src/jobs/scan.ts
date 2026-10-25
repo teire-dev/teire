@@ -24,6 +24,7 @@ import {
 } from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
+import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
   changeHash,
@@ -173,7 +174,9 @@ export async function scanRepo(
       cooldownDays: config.upgrades.cooldownDays,
       githubToken: token,
       surfaceDiff: (n, f, t) =>
-        cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, () => cargoSurfaceDiff(n, f, t)),
+        cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
+          cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
+        ),
     });
     const projects: AssessedProject[] = [...js.projects, ...py.projects, ...go.projects, ...rust.projects];
     // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.

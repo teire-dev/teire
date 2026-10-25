@@ -227,6 +227,8 @@ export const RUST = {
   rustdocFormats: [57, 60, 61] as number[],
   maxRustdocBytes: 256 * 1024 * 1024,
   semverChecksTimeoutMs: 300_000,
+  /** Route B compiles both versions and their dependency graphs (research: 109 s for async-openai). */
+  routeBTimeoutSec: 1200,
   /** The sandbox's stable toolchain; checks never let rustup install another (RUSTUP_AUTO_INSTALL=0). */
   sandboxRust: "1.99.1",
 } as const;

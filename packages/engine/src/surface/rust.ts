@@ -8,6 +8,7 @@ import { RUST, SURFACE } from "../constants";
 import { guardedFetch } from "../net/fetch";
 import { cratesIndexLines } from "../registry/cargo";
 import { parseSemverChecks, removedFeatures } from "./cargo";
+import type { VerifyBackend } from "../verify/backend";
 import type { SurfaceChange, SurfaceDiff } from "./types";
 
 const run = promisify(execFile);
@@ -38,7 +39,37 @@ async function rustdocJson(name: string, version: string) {
   return { text, format };
 }
 
-export async function cargoSurfaceDiff(name: string, from: string, to: string): Promise<SurfaceDiff> {
+/**
+ * Route B (research rust.md Job 4): compile both published versions in the Rust sandbox. The
+ * target's `.crate` is the sandbox's starting tree; cargo-semver-checks downloads the baseline and
+ * builds both (build scripts and proc-macros run there, never in the worker). ~110 s for a heavy crate.
+ */
+async function routeB(name: string, from: string, to: string, backend: VerifyBackend, runId: string) {
+  const session = await backend.open(`${runId}-semver`, {
+    tarball: { url: `https://static.crates.io/crates/${name}/${name}-${to}.crate` },
+    image: "rust",
+    instance: "standard-3",
+  });
+  try {
+    const result = await session.run(
+      "semver-checks",
+      ["cargo", "semver-checks", "check-release", "--color", "never", "--baseline-version", from, "--release-type", "minor"],
+      { cwd: "/work", env: { RUSTUP_AUTO_INSTALL: "0", CARGO_TERM_COLOR: "never" }, timeoutSec: RUST.routeBTimeoutSec },
+    );
+    if (result.exitCode !== 0 && result.exitCode !== 100)
+      throw new Error(`cargo semver-checks exit ${result.exitCode}: ${(result.stderr || result.stdout).slice(-400)}`);
+    return result.stdout + result.stderr;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function cargoSurfaceDiff(
+  name: string,
+  from: string,
+  to: string,
+  options: { backend?: VerifyBackend; runId?: string } = {},
+): Promise<SurfaceDiff> {
   const started = Date.now();
   const notes: string[] = [];
   let changes: SurfaceChange[] = [];
@@ -119,6 +150,15 @@ export async function cargoSurfaceDiff(name: string, from: string, to: string): 
       );
     } finally {
       await rm(scratch, { recursive: true, force: true });
+    }
+  }
+  if (unanalyzable && options.backend) {
+    try {
+      changes = [...changes, ...parseSemverChecks(await routeB(name, from, to, options.backend, options.runId ?? `diff-${Date.now().toString(36)}`))];
+      unanalyzable = false;
+      notes.push(`cargo-semver-checks ${RUST.semverChecksVersion}, both versions compiled in the Rust sandbox (default features)`);
+    } catch (error) {
+      notes.push(`compiled comparison failed: ${(error instanceof Error ? error.message : String(error)).slice(0, 300)}`);
     }
   }
   const counts: SurfaceDiff["counts"] = {};

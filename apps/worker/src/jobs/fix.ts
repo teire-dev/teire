@@ -95,7 +95,9 @@ async function packageOutcome(
           ? await assessRustRepo(repoDir, tree, {
               ...assessOptions,
               surfaceDiff: (n: string, f: string, t: string) =>
-                cachedSurfaceDiff(ctx.db, "cargo", n, f, t, { cache }, () => cargoSurfaceDiff(n, f, t)),
+                cachedSurfaceDiff(ctx.db, "cargo", n, f, t, { cache }, async () =>
+                  cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
+                ),
             })
           : await assessJsRepo(repoDir, tree, assessOptions);
   const assessment = (assessments as Assessment<AssessedProject>[]).find(
