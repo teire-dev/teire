@@ -159,7 +159,10 @@ export const REGISTRY = {
   hosts: {
     depsDev: "api.deps.dev",
     npm: "registry.npmjs.org",
+    endoflife: "endoflife.date",
   },
+  /** endoflife.date data changes when a release line is announced or retired; a day is fresh enough. */
+  endoflifeTtlMs: 24 * 60 * 60 * 1000,
 } as const;
 
 /** API-surface diffs (plan S02a task 5; emend's measured bounds, refs/emend/src/surface.ts). */

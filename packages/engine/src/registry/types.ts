@@ -28,10 +28,13 @@ export interface CacheEntry {
   fetchedAt: string;
 }
 
+/** A package registry, or another source cached the same way (runtime end-of-life dates). */
+export type CacheScope = Ecosystem | "endoflife";
+
 /** Storage for registry answers. The worker backs it with Postgres; scripts and tests use memory. */
 export interface RegistryCache {
-  get(ecosystem: Ecosystem, key: string): Promise<CacheEntry | null>;
-  put(ecosystem: Ecosystem, key: string, entry: CacheEntry): Promise<void>;
+  get(scope: CacheScope, key: string): Promise<CacheEntry | null>;
+  put(scope: CacheScope, key: string, entry: CacheEntry): Promise<void>;
 }
 
 export function memoryCache(): RegistryCache {

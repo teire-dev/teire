@@ -6,9 +6,13 @@ import {
   chooseFixedTarget,
   chooseTarget,
   deprecationChange,
+  getRuntimeProduct,
+  memoryCache,
   npmScheme,
   parseDepsDevPackage,
   pypiScheme,
+  RUNTIME_PRODUCTS,
+  releaseLineOf,
   type TargetPolicy,
 } from "../src/registry";
 import { fixture } from "./helpers";
@@ -245,4 +249,19 @@ describe("Node runtime cap for @types/node", () => {
     expect(types.exclude?.("22.19.0")).toBeNull();
     expect(jsTargetPolicy(policy, "typescript", "5.9.3").exclude).toBeUndefined();
   });
+});
+
+// Live: endoflife.date API v1.
+describe("runtime end-of-life dates (live)", () => {
+  it("reads Node.js and Python release lines and maps a version to its line", async () => {
+    const options = { cache: memoryCache() };
+    const node = await getRuntimeProduct(RUNTIME_PRODUCTS.node, options);
+    expect(node?.label).toBe("Node.js");
+    const n22 = node && releaseLineOf(node, "22.11.0");
+    expect(n22).toMatchObject({ line: "22", lts: true });
+    expect(n22?.eolOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const python = await getRuntimeProduct(RUNTIME_PRODUCTS.python, options);
+    expect(python && releaseLineOf(python, "3.12.4")?.line).toBe("3.12");
+    expect(await getRuntimeProduct("no-such-runtime-teire", options)).toBeNull();
+  }, 30_000);
 });

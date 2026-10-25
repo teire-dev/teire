@@ -6,6 +6,7 @@ export {
   type RegistryOptions,
 } from "./clients";
 export { deprecationChange } from "./deprecation";
+export * from "./eol";
 export * from "./pypi";
 export {
   chooseFixedTarget,
