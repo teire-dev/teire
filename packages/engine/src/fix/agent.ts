@@ -60,7 +60,7 @@ function safePath(repoDir: string, path: string) {
 export function filesNamed(output: string) {
   const out = new Set<string>();
   for (const m of output.matchAll(
-    /(?:^|\s)((?:[\w.-]+\/)*[\w.-]+\.(?:[cm]?[jt]sx?|py))(?:\(\d+,\d+\)|:\d+(?::\d+)?)/gm,
+    /(?:^|\s|-->\s?)((?:[\w.-]+\/)*[\w.-]+\.(?:[cm]?[jt]sx?|py|go|rs|rb|java|kt))(?:\(\d+,\d+\)|:\d+(?::\d+)?)/gm,
   ))
     if (m[1] && !/node_modules|site-packages|\.venv\//.test(m[1])) out.add(m[1]);
   // Python tracebacks: File "/work/app/llm.py", line 13

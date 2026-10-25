@@ -147,10 +147,21 @@ function checkText(checks: SideResult["checks"]) {
       const counts = c.counts
         ? ` — ${c.counts.passed}/${c.counts.collected} tests passed, ${c.counts.failed} failed`
         : "";
-      const errorLines = c.output
-        .split("\n")
-        .filter((l) => /error|Error|FAIL|✗|×|expected|Expected|Received/.test(l))
-        .slice(0, 60)
+      // Each error line with what follows it up to a blank line: rustc puts the location
+      // (`--> src/lib.rs:3:11`) and its `help: … perhaps you want to import it` there.
+      const lines = c.output.split("\n");
+      const keep = new Set<number>();
+      lines.forEach((l, i) => {
+        if (!/error|Error|FAIL|✗|×|expected|Expected|Received|panicked/.test(l)) return;
+        for (let j = i; j < Math.min(lines.length, i + FIX.errorContextLines + 1); j++) {
+          if (j > i && lines[j]?.trim() === "") break;
+          keep.add(j);
+        }
+      });
+      const errorLines = [...keep]
+        .sort((a, b) => a - b)
+        .slice(0, FIX.maxErrorLines)
+        .map((i) => lines[i])
         .join("\n");
       return `## ${c.name} (${c.argv.join(" ")}): exit ${c.exitCode}${counts}\n${c.exitCode === 0 ? "" : errorLines || c.output.slice(-3000)}`;
     })

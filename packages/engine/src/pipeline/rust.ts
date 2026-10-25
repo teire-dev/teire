@@ -15,6 +15,7 @@ import { chooseTarget, type TargetPolicy } from "../registry/target";
 import { cargoScheme } from "../registry/versions";
 import { surfaceChangeRecords } from "../surface/records";
 import { cargoSurfaceDiff } from "../surface/rust";
+import { rustDocsLookup } from "../surface/rustdoc";
 import type { SurfaceDiff } from "../surface/types";
 import { detectRustChecks } from "../verify/rust-commands";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
@@ -183,8 +184,7 @@ export async function fixRustDependency(
     notes,
     targetDir: "",
     targetPaths: new Set(),
-    docs: async () =>
-      `The compiler output names each break; docs for ${a.instance.name} ${target}: https://docs.rs/${a.instance.name}/${target}/`,
+    docs: rustDocsLookup(a.instance.name, from, target),
     onEvent: input.onEvent,
   });
   const groupKey = `cargo/${a.instance.name}/${target}`;

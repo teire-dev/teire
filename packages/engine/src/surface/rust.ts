@@ -3,12 +3,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { gunzipSync } from "node:zlib";
 import { RUST, SURFACE } from "../constants";
-import { guardedFetch } from "../net/fetch";
 import { cratesIndexLines } from "../registry/cargo";
-import { parseSemverChecks, removedFeatures } from "./cargo";
 import type { VerifyBackend } from "../verify/backend";
+import { parseSemverChecks, removedFeatures } from "./cargo";
+import { rustdocJson } from "./rustdoc";
 import type { SurfaceChange, SurfaceDiff } from "./types";
 
 const run = promisify(execFile);
@@ -25,20 +24,6 @@ export function semverChecksBinary() {
   return process.env.TEIRE_CARGO_SEMVER_CHECKS ?? "cargo-semver-checks";
 }
 
-async function rustdocJson(name: string, version: string) {
-  const res = await guardedFetch(`https://docs.rs/crate/${encodeURIComponent(name)}/${version}/json.gz`, {
-    allowHosts: ["docs.rs", "static.docs.rs"],
-    maxBytes: RUST.maxRustdocBytes,
-    timeoutMs: 120_000,
-  });
-  if (res.status !== 200) return null;
-  const text = gunzipSync(res.body).toString("utf8");
-  const format = Number(
-    /"format_version"\s*:\s*(\d+)/.exec(text.slice(-4096) + text.slice(0, 4096))?.[1] ?? 0,
-  );
-  return { text, format };
-}
-
 /**
  * Route B (research rust.md Job 4): compile both published versions in the Rust sandbox. The
  * target's `.crate` is the sandbox's starting tree; cargo-semver-checks downloads the baseline and
@@ -53,11 +38,27 @@ async function routeB(name: string, from: string, to: string, backend: VerifyBac
   try {
     const result = await session.run(
       "semver-checks",
-      ["cargo", "semver-checks", "check-release", "--color", "never", "--baseline-version", from, "--release-type", "minor"],
-      { cwd: "/work", env: { RUSTUP_AUTO_INSTALL: "0", CARGO_TERM_COLOR: "never" }, timeoutSec: RUST.routeBTimeoutSec },
+      [
+        "cargo",
+        "semver-checks",
+        "check-release",
+        "--color",
+        "never",
+        "--baseline-version",
+        from,
+        "--release-type",
+        "minor",
+      ],
+      {
+        cwd: "/work",
+        env: { RUSTUP_AUTO_INSTALL: "0", CARGO_TERM_COLOR: "never" },
+        timeoutSec: RUST.routeBTimeoutSec,
+      },
     );
     if (result.exitCode !== 0 && result.exitCode !== 100)
-      throw new Error(`cargo semver-checks exit ${result.exitCode}: ${(result.stderr || result.stdout).slice(-400)}`);
+      throw new Error(
+        `cargo semver-checks exit ${result.exitCode}: ${(result.stderr || result.stdout).slice(-400)}`,
+      );
     return result.stdout + result.stderr;
   } finally {
     await session.close();
@@ -154,11 +155,20 @@ export async function cargoSurfaceDiff(
   }
   if (unanalyzable && options.backend) {
     try {
-      changes = [...changes, ...parseSemverChecks(await routeB(name, from, to, options.backend, options.runId ?? `diff-${Date.now().toString(36)}`))];
+      changes = [
+        ...changes,
+        ...parseSemverChecks(
+          await routeB(name, from, to, options.backend, options.runId ?? `diff-${Date.now().toString(36)}`),
+        ),
+      ];
       unanalyzable = false;
-      notes.push(`cargo-semver-checks ${RUST.semverChecksVersion}, both versions compiled in the Rust sandbox (default features)`);
+      notes.push(
+        `cargo-semver-checks ${RUST.semverChecksVersion}, both versions compiled in the Rust sandbox (default features)`,
+      );
     } catch (error) {
-      notes.push(`compiled comparison failed: ${(error instanceof Error ? error.message : String(error)).slice(0, 300)}`);
+      notes.push(
+        `compiled comparison failed: ${(error instanceof Error ? error.message : String(error)).slice(0, 300)}`,
+      );
     }
   }
   const counts: SurfaceDiff["counts"] = {};
