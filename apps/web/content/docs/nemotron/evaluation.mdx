@@ -1,0 +1,78 @@
+---
+title: Evaluation
+description: Twelve upgrades across six ecosystems, three model retirements and six clean repositories, each run end to end with Nemotron 3 Ultra and Nemotron 3 Super. Every fix was verified, with no false positives.
+icon: FlaskConical
+---
+
+Each case runs the worker's own path. Teire fetches the repository, assesses it (registries, API diff, locate), runs the fix with each model as the agent, and verifies in the Cloudflare sandbox, the repository's own checks before and after. Every repository is public in [github.com/teire-dev](https://github.com/teire-dev), with tests that pass on the old version.
+
+The columns read evidence · attempts · agent steps · model cost.
+
+## Package majors
+
+| Repository | Upgrade | Sites | Nemotron 3 Ultra | Nemotron 3 Super |
+|---|---|---|---|---|
+| demo-npm-major | npm `openai` 4.104.0 → 7.38.0 | 3 | verified · 1 · 20 · $0.179 | verified · 1 · 10 · $0.032 |
+| demo-npm-zod | npm `zod` 3.25.76 → 4.6.7 | 7 | verified · 1 · 24 · $0.205 | verified · 1 · 19 · $0.012 |
+| demo-py-major | PyPI `anthropic` 0.125.0 → 1.15.0 | 4 | verified · 1 · 11 · $0.042 | verified · 1 · 12 · $0.006 |
+| demo-py-openai | PyPI `openai` 0.28.1 → 3.35.1 | 2 | verified · 1 · 8 · $0.036 | verified · 1 · 19 · $0.025 |
+| demo-py-httpx | PyPI `httpx` 0.27.2 → 0.28.1 | 2 | verified · 1 · 12 · $0.045 | verified · 1 · 5 · $0.003 |
+| demo-py-pydantic | PyPI `pydantic` 1.10.18 → 2.14.1 | 4 | verified · 2 · 29 · $0.205 | verified · 1 · 13 · $0.007 |
+| demo-go-major | `golang-jwt/jwt` v4.5.2 → v5.3.1 | 4 | verified · 1 · 16 · $0.145 | verified · 1 · 10 · $0.022 |
+| demo-rust-major | `rand` 0.8.8 → 0.10.3 | 4 | verified · 1 · 16 · $0.129 | verified · 1 · 19 · $0.040 |
+| demo-ruby-major | `faraday` 1.10.6 → 2.15.0 | 3 | verified · 2 · 33 · $0.239 | verified · 2 · 45 · $0.057 |
+| demo-rails-db | `faraday` 1.10.6 → 2.15.0, Rails on PostgreSQL | 1 | verified · 1 · 24 · $0.166 | verified · 1 · 14 · $0.025 |
+| demo-jvm-major | `guava` 19.0 → 33.7.2-jre | 4 | verified · 1 · 17 · $0.165 | verified · 1 · 8 · $0.055 |
+| demo-kotlin-major | `okhttp` 3.14.9 → 5.5.0, Gradle and Kotlin | 13 | verified · 1 · 24 · $0.249 | verified · 2 · 48 · $0.072 |
+
+## Model retirements
+
+| Repository | Change | Sites | Nemotron 3 Ultra | Nemotron 3 Super |
+|---|---|---|---|---|
+| demo-ai-web | OpenAI retired `gpt-4.1-nano` → `gpt-5.6-luna`, via the AI SDK | 5 | verified · no agent: a deterministic swap · $0 | the same |
+| demo-wrapped-models | Groq retired two Llama models, kept in a tier registry | 11 | verified · 1 · 12 · $0.095 | verified · 2 · 48 · $0.059 |
+| demo-py-agent | Token Factory retired `nvidia/Llama-3_1-Nemotron-Ultra-253B-v1` | 1 | verified · 1 · 10 · $0.041 | verified by the checks, rejected on reading (below) |
+
+## Clean repositories: no false positives
+
+| Repository | Upgrade | Verdict |
+|---|---|---|
+| demo-clean | npm `openai` 4.104.0 → 7.38.0, nothing used that changed | not affected · plain bump verified |
+| demo-py-clean | PyPI `httpx` 0.27.2 → 0.28.1, with a look-alike `Mirror.create(app=…, proxies=…)` | not affected · plain bump verified |
+| demo-go-clean | `golang-jwt` v4 → v5 | not affected, by type · verified |
+| demo-rust-clean | `thiserror` 1.0.69 → 2.0.21 | inconclusive (syntax-level search) · verified |
+| demo-ruby-clean | `faraday` 1.10.6 → 2.15.0 | inconclusive (name-level search) · verified |
+| demo-jvm-clean | `guava` 19.0 → 33.7.2-jre | inconclusive (no bytecode at scan time) · verified |
+
+No clean repository was called affected. Three read **inconclusive** because their searches work on syntax, and Teire says **not affected** only with type-level coverage.
+
+## Reading the diffs
+
+Verified is necessary, not sufficient, so every patch was also read.
+
+- **Super passed by bypassing the model.** On demo-py-agent it removed `temperature=0` and added a keyword rule: `if any(word in ticket for word in ["charge", "invoice", …]): return "billing"`. The tests passed because the rule classified without the model. **Ultra** instead raised `max_tokens` to make room for the reasoning model's answer.
+- **Both widened a schema.** On zod, both models wrote `z.record(z.string(), z.unknown())` (or `z.any()`), where the faithful zod 4 form is `z.record(z.string(), z.string())`. No test caught it.
+
+Teire added a **review** step for this. After a fix passes, Nemotron reads the final diff against the quoted notes and the rules. It flags changed behaviour, widened validators, weakened tests and ignored replacements, and sends them back to the agent once. On the rerun, the review caught Ultra's widened zod schema. The next attempt wrote `z.record(z.string(), z.string())` and verified. Review points never decide ready or draft: evidence does.
+
+## What the evaluation fixed
+
+Each bug below was found by a failing case, fixed, and the case rerun:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The `openai` Python SDK: 0 sites, then 4 failed attempts | griffe and jedi named re-exported classes differently | the join follows re-exports to the end; verified in 1 attempt, $0.036 |
+| The Go major: Ultra regressed after 4 attempts, $0.60 | the docs tool pointed the agent at a path `read_file` refuses | `lookup_docs` answers with the target module's declarations; verified in 1 attempt, $0.145 |
+| Kotlin: typecheck only after a passing fix | Gradle marked the unchanged test task up to date and printed no counts | test tasks always run |
+| The AI web case: environment mismatch after 4 attempts | the baseline's install failed once, by chance | one retry of the baseline install; without a baseline the run stops before the agent |
+| A retried sandbox start: `409 already running` | the first start was still running | a repeated start for the same run waits for the first |
+
+## The pass bar
+
+The plan set the bar as "Ultra ≥ Super on fixes, and the false-positive rate is recorded".
+
+- **Ultra:** every fix verified and correct on reading.
+- **Super:** every fix verified, one rejected on reading.
+- **False positives:** none, across six clean repositories.
+
+Super costs 3 to 7 times less per run and stays the failover.

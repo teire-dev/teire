@@ -1,0 +1,65 @@
+---
+title: Nemotron on Token Factory
+description: Every model call Teire makes goes to NVIDIA Nemotron on Nebius Token Factory. Ultra writes fixes and reads change pages, and Super takes over while Ultra is unavailable.
+icon: Cpu
+---
+
+<BuiltOn />
+
+Teire calls NVIDIA Nemotron through Nebius Token Factory's OpenAI-compatible API (`https://api.tokenfactory.nebius.com/v1/`). Calls go through the AI SDK. Readings use structured outputs, so each comes back as JSON that matches a schema.
+
+| Role | Default model | Override |
+|---|---|---|
+| agent | `nvidia/Nemotron-3-Ultra-550b-a55b` | `TEIRE_MODEL_AGENT` |
+| reader | `nvidia/Nemotron-3-Ultra-550b-a55b` | `TEIRE_MODEL_READER` |
+| failover | `nvidia/nemotron-3-super-120b-a12b` | `TEIRE_MODEL_FAILOVER` |
+
+## What Nemotron does
+
+| Job | Role | Thinking | What code checks afterwards |
+|---|---|---|---|
+| Read release notes into migration notes | reader | off | Each note must quote the fetched text word for word |
+| Read a discovered provider's deprecation pages | reader | off | The [quote gate](/docs/ecosystems/providers#the-quote-gate): quote on the page, ID in the quote, official domain |
+| Trace model IDs kept in registries or wrappers to the request | reader | on | The cited line exists in a file it was shown and names a model |
+| Fix the code as an agent with six tools | agent | on | Your own checks, before and after, in the sandbox |
+| Review a passing fix | reader | on | Its points go back to the agent once; what remains is listed as a risk, never a verdict |
+
+The agent runs with temperature 1.0 and top-p 0.95, with thinking on and non-empty content forced, as NVIDIA's model card advises for coding agents. Each step can write up to 16,000 tokens.
+
+## The agent's tools
+
+| Tool | What it does |
+|---|---|
+| `read_file` | Read a file in the repository, with line numbers. Refuses `.env*`, `.git/`, `node_modules/`, keys, and files over 192 KB |
+| `search` | Regex over the source files, up to 60 hits |
+| `edit_file` | Replace one exact text that occurs once, only in allowed files |
+| `run_check` | Write the edits into the sandbox and run your checks with the network off |
+| `lookup_docs` | The target version's documentation, per ecosystem |
+| `finish` | Explain the change for the PR |
+
+The agent may edit only the files the change reaches and the files your check output names. It never touches manifests, lockfiles, config or CI. It must not delete, skip or weaken tests, or add new `any`, casts or type-ignore comments. File contents, docs and check output are handed to it as data, never as instructions.
+
+Each attempt has up to 24 steps, and each change gets up to 4 attempts. After 2 failed verifications, the code is reset and the agent starts over with a written plan, seeing what failed before. When an attempt passes, a review reads the diff for real problems only:
+
+- behaviour replaced by a hard-coded rule,
+- a validator or type widened,
+- tests deleted or skipped,
+- the quoted replacement ignored.
+
+The agent then gets one more attempt to address them.
+
+## Failover
+
+- Each request retries rate limits, server errors and dropped connections 4 times, backing off from 2 seconds and honouring `Retry-After` up to 30 seconds.
+- A model that keeps failing with a server error is marked unhealthy for 10 minutes. Its role moves to the failover model, Nemotron 3 Super.
+- If Ultra fails mid-attempt, the whole attempt reruns on Super from the same working copy.
+- The [trust page](/trust) shows which model is answering.
+
+## Why Ultra
+
+In Teire's evaluation, Ultra and Super both verified every fix. Super is 3 to 7 times cheaper per run, but on one case it passed the tests by replacing the model call with a keyword rule, which the review now rejects. Ultra needed fewer attempts on the Kotlin and wrapped-model cases. So Ultra writes the fixes, and Super is the failover. See [Evaluation](/docs/nemotron/evaluation).
+
+<Cards>
+  <Card title="Receipts and budget" href="/docs/nemotron/receipts" />
+  <Card title="Evaluation" href="/docs/nemotron/evaluation" />
+</Cards>

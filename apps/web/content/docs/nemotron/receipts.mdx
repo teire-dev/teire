@@ -1,0 +1,43 @@
+---
+title: Receipts and budget
+description: Every Nemotron call is recorded with its tokens, cost and latency, shown on the run and in the PR, and counted against a daily budget that pauses model work instead of overspending.
+icon: Receipt
+---
+
+<Shot
+  name="dryrun-go-receipt"
+  alt="Receipt tab: Nemotron-3-Ultra-550b-a55b ×19, 214,864 tokens in, 6,187 out, $0.1377; then each sandbox step on cloudflare with exit 0 and its seconds; total $0.1377."
+  caption="The Go dry run's receipt: 19 Nemotron 3 Ultra calls for $0.1377, and every sandbox command with its time."
+/>
+
+## What is recorded
+
+Each call becomes a row with the run, its purpose, the model, tokens in, cached and out, the cost and the latency:
+
+| Purpose | When |
+|---|---|
+| `notes` | Reading an upgrade's release notes |
+| `fix` | Each step of the agent |
+| `review` | The review of a passing fix |
+| `triage` | Tracing wrapped model IDs during a scan |
+| `provider-page` | Reading a discovered provider's pages |
+
+Prices come from Token Factory's public `models_info` endpoint: per million input, cached input and output tokens. Cost is uncached input × input price, plus cached input × cached price, plus output × output price.
+
+## Where you see it
+
+- **The PR's Receipt section** lists each step with its model, tokens and cost, then the sandbox time and the model total. A fix made by a plain swap says "deterministic fix, no model call" and costs $0.
+- **The run page's Receipt tab** totals the calls per model and lists every sandbox command with its exit code and time.
+- **Settings** in the dashboard adds up runs, tokens, model cost and sandbox time across your repositories.
+- **The trust page** shows model spend today and this week, and the calls and cost per model.
+
+## The daily budget
+
+Model spend over the last 24 hours is capped, by default at **$10** (`TEIRE_DAILY_COST_CAP_USD`; 0 turns it off). When the cap is reached:
+
+- fix runs wait with **waiting for the model budget** and retry every 30 minutes,
+- scans skip page reading and triage and use what is already stored.
+
+When Token Factory answers **402** for credits, every run waits with **waiting for Token Factory credits**. Every 15 minutes Teire sends a 16-token ping. When it gets an answer, work resumes on its own.
+
+Both states are visible live on the [trust page](/trust).
