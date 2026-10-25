@@ -1,0 +1,1 @@
+{ "title": "Ecosystems & APIs", "description": "What Teire reads, diffs and locates", "icon": "Boxes", "root": true, "pages": ["index", "---Packages---", "npm", "pypi", "go", "cargo", "rubygems", "maven", "---APIs---", "providers", "runtimes"] }

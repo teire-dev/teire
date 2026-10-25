@@ -1,0 +1,18 @@
+sequenceDiagram
+  autonumber
+  participant R as teire-dev/demo-wrapped-models
+  participant T as Teire worker
+  participant W as Groq's deprecations page
+  participant N as Nemotron 3 Ultra on Token Factory
+  participant S as Sandbox
+  participant G as GitHub
+  T->>R: scan: groq-sdk installed, Groq has no hand-written reader
+  T->>W: found through the SDK and Tavily, then fetched
+  T->>N: read the page into changes, each with a verbatim quote
+  Note over T: kept only where the quote matches the page:<br/>llama-3.1-8b-instant and llama-3.3-70b-versatile shut down 2026-08-16
+  T->>N: the IDs sit in a tier registry: where do they reach a request?
+  N-->>T: TIERS.quick.id → t.id → model: in src/llm.ts:12
+  T->>T: swap to the models Groq names, then the agent fixes what the swap breaks
+  T->>S: baseline: install, tsc, vitest (0/4 pass: the models are gone)
+  T->>S: after: the same checks (4/4 pass)
+  T->>G: PR labelled verified, with quotes, call sites, verification and receipt

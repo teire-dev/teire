@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTwoFilesPatch } from "diff";
@@ -120,6 +121,11 @@ export interface FixRun {
  * already failing are no worse); a change that already broke the repo (a retired model) stops only
  * when the checks pass, because the failing baseline is the change itself.
  */
+/** A sandbox name for one side of one execution of a run (sandbox ids: lowercase, ≤ 63 chars). */
+export function sandboxId(runId: string, execution: string, side: string) {
+  return `${runId.toLowerCase().slice(0, 48)}-${execution}-${side}`;
+}
+
 const acceptableFor = (requirePassing: boolean) => (e: Evidence) =>
   requirePassing
     ? e.kind === "verified" || e.kind === "typecheck_only"
@@ -252,9 +258,12 @@ export async function runFix(input: FixInput): Promise<FixRun> {
   };
   emit({ step: "transaction", detail: input.transaction.describe });
 
-  // 2. Baseline (once) and the after side's transaction and install, in parallel sandboxes.
+  // 2. Baseline (once) and the after side's transaction and install, in parallel sandboxes. Each
+  // execution gets its own sandboxes: a run the reaper restarts keeps its id, and a sandbox never
+  // takes a second run's jobs.
+  const execution = randomBytes(3).toString("hex");
   const open = (suffix: string) =>
-    input.backend.open(`${input.runId}-${suffix}`, {
+    input.backend.open(sandboxId(input.runId, execution, suffix), {
       tarball: input.tarball,
       image: input.plan.image,
       ...(input.plan.instance ? { instance: input.plan.instance } : {}),

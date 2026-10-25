@@ -174,7 +174,12 @@ export async function repoDetail(userId: string, fullName: string) {
           .where(eq(dependencyInstances.scanId, scan.id))
           .orderBy(dependencyInstances.ecosystem, dependencyInstances.name)
       : Promise.resolve([]),
-    db.select().from(artifacts).where(eq(artifacts.repoId, repo.id)).orderBy(desc(artifacts.updatedAt)),
+    // PRs, issues and the onboarding PR; the Dashboard issue is not a pull request.
+    db
+      .select()
+      .from(artifacts)
+      .where(and(eq(artifacts.repoId, repo.id), sql`${artifacts.kind} <> 'dashboard'`))
+      .orderBy(desc(artifacts.updatedAt)),
     db.select().from(runs).where(eq(runs.repoId, repo.id)).orderBy(desc(runs.createdAt)).limit(25),
   ]);
   return { repo, scan: scan ?? null, findings: rows, inventory, artifacts: prs, runs: recent };

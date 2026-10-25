@@ -76,6 +76,15 @@ interface Outcome {
 
 type Common = Omit<Parameters<typeof fixJsDependency>[0], "assessment">;
 
+const PACKAGE_ECOSYSTEMS = ["npm", "pypi", "go", "cargo", "rubygems", "maven"] as const;
+
+/** The ecosystem a package group key starts with, or null for a provider group (`models/…`, `api/…`). */
+export function packageEcosystemOf(head: string): (typeof PACKAGE_ECOSYSTEMS)[number] | null {
+  return (PACKAGE_ECOSYSTEMS as readonly string[]).includes(head)
+    ? (head as (typeof PACKAGE_ECOSYSTEMS)[number])
+    : null;
+}
+
 /** A package group (`npm/openai/7.38.0`): re-assess that package, then upgrade and fix it. */
 async function packageOutcome(
   ctx: WorkerContext,
@@ -85,19 +94,10 @@ async function packageOutcome(
   token: string | undefined,
   common: Common,
 ): Promise<Outcome | null> {
-  const head = run.groupKey.split("/")[0];
-  const ecosystem =
-    head === "pypi"
-      ? "pypi"
-      : head === "go"
-        ? "go"
-        : head === "cargo"
-          ? "cargo"
-          : head === "gem"
-            ? "rubygems"
-            : head === "maven"
-              ? "maven"
-              : "npm";
+  // A package group key is `<ecosystem>/<name>/<target>` with the contract's ecosystem names.
+  const head = run.groupKey.split("/")[0] ?? "";
+  const ecosystem = packageEcosystemOf(head);
+  if (!ecosystem) throw new Error(`run ${run.groupKey}: not a package group`);
   const packageName = run.groupKey.split("/").slice(1, -1).join("/");
   const cache = postgresRegistryCache(ctx.db);
   const assessOptions = {
@@ -242,6 +242,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const groupKey = run.groupKey;
   const isApi = /^(models|api)\//.test(groupKey);
   const [owner = "", name = ""] = repo.fullName.split("/");
+  // A paused repo gets no PRs ("no scans or PRs until resume"), whatever started the run.
+  if (!dry && repo.status === "paused") {
+    await updateRun(db, runId, { status: "cancelled", step: "repository paused", finishedAt: new Date() });
+    await appendEvent(db, runId, "queue", "cancelled", {
+      reason: "the repository is paused; resume it to fix",
+    });
+    return { cancelled: "paused" };
+  }
   const installation = repo.installationId && !dry ? await gh.installation(repo.installationId) : null;
   const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);
 
@@ -362,6 +370,17 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         tokensOut: s.tokensOut,
         costUsd: s.costUsd.toFixed(6),
         latencyMs: s.ms,
+      });
+    if (fix.review)
+      await recordLlmCall(db, {
+        runId,
+        purpose: "review",
+        step: "review",
+        model: fix.review.model,
+        tokensIn: fix.review.tokensIn,
+        tokensOut: fix.review.tokensOut,
+        costUsd: fix.review.costUsd.toFixed(6),
+        latencyMs: fix.review.ms,
       });
     for (const [phase, side] of [
       ["baseline", fix.baseline],
@@ -529,8 +548,11 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       draft: prMode === "draft",
     });
     // A newer target for the same package supersedes its older PR (C6).
-    const family = groupKey.split("/").slice(0, -1).join("/");
-    for (const old of await openArtifacts(db, repo.id))
+    // Only a package has versions to supersede: `models/openai` and `models/anthropic` are separate PRs.
+    const family = packageEcosystemOf(groupKey.split("/")[0] ?? "")
+      ? groupKey.split("/").slice(0, -1).join("/")
+      : null;
+    for (const old of family ? await openArtifacts(db, repo.id) : [])
       if (
         old.kind === "pr" &&
         old.changeKey !== groupKey &&

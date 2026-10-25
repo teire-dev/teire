@@ -10,7 +10,7 @@ import type { ChangeV2 } from "@teire/engine/contract";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
 import type { ProviderChanges } from "@teire/engine/pipeline";
 import { cachedExtraction } from "../caches";
-import { changeHash, upsertChange } from "../store";
+import { changeHash, recordLlmCall, upsertChange } from "../store";
 
 /**
  * Nemotron for providers found by discovery (no hand-written reader): built on first use, with every
@@ -107,6 +107,20 @@ async function refresh(db: Database, provider: ProviderRecord): Promise<number> 
   for (const r of run.rejected) console.error(`[providers] ${provider.slug}: ${r.id} rejected: ${r.error}`);
   for (const d of run.dropped)
     console.log(`[providers] ${provider.slug}: dropped "${d.subject}": ${d.reason}`);
+  // Every model reading is on the books (spend, the daily budget), even outside a run.
+  for (const r of run.receipts)
+    if (!r.cached)
+      await recordLlmCall(db, {
+        runId: null,
+        purpose: "provider-page",
+        step: provider.slug,
+        model: r.model,
+        tokensIn: r.tokensIn,
+        tokensCached: r.tokensCached,
+        tokensOut: r.tokensOut,
+        costUsd: r.costUsd.toFixed(6),
+        latencyMs: r.ms,
+      });
   const cost = run.receipts.reduce((n, r) => n + (r.cached ? 0 : r.costUsd), 0);
   if (run.receipts.length || run.tavily.length)
     console.log(

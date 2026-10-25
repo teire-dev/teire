@@ -25,5 +25,14 @@ const ctx = {
 } as unknown as WorkerContext;
 const runId = randomUUID();
 console.log(`run: /runs/${runId}`);
-console.log(JSON.stringify(await requestDryRun(ctx, { runId, publicScanId, groupKey, requestedBy: "dev" })));
+console.log(
+  JSON.stringify(
+    await requestDryRun(ctx, {
+      runId,
+      publicScanId,
+      groupKey,
+      requestedBy: process.env.TEIRE_DEV_REQUESTER ?? "dev",
+    }),
+  ),
+);
 await pool.end();

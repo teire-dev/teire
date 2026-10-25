@@ -1,4 +1,4 @@
-import { and, type Database, eq, gte, llmCalls, lt, runs, scans, sql, systemState } from "@teire/db";
+import { and, type Database, eq, gte, llmCalls, lt, repos, runs, scans, sql, systemState } from "@teire/db";
 import { RUNS } from "@teire/engine/constants";
 import type { GitHubApp } from "@teire/engine/github";
 import { createTokenFactory, modelHealth, ping, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
@@ -20,7 +20,28 @@ export const RELIABILITY = {
   defaultDailyCapUsd: 10,
   redeliveryEveryMs: 10 * 60_000,
   redeliveryWindowMs: 6 * 3600_000,
+  /** How often repos with `schedule: daily | weekly` are checked for a due rescan. */
+  scheduleEveryMs: 60 * 60_000,
 } as const;
+
+const SCHEDULE_MS = { daily: 24 * 3600_000, weekly: 7 * 24 * 3600_000 } as const;
+
+/**
+ * `schedule: daily | weekly` in teire.yml (C8): rescans besides pushes, for active repos whose last
+ * scan is older than the period. Push rescans happen whatever the schedule.
+ */
+export async function dueScheduledScans(db: Database, now = Date.now()) {
+  const rows = await db
+    .select({ id: repos.id, config: repos.config, lastScannedAt: repos.lastScannedAt })
+    .from(repos)
+    .where(and(eq(repos.status, "active"), sql`${repos.config}->>'schedule' in ('daily', 'weekly')`));
+  return rows
+    .filter((r) => {
+      const every = SCHEDULE_MS[(r.config as { schedule?: keyof typeof SCHEDULE_MS }).schedule ?? "daily"];
+      return !r.lastScannedAt || now - r.lastScannedAt.getTime() >= every;
+    })
+    .map((r) => r.id);
+}
 
 export async function getState<T>(db: Database, key: string): Promise<T | null> {
   const [row] = await db.select().from(systemState).where(eq(systemState.key, key)).limit(1);
@@ -117,8 +138,14 @@ export async function sweepRedeliveries(gh: GitHubApp, db: Database) {
 }
 
 /** The worker's periodic tick: heartbeat, reaper, credit re-check, model health, redeliveries. */
-export function startTicker(db: Database, gh: GitHubApp | null, version: string) {
+export function startTicker(
+  db: Database,
+  gh: GitHubApp | null,
+  version: string,
+  enqueueScan?: (repoId: number) => Promise<void>,
+) {
   let lastRedelivery = 0;
+  let lastSchedule = 0;
   const tick = async () => {
     await setState(db, "worker", { at: new Date().toISOString(), version });
     const reaped = await reap(db);
@@ -138,6 +165,10 @@ export function startTicker(db: Database, gh: GitHubApp | null, version: string)
           detail: String(error).slice(0, 300),
         });
       }
+    }
+    if (enqueueScan && Date.now() - lastSchedule > RELIABILITY.scheduleEveryMs) {
+      lastSchedule = Date.now();
+      for (const id of await dueScheduledScans(db)) await enqueueScan(id);
     }
     if (gh && Date.now() - lastRedelivery > RELIABILITY.redeliveryEveryMs) {
       lastRedelivery = Date.now();

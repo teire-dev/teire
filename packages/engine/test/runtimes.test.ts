@@ -26,7 +26,6 @@ describe("runtime end of life", () => {
     expect(use).toMatchObject({ runtime: "node", line: "20", file: "package.json", lineNo: 4 });
   });
 
-
   it("reads the runtime the repo runs and flags a line past its end of life", async () => {
     const tree = memoryTree({
       "package.json": JSON.stringify({ name: "x", engines: { node: ">=16" } }),

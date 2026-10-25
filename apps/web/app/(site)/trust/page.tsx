@@ -178,6 +178,11 @@ const PERMISSIONS: [string, string, string][] = [
   ["Checks", "write", "Publish the Teire check run with an annotation on every line a change reaches."],
   ["Actions", "read", "Read your CI's logs when it fails on a Teire PR, for one repair attempt."],
   ["Metadata", "read", "Repository names and default branches; GitHub requires it for every app."],
+  [
+    "Email addresses",
+    "read",
+    "Your account's email when you sign in with GitHub, to name your account; never emailed.",
+  ],
 ];
 
 function Permissions() {

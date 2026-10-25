@@ -1,0 +1,31 @@
+flowchart LR
+  dev([Developer])
+  cli["teire CLI and MCP<br/>npx teire scan · coding agents"]
+  gh["GitHub<br/>repositories · PRs · check runs<br/>Dashboard issue"]
+  subgraph teire["Teire"]
+    direction TB
+    web["Web app on Vercel<br/>dashboard · public scan · catalog · docs"]
+    db[("Postgres on Coolify<br/>findings · runs · catalog · outbox")]
+    worker["Worker on Coolify<br/>scans · fix runs · webhooks"]
+    web -->|"outbox + NOTIFY"| db
+    db -->|claimed| worker
+  end
+  subgraph out["Read and run on demand"]
+    direction TB
+    reg["Registries and advisories<br/>npm · PyPI · Go proxy · crates.io<br/>RubyGems · Maven · OSV"]
+    pages["Provider change pages<br/>OpenAI · Anthropic · Gemini<br/>Token Factory · Stripe · discovered"]
+    tavily["Tavily<br/>finds a new provider's notices"]
+    tf["Nebius Token Factory<br/>NVIDIA Nemotron 3 Ultra<br/>Super as failover"]
+    sandbox["Sandbox on Cloudflare Containers<br/>install, then your checks<br/>with the network off"]
+  end
+
+  dev -->|installs the App| gh
+  dev -->|signs in, scans| web
+  cli -->|public catalog| web
+  gh -->|webhooks| web
+  worker -->|"branch, PR, check run, issue"| gh
+  worker --> reg
+  worker -->|quote gate| pages
+  worker --> tavily
+  worker -->|"read, trace, fix, review"| tf
+  worker -->|baseline and after| sandbox

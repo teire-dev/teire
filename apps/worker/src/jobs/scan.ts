@@ -36,6 +36,7 @@ import {
   finishScan,
   getArtifact,
   getRepo,
+  recordLlmCall,
   saveInstances,
   setFindingsState,
   setRepo,
@@ -254,6 +255,20 @@ export async function assessCheckout(
         },
       );
   for (const n of api.openapiNotes) console.log(`[scan] ${fullName}: openapi ${n}`);
+  // Nemotron tracing wrapped model IDs during the scan: recorded like any other model call.
+  for (const r of api.receipts)
+    if (!r.cached)
+      await recordLlmCall(db, {
+        runId: null,
+        purpose: "triage",
+        step: fullName,
+        model: r.model,
+        tokensIn: r.tokensIn,
+        tokensCached: r.tokensCached,
+        tokensOut: r.tokensOut,
+        costUsd: r.costUsd.toFixed(6),
+        latencyMs: r.ms,
+      });
   if (api.discovery.candidates)
     console.log(
       `[scan] ${fullName}: ${api.discovery.candidates} provider(s) with no reader; found ${

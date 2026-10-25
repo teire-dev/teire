@@ -16,7 +16,7 @@ const COLUMNS = [
     title: "Developers",
     links: [
       { href: "/docs", label: "Docs" },
-      { href: "/docs/cli", label: "CLI and MCP" },
+      { href: "/docs/build/cli", label: "CLI and MCP" },
       { href: "/schema.json", label: "teire.yml schema" },
       { href: NPM_URL, label: "npm" },
     ],

@@ -1,10 +1,11 @@
 import { createTokenFactory, fetchModelPrices, ping, tokenFactoryConfigFromEnv } from "@teire/engine";
 
 /**
- * Live check that the hard rule works end to end: one real Nemotron call through Nebius Token Factory.
- * Reports missing configuration plainly instead of pretending.
+ * Health. Public: whether Token Factory is configured, with no model call (the worker's live model
+ * state is on /trust). With the operator's bearer (REVALIDATE_SECRET), one real Nemotron call
+ * through Nebius Token Factory, so a check cannot be run up by anyone else.
  */
-export async function GET() {
+export async function GET(request: Request) {
   let config: ReturnType<typeof tokenFactoryConfigFromEnv>;
   try {
     config = tokenFactoryConfigFromEnv();
@@ -14,6 +15,9 @@ export async function GET() {
       { status: 503 },
     );
   }
+  const secret = process.env.REVALIDATE_SECRET;
+  const live = Boolean(secret) && request.headers.get("authorization") === `Bearer ${secret}`;
+  if (!live) return Response.json({ ok: true, tokenFactory: { configured: true, models: config.models } });
 
   try {
     const tf = createTokenFactory(config);

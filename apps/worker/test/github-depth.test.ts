@@ -122,3 +122,14 @@ describe("Dashboard issue", () => {
     ]);
   });
 });
+
+describe("fix job group keys", () => {
+  it("maps every package ecosystem by its contract name, and no provider group", async () => {
+    const { packageEcosystemOf } = await import("../src/jobs/fix");
+    for (const e of ["npm", "pypi", "go", "cargo", "rubygems", "maven"])
+      expect(packageEcosystemOf(e)).toBe(e);
+    expect(packageEcosystemOf("models")).toBeNull();
+    expect(packageEcosystemOf("api")).toBeNull();
+    expect(packageEcosystemOf("runtime")).toBeNull();
+  });
+});

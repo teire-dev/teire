@@ -1,7 +1,14 @@
 import { resolve } from "node:path";
-import { createLocalDb, eq, llmCalls, runMigrations, runs, scans } from "@teire/db";
+import { createLocalDb, eq, inArray, llmCalls, repos, runMigrations, runs, scans } from "@teire/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getState, markCreditsExhausted, modelWorkBlocked, reap, setState } from "../src/reliability";
+import {
+  dueScheduledScans,
+  getState,
+  markCreditsExhausted,
+  modelWorkBlocked,
+  reap,
+  setState,
+} from "../src/reliability";
 
 /**
  * S10 done-when, against a real Postgres with Teire's migrations (TEIRE_TEST_DATABASE_URL, e.g. a
@@ -93,5 +100,36 @@ describe.skipIf(!url)("reliability (Postgres)", () => {
     await setState(db, "credits", { ...credits, exhausted: false });
     expect(await modelWorkBlocked(db)).toBeNull();
     delete process.env.TEIRE_DAILY_COST_CAP_USD;
+  });
+
+  it("rescans active repos on their teire.yml schedule, and only those", async () => {
+    const day = 24 * 3600_000;
+    const base = 9_000_000 + (Date.now() % 100_000);
+    const rows = [
+      { id: base + 1, schedule: "daily", last: Date.now() - 2 * day, status: "active" },
+      { id: base + 2, schedule: "daily", last: Date.now() - 3600_000, status: "active" },
+      { id: base + 3, schedule: "weekly", last: Date.now() - 3 * day, status: "active" },
+      { id: base + 4, schedule: "weekly", last: Date.now() - 8 * day, status: "active" },
+      { id: base + 5, schedule: "push", last: Date.now() - 30 * day, status: "active" },
+      { id: base + 6, schedule: "daily", last: Date.now() - 2 * day, status: "paused" },
+    ];
+    await db.insert(repos).values(
+      rows.map((r) => ({
+        id: r.id,
+        fullName: `test/schedule-${r.id}`,
+        defaultBranch: "main",
+        status: r.status as "active" | "paused",
+        config: { schedule: r.schedule },
+        lastScannedAt: new Date(r.last),
+      })),
+    );
+    const due = (await dueScheduledScans(db)).filter((id) => id > base && id <= base + 6).sort();
+    expect(due).toEqual([base + 1, base + 4]);
+    await db.delete(repos).where(
+      inArray(
+        repos.id,
+        rows.map((r) => r.id),
+      ),
+    );
   });
 });

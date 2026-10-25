@@ -139,7 +139,9 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
           <TabsTrigger value="diff">Diff</TabsTrigger>
           <TabsTrigger value="verification">Verification</TabsTrigger>
           <TabsTrigger value="receipt">Receipt</TabsTrigger>
-          {preview ? <TabsTrigger value="pr">The PR</TabsTrigger> : null}
+          {preview ? (
+            <TabsTrigger value="pr">{preview.mode === "issue" ? "The issue" : "The PR"}</TabsTrigger>
+          ) : null}
         </TabsList>
         <TabsContent value="timeline">
           <Timeline runId={run.id} initialStatus={run.status} />
@@ -159,10 +161,15 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
           <TabsContent value="pr">
             <article className="flex flex-col gap-4 rounded-lg bg-card p-5 shadow-card">
               <p className="text-xs text-muted-foreground">
-                A dry run opens nothing. This is the {preview.mode === "draft" ? "draft " : ""}pull request
-                Teire would open once installed:
+                {preview.mode === "issue"
+                  ? "A dry run opens nothing. The evidence was not enough for a pull request, so once installed Teire would open this as an issue for a person:"
+                  : `A dry run opens nothing. This is the ${preview.mode === "draft" ? "draft " : ""}pull request Teire would open once installed:`}
               </p>
-              <h2 className="text-lg font-semibold">{preview.title}</h2>
+              <h2 className="text-lg font-semibold">
+                {preview.mode === "issue"
+                  ? `Teire needs a human: ${preview.title?.toLowerCase()}`
+                  : preview.title}
+              </h2>
               <Markdown>{preview.body ?? ""}</Markdown>
             </article>
           </TabsContent>

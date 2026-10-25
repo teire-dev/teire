@@ -71,6 +71,7 @@ export function globMatcher(globs: string[]) {
       .replace(/\*\*\/?/g, "\u0000")
       .replace(/\*/g, "[^/]*")
       .replace(/\?/g, "[^/]")
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: \u0000 is the placeholder `**/` was swapped for above
       .replace(/\u0000/g, "(?:.*/)?");
     return new RegExp(`^${body}(?:/|$)`);
   });

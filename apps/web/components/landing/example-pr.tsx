@@ -20,7 +20,7 @@ export function ExamplePr() {
         <GitPullRequest className="mt-0.5 size-4 shrink-0 text-clear" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-snug">
-            fix(openai): gpt-4.1-nano stopped working on 2026-10-23
+            Replace retired model gpt-4.1-nano with gpt-5.6-luna
           </p>
           <p className="mt-0.5 font-mono text-xs text-muted-foreground">
             teire-dev/demo-ai-web · teire/models/openai

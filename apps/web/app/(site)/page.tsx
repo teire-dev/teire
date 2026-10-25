@@ -43,7 +43,7 @@ const STEPS = [
   {
     icon: GitPullRequest,
     title: "Pull request",
-    body: "Opens a PR labelled by the evidence: verified, draft with the reason, or an issue when a person must decide.",
+    body: "Opens a ready PR when your checks pass before and after, a draft that says what could not be checked, or an issue for a person.",
     tool: "quoted sources · receipt",
   },
 ] as const;
@@ -63,7 +63,7 @@ const FAQ = [
   },
   {
     q: "What if the fix cannot be proven?",
-    a: "Then it is not labelled verified. A failing check becomes a draft PR that says which check failed and why, or an issue when the change needs a person, such as a new API key.",
+    a: "Then the PR is not ready. When a check could not run in the sandbox, or already failed before the change, it is a draft that says so. When the fix breaks a check or runs out of attempts, Teire opens an issue for a person, with its best diff and the evidence.",
   },
 ] as const;
 

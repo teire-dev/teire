@@ -91,3 +91,15 @@ describe("transitive bumps", () => {
     expect(transitiveUpdateCommand("yarn", "x", "1")).toBeNull();
   });
 });
+
+describe("sandbox names", () => {
+  it("give every execution of a run its own sandboxes, within the sandbox id rule", async () => {
+    const { sandboxId } = await import("../src/fix/run");
+    const run = "06edcb9c-66ca-48f7-a11c-151aa13771bf";
+    const a = sandboxId(run, "a1b2c3", "after");
+    const b = sandboxId(run, "d4e5f6", "after");
+    expect(a).not.toBe(b);
+    for (const id of [a, b, sandboxId("eval-demo-kotlin-major-ultra-mh5x9k2a", "a1b2c3", "base")])
+      expect(id).toMatch(/^[a-z0-9][a-z0-9-]{0,62}$/);
+  });
+});

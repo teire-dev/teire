@@ -501,9 +501,9 @@ export interface OnboardingRow {
 }
 
 /** Default `.github/teire.yml` the onboarding PR adds (keys and defaults from card C8). */
-export const DEFAULT_CONFIG = `# Teire configuration. Every key is optional; these are the defaults.
+export const DEFAULT_CONFIG = `# yaml-language-server: $schema=https://teire.vercel.app/schema.json
+# Teire configuration. Every key is optional; these are the defaults.
 # Reference: https://teire.vercel.app/docs/config
-version: 1
 upgrades:
   majors: true          # open upgrade PRs across major versions
   plainBumps: true      # open verified upgrades with no code change (last in the queue)

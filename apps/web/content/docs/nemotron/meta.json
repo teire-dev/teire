@@ -1,0 +1,1 @@
+{ "title": "Nemotron on Token Factory", "description": "Every model call, what it costs, how it was chosen", "icon": "Cpu", "root": true, "pages": ["index", "receipts", "evaluation"] }

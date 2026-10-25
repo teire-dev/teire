@@ -37,7 +37,7 @@ async function Overview() {
           value={String(affected)}
           tone={affected ? "text-affected" : "text-clear"}
         />
-        <Stat label="Open Teire PRs" value={String(data.prs.length)} />
+        <Stat label="Open Teire PRs" value={String(data.repos.reduce((n, r) => n + r.openPrs, 0))} />
         <Stat
           label="Next deadline"
           value={next?.deadline ? next.deadline.toISOString().slice(0, 10) : "none"}

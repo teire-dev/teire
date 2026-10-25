@@ -1,3 +1,4 @@
+import { rm } from "node:fs/promises";
 import { describeConfig, matchesTarget, readTeireConfig } from "@teire/engine/config";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import {
@@ -209,10 +210,17 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       const token = await (await gh.installation(repo.installationId)).token();
       const checkout = await fetchRepoTarball(owner, name, repo.defaultBranch, { token });
       const orgText = await readOrgConfig(octokit, owner);
-      const config = readTeireConfig(
-        directoryTree(checkout.dir),
-        orgText ? { orgText, orgFile: `${owner}/teire-config/teire.yml` } : {},
-      );
+      // Read the config, then delete the checkout: nothing of the repository stays on disk.
+      const config = (() => {
+        try {
+          return readTeireConfig(
+            directoryTree(checkout.dir),
+            orgText ? { orgText, orgFile: `${owner}/teire-config/teire.yml` } : {},
+          );
+        } finally {
+          void rm(checkout.dir, { recursive: true, force: true });
+        }
+      })();
       await reply(
         [
           `**Resolved config** (${config.path ? `\`${config.path}\`` : "no teire.yml"}${orgText ? ` + \`${owner}/teire-config\`` : ""}):`,

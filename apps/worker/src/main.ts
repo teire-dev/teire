@@ -125,7 +125,9 @@ async function main() {
       }
     });
     stopOutbox = startOutbox({ db, pool, handle: (delivery) => handleDelivery(ctx, delivery) });
-    stopTicker = startTicker(db, gh, process.env.SOURCE_COMMIT ?? "dev");
+    stopTicker = startTicker(db, gh, process.env.SOURCE_COMMIT ?? "dev", (repoId) =>
+      ctx.enqueueScan(repoId, "manual"),
+    );
     console.log(`[worker] GitHub App ${gh.slug} ready`);
   } catch (error) {
     console.warn("[worker] GitHub App not configured:", error instanceof Error ? error.message : error);

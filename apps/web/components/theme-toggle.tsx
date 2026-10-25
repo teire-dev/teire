@@ -1,7 +1,7 @@
 "use client";
 
+import { useTheme } from "fumadocs-ui/provider/base";
 import { Monitor, Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
