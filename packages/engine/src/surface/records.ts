@@ -128,7 +128,12 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
       status: "candidate",
     });
   if (diff.unanalyzable)
-    return [uncompared(`${diff.name} ${diff.toVersion}: API surface could not be compared with ${diff.fromVersion}`, "package-major")];
+    return [
+      uncompared(
+        `${diff.name} ${diff.toVersion}: API surface could not be compared with ${diff.fromVersion}`,
+        "package-major",
+      ),
+    ];
   const groups = new Map<ChangeKindV2, SurfaceChange[]>();
   for (const c of diff.changes) {
     const kind = KIND[c.kind];

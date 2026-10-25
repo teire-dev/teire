@@ -81,7 +81,7 @@ for (const c of CASES.filter((x) => !only || x.slug.endsWith(only))) {
       instances: Assessment["instance"][];
     }>[]
   ).find((x) => x.instance.name === c.name && x.decision?.kind === "upgrade");
-  if (!a || a.decision?.kind !== "upgrade") {
+  if (a?.decision?.kind !== "upgrade") {
     appendFileSync(out, `${JSON.stringify({ case: c.slug, error: "no upgrade decision" })}\n`);
     continue;
   }
