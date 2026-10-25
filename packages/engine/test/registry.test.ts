@@ -210,3 +210,39 @@ describe("breaking-capable bumps", () => {
     expect(pypiScheme.breaking("2026.10.23", "2026.11.1")).toBe(false);
   });
 });
+
+describe("Node runtime cap for @types/node", () => {
+  const project = { root: ".", manager: "npm" as const, importers: ["."], instances: [], notes: [] };
+  const read = (files: Record<string, string>) => readJsUpgradePolicy(memoryTree(files), project).node;
+
+  it("takes Volta, then .nvmrc / .node-version, then the engines floor", () => {
+    expect(
+      read({
+        "package.json": JSON.stringify({ volta: { node: "22.11.0" }, engines: { node: ">=18" } }),
+        ".nvmrc": "20\n",
+      }),
+    ).toEqual({
+      major: 22,
+      source: "package.json volta.node",
+    });
+    expect(
+      read({ "package.json": JSON.stringify({ engines: { node: ">=18" } }), ".nvmrc": "v20.11.1\n" }),
+    ).toEqual({
+      major: 20,
+      source: ".nvmrc",
+    });
+    expect(read({ "package.json": JSON.stringify({ engines: { node: "^20.10 || >=22" } }) })).toEqual({
+      major: 20,
+      source: "package.json engines.node",
+    });
+    expect(read({ "package.json": "{}", ".nvmrc": "lts/*\n" })).toBeNull();
+  });
+
+  it("excludes @types/node majors above the runtime, and only for @types/node", () => {
+    const policy = readJsUpgradePolicy(memoryTree({ "package.json": "{}", ".node-version": "22" }), project);
+    const types = jsTargetPolicy(policy, "@types/node", "22.10.0");
+    expect(types.exclude?.("24.1.0")).toBe("the repo runs Node 22 (.node-version)");
+    expect(types.exclude?.("22.19.0")).toBeNull();
+    expect(jsTargetPolicy(policy, "typescript", "5.9.3").exclude).toBeUndefined();
+  });
+});

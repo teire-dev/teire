@@ -1,3 +1,4 @@
+import semver from "semver";
 import { parse as parseToml } from "smol-toml";
 import YAML from "yaml";
 import { REGISTRY } from "../constants";
@@ -36,9 +37,17 @@ export interface Pin {
   parent?: string;
 }
 
+/** The Node major the repo runs on, and the file that says so. */
+export interface NodeRuntime {
+  major: number;
+  source: string;
+}
+
 export interface JsUpgradePolicy {
   gates: ReleaseAgeGate[];
   pins: Pin[];
+  /** `@types/node` never targets a major above this: types for newer APIs than the runtime has. */
+  node: NodeRuntime | null;
   notes: string[];
 }
 
@@ -146,7 +155,7 @@ function majorOf(version: string | undefined) {
 
 export function readJsUpgradePolicy(tree: RepoTree, project: JsProject): JsUpgradePolicy {
   const { root } = project;
-  const policy: JsUpgradePolicy = { gates: [], pins: [], notes: [] };
+  const policy: JsUpgradePolicy = { gates: [], pins: [], node: null, notes: [] };
   const readYaml = (file: string) => {
     const text = tree.read(join(root, file));
     if (text === null) return null;
@@ -165,6 +174,7 @@ export function readJsUpgradePolicy(tree: RepoTree, project: JsProject): JsUpgra
   } catch {
     policy.notes.push("unreadable package.json");
   }
+  policy.node = nodeRuntime(tree, root, manifest);
   if (manifest) {
     npmOverrides(manifest.overrides, "package.json overrides", undefined, policy.pins);
     pnpmOverrides(
@@ -242,6 +252,41 @@ export function readJsUpgradePolicy(tree: RepoTree, project: JsProject): JsUpgra
   return policy;
 }
 
+/** `22`, `v22.11.0`, `22.x` → 22; aliases such as `lts/*` or `node` name no major. */
+function majorFromVersionFile(text: string): number | null {
+  const m = /^\s*v?(\d+)(?:[.\s]|x|$)/.exec(text.split("\n")[0] ?? "");
+  return m?.[1] ? Number(m[1]) : null;
+}
+
+/**
+ * The runtime the repo actually runs: Volta's pin, `.nvmrc`, `.node-version` (project, then repo
+ * root), else the lowest major `engines.node` allows. A version file names what developers and CI
+ * run; `engines` is the floor the package promises.
+ */
+function nodeRuntime(
+  tree: RepoTree,
+  root: string,
+  manifest: Record<string, unknown> | null,
+): NodeRuntime | null {
+  const volta = (manifest?.volta as { node?: unknown } | undefined)?.node;
+  if (typeof volta === "string") {
+    const major = majorFromVersionFile(volta);
+    if (major !== null) return { major, source: `${join(root, "package.json")} volta.node` };
+  }
+  for (const dir of new Set([root, "."]))
+    for (const file of [".nvmrc", ".node-version"]) {
+      const text = tree.read(join(dir, file));
+      const major = text === null ? null : majorFromVersionFile(text);
+      if (major !== null) return { major, source: join(dir, file) };
+    }
+  const engines = (manifest?.engines as { node?: unknown } | undefined)?.node;
+  if (typeof engines === "string" && npmScheme.isRange(engines)) {
+    const floor = semver.minVersion(engines);
+    if (floor) return { major: floor.major, source: `${join(root, "package.json")} engines.node` };
+  }
+  return null;
+}
+
 // --- target policy ----------------------------------------------------------------------------
 
 function globMatch(pattern: string, name: string) {
@@ -303,5 +348,15 @@ export function jsTargetPolicy(
     pins,
     allowPrerelease: npmScheme.valid(current) && npmScheme.isPrerelease(current),
     fallbackMajors: options.fallbackMajors ?? 0,
+    ...(name === "@types/node" && policy.node
+      ? {
+          exclude: (version: string) => {
+            const node = policy.node;
+            return node && npmScheme.major(version) > node.major
+              ? `the repo runs Node ${node.major} (${node.source})`
+              : null;
+          },
+        }
+      : {}),
   };
 }
