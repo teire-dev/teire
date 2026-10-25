@@ -12,6 +12,7 @@ import { decideEvidence, type Evidence, type SideResult } from "../verify/eviden
 import { runChecks, runSide, type SideRun } from "../verify/run";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
+import { type Review, reviewFix } from "./review";
 import { prepareTransaction, type Transaction } from "./transaction";
 import type { ManifestEdit } from "./upgrade-js";
 
@@ -23,7 +24,16 @@ import type { ManifestEdit } from "./upgrade-js";
  * `exhausted` so the caller can fall back one major (D71).
  */
 export interface FixEvent {
-  step: "transaction" | "baseline" | "install" | "codemod" | "check" | "agent" | "replan" | "verify";
+  step:
+    | "transaction"
+    | "baseline"
+    | "install"
+    | "codemod"
+    | "check"
+    | "agent"
+    | "replan"
+    | "review"
+    | "verify";
   detail: string;
   model?: string;
   ms?: number;
@@ -99,6 +109,8 @@ export interface FixRun {
   costUsd: number;
   ms: number;
   exhausted: boolean;
+  /** The review of the final passing diff, when the agent edited code; its problems are PR risks. */
+  review: Review | null;
 }
 
 /**
@@ -238,6 +250,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       agentSteps: AgentStep[],
       summary: string,
       exhausted: boolean,
+      review: Review | null = null,
     ): FixRun => {
       const files: FileChange[] = [];
       for (const [path, before] of originals) {
@@ -264,9 +277,10 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         agentSteps,
         events,
         summary,
-        costUsd: agentSteps.reduce((n, s) => n + s.costUsd, 0),
+        costUsd: agentSteps.reduce((n, s) => n + s.costUsd, 0) + (review?.costUsd ?? 0),
         ms: Date.now() - started,
         exhausted,
+        review,
       };
     };
 
@@ -327,6 +341,25 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     const agentSteps: AgentStep[] = [];
     const failures: string[] = [];
     let summary = "";
+    // The review of a passing fix (S03 evaluation: checks miss bypassed APIs and widened validators).
+    const codePatch = () =>
+      [...originals.entries()]
+        .filter(([path]) => !transactionFiles.has(path))
+        .map(([path, before]) =>
+          createTwoFilesPatch(`a/${path}`, `b/${path}`, before, read(path), "", "", { context: 3 }),
+        )
+        .join("\n");
+    const brief = input.instance
+      ? `Upgrade ${input.instance.name} ${input.instance.version} → ${input.target}`
+      : (input.headline ?? `Move to ${input.target}`);
+    let reviewRounds = 0;
+    let reviewFeedback: Review["problems"] = [];
+    let passing: {
+      files: Map<string, string>;
+      evidence: Evidence;
+      after: SideResult;
+      review: Review;
+    } | null = null;
     for (let n = 1; n <= FIX.maxAttemptsPerTarget; n++) {
       const replan = n > FIX.replanAfterFailures;
       if (replan) {
@@ -358,6 +391,9 @@ export async function runFix(input: FixInput): Promise<FixRun> {
           : "",
         codemods.length
           ? `Already applied by Teire:\n${codemods.map((e) => `- ${e.file}:${e.line} ${e.reason}`).join("\n")}`
+          : "",
+        reviewFeedback.length
+          ? `Your change passes the checks, but a review of the diff found these problems. Fix them without breaking the checks:\n${reviewFeedback.map((p) => `- ${p.file}: ${p.problem}`).join("\n")}`
           : "",
         replan && failures.length
           ? `Earlier attempts failed verification. Their final check output:\n${failures.map((f, i) => `<attempt n="${i + 1}">\n${f}\n</attempt>`).join("\n")}\nStart over: first state a short plan in plain words, then edit.`
@@ -407,9 +443,55 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         steps: agent.steps.length,
         costUsd: agent.steps.reduce((x, s) => x + s.costUsd, 0),
       });
-      summary = agent.summary;
-      if (acceptable(current.evidence))
-        return finish(current.evidence, lastAfter, attempts, codemods, agentSteps, summary, false);
+      summary = agent.summary || summary;
+      if (acceptable(current.evidence)) {
+        const review = await reviewFix({
+          tf: input.tf,
+          prices: input.prices,
+          brief,
+          notes: input.notes,
+          patch: codePatch(),
+        });
+        emit({
+          step: "review",
+          model: review.model,
+          detail:
+            review.error ??
+            (review.problems.length
+              ? review.problems.map((p) => `${p.file}: ${p.problem}`).join(" | ")
+              : "no problems found"),
+          ms: review.ms,
+          costUsd: review.costUsd,
+        });
+        if (review.problems.length && reviewRounds < FIX.reviewRounds && n < FIX.maxAttemptsPerTarget) {
+          // One more attempt with the review's findings, keeping this passing state to fall back to.
+          reviewRounds++;
+          reviewFeedback = review.problems;
+          passing = {
+            files: new Map([...originals.keys()].map((p) => [p, read(p)])),
+            evidence: current.evidence,
+            after: lastAfter,
+            review,
+          };
+          continue;
+        }
+        return finish(current.evidence, lastAfter, attempts, codemods, agentSteps, summary, false, review);
+      }
+      if (passing) {
+        // The attempt after the review broke the checks: the reviewed passing change stands.
+        for (const [path, content] of passing.files) writeFileSync(join(input.repoDir, path), content);
+        emit({ step: "review", detail: "the follow-up attempt did not pass; keeping the reviewed change" });
+        return finish(
+          passing.evidence,
+          passing.after,
+          attempts,
+          codemods,
+          agentSteps,
+          summary,
+          false,
+          passing.review,
+        );
+      }
       failures.push(current.text.slice(0, 4000));
     }
     return finish(current.evidence, lastAfter, attempts, codemods, agentSteps, summary, true);

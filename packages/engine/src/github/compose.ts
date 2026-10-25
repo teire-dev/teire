@@ -97,6 +97,10 @@ function receiptLines(
       `| Fix attempt ${a.n}${a.replan ? " (replanned)" : ""}: ${a.steps} steps → ${a.evidence.replace(/_/g, " ")} | ${modelName(a.model)}${a.failover ? " (failover)" : ""} | ${tokens(tin)} / ${tokens(tout)} | ${usd(a.costUsd)} |`,
     );
   }
+  if (run.review)
+    out.push(
+      `| Review of the passing diff: ${run.review.problems.length ? `${run.review.problems.length} problem(s) noted` : "no problems found"} | ${modelName(run.review.model)} | ${tokens(run.review.tokensIn)} / ${tokens(run.review.tokensOut)} | ${usd(run.review.costUsd)} |`,
+    );
   const sandboxMs = [...run.baseline.checks, ...run.after.checks].reduce(
     (n, c) => n + c.ms,
     run.baseline.install.ms + run.after.install.ms,
@@ -106,6 +110,14 @@ function receiptLines(
   );
   out.push(`Model total: **${usd(run.costUsd + (notesReceipt?.costUsd ?? 0))}**.`);
   return out;
+}
+
+/** Problems the review of the passing diff still saw: stated, never hidden, and never a score. */
+function reviewRisks(run: FixRun) {
+  return (run.review?.problems ?? []).map(
+    (p) =>
+      `Review (${modelName(run.review?.model ?? "")}) of \`${p.file}\`: ${escapeCell(p.problem).slice(0, 300)}`,
+  );
 }
 
 export interface FixPullRequestInput {
@@ -258,6 +270,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
         `${r.summary}${r.sources[0]?.quote ? ` — "${r.sources[0].quote.slice(0, 200)}" ([source](${r.sources[0].url}))` : ""}`,
       );
     if (run.evidence.kind !== "verified") risks.push(run.evidence.reasons.join("; "));
+    risks.push(...reviewRisks(run));
     risks.push(
       "Lint, end-to-end and integration suites were not run; dependencies were installed without lifecycle scripts.",
     );
@@ -392,6 +405,7 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     const risks = [
       "Tests run with the network off, so no request reached the provider: the new model's answers were not checked against the live API.",
       ...(run.evidence.kind !== "verified" ? [run.evidence.reasons.join("; ")] : []),
+      ...reviewRisks(run),
       "Prompts tuned for the old model may need review for the new one's style and output length.",
     ];
     for (const r of risks) out.push(`- ${r}`);

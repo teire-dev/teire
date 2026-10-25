@@ -40,6 +40,9 @@ export const FIX = {
   maxReadChars: 24_000,
   maxCheckOutputChars: 8_000,
   maxSearchHits: 60,
+  /** Diff text handed to the review of a passing fix; review rounds before the rest goes under risks. */
+  maxReviewDiffChars: 40_000,
+  reviewRounds: 1,
   /** Output cap per agent step. */
   maxOutputTokens: 16_000,
 } as const;
