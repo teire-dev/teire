@@ -338,3 +338,22 @@ export function describeConfig(config: TeireConfig) {
     if (!["present", "path", "problems", "issues", "origins"].includes(k)) walk(k, v);
   return ["| Key | Value | From |", "|---|---|---|", ...rows].join("\n");
 }
+
+/**
+ * Whether an ignore target (`teire.yml` `ignore:`, `@teire ignore`) covers a finding: its change
+ * id, its group, its package (`openai` or `npm:openai`), a provider (`provider:groq`) or a group's
+ * parent. The worker and the CLI share it, so a local scan hides what the dashboard hides.
+ */
+export function matchesTarget(
+  target: string,
+  f: { changeId: string; dependencyKey: string; groupKey: string | null },
+) {
+  const t = target.trim();
+  if (!t) return false;
+  if (f.changeId === t || f.groupKey === t) return true;
+  // dependencyKey: `<ecosystem>:<name>@<workspace>`
+  const dep = /^([^:]+):(.+?)@/.exec(f.dependencyKey);
+  if (dep && (t === dep[2] || t === `${dep[1]}:${dep[2]}`)) return true;
+  if (t.startsWith("provider:") && f.groupKey?.split("/")[1] === t.slice(9)) return true;
+  return f.groupKey !== null && f.groupKey.split("/").slice(0, -1).join("/") === t;
+}

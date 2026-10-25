@@ -1,0 +1,69 @@
+{
+  "name": "teire",
+  "version": "0.1.0",
+  "description": "Teire from the terminal: scan a repository for the dependency and API changes that affect it, gate CI on them, and serve the same tools to coding agents over MCP.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "teire": "dist/teire.mjs"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "homepage": "https://teire.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/teire-dev/teire.git",
+    "directory": "packages/cli"
+  },
+  "keywords": [
+    "dependencies",
+    "upgrades",
+    "breaking-changes",
+    "deprecations",
+    "mcp",
+    "nemotron"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.77",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@renovatebot/pep440": "5.0.1",
+    "@renovatebot/ruby-semver": "5.0.0",
+    "@ruby/prism": "1.9.0",
+    "@yarnpkg/parsers": "3.1.0",
+    "ai": "7.0.150",
+    "cjs-module-lexer": "2.3.0",
+    "diff": "9.0.0",
+    "es-module-lexer": "3.0.3",
+    "fast-xml-parser": "5.11.2",
+    "jsonc-parser": "3.3.1",
+    "octokit": "5.0.5",
+    "semver": "7.8.5",
+    "smol-toml": "1.9.1",
+    "tldts": "7.4.19",
+    "ts-morph": "28.0.0",
+    "typescript6": "npm:typescript@6.0.3",
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  },
+  "optionalDependencies": {
+    "@ast-grep/cli-darwin-arm64": "0.50.0",
+    "@ast-grep/cli-darwin-x64": "0.50.0",
+    "@ast-grep/cli-linux-arm64-gnu": "0.50.0",
+    "@ast-grep/cli-linux-x64-gnu": "0.50.0"
+  },
+  "devDependencies": {
+    "@teire/engine": "workspace:*",
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}

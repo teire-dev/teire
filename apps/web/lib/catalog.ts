@@ -30,6 +30,24 @@ export async function providerNames(): Promise<Record<string, string>> {
   return Object.fromEntries(rows.map((r) => [r.slug, r.name]));
 }
 
+/**
+ * Public provider records (cards C10, C11): curated readers and providers discovered from scanned
+ * repos, never a source a repo named in its own teire.yml (D53). The CLI matches a local scan's API
+ * hosts against them, so it finds the providers the service already reads.
+ */
+export async function publicProviders(): Promise<{ slug: string; record: Record<string, unknown> }[]> {
+  "use cache";
+  cacheTag("catalog");
+  cacheLife("hours");
+  const rows = await database().select({ slug: providers.slug, record: providers.record }).from(providers);
+  return rows
+    .map((r) => ({
+      slug: r.slug,
+      record: r.record as Record<string, unknown> & { discovery?: { via?: string[] } },
+    }))
+    .filter((r) => !r.record.discovery?.via?.includes("teire.yml"));
+}
+
 /** Where a change belongs in the filters: its provider, or the package registry it came from. */
 export function sourceOf(row: Pick<CatalogRow, "provider" | "record">) {
   return row.provider ?? (row.record.subject.ecosystem ? `pkg:${row.record.subject.ecosystem}` : "other");

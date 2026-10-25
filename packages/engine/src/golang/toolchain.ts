@@ -60,14 +60,15 @@ export async function runGo(args: string[], cwd: string, home: string, timeoutMs
 
 /**
  * Teire's Go helper (`packages/helpers/go`): the worker image ships it built (`TEIRE_GO_HELPER`);
- * in development it is built once into the user cache with the same pinned modules.
+ * in development and the CLI (`TEIRE_GO_HELPER_SRC`, its bundled source) it is built once into the
+ * user cache with the same pinned modules.
  */
 async function helperBinary() {
   if (process.env.TEIRE_GO_HELPER) return process.env.TEIRE_GO_HELPER;
   const out = join(homedir(), ".cache", "teire", `teire-go-${GO.helperVersion}`);
   if (existsSync(out)) return out;
   await mkdir(dirname(out), { recursive: true });
-  const source = resolve(import.meta.dirname, "../../../helpers/go");
+  const source = process.env.TEIRE_GO_HELPER_SRC ?? resolve(import.meta.dirname, "../../../helpers/go");
   await run(goBinary(), ["build", "-o", out, "."], {
     cwd: source,
     env: { ...process.env, CGO_ENABLED: "0", GOTOOLCHAIN: "local", GOFLAGS: "-mod=mod" },

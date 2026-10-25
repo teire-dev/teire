@@ -1,6 +1,6 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText, type LanguageModelUsage } from "ai";
-import { MODEL_ENV, NEMOTRON, TOKENFACTORY } from "../constants";
+import { MODEL_DEFAULTS, MODEL_ENV, NEMOTRON, TOKENFACTORY } from "../constants";
 
 /** Which job a model does. Each maps to an env var so IDs are never hard-coded in logic. */
 export type ModelRole = keyof typeof MODEL_ENV;
@@ -15,11 +15,10 @@ export function tokenFactoryConfigFromEnv(env: NodeJS.ProcessEnv = process.env):
   const apiKey = env.TOKENFACTORY_API_KEY;
   if (!apiKey) throw new Error("TOKENFACTORY_API_KEY is not set");
   const models = Object.fromEntries(
-    (Object.keys(MODEL_ENV) as ModelRole[]).map((role) => {
-      const id = env[MODEL_ENV[role]];
-      if (!id) throw new Error(`${MODEL_ENV[role]} is not set`);
-      return [role, id];
-    }),
+    (Object.keys(MODEL_ENV) as ModelRole[]).map((role) => [
+      role,
+      env[MODEL_ENV[role]] || MODEL_DEFAULTS[role],
+    ]),
   ) as Record<ModelRole, string>;
   return { apiKey, baseURL: env.TOKENFACTORY_BASE_URL || TOKENFACTORY.defaultBaseUrl, models };
 }

@@ -31,6 +31,13 @@ export const MODEL_ENV = {
   failover: "TEIRE_MODEL_FAILOVER",
 } as const;
 
+/** The same choice when its env var is unset (the CLI, run with only a Token Factory key). */
+export const MODEL_DEFAULTS: Record<keyof typeof MODEL_ENV, string> = {
+  agent: "nvidia/Nemotron-3-Ultra-550b-a55b",
+  reader: "nvidia/Nemotron-3-Ultra-550b-a55b",
+  failover: "nvidia/nemotron-3-super-120b-a12b",
+};
+
 export const FIX = {
   /** Lines kept after an error line, up to the next blank line (a rustc diagnostic with its `help:`). */
   errorContextLines: 30,

@@ -1,4 +1,4 @@
-import { describeConfig, readTeireConfig } from "@teire/engine/config";
+import { describeConfig, matchesTarget, readTeireConfig } from "@teire/engine/config";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import {
   artifactByNumber,
@@ -12,6 +12,8 @@ import {
   setRepo,
 } from "../store";
 import type { EventContext } from "./events";
+
+export { matchesTarget };
 
 /**
  * `@teire` commands (card C7, plan S09) in comments on any issue or PR of an installed repo:
@@ -68,21 +70,6 @@ export function parseCommand(
   const word = (m[1] ?? "").toLowerCase();
   const known = (COMMANDS as readonly string[]).includes(word);
   return { name: known ? (word as CommandName) : "help", args: (m[2] ?? "").trim(), known };
-}
-
-/** A target matches a finding by change id, group key, package (`openai`, `npm:openai`) or provider. */
-export function matchesTarget(
-  target: string,
-  f: { changeId: string; dependencyKey: string; groupKey: string | null },
-) {
-  const t = target.trim();
-  if (!t) return false;
-  if (f.changeId === t || f.groupKey === t) return true;
-  // dependencyKey: `<ecosystem>:<name>@<workspace>`
-  const dep = /^([^:]+):(.+?)@/.exec(f.dependencyKey);
-  if (dep && (t === dep[2] || t === `${dep[1]}:${dep[2]}`)) return true;
-  if (t.startsWith("provider:") && f.groupKey?.split("/")[1] === t.slice(9)) return true;
-  return f.groupKey !== null && f.groupKey.split("/").slice(0, -1).join("/") === t;
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: GitHub webhook JSON, read field by field
