@@ -1,4 +1,4 @@
-import { changes, type Database, eq, providerSources, providers } from "@teire/db";
+import { and, changes, type Database, eq, lt, providerSources, providers } from "@teire/db";
 import { ingestProvider, PROVIDERS, type PreviousFetch } from "@teire/engine/catalog";
 import { changeHash, upsertChange } from "../store";
 
@@ -27,7 +27,14 @@ export async function ingestAll(db: Database): Promise<IngestSummary[]> {
       .values({ slug: provider.slug, name: provider.name, record: provider })
       .onConflictDoUpdate({ target: providers.slug, set: { name: provider.name, record: provider } });
 
-    const run = await ingestProvider(provider, { previous });
+    // Records stored by an older reader (schema v1) are re-read in full: an unchanged page would
+    // otherwise keep them as they are forever.
+    const [stale] = await db
+      .select({ id: changes.id })
+      .from(changes)
+      .where(and(eq(changes.providerSlug, provider.slug), lt(changes.schemaVersion, 2)))
+      .limit(1);
+    const run = await ingestProvider(provider, stale ? {} : { previous });
     const kinds = new Map(provider.sources.map((s) => [s.url, s.kind]));
 
     for (const o of run.outcomes) {
