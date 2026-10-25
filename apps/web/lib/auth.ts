@@ -41,7 +41,7 @@ export function auth() {
 }
 
 /** `GET /user/installations` with the user's GitHub token → `user_installations`. */
-async function refreshInstallations(userId: string) {
+export async function refreshInstallations(userId: string) {
   const db = database();
   const [row] = await db
     .select({ token: account.accessToken })

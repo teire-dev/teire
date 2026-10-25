@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { database } from "@/lib/db";
 
 export const metadata = {
-  title: "Trust · Teire",
+  title: "How Teire runs",
   description:
     "How Teire runs: the worker's heartbeat, model credits and failover, spend, run outcomes, and how code and secrets are handled.",
 };
@@ -15,16 +15,18 @@ export const metadata = {
  */
 export default function TrustPage() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-12">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-4 py-12">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Trust</h1>
-        <p className="text-sm text-foreground/70">
-          What Teire is doing right now, what it has spent, and the rules every run follows.
+        <h1 className="text-3xl font-semibold tracking-tight">How Teire runs</h1>
+        <p className="text-subtle">
+          What Teire is doing right now, what it has spent, what it may touch on GitHub, and the rules every
+          run follows.
         </p>
       </header>
-      <Suspense fallback={<p className="text-sm text-foreground/60">Loading the live state…</p>}>
+      <Suspense fallback={<div className="h-64 animate-pulse rounded-lg bg-muted" aria-hidden />}>
         <Live />
       </Suspense>
+      <Permissions />
       <Rules />
     </main>
   );
@@ -44,19 +46,19 @@ const ago = (iso: string | undefined) => {
 function Row({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" | "bad" }) {
   const dot =
     tone === "bad"
-      ? "bg-red-500"
+      ? "bg-affected"
       : tone === "warn"
-        ? "bg-amber-500"
+        ? "bg-human"
         : tone === "ok"
-          ? "bg-emerald-500"
-          : "bg-foreground/30";
+          ? "bg-clear"
+          : "bg-muted-foreground";
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-foreground/10 py-2 text-sm last:border-0">
-      <span className="flex items-center gap-2 text-foreground/70">
+    <div className="flex items-start justify-between gap-4 border-b py-2.5 text-sm last:border-0">
+      <span className="flex items-center gap-2 text-muted-foreground">
         <span className={`inline-block size-2 rounded-full ${dot}`} aria-hidden />
         {label}
       </span>
-      <span className="text-right">{value}</span>
+      <span className="text-right font-mono text-xs">{value}</span>
     </div>
   );
 }
@@ -100,8 +102,8 @@ async function Live() {
   return (
     <>
       <section className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold">Now</h2>
-        <div className="rounded-lg border border-foreground/10 px-4 py-1">
+        <h2 className="text-sm font-medium">Now</h2>
+        <div className="rounded-lg bg-card px-4 py-1 shadow-card">
           <Row
             label="Worker"
             value={
@@ -138,8 +140,8 @@ async function Live() {
         </div>
       </section>
       <section className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold">Last 7 days</h2>
-        <div className="rounded-lg border border-foreground/10 px-4 py-1">
+        <h2 className="text-sm font-medium">Last 7 days</h2>
+        <div className="rounded-lg bg-card px-4 py-1 shadow-card">
           <Row
             label="Model spend"
             value={`$${Number(spend?.day ?? 0).toFixed(2)} today · $${Number(spend?.week ?? 0).toFixed(2)} this week`}
@@ -157,6 +159,66 @@ async function Live() {
         </div>
       </section>
     </>
+  );
+}
+
+/** The GitHub App's permissions (scripts/register-github-app.mjs) and why each is asked for. */
+const PERMISSIONS: [string, string, string][] = [
+  [
+    "Contents",
+    "write",
+    "Read the code and dependency files; push one branch per fix (teire/…). Never the default branch.",
+  ],
+  ["Pull requests", "write", "Open and update fix PRs, and the Configure Teire onboarding PR."],
+  [
+    "Issues",
+    "write",
+    "Keep the Teire Dashboard issue, open needs-a-human issues, and answer @teire commands.",
+  ],
+  ["Checks", "write", "Publish the Teire check run with an annotation on every line a change reaches."],
+  ["Actions", "read", "Read your CI's logs when it fails on a Teire PR, for one repair attempt."],
+  ["Metadata", "read", "Repository names and default branches; GitHub requires it for every app."],
+];
+
+function Permissions() {
+  return (
+    <section className="grid gap-6 md:grid-cols-[1fr_1fr]">
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-medium">What Teire may do on GitHub, and why</h2>
+        <ul className="divide-y overflow-hidden rounded-lg bg-card text-sm shadow-card">
+          {PERMISSIONS.map(([name, level, why]) => (
+            <li key={name} className="flex flex-col gap-1 px-4 py-3">
+              <span className="flex items-center justify-between gap-3">
+                <span className="font-medium">{name}</span>
+                <span className="font-mono text-xs text-muted-foreground">{level}</span>
+              </span>
+              <span className="text-muted-foreground">{why}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-medium">Where your code goes</h2>
+        <div className="flex flex-col gap-3 rounded-lg bg-card p-4 text-sm text-muted-foreground shadow-card">
+          <p>
+            <span className="font-medium text-foreground">Models.</span> Only NVIDIA Nemotron on Nebius Token
+            Factory reads code: Nemotron 3 Ultra writes fixes and reads change pages, Nemotron 3 Super steps
+            in while Ultra is unavailable. Every call is on the run&apos;s receipt.
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Storage.</span> A scan downloads the repository at
+            one commit and deletes it when the scan ends. Teire keeps its findings (file, line and the
+            matching line), the diffs it proposes, run logs and receipts.
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Instructions.</span> File contents, docs, check
+            output and provider pages are data, never instructions: the agent edits only the files the change
+            reaches, never manifests, lockfiles, config or CI, and a change is acted on only when its quote
+            matches its page.
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -197,12 +259,12 @@ function Rules() {
   ];
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-base font-semibold">Rules every run follows</h2>
+      <h2 className="text-sm font-medium">Rules every run follows</h2>
       <ul className="grid gap-3 sm:grid-cols-2">
         {rules.map(([title, body]) => (
-          <li key={title} className="rounded-lg border border-foreground/10 p-4">
+          <li key={title} className="rounded-lg bg-card p-4 shadow-card">
             <p className="text-sm font-medium">{title}</p>
-            <p className="mt-1 text-sm text-foreground/70">{body}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{body}</p>
           </li>
         ))}
       </ul>
