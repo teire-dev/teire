@@ -20,7 +20,7 @@ const run = promisify(execFile);
  * Private modules therefore fail to resolve, and the verdict says so.
  */
 export function goBinary() {
-  return process.env.TEIRE_GO ?? "go";
+  return process.env.TEIRE_GO || "go";
 }
 
 export function goEnv(home: string): NodeJS.ProcessEnv {

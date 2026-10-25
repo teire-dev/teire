@@ -7,5 +7,5 @@ flowchart LR
   agent --> v2{"Checks pass?"}
   v2 -->|"no, attempts left (4 max; a fresh plan after 2)"| agent
   v2 -->|yes| review["Review pass<br/>behaviour kept, tests not weakened"]
-  review --> pr["Pull request labelled by the evidence<br/>verified · draft with the reason · issue for a person"]
+  review --> pr["Pull request decided by the evidence<br/>ready when verified · draft with the reason · issue for a person"]
   v2 -->|out of attempts| pr

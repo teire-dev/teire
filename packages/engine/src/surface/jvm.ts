@@ -21,7 +21,7 @@ const run = promisify(execFile);
  * `name$module`) and synthetic accessors are dropped: no consumer can call them.
  */
 export function javaBinary() {
-  return process.env.TEIRE_JAVA ?? "java";
+  return process.env.TEIRE_JAVA || "java";
 }
 
 /** The japicmp jar: baked into the worker image, else fetched once into the user cache (SHA-1 checked). */

@@ -21,7 +21,7 @@ const run = promisify(execFile);
  * index either way (Job 4b): rustdoc JSON cannot see them.
  */
 export function semverChecksBinary() {
-  return process.env.TEIRE_CARGO_SEMVER_CHECKS ?? "cargo-semver-checks";
+  return process.env.TEIRE_CARGO_SEMVER_CHECKS || "cargo-semver-checks";
 }
 
 /**

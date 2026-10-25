@@ -1,4 +1,10 @@
-import { relative } from "node:path";
+import { isAbsolute, relative } from "node:path";
+
+/** A site's file as the repository names it: locators give paths relative to the root, some absolute. */
+function shownPath(root: string, file: string) {
+  return isAbsolute(file) ? relative(root, file) || file : file;
+}
+
 import { styleText } from "node:util";
 import type { ChangeV2 } from "@teire/engine/contract";
 import type { FindingDraft } from "@teire/engine/impact";
@@ -62,7 +68,7 @@ function sitesOf(group: Group, root: string, limit: number) {
   for (const f of group.findings)
     for (const s of f.callSites) {
       if (s.kind === "docs") continue;
-      seen.add(`${relative(root, s.file) || s.file}:${s.line}`);
+      seen.add(`${shownPath(root, s.file)}:${s.line}`);
     }
   const all = [...seen];
   return { shown: all.slice(0, limit), more: Math.max(0, all.length - limit), total: all.length };
@@ -161,7 +167,7 @@ export function scanJson(scan: ScanResult) {
       ...g,
       findings: g.findings.map((f) => ({
         ...f,
-        callSites: f.callSites.map((s) => ({ ...s, file: relative(scan.root, s.file) || s.file })),
+        callSites: f.callSites.map((s) => ({ ...s, file: shownPath(scan.root, s.file) })),
       })),
     })),
     changes: Object.fromEntries(scan.records),

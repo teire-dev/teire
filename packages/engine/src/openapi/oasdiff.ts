@@ -21,7 +21,7 @@ export interface OasdiffItem {
 
 /** `TEIRE_OASDIFF`, or `oasdiff` on PATH (the worker image installs the pinned release). */
 export function oasdiffBinary() {
-  return process.env.TEIRE_OASDIFF ?? "oasdiff";
+  return process.env.TEIRE_OASDIFF || "oasdiff";
 }
 
 /**
