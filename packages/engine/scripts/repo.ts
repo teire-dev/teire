@@ -68,6 +68,8 @@ for (const a of all) {
   for (const f of s?.breaking ?? [])
     for (const site of f.callSites)
       log(`    ${site.file}:${site.line} ${f.changeKind} · ${site.snippet.slice(0, 100)}`);
+  if (a.purpose === "security")
+    for (const f of a.findings) log(`    ${f.changeId} [${f.reachability}]: ${f.reason.slice(0, 260)}`);
 }
 
 if (fixName) {

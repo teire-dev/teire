@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { goVulnReachability } from "../advisories/govulncheck";
 import { REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { runFix } from "../fix/run";
@@ -128,16 +129,61 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
       }
       assessments.push(a);
     }
-    if (options.advisories !== false)
-      assessments.push(
-        ...(
-          await securityAssessments(project, "go", goScheme, options, (instance) =>
-            goPolicy(instance, options),
-          )
-        ).map((s) => ({ ...s, targetPath: s.instance.name })),
+    if (options.advisories !== false) {
+      const security = await securityAssessments(project, "go", goScheme, options, (instance) =>
+        goPolicy(instance, options),
       );
+      if (security.length) await withReachability(repoDir, project, security, options);
+      assessments.push(...security.map((s) => ({ ...s, targetPath: s.instance.name })));
+    }
   }
   return { projects, assessments };
+}
+
+const ADVISORY_ID = /\b(?:GO-\d{4}-\d+|GHSA(?:-[0-9a-z]{4}){3}|CVE-\d{4}-\d+)\b/g;
+
+/**
+ * Go advisories with govulncheck's reachability (D74): called (with the repo's call site),
+ * imported but not called, or required but not imported. An advisory govulncheck does not relate to
+ * the code keeps "package present"; a govulncheck failure keeps every advisory as it was.
+ */
+async function withReachability(
+  repoDir: string,
+  project: GoProject,
+  security: Assessment<GoProject>[],
+  options: GoAssessOptions,
+) {
+  let reach: Awaited<ReturnType<typeof goVulnReachability>>;
+  try {
+    reach = await goVulnReachability(repoDir, project.root, project.module);
+  } catch (error) {
+    options.onProgress?.(`govulncheck failed: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+  for (const a of security)
+    for (const f of a.findings) {
+      const record = a.records.find((r) => r.id === f.changeId);
+      const text = record ? `${record.id} ${record.summary}` : f.changeId;
+      const ids = [...new Set([...text.matchAll(ADVISORY_ID)].map((m) => m[0]))];
+      const r = ids.map((id) => reach.get(id)).find(Boolean);
+      if (!r) continue;
+      f.coverage = {
+        filesScanned: 0,
+        filesSkipped: [],
+        languages: ["go"],
+        resolutionLevel: "type",
+        unresolvedSites: 0,
+        transitiveAnalysed: true,
+      };
+      if (r.level === "called") {
+        f.reachability = "function-reachable";
+        if (r.sites.length) f.callSites = r.sites;
+        f.reason = `${f.reason} govulncheck: ${r.symbol ?? "the vulnerable function"} is called${r.sites[0] ? ` from ${r.sites[0].file}:${r.sites[0].line}` : ""}.`;
+      } else {
+        f.reachability = "function-not-reachable";
+        f.reason = `${f.reason} govulncheck: ${r.level === "imported" ? "the vulnerable package is imported, but its vulnerable functions are not called" : "the module is required, but the vulnerable package is not imported"}.`;
+      }
+    }
 }
 
 /** The target version's source in the shared module cache (downloaded by the diff), for the agent to read. */

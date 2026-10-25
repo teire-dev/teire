@@ -210,6 +210,8 @@ export const GO = {
   helperVersion: "3",
   /** Highest major probed above the installed one (`/v5`, `/v6`, …) on the proxy. */
   maxMajorProbe: 6,
+  /** govulncheck for advisory reachability (research go.md Job 9: v1.8.0 tested). */
+  govulncheckVersion: "v1.8.0",
   /** golang.org/x/exp pseudo-version the helper pins (apidiff). */
   apidiffVersion: "v0.0.0-20261007192929-f45ad48fbe92",
   /** The sandbox image's Go: checks run with this toolchain (`GOTOOLCHAIN=local`). */

@@ -22,7 +22,8 @@ RUN pnpm --filter @teire/worker deploy --prod --legacy --config.node-linker=hois
 FROM docker.io/library/golang:1.27.2-trixie AS gohelper
 WORKDIR /src
 COPY packages/helpers/go/ ./
-RUN CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath -o /out/teire-go .
+RUN CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath -o /out/teire-go . \
+  && CGO_ENABLED=0 GOTOOLCHAIN=local GOBIN=/out go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
 FROM node:24-slim AS runtime
 RUN apt-get update \
@@ -59,7 +60,7 @@ RUN uv python install 3.12 \
 COPY --from=gohelper /usr/local/go /usr/local/go
 WORKDIR /app
 COPY packages/helpers/python/teire_py.py /app/helpers/teire_py.py
-COPY --from=gohelper /out/teire-go /app/helpers/teire-go
+COPY --from=gohelper /out/teire-go /out/govulncheck /app/helpers/
 RUN mkdir -p /var/cache/teire-go && chown node:node /var/cache/teire-go
 ENV NODE_ENV=production \
     PORT=8080 \
@@ -69,6 +70,7 @@ ENV NODE_ENV=production \
     TEIRE_AST_GREP=/app/node_modules/@ast-grep/cli-linux-x64-gnu/ast-grep \
     TEIRE_GO=/usr/local/go/bin/go \
     TEIRE_GO_HELPER=/app/helpers/teire-go \
+    TEIRE_GOVULNCHECK=/app/helpers/govulncheck \
     TEIRE_GO_CACHE=/var/cache/teire-go \
     UV_PYTHON_DOWNLOADS=never
 COPY --from=build --chown=node:node /out/package.json ./package.json
