@@ -21,6 +21,8 @@ describe("what the text before a literal says", () => {
     expect(sourceContext('Request{Model: "')).toBe("llm-call-arg");
     expect(sourceContext('builder().model("')).toBe("llm-call-arg");
     expect(sourceContext('generateText({ model: openai("')).toBe("llm-call-arg");
+    expect(sourceContext('streamText({ messages, model: openai.chat("')).toBe("llm-call-arg");
+    expect(sourceContext('const m = google.languageModel("')).toBe("llm-call-arg");
     expect(sourceContext('const CHAT_MODEL = process.env.CHAT_MODEL ?? "')).toBe("model-variable");
     expect(sourceContext('DEFAULT_MODEL_ID = os.environ.get("X", "')).toBe("model-variable");
     expect(sourceContext('export const label = "')).toBe("other");

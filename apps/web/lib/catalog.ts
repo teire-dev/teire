@@ -73,3 +73,18 @@ export async function getChange(id: string): Promise<ChangeV2 | null> {
     .limit(1);
   return row && row.visibility === "public" ? (row.record as ChangeV2) : null;
 }
+
+/**
+ * A quote for reading in a list: the same words, without markdown link targets, code ticks and
+ * table pipes. The detail page shows the exact text the gate checked.
+ */
+export function plainQuote(quote: string) {
+  return quote
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/`/g, "")
+    .replace(/\\\|/g, "/")
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter(Boolean)
+    .join(" · ");
+}

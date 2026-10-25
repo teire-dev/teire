@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { listChanges, PROVIDER_NAMES } from "@/lib/catalog";
+import { listChanges, PROVIDER_NAMES, plainQuote } from "@/lib/catalog";
 import { ClassChip } from "./class-chip";
 
 export const metadata = {
@@ -64,7 +64,8 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
       ) : (
         <ul className="flex flex-col divide-y divide-foreground/10 rounded-lg border border-foreground/10">
           {rows.map((r) => {
-            const quote = r.record.sources.find((s) => s.quote)?.quote;
+            const raw = r.record.sources.find((s) => s.quote)?.quote;
+            const quote = raw ? plainQuote(raw) : null;
             return (
               <li key={r.id} className="flex flex-col gap-2 p-4">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/60">
@@ -81,8 +82,8 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
                   </p>
                 ) : null}
                 {quote ? (
-                  <blockquote className="border-l-2 border-foreground/15 pl-3 font-mono text-xs text-foreground/70 break-words">
-                    {quote.length > 280 ? `${quote.slice(0, 280)}…` : quote}
+                  <blockquote className="border-l-2 border-foreground/15 pl-3 text-sm text-foreground/70 break-words">
+                    “{quote.length > 280 ? `${quote.slice(0, 280)}…` : quote}”
                   </blockquote>
                 ) : null}
               </li>

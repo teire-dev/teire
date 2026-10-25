@@ -85,7 +85,8 @@ export function sourceContext(before: string): LiteralContext {
   // builders and provider factories: `.model("…")`, `openai("…")`, `GenerativeModel("…")`
   if (/\.(?:model|modelName|model_name|withModel|with_model)\s*\($/i.test(prefix)) return "llm-call-arg";
   if (
-    /\b(?:openai|anthropic|google|gemini|createOpenAI|ChatOpenAI|ChatAnthropic|ChatGoogleGenerativeAI|GenerativeModel|getGenerativeModel|init_chat_model)\s*\($/.test(
+    // AI SDK providers may also name the API: `openai.chat("…")`, `google.languageModel("…")`.
+    /\b(?:openai|anthropic|google|gemini|createOpenAI|ChatOpenAI|ChatAnthropic|ChatGoogleGenerativeAI|GenerativeModel|getGenerativeModel|init_chat_model)(?:\.(?:chat|responses|completion|languageModel|textEmbeddingModel|embedding))?\s*\($/.test(
       prefix,
     )
   )
