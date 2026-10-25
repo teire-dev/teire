@@ -164,7 +164,7 @@ describe("provider rows in contract v2, through the quarantine gate", () => {
     const record = toChangeV2(gpt4, openai, now);
     const forged = {
       ...record,
-      sources: [{ ...record.sources[0]!, quote: "| October 23, 2026 | `gpt-4o` |" }],
+      sources: record.sources.map((s) => ({ ...s, quote: "| October 23, 2026 | `gpt-4o` |" })),
     };
     expect(gateV2(forged, openai, bodies)).toMatchObject({
       status: "quarantined",

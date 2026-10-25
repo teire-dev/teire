@@ -75,7 +75,7 @@ export function astGrepBinary() {
   }
 }
 
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** What the text before a source literal (up to its opening quote) says about it. */
 export function sourceContext(before: string): LiteralContext {
@@ -127,7 +127,7 @@ export async function locateLiterals(input: {
 }): Promise<LiteralScan> {
   const started = Date.now();
   const ids = [...input.modelIds].filter(Boolean).sort((a, b) => b.length - a.length);
-  const pattern = `${ids.length ? `^(?:${ids.map(escape).join("|")})$|` : ""}^https?://`;
+  const pattern = `${ids.length ? `^(?:${ids.map(escapeRegex).join("|")})$|` : ""}^https?://`;
   const rules = STRING_NODES.map(
     ([language, kind], i) =>
       `id: lit-${i}\nlanguage: ${language}\nrule:\n  kind: ${kind}\n  regex: '${pattern.replace(/'/g, "''")}'\n`,
@@ -185,7 +185,7 @@ export async function locateLiterals(input: {
   // Config files: whole-token matches of the same IDs.
   const files = input.tree.files().filter((f) => !SKIP_DIR.test(`${f}`));
   if (ids.length) {
-    const token = new RegExp(`(?<![\\w./-])(?:${ids.map(escape).join("|")})(?![\\w./-])`, "g");
+    const token = new RegExp(`(?<![\\w./-])(?:${ids.map(escapeRegex).join("|")})(?![\\w./-])`, "g");
     for (const file of files.filter((f) => CONFIG_FILE.test(f))) {
       let text: string;
       try {
