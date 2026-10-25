@@ -57,6 +57,14 @@ function cell(side: SideResult, name: string) {
 
 /** The Verification section: one table, both sides, then the evidence that decided the PR. */
 /** Blocks joined by blank lines, except table rows, which must stay on consecutive lines to render as a table. */
+/**
+ * A surface record's title without its "<name> <version> " lead ("removes 34 API(s)"). A Go major
+ * also moves the module path, so the version is whatever word follows the name.
+ */
+export function changeSummary(title: string, name: string) {
+  return title.startsWith(`${name} `) ? title.slice(name.length + 1).replace(/^\S+ /, "") : title;
+}
+
 export function joinBlocks(blocks: string[]) {
   return blocks.join("\n\n").replace(/^(\|.*\|)\n\n(?=\|)/gm, "$1\n");
 }
@@ -254,11 +262,9 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     out.push("### What changed upstream");
     const counts = input.records
       .filter((r) => r.kind !== "symbol-changed")
-      .map((r) => `${r.title.replace(`${instance.name} ${run.target} `, "")}`);
+      .map((r) => changeSummary(r.title, instance.name));
     if (counts.length)
-      out.push(
-        `From the published type declarations, ${instance.version} vs ${run.target}: ${counts.join("; ")}.`,
-      );
+      out.push(`Comparing the public API of ${instance.version} and ${run.target}: ${counts.join("; ")}.`);
     for (const note of input.notes.slice(0, noteCap))
       out.push(
         `> ${note.quote.slice(0, 400)}${note.quote.length > 400 ? "…" : ""}\n>\n> — [${new URL(note.url).pathname.split("/").at(-1) ?? "notes"}](${note.url})`,
