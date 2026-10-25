@@ -88,6 +88,15 @@ describe("evidence", () => {
     );
   });
 
+  it("says so when the change fixed checks that failed on the baseline (a retired model)", () => {
+    const base = side("baseline", [check("test", 1, { counts: tests(2, 0, 2) })]);
+    const after = side("after", [check("test", 0, { counts: tests(2, 2) })]);
+    expect(decideEvidence(base, after)).toMatchObject({
+      kind: "verified",
+      reasons: ["test failed on the baseline and pass after the change; 2/2 tests passed"],
+    });
+  });
+
   it("fails the test-count gate when tests disappear", () => {
     const base = side("baseline", [check("test", 0, { counts: tests(3, 3) })]);
     const after = side("after", [check("test", 0, { counts: tests(2, 2) })]);

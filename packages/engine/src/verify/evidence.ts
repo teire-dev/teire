@@ -132,8 +132,17 @@ export function decideEvidence(baseline: SideResult, after: SideResult): Evidenc
   }
 
   if (testsAfter?.counts && testsAfter.counts.collected > 0) {
+    // Checks that failed before and pass after: the change had already broken the repo (a retired model).
+    const fixed = baseline.checks.filter((b) => !passed(b)).map((b) => b.name);
+    const kept = after.checks.map((c) => c.name).filter((n) => !fixed.includes(n));
     reasons.push(
-      `${after.checks.map((c) => c.name).join(", ")} pass on the baseline and after; ${testsAfter.counts.passed}/${testsAfter.counts.collected} tests passed`,
+      [
+        fixed.length ? `${fixed.join(", ")} failed on the baseline and pass after the change` : "",
+        kept.length ? `${kept.join(", ")} pass on the baseline and after` : "",
+        `${testsAfter.counts.passed}/${testsAfter.counts.collected} tests passed`,
+      ]
+        .filter(Boolean)
+        .join("; "),
     );
     return done("verified");
   }
