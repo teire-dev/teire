@@ -165,6 +165,8 @@ export async function requestDryRun(
   const { runId, publicScanId, groupKey, requestedBy } = payload;
   if (!runId || !UUID.test(runId) || !publicScanId || !UUID.test(publicScanId) || !groupKey || !requestedBy)
     return { skipped: "bad request" };
+  // Runtime end of life is a notice, never a fix run.
+  if (groupKey.startsWith("runtime/")) return { skipped: "runtime notice" };
   const [request] = await db.select().from(publicScans).where(eq(publicScans.id, publicScanId)).limit(1);
   if (!request?.repoId || !request.scanId || request.status !== "done") return { skipped: "scan not ready" };
   const [scan] = await db.select().from(scans).where(eq(scans.id, request.scanId)).limit(1);

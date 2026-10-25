@@ -17,6 +17,16 @@ const NODE = {
 };
 
 describe("runtime end of life", () => {
+  it("points at engines.node in package.json, not the package's own version line", () => {
+    const tree = memoryTree({
+      "package.json": '{\n  "name": "x",\n  "version": "1.0.0",\n  "engines": { "node": ">=20" }\n}\n',
+      "package-lock.json": JSON.stringify({ name: "x", lockfileVersion: 3, packages: { "": { name: "x" } } }),
+    });
+    const [use] = runtimesOf(tree, readJsInventory(tree), []);
+    expect(use).toMatchObject({ runtime: "node", line: "20", file: "package.json", lineNo: 4 });
+  });
+
+
   it("reads the runtime the repo runs and flags a line past its end of life", async () => {
     const tree = memoryTree({
       "package.json": JSON.stringify({ name: "x", engines: { node: ">=16" } }),

@@ -42,7 +42,9 @@ export function runtimesOf(tree: RepoTree, js: JsProject[], py: PyProject[]): Ru
     const node = readJsUpgradePolicy(tree, project).node;
     if (!node) continue;
     const file = node.source.split(" ")[0] ?? node.source;
-    out.push({ runtime: "node", line: String(node.major), file, ...locate(tree, file, /node|\d/) });
+    // package.json: the `engines.node` line (its own "version" has digits too); .nvmrc and friends: the version.
+    const pattern = file.endsWith("package.json") ? /"node"\s*:/ : /\d/;
+    out.push({ runtime: "node", line: String(node.major), file, ...locate(tree, file, pattern) });
   }
   for (const project of py) {
     const versionFile = [join(project.root, ".python-version"), ".python-version"].find(

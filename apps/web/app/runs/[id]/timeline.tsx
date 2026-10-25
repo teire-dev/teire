@@ -11,6 +11,12 @@ interface RunEvent {
 }
 
 const ACTIVE = new Set(["queued", "running"]);
+
+/** Time since the first event, as m:ss. */
+function offset(first: string | undefined, at: string) {
+  const s = first ? Math.max(0, Math.round((Date.parse(at) - Date.parse(first)) / 1000)) : 0;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
 const POLL_MS = 1000;
 
 /** Live timeline: polls new events every second while the run is active and the tab is visible. */
@@ -46,31 +52,34 @@ export function Timeline({ runId, initialStatus }: { runId: string; initialStatu
 
   return (
     <section aria-label="Timeline" className="flex flex-col gap-2">
-      <p className="font-mono text-xs text-foreground/50">
+      <p className="font-mono text-xs text-muted-foreground">
         {ACTIVE.has(status) ? "live · updates every second" : `finished · ${events.length} events`}
       </p>
-      <ol className="flex flex-col divide-y divide-foreground/10 rounded-lg border border-foreground/10">
+      <ol className="flex flex-col divide-y overflow-hidden rounded-lg bg-card shadow-card">
         {events.length === 0 && (
-          <li className="px-4 py-3 text-sm text-foreground/60">Waiting for the first step…</li>
+          <li className="px-4 py-3 text-sm text-muted-foreground">Waiting for the first step…</li>
         )}
         {events.map((e) => (
-          <li key={e.seq} className="grid grid-cols-[6rem_1fr] gap-3 px-4 py-2 text-sm">
-            <span className="font-mono text-xs text-foreground/50">{e.step}</span>
+          <li key={e.seq} className="grid grid-cols-[3.5rem_5.5rem_1fr] gap-3 px-4 py-2 text-sm">
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              {offset(events[0]?.at, e.at)}
+            </span>
+            <span className="font-mono text-xs text-muted-foreground">{e.step}</span>
             <span className="min-w-0 break-words">
               {e.payload.model && (
-                <span className="mr-2 rounded bg-foreground/5 px-1.5 py-0.5 font-mono text-xs">
-                  {e.payload.model}
+                <span className="mr-2 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                  {e.payload.model.split("/").pop()}
                 </span>
               )}
               {e.payload.url ? (
-                <a className="underline" href={e.payload.url}>
+                <a className="text-link hover:underline" href={e.payload.url}>
                   {e.type} {e.payload.url}
                 </a>
               ) : (
                 (e.payload.detail ?? e.payload.error ?? e.type)
               )}
               {typeof e.payload.costUsd === "number" && e.payload.costUsd > 0 && (
-                <span className="ml-2 font-mono text-xs text-foreground/50">
+                <span className="ml-2 font-mono text-xs text-muted-foreground">
                   ${e.payload.costUsd.toFixed(4)}
                 </span>
               )}

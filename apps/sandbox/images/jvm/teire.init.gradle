@@ -1,4 +1,4 @@
-// Teire's Gradle init script (plan S08): one test summary line per Test task, a task that resolves
+// Teire's Gradle init script (plan S08): one test summary line per Test task (always run), a task that resolves
 // every resolvable configuration (so the online warm-up downloads what offline checks need), and
 // Maven Central read through Google's mirror (Central answers 403 to the sandbox's Cloudflare egress).
 def MIRROR = "https://maven-central.storage-download.googleapis.com/maven2/"
@@ -20,6 +20,10 @@ allprojects { p ->
   toMirror(p.repositories)
   toMirror(p.buildscript.repositories)
   p.tasks.withType(Test).configureEach { t ->
+    // Every check runs the tests: an up-to-date or cached Test task prints no summary, and a
+    // verification that counts nothing cannot say the tests passed (S10 evaluation, Kotlin).
+    t.outputs.upToDateWhen { false }
+    t.outputs.cacheIf { false }
     t.addTestListener(new TestListener() {
       void beforeSuite(TestDescriptor d) {}
       void afterSuite(TestDescriptor d, TestResult r) {
