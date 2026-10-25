@@ -77,8 +77,9 @@ export async function recentReports(limit = 8) {
       id: publicScans.id,
       repo: publicScans.repoFullName,
       finishedAt: publicScans.finishedAt,
-      affected: sql<number>`(select count(distinct coalesce(${findings.groupKey}, ${findings.changeId}))::int from ${findings}
-        where ${findings.scanId} = ${publicScans.scanId} and ${findings.verdict} = 'affected')`,
+      // The outer row by its table name: an unqualified column would bind to `findings` itself.
+      affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f
+        where f.scan_id = "public_scans"."scan_id" and f.verdict = 'affected')`,
     })
     .from(publicScans)
     .where(eq(publicScans.status, "done"))

@@ -5,12 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /** Top-level links; the current section is the one place the link accent marks navigation. */
-export function NavLinks({ links }: { links: readonly { href: string; label: string }[] }) {
+export function NavLinks({ links }: { links: readonly { href: string; label: string; exact?: boolean }[] }) {
   const path = usePathname();
   return (
     <nav aria-label="Main" className="flex items-center gap-1 text-sm">
       {links.map((l) => {
-        const active = path === l.href || path.startsWith(`${l.href}/`);
+        const active = path === l.href || (!l.exact && path.startsWith(`${l.href}/`));
         return (
           <Link
             key={l.href}

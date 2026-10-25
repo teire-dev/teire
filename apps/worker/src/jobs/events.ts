@@ -14,6 +14,7 @@ import {
   upsertInstallation,
   upsertRepo,
 } from "../store";
+import { handleRepoAction } from "./actions";
 import { canWrite, handleComment, matchesTarget, startRun } from "./commands";
 import { syncDashboard, tickedActions } from "./dashboard";
 import { requestDryRun } from "./public";
@@ -227,6 +228,9 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       return;
     case "teire.dry_run":
       console.log("[dry-run]", JSON.stringify(await requestDryRun(ctx, p)));
+      return;
+    case "teire.repo_action":
+      console.log("[action]", JSON.stringify(await handleRepoAction(ctx, p)));
       return;
     default:
       return;

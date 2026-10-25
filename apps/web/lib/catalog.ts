@@ -50,24 +50,28 @@ export async function publicProviders(): Promise<{ slug: string; record: Record<
     .filter((r) => !r.record.discovery?.via?.includes("teire.yml"));
 }
 
-/** Where a change belongs in the filters: its provider, or the package registry it came from. */
+/** Where a change belongs in the filters: its provider, the package registry, or the runtimes. */
 export function sourceOf(row: Pick<CatalogRow, "provider" | "record">) {
-  return row.provider ?? (row.record.subject.ecosystem ? `pkg:${row.record.subject.ecosystem}` : "other");
+  if (row.provider) return row.provider;
+  if (row.record.subject.ecosystem) return `pkg:${row.record.subject.ecosystem}`;
+  return row.record.subject.kind === "runtime" ? "runtime" : "other";
 }
 
 export function sourceLabel(key: string, names: Record<string, string>) {
   if (key.startsWith("pkg:")) return `${ECOSYSTEMS[key.slice(4)]?.label ?? key.slice(4)} packages`;
+  if (key === "runtime") return "Runtimes";
   return names[key] ?? key;
 }
 
-/** The logo for a source: the provider's own mark, or the package ecosystem's. */
+/** The logo for a source: the provider's own mark, the package ecosystem's, or a generic glyph. */
 export function sourceLogo(key: string) {
   if (key.startsWith("pkg:")) {
     const e = ECOSYSTEMS[key.slice(4)];
     return e
       ? { light: e.light, dark: e.dark }
-      : { light: "/logos/provider.svg", dark: "/logos/provider.svg" };
+      : { light: "/logos/provider-light.svg", dark: "/logos/provider-dark.svg" };
   }
+  if (key === "runtime") return { light: "/logos/runtime-light.svg", dark: "/logos/runtime-dark.svg" };
   return providerLogo(key);
 }
 
