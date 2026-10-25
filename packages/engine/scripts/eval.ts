@@ -1,22 +1,35 @@
 /**
- * The S03 evaluation: real repos in teire-dev through the same pipeline calls the worker makes
- * (assess, then fix in the sandbox), the fix agent run once on Nemotron 3 Ultra and once on
+ * The S03 evaluation, extended in S10 to all six ecosystems and the API cases: real repos in
+ * teire-dev through the same pipeline calls the worker makes (assess, then fix in the sandbox),
+ * with false-positive checks per ecosystem. The fix agent runs once on Nemotron 3 Ultra and once on
  * Nemotron 3 Super. Release notes are read by the reader model (Ultra) in both runs, so only the
  * agent differs. One JSON line per run goes to --out; nothing is written to GitHub.
  * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/eval.ts --out=<file> [--case=<slug>] [--models=ultra,super]
  */
 import { appendFileSync } from "node:fs";
 import { directoryTree, fetchRepoTarball } from "../src/inventory";
+import type { JvmProject } from "../src/inventory/jvm";
 import type { PyProject } from "../src/inventory/python";
+import type { RubyProject } from "../src/inventory/ruby";
+import type { RustProject } from "../src/inventory/rust";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "../src/llm";
 import {
   type Assessment,
   assessApiChanges,
+  assessGoRepo,
   assessJsRepo,
+  assessJvmRepo,
   assessPyRepo,
+  assessRubyRepo,
+  assessRustRepo,
   fixApiChanges,
+  fixGoDependency,
   fixJsDependency,
+  fixJvmDependency,
   fixPyDependency,
+  fixRubyDependency,
+  fixRustDependency,
+  type GoAssessment,
   liveProviderChanges,
   repoInstances,
 } from "../src/pipeline";
@@ -25,11 +38,12 @@ import { type SideResult, selectBackend } from "../src/verify";
 
 interface Case {
   slug: string;
-  ecosystem: "npm" | "pypi";
+  ecosystem: "npm" | "pypi" | "go" | "cargo" | "rubygems" | "maven";
   name: string;
   expect: "affected" | "not_affected";
 }
 
+/** S03's npm and PyPI cases, then S10's: one major per ecosystem plus a false-positive check each. */
 const CASES: Case[] = [
   { slug: "teire-dev/demo-npm-major", ecosystem: "npm", name: "openai", expect: "affected" },
   { slug: "teire-dev/demo-npm-zod", ecosystem: "npm", name: "zod", expect: "affected" },
@@ -37,13 +51,50 @@ const CASES: Case[] = [
   { slug: "teire-dev/demo-py-openai", ecosystem: "pypi", name: "openai", expect: "affected" },
   { slug: "teire-dev/demo-py-httpx", ecosystem: "pypi", name: "httpx", expect: "affected" },
   { slug: "teire-dev/demo-py-pydantic", ecosystem: "pypi", name: "pydantic", expect: "affected" },
+  {
+    slug: "teire-dev/demo-go-major",
+    ecosystem: "go",
+    name: "github.com/golang-jwt/jwt/v4",
+    expect: "affected",
+  },
+  { slug: "teire-dev/demo-rust-major", ecosystem: "cargo", name: "rand", expect: "affected" },
+  { slug: "teire-dev/demo-ruby-major", ecosystem: "rubygems", name: "faraday", expect: "affected" },
+  { slug: "teire-dev/demo-rails-db", ecosystem: "rubygems", name: "faraday", expect: "affected" },
+  {
+    slug: "teire-dev/demo-jvm-major",
+    ecosystem: "maven",
+    name: "com.google.guava:guava",
+    expect: "affected",
+  },
+  {
+    slug: "teire-dev/demo-kotlin-major",
+    ecosystem: "maven",
+    name: "com.squareup.okhttp3:okhttp",
+    expect: "affected",
+  },
   { slug: "teire-dev/demo-clean", ecosystem: "npm", name: "openai", expect: "not_affected" },
   { slug: "teire-dev/demo-py-clean", ecosystem: "pypi", name: "httpx", expect: "not_affected" },
+  {
+    slug: "teire-dev/demo-go-clean",
+    ecosystem: "go",
+    name: "github.com/golang-jwt/jwt/v4",
+    expect: "not_affected",
+  },
+  { slug: "teire-dev/demo-rust-clean", ecosystem: "cargo", name: "thiserror", expect: "not_affected" },
+  { slug: "teire-dev/demo-ruby-clean", ecosystem: "rubygems", name: "faraday", expect: "not_affected" },
+  {
+    slug: "teire-dev/demo-jvm-clean",
+    ecosystem: "maven",
+    name: "com.google.guava:guava",
+    expect: "not_affected",
+  },
 ];
 
 /** Provider changes (retired models): no package moves; the agent adapts the code around the swap. */
 const API_CASES: { slug: string; group: string }[] = [
   { slug: "teire-dev/demo-py-agent", group: "models/nebius-token-factory" },
+  { slug: "teire-dev/demo-ai-web", group: "models/openai" },
+  { slug: "teire-dev/demo-wrapped-models", group: "models/groq" },
 ];
 
 const args = process.argv.slice(2);
@@ -84,7 +135,15 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
     const assessed =
       c.ecosystem === "npm"
         ? await assessJsRepo(checkout.dir, tree, options)
-        : await assessPyRepo(checkout.dir, tree, options);
+        : c.ecosystem === "pypi"
+          ? await assessPyRepo(checkout.dir, tree, options)
+          : c.ecosystem === "go"
+            ? await assessGoRepo(checkout.dir, tree, options)
+            : c.ecosystem === "cargo"
+              ? await assessRustRepo(checkout.dir, tree, options)
+              : c.ecosystem === "rubygems"
+                ? await assessRubyRepo(checkout.dir, tree, options)
+                : await assessJvmRepo(checkout.dir, tree, options);
     const a = (
       assessed.assessments as Assessment<{
         root: string;
@@ -149,7 +208,15 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
         const result =
           c.ecosystem === "pypi"
             ? await fixPyDependency({ ...input, assessment: a as unknown as Assessment<PyProject> })
-            : await fixJsDependency({ ...input, assessment: a as unknown as Assessment });
+            : c.ecosystem === "go"
+              ? await fixGoDependency({ ...input, assessment: a as unknown as GoAssessment })
+              : c.ecosystem === "cargo"
+                ? await fixRustDependency({ ...input, assessment: a as unknown as Assessment<RustProject> })
+                : c.ecosystem === "rubygems"
+                  ? await fixRubyDependency({ ...input, assessment: a as unknown as Assessment<RubyProject> })
+                  : c.ecosystem === "maven"
+                    ? await fixJvmDependency({ ...input, assessment: a as unknown as Assessment<JvmProject> })
+                    : await fixJsDependency({ ...input, assessment: a as unknown as Assessment });
         const run = result.run;
         const record = {
           ...assessment,
