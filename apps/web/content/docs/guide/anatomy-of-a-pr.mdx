@@ -4,7 +4,7 @@ description: Every Teire pull request carries its own evidence. It shows why you
 icon: GitPullRequest
 ---
 
-This page walks through a real pull request: the dry run of `golang-jwt/jwt` v4.5.2 → v5.3.1 on [teire-dev/demo-go-major](https://github.com/teire-dev/demo-go-major). It verified in 2 minutes 7 seconds for $0.138.
+This page walks through a real pull request: the dry run of `golang-jwt/jwt` v4.5.2 → v5.3.1 on [teire-dev/demo-go-major](https://github.com/teire-dev/demo-go-major). It verified in 2 minutes 9 seconds for $0.181.
 
 <Shot
   name="dryrun-go-pr"
@@ -35,6 +35,8 @@ This page walks through a real pull request: the dry run of `golang-jwt/jwt` v4.
 <Step>
 
 **Why this repo** lists each line that uses what changed, linked to the exact commit, with what changed there (symbol removed, arity changed, …). The heading says how the lines were found: by type, or by name where the ecosystem's search is syntax-level.
+
+> github.com/golang-jwt/jwt/v5 v5.3.1 removes or changes APIs this repo calls (resolved by type, not by name):
 
 > - `auth/token.go:22` `jwt.StandardClaims` (symbol removed)
 > - `auth/token.go:49` `var ve *jwt.ValidationError` (symbol removed)
@@ -78,10 +80,11 @@ Up to 12 sites per change. Lines whose types merely changed are listed as "Also 
 
 | Step | Model | Tokens in / out | Cost |
 |---|---|---|---|
-| Read the release notes | NVIDIA Nemotron 3 Ultra | 2.3k / 1.4k | $0.0066 |
-| Fix attempt 1: 17 steps → verified | NVIDIA Nemotron 3 Ultra | 210.7k / 4.3k | $0.128 |
-| Review of the passing diff: no problems found | NVIDIA Nemotron 3 Ultra | 1.8k / 418 | $0.0030 |
+| Fix attempt 1: 22 steps → verified | NVIDIA Nemotron 3 Ultra | 276.5k / 3.6k | $0.176 |
+| Review of the passing diff: no problems found | NVIDIA Nemotron 3 Ultra | 1.4k / 1.1k | $0.0046 |
 | Sandboxes: install + checks, both sides | Cloudflare Containers | — | 27 s |
+
+An upgrade's first run also has a "Read the release notes" row. This run reused an earlier reading of the same notes, so it paid nothing for them.
 
 </Step>
 <Step>

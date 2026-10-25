@@ -1,4 +1,28 @@
 {
+  "phone/changes": {
+    "width": 780,
+    "height": 1688
+  },
+  "phone/dashboard": {
+    "width": 780,
+    "height": 1688
+  },
+  "phone/dryrun-ai-web-pr": {
+    "width": 780,
+    "height": 1688
+  },
+  "phone/landing": {
+    "width": 780,
+    "height": 1688
+  },
+  "phone/report-wrapped-models": {
+    "width": 780,
+    "height": 1688
+  },
+  "phone/scan": {
+    "width": 780,
+    "height": 1688
+  },
   "wide/change-detail": {
     "width": 1280,
     "height": 1080
@@ -49,7 +73,7 @@
   },
   "wide/landing-steps": {
     "width": 1280,
-    "height": 531
+    "height": 563
   },
   "wide/landing": {
     "width": 1280,
@@ -114,29 +138,5 @@
   "wide/welcome": {
     "width": 1280,
     "height": 1080
-  },
-  "phone/changes": {
-    "width": 780,
-    "height": 1688
-  },
-  "phone/dashboard": {
-    "width": 780,
-    "height": 1688
-  },
-  "phone/dryrun-ai-web-pr": {
-    "width": 780,
-    "height": 1688
-  },
-  "phone/landing": {
-    "width": 780,
-    "height": 1688
-  },
-  "phone/report-wrapped-models": {
-    "width": 780,
-    "height": 1688
-  },
-  "phone/scan": {
-    "width": 780,
-    "height": 1688
   }
 }

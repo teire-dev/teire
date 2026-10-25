@@ -1,4 +1,6 @@
-import type { CallSite, Verdict } from "@teire/engine/contract";
+import { type CallSite, type ChangeKindV2, PR_OPENING_KINDS, type Verdict } from "@teire/engine/contract";
+
+const opensPr = (kind: string | null | undefined) => PR_OPENING_KINDS.has(kind as ChangeKindV2);
 
 /**
  * Findings grouped the way Teire opens PRs (one group per `groupKey`), shared by the scan report and
@@ -50,7 +52,14 @@ export function groupFindings(rows: FindingRow[]): FindingGroup[] {
   for (const r of rows)
     byKey.set(r.groupKey ?? r.changeId, [...(byKey.get(r.groupKey ?? r.changeId) ?? []), r]);
   return [...byKey].map(([key, list]) => {
-    const sorted = [...list].sort((a, b) => RANK[a.verdict] - RANK[b.verdict]);
+    // Within one verdict, a change that opens a PR (a removal, an advisory) leads, not an annotation
+    // (a deprecation, a changed type), then the most urgent.
+    const sorted = [...list].sort(
+      (a, b) =>
+        RANK[a.verdict] - RANK[b.verdict] ||
+        Number(opensPr(b.kind)) - Number(opensPr(a.kind)) ||
+        (a.priority ?? 9) - (b.priority ?? 9),
+    );
     const head = sorted[0] as FindingRow;
     // The group says what its strongest verdict says: title, deadline and sites come from those rows.
     const lead = sorted.filter((r) => r.verdict === head.verdict);
