@@ -264,7 +264,13 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     const log = (line: string) =>
       emit({ step: line.startsWith("baseline") ? "baseline" : "install", detail: line });
     const probeBaseline = async () => {
-      const side = await runSide(base, input.plan, "baseline", undefined, log);
+      let side = await runSide(base, input.plan, "baseline", undefined, log);
+      // One retry: a registry or sandbox hiccup must not cost the run its baseline (S10 evaluation:
+      // the same lockfile installed on the after side while the baseline's first install failed).
+      if (!side.install.ok) {
+        log("baseline: install failed; retrying once");
+        side = await runSide(base, input.plan, "baseline", undefined, log);
+      }
       // The repo as it compiled before the change: a probe reads what the checks built.
       if (!input.plan.probe || !side.install.ok) return { side, probe: null };
       const run = await base.run("baseline-probe", input.plan.probe, {
@@ -406,6 +412,8 @@ export async function runFix(input: FixInput): Promise<FixRun> {
 
     let current = await verify("after the upgrade and deterministic edits");
     if (acceptable(current.evidence)) return finish(current.evidence, lastAfter, [], codemods, [], "", false);
+    // Without a baseline no edit can be judged, so the agent is not started.
+    if (!baseline.install.ok) return finish(current.evidence, lastAfter, [], codemods, [], "", false);
 
     // 4. Agent attempts.
     const postCodemod = new Map([...originals.keys()].map((p) => [p, read(p)]));
