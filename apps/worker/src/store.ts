@@ -85,11 +85,18 @@ export async function setRepo(db: Database, id: number, fields: Partial<typeof r
 export async function startScan(
   db: Database,
   repoId: number,
-  trigger: "install" | "push" | "command" | "manual",
+  trigger: "install" | "push" | "command" | "manual" | "public",
+  requestedBy?: string,
 ) {
   const [row] = await db
     .insert(scans)
-    .values({ repoId, trigger, status: "running", startedAt: new Date() })
+    .values({
+      repoId,
+      trigger,
+      status: "running",
+      startedAt: new Date(),
+      ...(requestedBy ? { requestedBy } : {}),
+    })
     .returning();
   if (!row) throw new Error("scan insert failed");
   return row;

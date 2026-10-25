@@ -6,6 +6,7 @@ import { CreditsExhaustedError } from "@teire/engine/llm";
 import { PgBoss } from "pg-boss";
 import { handleDelivery } from "./jobs/events";
 import { fixRun } from "./jobs/fix";
+import { publicScan } from "./jobs/public";
 import { scanRepo } from "./jobs/scan";
 import { startOutbox } from "./outbox";
 import { ensureQueues, QUEUES } from "./queues";
@@ -77,6 +78,9 @@ async function main() {
       enqueueScan: async (repoId: number, trigger: "install" | "push" | "command" | "manual") => {
         await boss.send(QUEUES.scan, { repoId, trigger }, { singletonKey: String(repoId) });
       },
+      enqueuePublicScan: async (publicScanId: string) => {
+        await boss.send(QUEUES.public, { publicScanId }, { singletonKey: publicScanId });
+      },
     };
     // key_strict_fifo holds a repo's queue behind a failed job, so these handlers never throw:
     // failures live on the scan and run rows.
@@ -103,6 +107,20 @@ async function main() {
           console.log("[fix]", job.data.runId, JSON.stringify(await fixRun(ctx, job.data.runId)));
         } catch (error) {
           console.error("[fix] failed", job.data.runId, error);
+        }
+      }
+    });
+    await boss.work<{ publicScanId: string }>(QUEUES.public, async (jobs) => {
+      for (const job of jobs) {
+        try {
+          console.log(
+            "[public]",
+            job.data.publicScanId,
+            JSON.stringify(await publicScan(ctx, job.data.publicScanId)),
+          );
+        } catch (error) {
+          if (error instanceof CreditsExhaustedError) await markCreditsExhausted(db, error.message);
+          console.error("[public] failed", job.data.publicScanId, error);
         }
       }
     });

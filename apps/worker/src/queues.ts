@@ -10,6 +10,8 @@ export const QUEUES = {
   event: "event",
   scan: "scan",
   fix: "fix",
+  /** Public scans (C9): any public repo, asked for on the web; failures live on the request row. */
+  public: "public",
 } as const;
 
 /** Queues and schedules of earlier designs, removed from pg-boss at startup (D82: no scheduled ingest). */
@@ -26,6 +28,7 @@ export async function ensureQueues(boss: PgBoss) {
   });
   await boss.createQueue(QUEUES.scan, { policy: "key_strict_fifo", retryLimit: 2, retryDelay: 30 });
   await boss.createQueue(QUEUES.fix, { policy: "key_strict_fifo", retryLimit: 1, retryDelay: 60 });
+  await boss.createQueue(QUEUES.public, { policy: "standard", retryLimit: 0 });
   for (const name of RETIRED_QUEUES) {
     await boss.unschedule(name).catch(() => undefined);
     await boss.deleteQueue(name).catch(() => undefined);

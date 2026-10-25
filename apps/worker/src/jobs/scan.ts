@@ -102,6 +102,16 @@ export function apiCandidates(findings: FindingDraft[], config: TeireConfig) {
   }));
 }
 
+/** The ecosystems a scan found projects in, as stored on the repo. */
+export function languagesOf(
+  groups: Record<"js" | "py" | "go" | "rust" | "ruby" | "jvm", { projects: unknown[] }>,
+) {
+  const names = { js: "javascript", py: "python", go: "go", rust: "rust", ruby: "ruby", jvm: "jvm" } as const;
+  return (Object.keys(names) as (keyof typeof names)[])
+    .filter((k) => groups[k].projects.length)
+    .map((k) => names[k]);
+}
+
 export function groupKeyOf(a: AnyAssessment) {
   return a.decision?.kind === "upgrade"
     ? `${a.instance.ecosystem}/${a.instance.name}/${a.decision.to}`
@@ -129,6 +139,169 @@ function onboardingRows(assessments: AnyAssessment[]): OnboardingRow[] {
         coverage: c ? `${c.filesScanned} files, ${c.resolutionLevel}-resolved` : null,
       };
     });
+}
+
+/**
+ * The scan itself, shared by installed repos and public scans (C3, C9): every ecosystem's
+ * assessment, the API hosts and models the code calls, and runtimes; the records, findings and
+ * inventory are stored for the scan. GitHub writes (onboarding PR, check run, fix runs, the
+ * Dashboard issue) stay with the caller.
+ */
+export async function assessCheckout(
+  db: Database,
+  input: {
+    repoId: number;
+    scanId: string;
+    fullName: string;
+    dir: string;
+    tree: ReturnType<typeof directoryTree>;
+    config: TeireConfig;
+    sha: string;
+    /** An installation token, or the requester's own for a public scan; none reads anonymously. */
+    token?: string;
+    /** Why model work is paused, when it is (S10): page reading and triage are skipped. */
+    blocked: string | null;
+  },
+) {
+  const { repoId, scanId, fullName, dir, tree, config, sha, blocked } = input;
+  const [owner = "", name = ""] = fullName.split("/");
+  const auth = input.token ? { githubToken: input.token } : {};
+  const on = config.ecosystems;
+  const none = { projects: [], assessments: [] };
+  const cache = postgresRegistryCache(db);
+  const js = !on.npm
+    ? none
+    : await assessJsRepo(dir, tree, {
+        cache,
+        cooldownDays: config.upgrades.cooldownDays,
+        ...auth,
+        surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
+      });
+  const py = !on.pypi
+    ? none
+    : await assessPyRepo(dir, tree, {
+        cache,
+        cooldownDays: config.upgrades.cooldownDays,
+        ...auth,
+        surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
+      });
+  const go = !on.go
+    ? none
+    : await assessGoRepo(dir, tree, {
+        cache,
+        cooldownDays: config.upgrades.cooldownDays,
+        ...auth,
+        surfaceDiff: (oldPath, f, newPath, t) =>
+          cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () => goSurfaceDiff(oldPath, f, newPath, t)),
+      });
+  const rust = !on.cargo
+    ? none
+    : await assessRustRepo(dir, tree, {
+        cache,
+        cooldownDays: config.upgrades.cooldownDays,
+        ...auth,
+        surfaceDiff: (n, f, t) =>
+          cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
+            cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
+          ),
+      });
+  const ruby = !on.rubygems
+    ? none
+    : await assessRubyRepo(dir, tree, {
+        cache,
+        cooldownDays: config.upgrades.cooldownDays,
+        ...auth,
+        surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
+      });
+  const jvm = !on.maven
+    ? none
+    : await assessJvmRepo(dir, tree, {
+        cache,
+        cooldownDays: config.upgrades.cooldownDays,
+        ...auth,
+        surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
+      });
+  const projects: AssessedProject[] = [
+    ...js.projects,
+    ...py.projects,
+    ...go.projects,
+    ...rust.projects,
+    ...ruby.projects,
+    ...jvm.projects,
+  ];
+  // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.
+  const api = !on.apis
+    ? {
+        // `ecosystems.apis: false`: no API-host or model checks for this repo.
+        scan: { hits: [], filesScanned: 0, languages: [], ms: 0 },
+        findings: [],
+        providers: [],
+        records: [],
+        discovery: { candidates: 0, usage: [], notes: [] },
+        receipts: [],
+        openapiNotes: [],
+      }
+    : await assessApiChanges(
+        dir,
+        tree,
+        projects.flatMap((p) => p.instances),
+        {
+          changes: storedProviderChanges(db, () => revalidateWeb(["catalog"]), !blocked),
+          discover: { cache },
+          ...(blocked ? {} : { triage: await pageReader(db) }),
+          openapi: { cache, ...auth, repo: { owner, name, sha } },
+          declared: config.sources,
+        },
+      );
+  for (const n of api.openapiNotes) console.log(`[scan] ${fullName}: openapi ${n}`);
+  if (api.discovery.candidates)
+    console.log(
+      `[scan] ${fullName}: ${api.discovery.candidates} provider(s) with no reader; found ${
+        api.providers
+          .filter((p) => p.provider.discovery)
+          .map((p) => p.provider.slug)
+          .join(", ") || "none"
+      }; Tavily ${api.discovery.usage.reduce((n, u) => n + u.credits, 0)} credit(s)${api.discovery.notes.length ? `; ${api.discovery.notes.join("; ")}` : ""}`,
+    );
+  // Runtimes the repo runs, against their end of life (notices, never PRs).
+  const runtimes = await assessRuntimes(runtimesOf(tree, js.projects, py.projects), { cache });
+  // Records computed in this scan (OpenAPI diffs, runtime dates) are stored with their findings;
+  // provider records were stored when their pages were read.
+  for (const r of [
+    ...api.records.filter((x) => x.sources.some((s) => s.kind === "openapi-diff")),
+    ...runtimes.records,
+  ])
+    await upsertChange(db, r);
+  const runtimeHashes = new Map(runtimes.records.map((r) => [r.id, changeHash(r)]));
+  for (const f of runtimes.findings)
+    await upsertFinding(db, repoId, scanId, f, runtimeHashes.get(f.changeId) ?? "");
+  const recordHashes = new Map(api.records.map((r) => [r.id, changeHash(r)]));
+  for (const f of api.findings)
+    await upsertFinding(db, repoId, scanId, f, recordHashes.get(f.changeId) ?? "");
+  const assessments: AnyAssessment[] = [
+    ...js.assessments,
+    ...py.assessments,
+    ...go.assessments,
+    ...rust.assessments,
+    ...ruby.assessments,
+    ...jvm.assessments,
+  ];
+  await saveInstances(
+    db,
+    scanId,
+    repoId,
+    projects.flatMap((p) => p.instances),
+  );
+  for (const a of assessments) {
+    const hashes = new Map<string, string>();
+    for (const record of [...a.records, ...(a.deprecation ? [a.deprecation] : [])])
+      hashes.set(record.id, await upsertChange(db, record));
+    for (const f of a.findings) await upsertFinding(db, repoId, scanId, f, hashes.get(f.changeId) ?? "");
+  }
+  // Ignored targets stay ignored across scans, new findings included.
+  if (config.ignore.length)
+    await setFindingsState(db, repoId, (f) => config.ignore.some((t) => matchesTarget(t, f)), "ignored");
+  return { js, py, go, rust, ruby, jvm, projects, assessments, api, runtimes };
 }
 
 export async function scanRepo(
@@ -172,156 +345,23 @@ export async function scanRepo(
     // Model work (provider pages, wrapped-model triage) waits while credits or the budget are out (S10).
     const blocked = await modelWorkBlocked(db);
     if (blocked) console.log(`[scan] ${repo.fullName}: model reading skipped: ${blocked}`);
-    const on = config.ecosystems;
-    const none = { projects: [], assessments: [] };
-    const cache = postgresRegistryCache(db);
-    const js = !on.npm
-      ? none
-      : await assessJsRepo(checkout.dir, tree, {
-          cache,
-          cooldownDays: config.upgrades.cooldownDays,
-          githubToken: token,
-          surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
-        });
-    const py = !on.pypi
-      ? none
-      : await assessPyRepo(checkout.dir, tree, {
-          cache,
-          cooldownDays: config.upgrades.cooldownDays,
-          githubToken: token,
-          surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
-        });
-    const go = !on.go
-      ? none
-      : await assessGoRepo(checkout.dir, tree, {
-          cache,
-          cooldownDays: config.upgrades.cooldownDays,
-          githubToken: token,
-          surfaceDiff: (oldPath, f, newPath, t) =>
-            cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () =>
-              goSurfaceDiff(oldPath, f, newPath, t),
-            ),
-        });
-    const rust = !on.cargo
-      ? none
-      : await assessRustRepo(checkout.dir, tree, {
-          cache,
-          cooldownDays: config.upgrades.cooldownDays,
-          githubToken: token,
-          surfaceDiff: (n, f, t) =>
-            cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
-              cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
-            ),
-        });
-    const ruby = !on.rubygems
-      ? none
-      : await assessRubyRepo(checkout.dir, tree, {
-          cache,
-          cooldownDays: config.upgrades.cooldownDays,
-          githubToken: token,
-          surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
-        });
-    const jvm = !on.maven
-      ? none
-      : await assessJvmRepo(checkout.dir, tree, {
-          cache,
-          cooldownDays: config.upgrades.cooldownDays,
-          githubToken: token,
-          surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
-        });
-    const projects: AssessedProject[] = [
-      ...js.projects,
-      ...py.projects,
-      ...go.projects,
-      ...rust.projects,
-      ...ruby.projects,
-      ...jvm.projects,
-    ];
-    // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.
-    const api = !on.apis
-      ? {
-          // `ecosystems.apis: false`: no API-host or model checks for this repo.
-          scan: { hits: [], filesScanned: 0, languages: [], ms: 0 },
-          findings: [],
-          providers: [],
-          records: [],
-          discovery: { candidates: 0, usage: [], notes: [] },
-          receipts: [],
-          openapiNotes: [],
-        }
-      : await assessApiChanges(
-          checkout.dir,
-          tree,
-          projects.flatMap((p) => p.instances),
-          {
-            changes: storedProviderChanges(db, () => revalidateWeb(["catalog"]), !blocked),
-            discover: { cache },
-            ...(blocked ? {} : { triage: await pageReader(db) }),
-            openapi: { cache, githubToken: token, repo: { owner, name, sha } },
-            declared: config.sources,
-          },
-        );
-    for (const n of api.openapiNotes) console.log(`[scan] ${repo.fullName}: openapi ${n}`);
-    if (api.discovery.candidates)
-      console.log(
-        `[scan] ${repo.fullName}: ${api.discovery.candidates} provider(s) with no reader; found ${
-          api.providers
-            .filter((p) => p.provider.discovery)
-            .map((p) => p.provider.slug)
-            .join(", ") || "none"
-        }; Tavily ${api.discovery.usage.reduce((n, u) => n + u.credits, 0)} credit(s)${api.discovery.notes.length ? `; ${api.discovery.notes.join("; ")}` : ""}`,
-      );
-    // Runtimes the repo runs, against their end of life (notices, never PRs).
-    const runtimes = await assessRuntimes(runtimesOf(tree, js.projects, py.projects), { cache });
-    // Records computed in this scan (OpenAPI diffs, runtime dates) are stored with their findings;
-    // provider records were stored when their pages were read.
-    for (const r of [
-      ...api.records.filter((x) => x.sources.some((s) => s.kind === "openapi-diff")),
-      ...runtimes.records,
-    ])
-      await upsertChange(db, r);
-    const runtimeHashes = new Map(runtimes.records.map((r) => [r.id, changeHash(r)]));
-    for (const f of runtimes.findings)
-      await upsertFinding(db, repoId, scan.id, f, runtimeHashes.get(f.changeId) ?? "");
-    const recordHashes = new Map(api.records.map((r) => [r.id, changeHash(r)]));
-    for (const f of api.findings)
-      await upsertFinding(db, repoId, scan.id, f, recordHashes.get(f.changeId) ?? "");
-    const assessments: AnyAssessment[] = [
-      ...js.assessments,
-      ...py.assessments,
-      ...go.assessments,
-      ...rust.assessments,
-      ...ruby.assessments,
-      ...jvm.assessments,
-    ];
-    await saveInstances(
-      db,
-      scan.id,
+    const { js, py, go, rust, ruby, jvm, assessments, api, runtimes } = await assessCheckout(db, {
       repoId,
-      projects.flatMap((p) => p.instances),
-    );
-    for (const a of assessments) {
-      const hashes = new Map<string, string>();
-      for (const record of [...a.records, ...(a.deprecation ? [a.deprecation] : [])])
-        hashes.set(record.id, await upsertChange(db, record));
-      for (const f of a.findings) await upsertFinding(db, repoId, scan.id, f, hashes.get(f.changeId) ?? "");
-    }
-    // Ignored targets stay ignored across scans, new findings included.
-    if (config.ignore.length)
-      await setFindingsState(db, repoId, (f) => config.ignore.some((t) => matchesTarget(t, f)), "ignored");
+      scanId: scan.id,
+      fullName: repo.fullName,
+      dir: checkout.dir,
+      tree,
+      config,
+      sha,
+      token,
+      blocked,
+    });
     const coverage = assessments.find((a) => a.located)?.located?.coverage ?? null;
     await finishScan(db, scan.id, { status: "done", sha, coverage });
     await setRepo(db, repoId, {
       lastScannedSha: sha,
       lastScannedAt: new Date(),
-      languages: [
-        ...(js.projects.length ? ["javascript"] : []),
-        ...(py.projects.length ? ["python"] : []),
-        ...(go.projects.length ? ["go"] : []),
-        ...(rust.projects.length ? ["rust"] : []),
-        ...(ruby.projects.length ? ["ruby"] : []),
-        ...(jvm.projects.length ? ["jvm"] : []),
-      ],
+      languages: languagesOf({ js, py, go, rust, ruby, jvm }),
       config,
       configSource: config.path ?? (orgText ? `${owner}/teire-config` : null),
     });

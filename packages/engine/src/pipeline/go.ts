@@ -19,6 +19,7 @@ import { escapeModulePath, goModuleFamily } from "../registry/go";
 import { chooseTarget, type TargetPolicy } from "../registry/target";
 import { goScheme } from "../registry/versions";
 import { goSurfaceDiff } from "../surface/go";
+import { goDocsLookup } from "../surface/godoc";
 import { surfaceChangeRecords } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
@@ -277,10 +278,7 @@ export async function fixGoDependency(
     notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir,
     targetPaths: new Set(),
-    docs: async () =>
-      targetDir
-        ? `The target module's source is at ${targetDir}; read its exported declarations there.`
-        : "The target module's source is not in the cache; rely on the quoted migration notes and the compiler output.",
+    docs: goDocsLookup(targetPath, target, targetDir),
     onEvent: input.onEvent,
   });
   const groupKey = `go/${a.instance.name}/${target}`;

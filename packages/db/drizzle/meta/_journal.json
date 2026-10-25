@@ -57,6 +57,13 @@
       "when": 1792932929136,
       "tag": "0007_s10_system_state",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792936282332,
+      "tag": "0008_s11_public_scans",
+      "breakpoints": true
     }
   ]
 }

@@ -57,6 +57,7 @@ import {
 } from "../store";
 import { syncDashboard } from "./dashboard";
 import { pageReader, storedProviderChanges } from "./providers";
+import { requesterToken } from "./public";
 import type { WorkerContext } from "./scan";
 
 /** A run deferred for credits or the daily budget tries again after this long. */
@@ -81,7 +82,7 @@ async function packageOutcome(
   run: { groupKey: string; targetVersion: string; fromVersion: string | null },
   repoDir: string,
   tree: RepoTree,
-  token: string,
+  token: string | undefined,
   common: Common,
 ): Promise<Outcome | null> {
   const head = run.groupKey.split("/")[0];
@@ -103,7 +104,7 @@ async function packageOutcome(
     cache,
     cooldownDays: readTeireConfig(tree).upgrades.cooldownDays,
     onlyPackage: packageName,
-    githubToken: token,
+    ...(token ? { githubToken: token } : {}),
     surfaceDiff: (n: string, f: string, t: string) =>
       cachedSurfaceDiff(ctx.db, ecosystem, n, f, t, { cache }),
   };
@@ -234,18 +235,20 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   if (run.status === "failed" || run.status === "running")
     await updateRun(db, runId, { status: "queued", attempt: run.attempt + 1, error: null });
   const repo = await getRepo(db, run.repoId);
-  if (!repo?.installationId || !run.groupKey || !run.targetVersion || !run.baseSha)
+  // A dry run (C9) works on any public repo: no installation, no GitHub writes, no PR caps.
+  const dry = run.kind === "dry_run";
+  if (!repo || (!dry && !repo.installationId) || !run.groupKey || !run.targetVersion || !run.baseSha)
     throw new Error(`run ${runId} is incomplete`);
   const groupKey = run.groupKey;
   const isApi = /^(models|api)\//.test(groupKey);
   const [owner = "", name = ""] = repo.fullName.split("/");
-  const installation = await gh.installation(repo.installationId);
+  const installation = repo.installationId && !dry ? await gh.installation(repo.installationId) : null;
   const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);
 
   // Noise controls before any work (D70): per-repo open PRs and new PRs per hour.
   const config = (repo.config as ReturnType<typeof readTeireConfig> | null) ?? null;
   const limits = config?.pullRequests ?? { limit: 5, perHour: 2 };
-  const counts = await prCounts(db, repo.id);
+  const counts = dry ? { open: 0, lastHour: 0 } : await prCounts(db, repo.id);
   if (counts.open >= limits.limit || counts.lastHour >= limits.perHour) {
     await updateRun(db, runId, { status: "queued", step: "waiting for the PR limit" });
     await event("queue", "deferred", { open: counts.open, lastHour: counts.lastHour, limits });
@@ -269,10 +272,11 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     RUNS.heartbeatEveryMs,
   );
   await event("assess", "started", { group: groupKey, from: run.fromVersion, target: run.targetVersion });
-  const token = await installation.token();
+  // A dry run reads GitHub as the person who asked (their own rate limit), anonymously without it.
+  const token = installation ? await installation.token() : await requesterToken(db, run.requestedBy);
   let dir: string | null = null;
   try {
-    const checkout = await fetchRepoTarball(owner, name, run.baseSha, { token });
+    const checkout = await fetchRepoTarball(owner, name, run.baseSha, token ? { token } : {});
     dir = checkout.dir;
     const tree = directoryTree(checkout.dir);
     const tf = createTokenFactory(tokenFactoryConfigFromEnv());
@@ -303,10 +307,13 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       repoDir: checkout.dir,
       tree,
       repo: { owner, repo: name, baseSha: run.baseSha },
-      tarball: { url: `https://api.github.com/repos/${owner}/${name}/tarball/${run.baseSha}`, token },
+      tarball: {
+        url: `https://api.github.com/repos/${owner}/${name}/tarball/${run.baseSha}`,
+        ...(token ? { token } : {}),
+      },
       options: {
         cache: postgresRegistryCache(db),
-        githubToken: token,
+        ...(token ? { githubToken: token } : {}),
         context7Key: process.env.CONTEXT7_API_KEY,
       },
       onEvent: (e: { step: string }) => {
@@ -395,6 +402,25 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       costUsd: (fix.costUsd + (notesReceipt?.costUsd ?? 0)).toFixed(6),
       attempt: Math.max(1, fix.attempts.length),
     };
+
+    if (dry) {
+      // The PR Teire would open, kept on the run for the report page; nothing is written to GitHub.
+      await updateRun(db, runId, {
+        ...runFields,
+        status: prMode === "issue" ? "failed" : "succeeded",
+        step: prMode === "issue" ? "needs a human" : "dry run complete",
+        finishedAt: new Date(),
+      });
+      await event("pr", "dry-run", {
+        title: composed.title,
+        body: composed.body,
+        mode: prMode,
+        labels: outcome.labels,
+        evidence: fix.evidence.kind,
+      });
+      return { dryRun: prMode };
+    }
+    if (!installation) throw new Error(`run ${runId}: no installation`);
 
     if (prMode === "issue") {
       // No usable result: a "needs a human" issue with the evidence and the best diff.
@@ -553,7 +579,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       // C6: a person pushed to Teire's branch; their commits are never overwritten.
       const open = await getArtifact(db, repo.id, "pr", groupKey);
       if (open?.number && open.state === "open")
-        await installation.octokit.rest.issues
+        await installation?.octokit.rest.issues
           .createComment({
             owner,
             repo: name,

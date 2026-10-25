@@ -16,6 +16,7 @@ import {
 } from "../store";
 import { canWrite, handleComment, matchesTarget, startRun } from "./commands";
 import { syncDashboard, tickedActions } from "./dashboard";
+import { requestDryRun } from "./public";
 import { ONBOARDING_BRANCH, type WorkerContext } from "./scan";
 
 /** Customer CI read for one repair (C6). */
@@ -28,6 +29,7 @@ const CI = { maxChecks: 3, maxLogChars: 6000 } as const;
  */
 export interface EventContext extends WorkerContext {
   enqueueScan: (repoId: number, trigger: "install" | "push" | "command" | "manual") => Promise<void>;
+  enqueuePublicScan: (publicScanId: string) => Promise<void>;
 }
 
 interface RepoPayload {
@@ -219,6 +221,13 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
         });
       return;
     }
+    // Requests from the web (C9), through the same outbox as GitHub's deliveries.
+    case "teire.public_scan":
+      if (typeof p.publicScanId === "string") await ctx.enqueuePublicScan(p.publicScanId);
+      return;
+    case "teire.dry_run":
+      console.log("[dry-run]", JSON.stringify(await requestDryRun(ctx, p)));
+      return;
     default:
       return;
   }

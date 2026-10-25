@@ -119,6 +119,8 @@ export const SCAN = {
 export const PUBLIC_LIMITS = {
   scansPerUserPerDay: 3,
   dryRunsPerUserPerDay: 1,
+  /** GitHub's `size` (KB) above which a public scan is refused: the tarball and its install would not fit. */
+  maxRepoKb: 300 * 1024,
 } as const;
 
 export const GITHUB = {
@@ -232,6 +234,11 @@ export const GO = {
   apidiffVersion: "v0.0.0-20261007192929-f45ad48fbe92",
   /** The sandbox image's Go: checks run with this toolchain (`GOTOOLCHAIN=local`). */
   sandboxGo: "1.27.2",
+  /** The fix agent's `lookup_docs` answer from the target module's exported declarations. */
+  docsLookupMaxItems: 25,
+  docsLookupMaxChars: 7000,
+  /** Lines of a struct or interface body shown with its declaration. */
+  docsBodyLines: 18,
 } as const;
 
 /** Rust (plan S06, research generic/rust.md). */

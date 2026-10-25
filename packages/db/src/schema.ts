@@ -417,6 +417,10 @@ export const publicScans = pgTable(
     repoId: githubId("repo_id"),
     scanId: uuid("scan_id"),
     requestedBy: text("requested_by").notNull(),
+    /** The worker's progress (C9): a private or missing repo fails before any scan row exists. */
+    status: text("status").$type<JobStatus>().notNull().default("queued"),
+    error: text("error"),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("public_scans_requester_idx").on(t.requestedBy, t.createdAt)],
