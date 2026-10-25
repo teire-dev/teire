@@ -5,14 +5,6 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   reactCompiler: true,
   transpilePackages: ["@teire/db", "@teire/engine"],
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
 };
 
 export default nextConfig;
