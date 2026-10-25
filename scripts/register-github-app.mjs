@@ -1,4 +1,4 @@
-// Registers Teire's GitHub Apps under the teire-dev org with GitHub's manifest flow.
+// Registers Teire's GitHub Apps under an organisation (teire-dev by default) with GitHub's manifest flow.
 //   node scripts/register-github-app.mjs
 // Open http://localhost:3999, click a button, approve on GitHub. Credentials are written to
 // .env.local (dev app) or .env.production.local (prod app). Secrets are never printed.
@@ -6,7 +6,8 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 
-const ORG = "teire-dev";
+// Your own organisation when you run Teire yourself: TEIRE_GITHUB_ORG=my-org node scripts/register-github-app.mjs
+const ORG = process.env.TEIRE_GITHUB_ORG ?? "teire-dev";
 const PORT = 3999;
 const PROD_URL = "https://teire.vercel.app";
 const DEV_URL = "http://localhost:3000";
@@ -36,7 +37,7 @@ const apps = {
   prod: {
     file: ".env.production.local",
     manifest: {
-      name: "Teire Bot",
+      name: ORG === "teire-dev" ? "Teire Bot" : `Teire (${ORG})`,
       url: PROD_URL,
       description,
       hook_attributes: { url: `${PROD_URL}/api/github/webhooks`, active: true },
@@ -53,7 +54,8 @@ const apps = {
   dev: {
     file: ".env.local",
     manifest: {
-      name: "Teire Bot Dev",
+      // App names are unique across GitHub; another organisation gets its own.
+      name: ORG === "teire-dev" ? "Teire Bot Dev" : `Teire Dev (${ORG})`,
       url: `https://github.com/${ORG}/teire`,
       description: `${description} (development app)`,
       hook_attributes: { url: smeeUrl, active: true },
