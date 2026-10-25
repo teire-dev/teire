@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { createRequire as moduleRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -66,7 +66,7 @@ const SKIP_DIR =
 /** The ast-grep binary: `TEIRE_AST_GREP`, the platform package installed with the engine, or PATH. */
 export function astGrepBinary() {
   if (process.env.TEIRE_AST_GREP) return process.env.TEIRE_AST_GREP;
-  const require = createRequire(import.meta.url);
+  const require = moduleRequire(import.meta.url);
   const platform = `${process.platform}-${process.arch}${process.platform === "linux" ? "-gnu" : ""}`;
   try {
     return join(dirname(require.resolve(`@ast-grep/cli-${platform}/package.json`)), "ast-grep");

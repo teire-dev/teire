@@ -33,3 +33,5 @@ jobs:
       - run: pnpm --filter @teire/engine catalog:validate
       - run: pnpm --filter @teire/worker build
       - run: pnpm --filter @teire/web build
+      # The worker ships as one ESM bundle: it must parse (a duplicate import once crashed a deploy).
+      - run: pnpm --filter @teire/worker build && node --check apps/worker/dist/bundle/main.mjs
