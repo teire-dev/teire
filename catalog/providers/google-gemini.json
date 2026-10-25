@@ -52,6 +52,18 @@
       "langchain_google_genai"
     ],
     "envVars": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
-    "baseUrls": ["generativelanguage.googleapis.com"]
+    "baseUrls": ["generativelanguage.googleapis.com"],
+    "calls": [
+      "models.generate_content",
+      "models.generate_content_stream",
+      "models.count_tokens",
+      "models.embed_content",
+      "models.generateContent",
+      "models.generateContentStream",
+      "models.countTokens",
+      "models.embedContent",
+      "getGenerativeModel",
+      "GenerativeModel"
+    ]
   }
 }

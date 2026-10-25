@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2024-04-10-v-renames-rendering-options-invoicing",
-  "provider": "stripe",
-  "title": "Renames the `rendering_options` attribute for invoices to `rendering`",
-  "announcedOn": "2024-04-10",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Renames the `rendering_options` attribute for invoices to `rendering`",
   "summary": "Renames the rendering_options attribute for invoices to rendering.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["rendering_options"],
-    "endpoints": [],
-    "symbols": ["Invoice.rendering_options"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2024-04-10"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2024-04-10"
+    },
+    "announcedOn": "2024-04-10",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Renaming the rendering_options attribute for invoices to rendering simplifies the attribute’s name. You need to update your code to access and modify these invoice rendering settings under the new rendering structure."
+    {
+      "text": "Renaming the rendering_options attribute for invoices to rendering simplifies the attribute’s name. You need to update your code to access and modify these invoice rendering settings under the new rendering structure.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Renames the `rendering_options` attribute for invoices to `rendering`](https://docs.stripe.com/changelog/2024-04-10/renames-rendering-options-invoicing.md) | Invoicing, Billing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2024-04-10/renames-rendering-options-invoicing.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Renames the `rendering_options` attribute for invoices to `rendering`.",
       "contentHash": "2114dd75b839831aa0a05bd98d79086ca7addd4d8b81027f4634676f8df98e1b",
-      "checkedAt": "2026-10-24T14:37:34.399Z"
+      "checkedAt": "2026-10-25T01:15:46.946Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

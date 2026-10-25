@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2022-08-01-v-removes-shipping-rate-create-checkout-session",
-  "provider": "stripe",
-  "title": "Removes the shipping rate parameter from Create Checkout Session endpoint",
-  "announcedOn": "2022-08-01",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Removes the shipping rate parameter from Create Checkout Session endpoint",
   "summary": "Removes the shipping_rates parameter from the Create Checkout Session endpoint. Use the shipping_options parameter instead.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2022-08-01"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2022-08-01"
+    },
+    "announcedOn": "2022-08-01",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "This simplifies the Checkout Session creation process by providing a single, consolidated way to specify shipping options."
+    {
+      "text": "This simplifies the Checkout Session creation process by providing a single, consolidated way to specify shipping options.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Removes the shipping rate parameter from Create Checkout Session endpoint](https://docs.stripe.com/changelog/2022-08-01/removes-shipping-rate-create-checkout-session.md) | Checkout | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2022-08-01/removes-shipping-rate-create-checkout-session.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Removes the `shipping_rates` parameter from the [Create Checkout Session](https://docs.stripe.com/api/checkout/sessions/create.md?api-version=2024-06-20) endpoint. Use the `shipping_options` parameter instead.",
       "contentHash": "54a3b7e015789b539ef5bf823506d0735851829e52403888625ecf15a6960f01",
-      "checkedAt": "2026-10-24T14:37:35.608Z"
+      "checkedAt": "2026-10-25T01:15:48.216Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

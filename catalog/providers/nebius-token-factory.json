@@ -28,6 +28,18 @@
   "detection": {
     "imports": [],
     "envVars": ["NEBIUS_API_KEY"],
-    "baseUrls": ["api.tokenfactory.nebius.com", "api.tokenfactory.us-central1.nebius.com"]
+    "baseUrls": ["api.tokenfactory.nebius.com", "api.tokenfactory.us-central1.nebius.com"],
+    "calls": [
+      "chat.completions.create",
+      "chat.completions.parse",
+      "chat.completions.stream",
+      "beta.chat.completions.parse",
+      "beta.chat.completions.stream",
+      "responses.create",
+      "responses.parse",
+      "responses.stream",
+      "completions.create",
+      "embeddings.create"
+    ]
   }
 }

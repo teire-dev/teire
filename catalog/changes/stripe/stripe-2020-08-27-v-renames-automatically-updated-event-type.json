@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2020-08-27-v-renames-automatically-updated-event-type",
-  "provider": "stripe",
-  "title": "Renames event type that triggers on automatic updates",
-  "announcedOn": "2020-08-27",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Renames event type that triggers on automatic updates",
   "summary": "Renames the payment_method.card_automatically_updated event type to payment_method.automatically_updated.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2020-08-27"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2020-08-27"
+    },
+    "announcedOn": "2020-08-27",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "By renaming the event type from payment_method.card_automatically_updated to payment_method.automatically_updated, you can now use the event for any type of payment method that has been automatically updated. This provides a more generic and flexible way for you to handle these updates in your applications."
+    {
+      "text": "By renaming the event type from payment_method.card_automatically_updated to payment_method.automatically_updated, you can now use the event for any type of payment method that has been automatically updated. This provides a more generic and flexible way for you to handle these updates in your applications.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Renames event type that triggers on automatic updates](https://docs.stripe.com/changelog/2020-08-27/renames-automatically-updated-event-type.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2020-08-27/renames-automatically-updated-event-type.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Renames the `payment_method.card_automatically_updated` event type to `payment_method.automatically_updated`.",
       "contentHash": "40c24f9d806d6ff51aa39ced14c195ee003c9d03621437b9468289d82312b446",
-      "checkedAt": "2026-10-24T14:37:36.150Z"
+      "checkedAt": "2026-10-25T01:15:48.725Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

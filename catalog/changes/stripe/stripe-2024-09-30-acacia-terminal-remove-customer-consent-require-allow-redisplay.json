@@ -1,52 +1,61 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2024-09-30-acacia-terminal-remove-customer-consent-require-allow-redisplay",
-  "provider": "stripe",
-  "title": "Updates consent modeling for saving cards with Terminal",
-  "announcedOn": "2024-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Updates consent modeling for saving cards with Terminal",
   "summary": "Removes the customer_consent_collected parameter and replaces it with allow_redisplay. This is a breaking change because it requires allow_redisplay when saving card details with Terminal. For SetupIntents, customer_consent_collected has been removed and replaced with allow_redisplay. For PaymentIntents that specify setup_future_usage, then allow_redisplay must also be passed before collecting card details. With the new version, you must use allow_redisplay to control whether a payment can be shown to a customer again.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["customer_consent_collected"],
-    "endpoints": [],
-    "symbols": ["customer_consent_collected"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2024-09-30.acacia"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2024-09-30.acacia"
+    },
+    "announcedOn": "2024-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Lets you save cards in more regions using Terminal, expanding your service coverage. Additionally, the improved alignment with industry requirements for customer consent collection ensures regulatory compliance.",
-    "You must add the new parameter to your integration before March 31, 2025 and ensure that it’s set to always or limited on all Setup Intents transactions and Payment Intents that specify setup_future_usage."
+    {
+      "text": "Lets you save cards in more regions using Terminal, expanding your service coverage. Additionally, the improved alignment with industry requirements for customer consent collection ensures regulatory compliance.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "You must add the new parameter to your integration before March 31, 2025 and ensure that it’s set to always or limited on all Setup Intents transactions and Payment Intents that specify setup_future_usage.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Updates consent modeling for saving cards with Terminal](https://docs.stripe.com/changelog/acacia/2024-09-30/terminal-remove-customer-consent-require-allow-redisplay.md) | Terminal | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/acacia/2024-09-30/terminal-remove-customer-consent-require-allow-redisplay.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "This is a breaking change because it requires `allow_redisplay` when saving card details with Terminal. For SetupIntents, `customer_consent_collected` has been removed and replaced with `allow_redisplay`. For PaymentIntents that specify `setup_future_usage`, then `allow_redisplay` must also be passed before collecting card details. With the new version, you must use `allow_redisplay` to control whether a payment can be shown to a customer again.",
       "contentHash": "bd1f5da28bec4c51ff6f6c68e5b0949396fdf9e0f3507fbdf11d70eb227b16dd",
-      "checkedAt": "2026-10-24T14:37:33.509Z"
+      "checkedAt": "2026-10-25T01:15:46.075Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,11 +1,17 @@
 {
-  "generatedAt": "2026-10-24T14:37:39.652Z",
+  "generatedAt": "2026-10-25T01:15:52.151Z",
   "count": 416,
   "changes": [
     {
       "id": "openai-2027-01-14-gpt-4o-2024-08-06",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-2024-08-06",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-2024-08-06 shutdown",
       "effectiveOn": "2027-01-14",
       "status": "confirmed"
@@ -13,7 +19,13 @@
     {
       "id": "openai-2027-01-14-gpt-4o-mini-2024-07-18",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-2024-07-18",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-mini-2024-07-18 shutdown",
       "effectiveOn": "2027-01-14",
       "status": "confirmed"
@@ -21,7 +33,13 @@
     {
       "id": "openai-2027-01-14-gpt-4-1-2025-04-14",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4.1-2025-04-14",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4.1-2025-04-14 shutdown",
       "effectiveOn": "2027-01-14",
       "status": "confirmed"
@@ -29,7 +47,13 @@
     {
       "id": "openai-2027-01-14-gpt-4-1-mini-2025-04-14",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4.1-mini-2025-04-14",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4.1-mini-2025-04-14 shutdown",
       "effectiveOn": "2027-01-14",
       "status": "confirmed"
@@ -37,7 +61,13 @@
     {
       "id": "openai-2027-04-01-gpt-5-3-codex",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.3-codex",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-5.3-codex shutdown",
       "effectiveOn": "2027-04-01",
       "status": "confirmed"
@@ -45,7 +75,13 @@
     {
       "id": "openai-2027-04-01-gpt-5-4-nano",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.4-nano",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-5.4-nano shutdown",
       "effectiveOn": "2027-04-01",
       "status": "confirmed"
@@ -53,7 +89,13 @@
     {
       "id": "openai-2027-04-01-gpt-5-1",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.1",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-5.1 shutdown",
       "effectiveOn": "2027-04-01",
       "status": "confirmed"
@@ -61,7 +103,13 @@
     {
       "id": "openai-2027-01-06-tts-1",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "tts-1",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "tts-1 shutdown",
       "effectiveOn": "2027-01-06",
       "status": "confirmed"
@@ -69,7 +117,13 @@
     {
       "id": "openai-2027-01-06-tts-1-hd",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "tts-1-hd",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "tts-1-hd shutdown",
       "effectiveOn": "2027-01-06",
       "status": "confirmed"
@@ -77,7 +131,13 @@
     {
       "id": "openai-2027-01-06-gpt-4o-mini-tts",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-tts",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-mini-tts shutdown",
       "effectiveOn": "2027-01-06",
       "status": "confirmed"
@@ -85,7 +145,13 @@
     {
       "id": "openai-2027-02-26-whisper-1",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "whisper-1",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "whisper-1 shutdown",
       "effectiveOn": "2027-02-26",
       "status": "confirmed"
@@ -93,7 +159,13 @@
     {
       "id": "openai-2027-02-26-gpt-4o-transcribe",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-transcribe",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-transcribe shutdown",
       "effectiveOn": "2027-02-26",
       "status": "confirmed"
@@ -101,7 +173,13 @@
     {
       "id": "openai-2027-02-26-gpt-4o-mini-transcribe",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-transcribe",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-mini-transcribe shutdown",
       "effectiveOn": "2027-02-26",
       "status": "confirmed"
@@ -109,7 +187,13 @@
     {
       "id": "openai-2027-02-26-gpt-4o-transcribe-diarize",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-transcribe-diarize",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-transcribe-diarize shutdown",
       "effectiveOn": "2027-02-26",
       "status": "confirmed"
@@ -117,7 +201,13 @@
     {
       "id": "openai-2027-02-26-v1-audio-translations",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "breaks-on-date",
       "title": "/v1/audio/translations shutdown",
       "effectiveOn": "2027-02-26",
       "status": "confirmed"
@@ -125,7 +215,13 @@
     {
       "id": "openai-2027-01-20-gpt-realtime",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-realtime",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-realtime shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -133,7 +229,13 @@
     {
       "id": "openai-2027-01-20-gpt-audio",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-audio",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-audio shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -141,7 +243,13 @@
     {
       "id": "openai-2027-01-20-gpt-4o-audio",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-audio",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-audio shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -149,7 +257,13 @@
     {
       "id": "openai-2027-01-20-gpt-4o-realtime",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-realtime",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-realtime shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -157,7 +271,13 @@
     {
       "id": "openai-2027-01-20-gpt-realtime-mini",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-realtime-mini",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-realtime-mini shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -165,7 +285,13 @@
     {
       "id": "openai-2027-01-20-gpt-audio-mini",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-audio-mini",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-audio-mini shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -173,7 +299,13 @@
     {
       "id": "openai-2027-01-20-gpt-4o-mini-realtime",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-realtime",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-mini-realtime shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -181,7 +313,13 @@
     {
       "id": "openai-2027-01-20-gpt-4o-mini-audio",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-audio",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-mini-audio shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -189,7 +327,13 @@
     {
       "id": "openai-2027-01-20-gpt-4o-mini-transcribe-2025-03-20",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-transcribe-2025-03-20",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-4o-mini-transcribe-2025-03-20 shutdown",
       "effectiveOn": "2027-01-20",
       "status": "confirmed"
@@ -197,7 +341,13 @@
     {
       "id": "openai-2026-12-11-gpt-5",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-5 shutdown",
       "effectiveOn": "2026-12-11",
       "status": "confirmed"
@@ -205,7 +355,13 @@
     {
       "id": "openai-2026-12-11-gpt-5-mini",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5-mini",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-5-mini shutdown",
       "effectiveOn": "2026-12-11",
       "status": "confirmed"
@@ -213,7 +369,13 @@
     {
       "id": "openai-2026-12-11-gpt-5-nano",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5-nano",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-5-nano shutdown",
       "effectiveOn": "2026-12-11",
       "status": "confirmed"
@@ -221,7 +383,13 @@
     {
       "id": "openai-2026-12-11-gpt-5-pro",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5-pro",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-5-pro shutdown",
       "effectiveOn": "2026-12-11",
       "status": "confirmed"
@@ -229,7 +397,13 @@
     {
       "id": "openai-2026-12-11-o3",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o3",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "o3 shutdown",
       "effectiveOn": "2026-12-11",
       "status": "confirmed"
@@ -237,7 +411,13 @@
     {
       "id": "openai-2026-12-11-o3-pro",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o3-pro",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "o3-pro shutdown",
       "effectiveOn": "2026-12-11",
       "status": "confirmed"
@@ -245,7 +425,13 @@
     {
       "id": "openai-2026-12-01-gpt-image-1-mini",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-image-1-mini",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-image-1-mini shutdown",
       "effectiveOn": "2026-12-01",
       "status": "confirmed"
@@ -253,7 +439,13 @@
     {
       "id": "openai-2026-12-01-gpt-image-1-5",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-image-1.5",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gpt-image-1.5 shutdown",
       "effectiveOn": "2026-12-01",
       "status": "confirmed"
@@ -261,7 +453,13 @@
     {
       "id": "openai-2026-12-01-chatgpt-image-latest",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "chatgpt-image-latest",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "chatgpt-image-latest shutdown",
       "effectiveOn": "2026-12-01",
       "status": "confirmed"
@@ -269,7 +467,13 @@
     {
       "id": "openai-2026-10-01-gpt-5-4-cyber",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.4-cyber",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5.4-cyber shutdown",
       "effectiveOn": "2026-10-01",
       "status": "confirmed"
@@ -277,7 +481,13 @@
     {
       "id": "openai-2026-08-10-gpt-5-2-chat-latest",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.2-chat-latest",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5.2-chat-latest shutdown",
       "effectiveOn": "2026-08-10",
       "status": "confirmed"
@@ -285,7 +495,13 @@
     {
       "id": "openai-2026-08-10-gpt-5-3-chat-latest",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.3-chat-latest",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5.3-chat-latest shutdown",
       "effectiveOn": "2026-08-10",
       "status": "confirmed"
@@ -293,7 +509,13 @@
     {
       "id": "openai-2026-10-23-gpt-3-5-turbo-0125",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-3.5-turbo-0125",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-3.5-turbo-0125 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -301,7 +523,13 @@
     {
       "id": "openai-2026-10-23-gpt-4-0613",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-0613",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-0613 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -309,7 +537,13 @@
     {
       "id": "openai-2026-10-23-gpt-4-1106-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-1106-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-1106-preview shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -317,7 +551,13 @@
     {
       "id": "openai-2026-10-23-gpt-4-turbo",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-turbo",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-turbo shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -325,7 +565,13 @@
     {
       "id": "openai-2026-10-23-gpt-4-1-nano",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4.1-nano",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4.1-nano shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -333,7 +579,13 @@
     {
       "id": "openai-2026-10-23-gpt-4o-2024-05-13",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-2024-05-13",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-2024-05-13 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -341,7 +593,13 @@
     {
       "id": "openai-2026-10-23-gpt-image-1",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-image-1",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-image-1 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -349,7 +607,13 @@
     {
       "id": "openai-2026-10-23-o1-2024-12-17",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o1-2024-12-17",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "o1-2024-12-17 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -357,7 +621,13 @@
     {
       "id": "openai-2026-10-23-o1-pro-2025-03-19",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o1-pro-2025-03-19",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "o1-pro-2025-03-19 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -365,7 +635,13 @@
     {
       "id": "openai-2026-10-23-o3-mini-2025-01-31",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o3-mini-2025-01-31",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "o3-mini-2025-01-31 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -373,7 +649,13 @@
     {
       "id": "openai-2026-10-23-ft-o4-mini-2025-04-16",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "ft-o4-mini-2025-04-16",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "ft-o4-mini-2025-04-16 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -381,7 +663,13 @@
     {
       "id": "openai-2026-10-23-o4-mini-2025-04-16",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o4-mini-2025-04-16",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "o4-mini-2025-04-16 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -389,7 +677,13 @@
     {
       "id": "openai-2026-10-23-ft-gpt-3-5-turbo",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "ft-gpt-3.5-turbo",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "ft-gpt-3.5-turbo shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -397,7 +691,13 @@
     {
       "id": "openai-2026-10-23-ft-gpt-4",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "ft-gpt-4",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "ft-gpt-4 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -405,7 +705,13 @@
     {
       "id": "openai-2026-10-23-ft-gpt-4-1-nano-2025-04-14",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "ft-gpt-4.1-nano-2025-04-14",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "ft-gpt-4.1-nano-2025-04-14 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -413,7 +719,13 @@
     {
       "id": "openai-2026-10-23-ft-babbage-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "ft-babbage-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "ft-babbage-002 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -421,7 +733,13 @@
     {
       "id": "openai-2026-10-23-ft-davinci-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "ft-davinci-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "ft-davinci-002 shutdown",
       "effectiveOn": "2026-10-23",
       "status": "confirmed"
@@ -429,7 +747,13 @@
     {
       "id": "openai-2026-07-23-computer-use-preview-2025-03-11",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "computer-use-preview-2025-03-11",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "computer-use-preview-2025-03-11 shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -437,7 +761,13 @@
     {
       "id": "openai-2026-07-23-gpt-4o-mini-search-preview-2025-03-11",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-search-preview-2025-03-11",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-mini-search-preview-2025-03-11 shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -445,7 +775,13 @@
     {
       "id": "openai-2026-07-23-gpt-4o-search-preview-2025-03-11",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-search-preview-2025-03-11",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-search-preview-2025-03-11 shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -453,7 +789,13 @@
     {
       "id": "openai-2026-07-23-gpt-5-chat-latest",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5-chat-latest",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5-chat-latest shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -461,7 +803,13 @@
     {
       "id": "openai-2026-07-23-gpt-5-codex",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5-codex",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5-codex shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -469,7 +817,13 @@
     {
       "id": "openai-2026-07-23-gpt-5-1-chat-latest",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.1-chat-latest",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5.1-chat-latest shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -477,7 +831,13 @@
     {
       "id": "openai-2026-07-23-gpt-5-1-codex",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.1-codex",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5.1-codex shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -485,7 +845,13 @@
     {
       "id": "openai-2026-07-23-gpt-5-1-codex-max",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.1-codex-max",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5.1-codex-max shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -493,7 +859,13 @@
     {
       "id": "openai-2026-07-23-gpt-5-1-codex-mini",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.1-codex-mini",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5.1-codex-mini shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -501,7 +873,13 @@
     {
       "id": "openai-2026-07-23-gpt-audio-mini-2025-10-06",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-audio-mini-2025-10-06",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-audio-mini-2025-10-06 shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -509,7 +887,13 @@
     {
       "id": "openai-2026-07-23-gpt-realtime-mini-2025-10-06",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-realtime-mini-2025-10-06",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-realtime-mini-2025-10-06 shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -517,7 +901,13 @@
     {
       "id": "openai-2026-07-23-o3-deep-research-2025-06-26",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o3-deep-research-2025-06-26",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "o3-deep-research-2025-06-26 shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -525,7 +915,13 @@
     {
       "id": "openai-2026-07-23-o4-mini-deep-research-2025-06-26",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o4-mini-deep-research-2025-06-26",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "o4-mini-deep-research-2025-06-26 shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -533,7 +929,13 @@
     {
       "id": "openai-2026-07-23-gpt-5-2-codex",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-5.2-codex",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-5.2-codex shutdown",
       "effectiveOn": "2026-07-23",
       "status": "confirmed"
@@ -541,7 +943,13 @@
     {
       "id": "openai-2026-09-24-videos-api",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "Videos API shutdown",
       "effectiveOn": "2026-09-24",
       "status": "confirmed"
@@ -549,7 +957,13 @@
     {
       "id": "openai-2026-09-24-sora-2",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "sora-2",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "sora-2 shutdown",
       "effectiveOn": "2026-09-24",
       "status": "confirmed"
@@ -557,7 +971,13 @@
     {
       "id": "openai-2026-09-24-sora-2-pro",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "sora-2-pro",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "sora-2-pro shutdown",
       "effectiveOn": "2026-09-24",
       "status": "confirmed"
@@ -565,7 +985,13 @@
     {
       "id": "openai-2026-09-24-sora-2-2025-10-06",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "sora-2-2025-10-06",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "sora-2-2025-10-06 shutdown",
       "effectiveOn": "2026-09-24",
       "status": "confirmed"
@@ -573,7 +999,13 @@
     {
       "id": "openai-2026-09-24-sora-2-2025-12-08",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "sora-2-2025-12-08",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "sora-2-2025-12-08 shutdown",
       "effectiveOn": "2026-09-24",
       "status": "confirmed"
@@ -581,7 +1013,13 @@
     {
       "id": "openai-2026-09-24-sora-2-pro-2025-10-06",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "sora-2-pro-2025-10-06",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "sora-2-pro-2025-10-06 shutdown",
       "effectiveOn": "2026-09-24",
       "status": "confirmed"
@@ -589,7 +1027,13 @@
     {
       "id": "openai-2026-02-17-chatgpt-4o-latest",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "chatgpt-4o-latest",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "chatgpt-4o-latest shutdown",
       "effectiveOn": "2026-02-17",
       "status": "confirmed"
@@ -597,7 +1041,13 @@
     {
       "id": "openai-2026-02-12-codex-mini-latest",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "codex-mini-latest",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "codex-mini-latest shutdown",
       "effectiveOn": "2026-02-12",
       "status": "confirmed"
@@ -605,7 +1055,13 @@
     {
       "id": "openai-2026-05-12-dall-e-2",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "dall-e-2",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "dall-e-2 shutdown",
       "effectiveOn": "2026-05-12",
       "status": "confirmed"
@@ -613,7 +1069,13 @@
     {
       "id": "openai-2026-05-12-dall-e-3",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "dall-e-3",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "dall-e-3 shutdown",
       "effectiveOn": "2026-05-12",
       "status": "confirmed"
@@ -621,7 +1083,13 @@
     {
       "id": "openai-2026-09-28-gpt-3-5-turbo-instruct",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-3.5-turbo-instruct",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-3.5-turbo-instruct shutdown",
       "effectiveOn": "2026-09-28",
       "status": "confirmed"
@@ -629,7 +1097,13 @@
     {
       "id": "openai-2026-09-28-babbage-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "babbage-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "babbage-002 shutdown",
       "effectiveOn": "2026-09-28",
       "status": "confirmed"
@@ -637,7 +1111,13 @@
     {
       "id": "openai-2026-09-28-davinci-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "davinci-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "davinci-002 shutdown",
       "effectiveOn": "2026-09-28",
       "status": "confirmed"
@@ -645,7 +1125,13 @@
     {
       "id": "openai-2026-09-28-gpt-3-5-turbo-1106",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-3.5-turbo-1106",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-3.5-turbo-1106 shutdown",
       "effectiveOn": "2026-09-28",
       "status": "confirmed"
@@ -653,7 +1139,13 @@
     {
       "id": "openai-2026-03-26-gpt-4-0314",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-0314",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-0314 shutdown",
       "effectiveOn": "2026-03-26",
       "status": "confirmed"
@@ -661,7 +1153,13 @@
     {
       "id": "openai-2026-03-26-gpt-4-0125-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-0125-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-0125-preview shutdown",
       "effectiveOn": "2026-03-26",
       "status": "confirmed"
@@ -669,7 +1167,13 @@
     {
       "id": "openai-2026-05-12-openai-beta-realtime-v1",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "OpenAI-Beta: realtime=v1 shutdown",
       "effectiveOn": "2026-05-12",
       "status": "confirmed"
@@ -677,7 +1181,13 @@
     {
       "id": "openai-2026-05-07-gpt-4o-realtime-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-realtime-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-realtime-preview shutdown",
       "effectiveOn": "2026-05-07",
       "status": "confirmed"
@@ -685,7 +1195,13 @@
     {
       "id": "openai-2026-05-07-gpt-4o-realtime-preview-2025-06-03",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-realtime-preview-2025-06-03",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-realtime-preview-2025-06-03 shutdown",
       "effectiveOn": "2026-05-07",
       "status": "confirmed"
@@ -693,7 +1209,13 @@
     {
       "id": "openai-2026-05-07-gpt-4o-realtime-preview-2024-12-17",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-realtime-preview-2024-12-17",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-realtime-preview-2024-12-17 shutdown",
       "effectiveOn": "2026-05-07",
       "status": "confirmed"
@@ -701,7 +1223,13 @@
     {
       "id": "openai-2026-05-07-gpt-4o-mini-realtime-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-realtime-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-mini-realtime-preview shutdown",
       "effectiveOn": "2026-05-07",
       "status": "confirmed"
@@ -709,7 +1237,13 @@
     {
       "id": "openai-2026-05-07-gpt-4o-audio-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-audio-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-audio-preview shutdown",
       "effectiveOn": "2026-05-07",
       "status": "confirmed"
@@ -717,7 +1251,13 @@
     {
       "id": "openai-2026-05-07-gpt-4o-mini-audio-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-mini-audio-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-mini-audio-preview shutdown",
       "effectiveOn": "2026-05-07",
       "status": "confirmed"
@@ -725,7 +1265,13 @@
     {
       "id": "openai-2026-08-26-assistants-api",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "Assistants API shutdown",
       "effectiveOn": "2026-08-26",
       "status": "confirmed"
@@ -733,7 +1279,13 @@
     {
       "id": "openai-2025-10-10-gpt-4o-realtime-preview-2024-10-01",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-realtime-preview-2024-10-01",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-realtime-preview-2024-10-01 shutdown",
       "effectiveOn": "2025-10-10",
       "status": "confirmed"
@@ -741,7 +1293,13 @@
     {
       "id": "openai-2025-10-10-gpt-4o-audio-preview-2024-10-01",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4o-audio-preview-2024-10-01",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4o-audio-preview-2024-10-01 shutdown",
       "effectiveOn": "2025-10-10",
       "status": "confirmed"
@@ -749,7 +1307,13 @@
     {
       "id": "openai-2025-10-27-text-moderation-007",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-moderation-007",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-moderation-007 shutdown",
       "effectiveOn": "2025-10-27",
       "status": "confirmed"
@@ -757,7 +1321,13 @@
     {
       "id": "openai-2025-10-27-text-moderation-stable",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-moderation-stable",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-moderation-stable shutdown",
       "effectiveOn": "2025-10-27",
       "status": "confirmed"
@@ -765,7 +1335,13 @@
     {
       "id": "openai-2025-10-27-text-moderation-latest",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-moderation-latest",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-moderation-latest shutdown",
       "effectiveOn": "2025-10-27",
       "status": "confirmed"
@@ -773,7 +1349,13 @@
     {
       "id": "openai-2025-07-28-o1-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o1-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "o1-preview shutdown",
       "effectiveOn": "2025-07-28",
       "status": "confirmed"
@@ -781,7 +1363,13 @@
     {
       "id": "openai-2025-10-27-o1-mini",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "o1-mini",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "o1-mini shutdown",
       "effectiveOn": "2025-10-27",
       "status": "confirmed"
@@ -789,7 +1377,13 @@
     {
       "id": "openai-2025-07-14-gpt-4-5-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4.5-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4.5-preview shutdown",
       "effectiveOn": "2025-07-14",
       "status": "confirmed"
@@ -797,7 +1391,13 @@
     {
       "id": "openai-2024-12-18-openai-beta-assistants-v1",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "OpenAI-Beta: assistants=v1 shutdown",
       "effectiveOn": "2024-12-18",
       "status": "confirmed"
@@ -805,7 +1405,13 @@
     {
       "id": "openai-2024-10-28-babbage-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "babbage-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "babbage-002 shutdown",
       "effectiveOn": "2024-10-28",
       "status": "confirmed"
@@ -813,7 +1419,13 @@
     {
       "id": "openai-2024-10-28-davinci-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "davinci-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "davinci-002 shutdown",
       "effectiveOn": "2024-10-28",
       "status": "confirmed"
@@ -821,7 +1433,13 @@
     {
       "id": "openai-2025-06-06-gpt-4-32k",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-32k",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-32k shutdown",
       "effectiveOn": "2025-06-06",
       "status": "confirmed"
@@ -829,7 +1447,13 @@
     {
       "id": "openai-2025-06-06-gpt-4-32k-0613",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-32k-0613",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-32k-0613 shutdown",
       "effectiveOn": "2025-06-06",
       "status": "confirmed"
@@ -837,7 +1461,13 @@
     {
       "id": "openai-2025-06-06-gpt-4-32k-0314",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-32k-0314",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-32k-0314 shutdown",
       "effectiveOn": "2025-06-06",
       "status": "confirmed"
@@ -845,7 +1475,13 @@
     {
       "id": "openai-2024-12-06-gpt-4-vision-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-vision-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-vision-preview shutdown",
       "effectiveOn": "2024-12-06",
       "status": "confirmed"
@@ -853,7 +1489,13 @@
     {
       "id": "openai-2024-12-06-gpt-4-1106-vision-preview",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-1106-vision-preview",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-1106-vision-preview shutdown",
       "effectiveOn": "2024-12-06",
       "status": "confirmed"
@@ -861,7 +1503,13 @@
     {
       "id": "openai-2024-09-13-gpt-3-5-turbo-0613",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-3.5-turbo-0613",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-3.5-turbo-0613 shutdown",
       "effectiveOn": "2024-09-13",
       "status": "confirmed"
@@ -869,7 +1517,13 @@
     {
       "id": "openai-2024-09-13-gpt-3-5-turbo-16k-0613",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-3.5-turbo-16k-0613",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-3.5-turbo-16k-0613 shutdown",
       "effectiveOn": "2024-09-13",
       "status": "confirmed"
@@ -877,7 +1531,13 @@
     {
       "id": "openai-2024-01-04-v1-fine-tunes",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "/v1/fine-tunes shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -885,7 +1545,13 @@
     {
       "id": "openai-2024-01-04-text-ada-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-ada-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-ada-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -893,7 +1559,13 @@
     {
       "id": "openai-2024-01-04-text-babbage-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-babbage-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-babbage-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -901,7 +1573,13 @@
     {
       "id": "openai-2024-01-04-text-curie-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-curie-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-curie-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -909,7 +1587,13 @@
     {
       "id": "openai-2024-01-04-text-davinci-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-davinci-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-davinci-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -917,7 +1601,13 @@
     {
       "id": "openai-2024-01-04-text-davinci-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-davinci-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-davinci-002 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -925,7 +1615,13 @@
     {
       "id": "openai-2024-01-04-text-davinci-003",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-davinci-003",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-davinci-003 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -933,7 +1629,13 @@
     {
       "id": "openai-2024-01-04-ada",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "ada",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "ada shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -941,7 +1643,13 @@
     {
       "id": "openai-2024-01-04-babbage",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "babbage",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "babbage shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -949,7 +1657,13 @@
     {
       "id": "openai-2024-01-04-curie",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "curie",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "curie shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -957,7 +1671,13 @@
     {
       "id": "openai-2024-01-04-davinci",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "davinci",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "davinci shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -965,7 +1685,13 @@
     {
       "id": "openai-2024-01-04-code-davinci-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-davinci-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-davinci-002 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -973,7 +1699,13 @@
     {
       "id": "openai-2024-01-04-text-davinci-edit-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-davinci-edit-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-davinci-edit-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -981,7 +1713,13 @@
     {
       "id": "openai-2024-01-04-code-davinci-edit-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-davinci-edit-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-davinci-edit-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -989,7 +1727,13 @@
     {
       "id": "openai-2024-01-04-v1-edits",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "/v1/edits shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -997,7 +1741,13 @@
     {
       "id": "openai-2024-01-04-text-similarity-ada-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-similarity-ada-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-similarity-ada-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1005,7 +1755,13 @@
     {
       "id": "openai-2024-01-04-text-search-ada-doc-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-search-ada-doc-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-search-ada-doc-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1013,7 +1769,13 @@
     {
       "id": "openai-2024-01-04-text-search-ada-query-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-search-ada-query-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-search-ada-query-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1021,7 +1783,13 @@
     {
       "id": "openai-2024-01-04-code-search-ada-code-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-search-ada-code-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-search-ada-code-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1029,7 +1797,13 @@
     {
       "id": "openai-2024-01-04-code-search-ada-text-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-search-ada-text-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-search-ada-text-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1037,7 +1811,13 @@
     {
       "id": "openai-2024-01-04-text-similarity-babbage-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-similarity-babbage-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-similarity-babbage-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1045,7 +1825,13 @@
     {
       "id": "openai-2024-01-04-text-search-babbage-doc-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-search-babbage-doc-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-search-babbage-doc-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1053,7 +1839,13 @@
     {
       "id": "openai-2024-01-04-text-search-babbage-query-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-search-babbage-query-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-search-babbage-query-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1061,7 +1853,13 @@
     {
       "id": "openai-2024-01-04-code-search-babbage-code-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-search-babbage-code-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-search-babbage-code-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1069,7 +1867,13 @@
     {
       "id": "openai-2024-01-04-code-search-babbage-text-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-search-babbage-text-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-search-babbage-text-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1077,7 +1881,13 @@
     {
       "id": "openai-2024-01-04-text-similarity-curie-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-similarity-curie-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-similarity-curie-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1085,7 +1895,13 @@
     {
       "id": "openai-2024-01-04-text-search-curie-doc-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-search-curie-doc-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-search-curie-doc-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1093,7 +1909,13 @@
     {
       "id": "openai-2024-01-04-text-search-curie-query-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-search-curie-query-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-search-curie-query-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1101,7 +1923,13 @@
     {
       "id": "openai-2024-01-04-text-similarity-davinci-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-similarity-davinci-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-similarity-davinci-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1109,7 +1937,13 @@
     {
       "id": "openai-2024-01-04-text-search-davinci-doc-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-search-davinci-doc-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-search-davinci-doc-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1117,7 +1951,13 @@
     {
       "id": "openai-2024-01-04-text-search-davinci-query-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "text-search-davinci-query-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-search-davinci-query-001 shutdown",
       "effectiveOn": "2024-01-04",
       "status": "confirmed"
@@ -1125,7 +1965,13 @@
     {
       "id": "openai-2024-06-13-gpt-4-0314",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-4-0314",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-4-0314 shutdown",
       "effectiveOn": "2024-06-13",
       "status": "confirmed"
@@ -1133,7 +1979,13 @@
     {
       "id": "openai-2024-09-13-gpt-3-5-turbo-0301",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "gpt-3.5-turbo-0301",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gpt-3.5-turbo-0301 shutdown",
       "effectiveOn": "2024-09-13",
       "status": "confirmed"
@@ -1141,7 +1993,13 @@
     {
       "id": "openai-2023-03-23-code-davinci-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-davinci-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-davinci-002 shutdown",
       "effectiveOn": "2023-03-23",
       "status": "confirmed"
@@ -1149,7 +2007,13 @@
     {
       "id": "openai-2023-03-23-code-davinci-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-davinci-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-davinci-001 shutdown",
       "effectiveOn": "2023-03-23",
       "status": "confirmed"
@@ -1157,7 +2021,13 @@
     {
       "id": "openai-2023-03-23-code-cushman-002",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-cushman-002",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-cushman-002 shutdown",
       "effectiveOn": "2023-03-23",
       "status": "confirmed"
@@ -1165,7 +2035,13 @@
     {
       "id": "openai-2023-03-23-code-cushman-001",
       "provider": "openai",
+      "subject": {
+        "kind": "model",
+        "name": "code-cushman-001",
+        "provider": "openai"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "code-cushman-001 shutdown",
       "effectiveOn": "2023-03-23",
       "status": "confirmed"
@@ -1173,7 +2049,13 @@
     {
       "id": "openai-2022-12-03-v1-engines",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "/v1/engines shutdown",
       "effectiveOn": "2022-12-03",
       "status": "confirmed"
@@ -1181,7 +2063,13 @@
     {
       "id": "openai-2022-12-03-v1-search",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "/v1/search shutdown",
       "effectiveOn": "2022-12-03",
       "status": "confirmed"
@@ -1189,7 +2077,13 @@
     {
       "id": "openai-2022-12-03-v1-classifications",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "/v1/classifications shutdown",
       "effectiveOn": "2022-12-03",
       "status": "confirmed"
@@ -1197,7 +2091,13 @@
     {
       "id": "openai-2022-12-03-v1-answers",
       "provider": "openai",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.openai.com",
+        "provider": "openai"
+      },
       "kind": "endpoint-removal",
+      "class": "already-broken",
       "title": "/v1/answers shutdown",
       "effectiveOn": "2022-12-03",
       "status": "confirmed"
@@ -1205,7 +2105,13 @@
     {
       "id": "anthropic-2026-11-30-claude-sonnet-4-5-20250929",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-sonnet-4-5-20250929",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "claude-sonnet-4-5-20250929 shutdown",
       "effectiveOn": "2026-11-30",
       "status": "confirmed"
@@ -1213,7 +2119,13 @@
     {
       "id": "anthropic-2026-08-05-claude-opus-4-1-20250805",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-opus-4-1-20250805",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-opus-4-1-20250805 shutdown",
       "effectiveOn": "2026-08-05",
       "status": "confirmed"
@@ -1221,7 +2133,13 @@
     {
       "id": "anthropic-2026-06-15-claude-sonnet-4-20250514",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-sonnet-4-20250514",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-sonnet-4-20250514 shutdown",
       "effectiveOn": "2026-06-15",
       "status": "confirmed"
@@ -1229,7 +2147,13 @@
     {
       "id": "anthropic-2026-06-15-claude-opus-4-20250514",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-opus-4-20250514",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-opus-4-20250514 shutdown",
       "effectiveOn": "2026-06-15",
       "status": "confirmed"
@@ -1237,7 +2161,13 @@
     {
       "id": "anthropic-2026-04-20-claude-3-haiku-20240307",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-3-haiku-20240307",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-3-haiku-20240307 shutdown",
       "effectiveOn": "2026-04-20",
       "status": "confirmed"
@@ -1245,7 +2175,13 @@
     {
       "id": "anthropic-2026-02-19-claude-3-5-haiku-20241022",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-3-5-haiku-20241022",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-3-5-haiku-20241022 shutdown",
       "effectiveOn": "2026-02-19",
       "status": "confirmed"
@@ -1253,7 +2189,13 @@
     {
       "id": "anthropic-2026-02-19-claude-3-7-sonnet-20250219",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-3-7-sonnet-20250219",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-3-7-sonnet-20250219 shutdown",
       "effectiveOn": "2026-02-19",
       "status": "confirmed"
@@ -1261,7 +2203,13 @@
     {
       "id": "anthropic-2025-10-28-claude-3-5-sonnet-20240620",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-3-5-sonnet-20240620",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-3-5-sonnet-20240620 shutdown",
       "effectiveOn": "2025-10-28",
       "status": "confirmed"
@@ -1269,7 +2217,13 @@
     {
       "id": "anthropic-2025-10-28-claude-3-5-sonnet-20241022",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-3-5-sonnet-20241022",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-3-5-sonnet-20241022 shutdown",
       "effectiveOn": "2025-10-28",
       "status": "confirmed"
@@ -1277,7 +2231,13 @@
     {
       "id": "anthropic-2026-01-05-claude-3-opus-20240229",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-3-opus-20240229",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-3-opus-20240229 shutdown",
       "effectiveOn": "2026-01-05",
       "status": "confirmed"
@@ -1285,7 +2245,13 @@
     {
       "id": "anthropic-2025-07-21-claude-2-0",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-2.0",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-2.0 shutdown",
       "effectiveOn": "2025-07-21",
       "status": "confirmed"
@@ -1293,7 +2259,13 @@
     {
       "id": "anthropic-2025-07-21-claude-2-1",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-2.1",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-2.1 shutdown",
       "effectiveOn": "2025-07-21",
       "status": "confirmed"
@@ -1301,7 +2273,13 @@
     {
       "id": "anthropic-2025-07-21-claude-3-sonnet-20240229",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-3-sonnet-20240229",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-3-sonnet-20240229 shutdown",
       "effectiveOn": "2025-07-21",
       "status": "confirmed"
@@ -1309,7 +2287,13 @@
     {
       "id": "anthropic-2024-11-06-claude-1-0",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-1.0",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-1.0 shutdown",
       "effectiveOn": "2024-11-06",
       "status": "confirmed"
@@ -1317,7 +2301,13 @@
     {
       "id": "anthropic-2024-11-06-claude-1-1",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-1.1",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-1.1 shutdown",
       "effectiveOn": "2024-11-06",
       "status": "confirmed"
@@ -1325,7 +2315,13 @@
     {
       "id": "anthropic-2024-11-06-claude-1-2",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-1.2",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-1.2 shutdown",
       "effectiveOn": "2024-11-06",
       "status": "confirmed"
@@ -1333,7 +2329,13 @@
     {
       "id": "anthropic-2024-11-06-claude-1-3",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-1.3",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-1.3 shutdown",
       "effectiveOn": "2024-11-06",
       "status": "confirmed"
@@ -1341,7 +2343,13 @@
     {
       "id": "anthropic-2024-11-06-claude-instant-1-0",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-instant-1.0",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-instant-1.0 shutdown",
       "effectiveOn": "2024-11-06",
       "status": "confirmed"
@@ -1349,7 +2357,13 @@
     {
       "id": "anthropic-2024-11-06-claude-instant-1-1",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-instant-1.1",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-instant-1.1 shutdown",
       "effectiveOn": "2024-11-06",
       "status": "confirmed"
@@ -1357,7 +2371,13 @@
     {
       "id": "anthropic-2024-11-06-claude-instant-1-2",
       "provider": "anthropic",
+      "subject": {
+        "kind": "model",
+        "name": "claude-instant-1.2",
+        "provider": "anthropic"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "claude-instant-1.2 shutdown",
       "effectiveOn": "2024-11-06",
       "status": "confirmed"
@@ -1365,7 +2385,13 @@
     {
       "id": "anthropic-2026-10-21-params-temperature-top-p-top-k",
       "provider": "anthropic",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.anthropic.com",
+        "provider": "anthropic"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "temperature, top_p, top_k: removed in API version 2026-10-21",
       "effectiveOn": "2026-10-21",
       "status": "confirmed"
@@ -1373,7 +2399,13 @@
     {
       "id": "google-gemini-undated-gemini-3-7-flash",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3.7-flash",
+        "provider": "google-gemini"
+      },
       "kind": "model-rerouted",
+      "class": "notice",
       "title": "gemini-3.7-flash rerouted to gemini-3.8-flash",
       "effectiveOn": null,
       "status": "confirmed"
@@ -1381,7 +2413,13 @@
     {
       "id": "google-gemini-undated-gemini-3-5-flash",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3.5-flash",
+        "provider": "google-gemini"
+      },
       "kind": "model-rerouted",
+      "class": "notice",
       "title": "gemini-3.5-flash rerouted to gemini-3.6-flash",
       "effectiveOn": null,
       "status": "confirmed"
@@ -1389,7 +2427,13 @@
     {
       "id": "google-gemini-2027-05-07-gemini-3-1-flash-lite",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3.1-flash-lite",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gemini-3.1-flash-lite shutdown",
       "effectiveOn": "2027-05-07",
       "status": "confirmed"
@@ -1397,7 +2441,13 @@
     {
       "id": "google-gemini-2026-11-17-gemini-3-1-flash-tts-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3.1-flash-tts-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gemini-3.1-flash-tts-preview shutdown",
       "effectiveOn": "2026-11-17",
       "status": "confirmed"
@@ -1405,7 +2455,13 @@
     {
       "id": "google-gemini-undated-gemini-3-flash-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3-flash-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "notice",
       "title": "gemini-3-flash-preview deprecated",
       "effectiveOn": null,
       "status": "confirmed"
@@ -1413,7 +2469,13 @@
     {
       "id": "google-gemini-2026-03-09-gemini-3-pro-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3-pro-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-3-pro-preview shutdown",
       "effectiveOn": "2026-03-09",
       "status": "confirmed"
@@ -1421,7 +2483,13 @@
     {
       "id": "google-gemini-2026-05-25-gemini-3-1-flash-lite-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3.1-flash-lite-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-3.1-flash-lite-preview shutdown",
       "effectiveOn": "2026-05-25",
       "status": "confirmed"
@@ -1429,7 +2497,13 @@
     {
       "id": "google-gemini-2026-07-28-gemini-2-5-computer-use-preview-10-2025",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-computer-use-preview-10-2025",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.5-computer-use-preview-10-2025 shutdown",
       "effectiveOn": "2026-07-28",
       "status": "confirmed"
@@ -1437,7 +2511,13 @@
     {
       "id": "google-gemini-2025-12-02-gemini-2-5-pro-preview-03-25",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-pro-preview-03-25",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.5-pro-preview-03-25 shutdown",
       "effectiveOn": "2025-12-02",
       "status": "confirmed"
@@ -1445,7 +2525,13 @@
     {
       "id": "google-gemini-2025-12-02-gemini-2-5-pro-preview-05-06",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-pro-preview-05-06",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.5-pro-preview-05-06 shutdown",
       "effectiveOn": "2025-12-02",
       "status": "confirmed"
@@ -1453,7 +2539,13 @@
     {
       "id": "google-gemini-2025-12-02-gemini-2-5-pro-preview-06-05",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-pro-preview-06-05",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.5-pro-preview-06-05 shutdown",
       "effectiveOn": "2025-12-02",
       "status": "confirmed"
@@ -1461,7 +2553,13 @@
     {
       "id": "google-gemini-2026-03-31-gemini-2-5-flash-lite-preview-09-2025",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-flash-lite-preview-09-2025",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.5-flash-lite-preview-09-2025 shutdown",
       "effectiveOn": "2026-03-31",
       "status": "confirmed"
@@ -1469,7 +2567,13 @@
     {
       "id": "google-gemini-2025-11-18-gemini-2-5-flash-preview-05-20",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-flash-preview-05-20",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.5-flash-preview-05-20 shutdown",
       "effectiveOn": "2025-11-18",
       "status": "confirmed"
@@ -1477,7 +2581,13 @@
     {
       "id": "google-gemini-2026-02-17-gemini-2-5-flash-preview-09-25",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-flash-preview-09-25",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.5-flash-preview-09-25 shutdown",
       "effectiveOn": "2026-02-17",
       "status": "confirmed"
@@ -1485,7 +2595,13 @@
     {
       "id": "google-gemini-2026-06-01-gemini-2-0-flash",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.0-flash",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.0-flash shutdown",
       "effectiveOn": "2026-06-01",
       "status": "confirmed"
@@ -1493,7 +2609,13 @@
     {
       "id": "google-gemini-2026-06-01-gemini-2-0-flash-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.0-flash-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.0-flash-001 shutdown",
       "effectiveOn": "2026-06-01",
       "status": "confirmed"
@@ -1501,7 +2623,13 @@
     {
       "id": "google-gemini-2026-06-01-gemini-2-0-flash-lite",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.0-flash-lite",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.0-flash-lite shutdown",
       "effectiveOn": "2026-06-01",
       "status": "confirmed"
@@ -1509,7 +2637,13 @@
     {
       "id": "google-gemini-2026-06-01-gemini-2-0-flash-lite-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.0-flash-lite-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.0-flash-lite-001 shutdown",
       "effectiveOn": "2026-06-01",
       "status": "confirmed"
@@ -1517,7 +2651,13 @@
     {
       "id": "google-gemini-2025-12-09-gemini-2-0-flash-lite-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.0-flash-lite-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.0-flash-lite-preview shutdown",
       "effectiveOn": "2025-12-09",
       "status": "confirmed"
@@ -1525,7 +2665,13 @@
     {
       "id": "google-gemini-2025-12-09-gemini-2-0-flash-lite-preview-02-05",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.0-flash-lite-preview-02-05",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.0-flash-lite-preview-02-05 shutdown",
       "effectiveOn": "2025-12-09",
       "status": "confirmed"
@@ -1533,7 +2679,13 @@
     {
       "id": "google-gemini-2025-12-09-gemini-2-0-flash-live-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.0-flash-live-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.0-flash-live-001 shutdown",
       "effectiveOn": "2025-12-09",
       "status": "confirmed"
@@ -1541,7 +2693,13 @@
     {
       "id": "google-gemini-2026-11-17-gemini-3-1-flash-live-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3.1-flash-live-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gemini-3.1-flash-live-preview shutdown",
       "effectiveOn": "2026-11-17",
       "status": "confirmed"
@@ -1549,7 +2707,13 @@
     {
       "id": "google-gemini-2026-11-17-gemini-2-5-flash-native-audio-preview-12-2025",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-flash-native-audio-preview-12-2025",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gemini-2.5-flash-native-audio-preview-12-2025 shutdown",
       "effectiveOn": "2026-11-17",
       "status": "confirmed"
@@ -1557,7 +2721,13 @@
     {
       "id": "google-gemini-2025-12-09-gemini-live-2-5-flash-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-live-2.5-flash-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-live-2.5-flash-preview shutdown",
       "effectiveOn": "2025-12-09",
       "status": "confirmed"
@@ -1565,7 +2735,13 @@
     {
       "id": "google-gemini-2026-11-17-gemini-2-5-flash-preview-tts",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-flash-preview-tts",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gemini-2.5-flash-preview-tts shutdown",
       "effectiveOn": "2026-11-17",
       "status": "confirmed"
@@ -1573,7 +2749,13 @@
     {
       "id": "google-gemini-2026-11-17-gemini-2-5-pro-preview-tts",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-pro-preview-tts",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gemini-2.5-pro-preview-tts shutdown",
       "effectiveOn": "2026-11-17",
       "status": "confirmed"
@@ -1581,7 +2763,13 @@
     {
       "id": "google-gemini-2028-05-14-gemini-embedding-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-embedding-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gemini-embedding-001 shutdown",
       "effectiveOn": "2028-05-14",
       "status": "confirmed"
@@ -1589,7 +2777,13 @@
     {
       "id": "google-gemini-2026-01-14-text-embedding-004",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "text-embedding-004",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "text-embedding-004 shutdown",
       "effectiveOn": "2026-01-14",
       "status": "confirmed"
@@ -1597,7 +2791,13 @@
     {
       "id": "google-gemini-2026-08-10-embedding-2-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "embedding-2-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "embedding-2-preview shutdown",
       "effectiveOn": "2026-08-10",
       "status": "confirmed"
@@ -1605,7 +2805,13 @@
     {
       "id": "google-gemini-2025-10-30-embedding-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "embedding-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "embedding-001 shutdown",
       "effectiveOn": "2025-10-30",
       "status": "confirmed"
@@ -1613,7 +2819,13 @@
     {
       "id": "google-gemini-2025-10-30-embedding-gecko-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "embedding-gecko-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "embedding-gecko-001 shutdown",
       "effectiveOn": "2025-10-30",
       "status": "confirmed"
@@ -1621,7 +2833,13 @@
     {
       "id": "google-gemini-2025-10-30-gemini-embedding-exp",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-embedding-exp",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-embedding-exp shutdown",
       "effectiveOn": "2025-10-30",
       "status": "confirmed"
@@ -1629,7 +2847,13 @@
     {
       "id": "google-gemini-2025-10-30-gemini-embedding-exp-03-07",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-embedding-exp-03-07",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-embedding-exp-03-07 shutdown",
       "effectiveOn": "2025-10-30",
       "status": "confirmed"
@@ -1637,7 +2861,13 @@
     {
       "id": "google-gemini-undated-gemini-3-1-flash-image",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3.1-flash-image",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "notice",
       "title": "gemini-3.1-flash-image deprecated",
       "effectiveOn": null,
       "status": "confirmed"
@@ -1645,7 +2875,13 @@
     {
       "id": "google-gemini-2027-03-15-gemini-2-5-flash-image",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-flash-image",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "breaks-on-date",
       "title": "gemini-2.5-flash-image shutdown",
       "effectiveOn": "2027-03-15",
       "status": "confirmed"
@@ -1653,7 +2889,13 @@
     {
       "id": "google-gemini-2026-06-25-gemini-3-1-flash-image-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3.1-flash-image-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-3.1-flash-image-preview shutdown",
       "effectiveOn": "2026-06-25",
       "status": "confirmed"
@@ -1661,7 +2903,13 @@
     {
       "id": "google-gemini-2026-06-25-gemini-3-pro-image-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-3-pro-image-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-3-pro-image-preview shutdown",
       "effectiveOn": "2026-06-25",
       "status": "confirmed"
@@ -1669,7 +2917,13 @@
     {
       "id": "google-gemini-2026-01-15-gemini-2-5-flash-image-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.5-flash-image-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.5-flash-image-preview shutdown",
       "effectiveOn": "2026-01-15",
       "status": "confirmed"
@@ -1677,7 +2931,13 @@
     {
       "id": "google-gemini-2025-11-14-gemini-2-0-flash-preview-image-generation",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-2.0-flash-preview-image-generation",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-2.0-flash-preview-image-generation shutdown",
       "effectiveOn": "2025-11-14",
       "status": "confirmed"
@@ -1685,7 +2945,13 @@
     {
       "id": "google-gemini-2026-08-17-imagen-4-0-generate-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "imagen-4.0-generate-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "imagen-4.0-generate-001 shutdown",
       "effectiveOn": "2026-08-17",
       "status": "confirmed"
@@ -1693,7 +2959,13 @@
     {
       "id": "google-gemini-2026-08-17-imagen-4-0-ultra-generate-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "imagen-4.0-ultra-generate-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "imagen-4.0-ultra-generate-001 shutdown",
       "effectiveOn": "2026-08-17",
       "status": "confirmed"
@@ -1701,7 +2973,13 @@
     {
       "id": "google-gemini-2026-08-17-imagen-4-0-fast-generate-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "imagen-4.0-fast-generate-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "imagen-4.0-fast-generate-001 shutdown",
       "effectiveOn": "2026-08-17",
       "status": "confirmed"
@@ -1709,7 +2987,13 @@
     {
       "id": "google-gemini-2025-11-10-imagen-3-0-generate-002",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "imagen-3.0-generate-002",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "imagen-3.0-generate-002 shutdown",
       "effectiveOn": "2025-11-10",
       "status": "confirmed"
@@ -1717,7 +3001,13 @@
     {
       "id": "google-gemini-2026-02-17-imagen-4-0-generate-preview-06-06",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "imagen-4.0-generate-preview-06-06",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "imagen-4.0-generate-preview-06-06 shutdown",
       "effectiveOn": "2026-02-17",
       "status": "confirmed"
@@ -1725,7 +3015,13 @@
     {
       "id": "google-gemini-2026-02-17-imagen-4-0-ultra-generate-preview-06-06",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "imagen-4.0-ultra-generate-preview-06-06",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "imagen-4.0-ultra-generate-preview-06-06 shutdown",
       "effectiveOn": "2026-02-17",
       "status": "confirmed"
@@ -1733,7 +3029,13 @@
     {
       "id": "google-gemini-2026-06-30-veo-3-0-generate-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "veo-3.0-generate-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "veo-3.0-generate-001 shutdown",
       "effectiveOn": "2026-06-30",
       "status": "confirmed"
@@ -1741,7 +3043,13 @@
     {
       "id": "google-gemini-2026-06-30-veo-3-0-fast-generate-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "veo-3.0-fast-generate-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "veo-3.0-fast-generate-001 shutdown",
       "effectiveOn": "2026-06-30",
       "status": "confirmed"
@@ -1749,7 +3057,13 @@
     {
       "id": "google-gemini-2026-06-30-veo-2-0-generate-001",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "veo-2.0-generate-001",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "veo-2.0-generate-001 shutdown",
       "effectiveOn": "2026-06-30",
       "status": "confirmed"
@@ -1757,7 +3071,13 @@
     {
       "id": "google-gemini-2026-10-22-veo-3-1-lite-generate-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "veo-3.1-lite-generate-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "veo-3.1-lite-generate-preview shutdown",
       "effectiveOn": "2026-10-22",
       "status": "confirmed"
@@ -1765,7 +3085,13 @@
     {
       "id": "google-gemini-2026-10-22-veo-3-1-generate-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "veo-3.1-generate-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "veo-3.1-generate-preview shutdown",
       "effectiveOn": "2026-10-22",
       "status": "confirmed"
@@ -1773,7 +3099,13 @@
     {
       "id": "google-gemini-2026-10-22-veo-3-1-fast-generate-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "veo-3.1-fast-generate-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "veo-3.1-fast-generate-preview shutdown",
       "effectiveOn": "2026-10-22",
       "status": "confirmed"
@@ -1781,7 +3113,13 @@
     {
       "id": "google-gemini-2025-11-12-veo-3-0-generate-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "veo-3.0-generate-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "veo-3.0-generate-preview shutdown",
       "effectiveOn": "2025-11-12",
       "status": "confirmed"
@@ -1789,7 +3127,13 @@
     {
       "id": "google-gemini-2025-11-12-veo-3-0-fast-generate-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "veo-3.0-fast-generate-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "veo-3.0-fast-generate-preview shutdown",
       "effectiveOn": "2025-11-12",
       "status": "confirmed"
@@ -1797,7 +3141,13 @@
     {
       "id": "google-gemini-2026-10-22-gemini-omni-flash-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-omni-flash-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-omni-flash-preview shutdown",
       "effectiveOn": "2026-10-22",
       "status": "confirmed"
@@ -1805,7 +3155,13 @@
     {
       "id": "google-gemini-undated-lyria-3-pro-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "lyria-3-pro-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "notice",
       "title": "lyria-3-pro-preview deprecated",
       "effectiveOn": null,
       "status": "confirmed"
@@ -1813,7 +3169,13 @@
     {
       "id": "google-gemini-2026-08-31-gemini-robotics-er-1-6-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-robotics-er-1.6-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-robotics-er-1.6-preview shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1821,7 +3183,13 @@
     {
       "id": "google-gemini-2026-04-30-gemini-robotics-er-1-5-preview",
       "provider": "google-gemini",
+      "subject": {
+        "kind": "model",
+        "name": "gemini-robotics-er-1.5-preview",
+        "provider": "google-gemini"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "gemini-robotics-er-1.5-preview shutdown",
       "effectiveOn": "2026-04-30",
       "status": "confirmed"
@@ -1829,7 +3197,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-deepseek-ai-deepseek-v4-flash",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "deepseek-ai/DeepSeek-V4-Flash",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "deepseek-ai/DeepSeek-V4-Flash shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1837,7 +3211,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-meta-llama-llama-3-3-70b-instruct",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "meta-llama/Llama-3.3-70B-Instruct",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "meta-llama/Llama-3.3-70B-Instruct shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1845,7 +3225,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-minimaxai-minimax-m2-5",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "MiniMaxAI/MiniMax-M2.5",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "MiniMaxAI/MiniMax-M2.5 shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1853,7 +3239,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-nousresearch-hermes-4-70b",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "NousResearch/Hermes-4-70B",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "NousResearch/Hermes-4-70B shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1861,7 +3253,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-nvidia-cosmos3-super-reasoner",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "nvidia/Cosmos3-Super-Reasoner",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "nvidia/Cosmos3-Super-Reasoner shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1869,7 +3267,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-nvidia-llama-3-1-nemotron-ultra-253b-v1",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1 shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1877,7 +3281,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-nvidia-nemotron-3-nano-omni",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "nvidia/Nemotron-3-Nano-Omni",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "nvidia/Nemotron-3-Nano-Omni shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1885,7 +3295,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-qwen-qwen2-5-vl-72b-instruct",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "Qwen/Qwen2.5-VL-72B-Instruct",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "Qwen/Qwen2.5-VL-72B-Instruct shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1893,7 +3309,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-qwen-qwen3-32b",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "Qwen/Qwen3-32B",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "Qwen/Qwen3-32B shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1901,7 +3323,13 @@
     {
       "id": "nebius-token-factory-2026-08-31-qwen-qwen3-next-80b-a3b-thinking",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "Qwen/Qwen3-Next-80B-A3B-Thinking",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "Qwen/Qwen3-Next-80B-A3B-Thinking shutdown",
       "effectiveOn": "2026-08-31",
       "status": "confirmed"
@@ -1909,7 +3337,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-deepseek-ai-deepseek-v3-2",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "deepseek-ai/DeepSeek-V3.2",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "deepseek-ai/DeepSeek-V3.2 shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1917,7 +3351,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-deepseek-ai-deepseek-v3-2-fast",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "deepseek-ai/DeepSeek-V3.2-fast",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "deepseek-ai/DeepSeek-V3.2-fast shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1925,7 +3365,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-minimaxai-minimax-m2-5-fast",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "MiniMaxAI/MiniMax-M2.5-fast",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "MiniMaxAI/MiniMax-M2.5-fast shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1933,7 +3379,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-moonshotai-kimi-k2-5",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "moonshotai/Kimi-K2.5",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "moonshotai/Kimi-K2.5 shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1941,7 +3393,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-moonshotai-kimi-k2-5-fast",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "moonshotai/Kimi-K2.5-fast",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "moonshotai/Kimi-K2.5-fast shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1949,7 +3407,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-openai-gpt-oss-120b-fast",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "openai/gpt-oss-120b-fast",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "openai/gpt-oss-120b-fast shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1957,7 +3421,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-primeintellect-intellect-3",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "PrimeIntellect/INTELLECT-3",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "PrimeIntellect/INTELLECT-3 shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1965,7 +3435,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-qwen-qwen3-235b-a22b-thinking-2507-fast",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "Qwen/Qwen3-235B-A22B-Thinking-2507-fast",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "Qwen/Qwen3-235B-A22B-Thinking-2507-fast shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1973,7 +3449,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-qwen-qwen3-next-80b-a3b-thinking-fast",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "Qwen/Qwen3-Next-80B-A3B-Thinking-fast",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "Qwen/Qwen3-Next-80B-A3B-Thinking-fast shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1981,7 +3463,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-qwen-qwen3-5-397b-a17b-fast",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "Qwen/Qwen3.5-397B-A17B-fast",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "Qwen/Qwen3.5-397B-A17B-fast shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1989,7 +3477,13 @@
     {
       "id": "nebius-token-factory-2026-06-22-zai-org-glm-5",
       "provider": "nebius-token-factory",
+      "subject": {
+        "kind": "model",
+        "name": "zai-org/GLM-5",
+        "provider": "nebius-token-factory"
+      },
       "kind": "model-retirement",
+      "class": "already-broken",
       "title": "zai-org/GLM-5 shutdown",
       "effectiveOn": "2026-06-22",
       "status": "confirmed"
@@ -1997,7 +3491,13 @@
     {
       "id": "stripe-2026-09-30-endive-polymorphic-billing-cycle-anchor",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Unifies the billing cycle anchor format across Subscriptions and Invoices",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2005,7 +3505,13 @@
     {
       "id": "stripe-2026-09-30-endive-address-validation-cmra-registered-agents-accounts-v2",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds address validation errors for CMRAs and registered agents to Accounts v1 and Accounts v2",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2013,7 +3519,13 @@
     {
       "id": "stripe-2026-09-30-endive-rejected-accounts-v2-capabilities",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds rejected status for Accounts v2 capabilities",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2021,7 +3533,13 @@
     {
       "id": "stripe-2026-09-30-endive-updated-reject-reason-codes",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Replaces the generic fraud rejection reason with specific fraud reasons",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2029,7 +3547,13 @@
     {
       "id": "stripe-2026-09-30-endive-removes-configurations-parameter-from-v2-core-account-links-api",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the configurations parameter from the Account Links v2 API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2037,7 +3561,13 @@
     {
       "id": "stripe-2026-09-30-endive-sepa-debit-settings-accounts",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Standardizes SEPA Direct Debit payment settings in the Accounts API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2045,7 +3575,13 @@
     {
       "id": "stripe-2026-09-30-endive-shows-errors-for-eventually-due-requirements",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Shows errors for eventually due requirements",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2053,7 +3589,13 @@
     {
       "id": "stripe-2026-09-30-endive-platform-rejection-reasons",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Distinguishes platform-initiated account rejections from Stripe rejections",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2061,7 +3603,13 @@
     {
       "id": "stripe-2026-09-30-endive-rename-financial-connections-countries-filter-to-country",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the countries filter to country on Financial Connections Sessions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2069,7 +3617,13 @@
     {
       "id": "stripe-2026-09-30-endive-financial-connections-session-defaults",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates Financial Connections Session defaults",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2077,7 +3631,13 @@
     {
       "id": "stripe-2026-09-30-endive-remove-payment-method-types-checkout-sessions",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the payment method types parameter from Checkout Sessions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2085,7 +3645,13 @@
     {
       "id": "stripe-2026-09-30-endive-data-share-only",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds support for Data Share Only for 3D Secure authentication",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2093,7 +3659,13 @@
     {
       "id": "stripe-2026-09-30-endive-payment-evaluations-nullable-score",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Makes Payment Evaluation signal scores nullable",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2101,7 +3673,13 @@
     {
       "id": "stripe-2026-09-30-endive-removed-payto-fields",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes PayTo-specific fields from Payment Methods",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2109,7 +3687,13 @@
     {
       "id": "stripe-2026-09-30-endive-removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the payment method types parameter from Payment Intents and Setup Intents",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2117,7 +3701,13 @@
     {
       "id": "stripe-2026-09-30-endive-blik-granular-decline-codes",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Returns specific decline codes for BLIK payment failures",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2125,7 +3715,13 @@
     {
       "id": "stripe-2026-09-30-endive-deprecate-payment-request-button",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Deprecates the payment request button",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2133,7 +3729,13 @@
     {
       "id": "stripe-2026-09-30-endive-handle-next-action-mb-way-bizum-ui",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Shows pending-authorization UI for MB WAY, Bizum, and BLIK with stripe.handleNextAction",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2141,7 +3743,13 @@
     {
       "id": "stripe-2026-09-30-endive-remove-elements-deferred-intent-payment-method-types",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes support for the payment method types option in Elements",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2149,7 +3757,13 @@
     {
       "id": "stripe-2026-09-30-endive-failed-tax-calculation-error",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds Failed Tax Calculation error",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2157,7 +3771,13 @@
     {
       "id": "stripe-2026-09-30-endive-reserve-release-reason",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the Reserve Release reason enum value",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2165,7 +3785,13 @@
     {
       "id": "stripe-2026-09-30-endive-settlement-reserve-api",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds destination property and new enum values to Reserve Plans, Holds and Releases",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2173,7 +3799,13 @@
     {
       "id": "stripe-2026-09-30-endive-page-limit-validation-dispute-evidence",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds page limit validation for dispute evidence",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2181,7 +3813,13 @@
     {
       "id": "stripe-2026-09-30-endive-duplicate-reference-validation-for-india-pending-mandates",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Rejects duplicate references for pending India card mandates",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2189,7 +3827,13 @@
     {
       "id": "stripe-2026-09-30-endive-surface-india-card-mandate-even-when-inactive",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Surfaces India card mandates on Charges and SetupIntents even when inactive",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2197,7 +3841,13 @@
     {
       "id": "stripe-2026-09-30-endive-block-custom-checkout-confirmation-pending-updates",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Sets canConfirm to false while updates are pending in Elements with Checkout Sessions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2205,7 +3855,13 @@
     {
       "id": "stripe-2026-09-30-endive-skip-format-validation-empty-optional-address-fields",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Allows empty optional address fields in Elements with Checkout Sessions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2213,7 +3869,13 @@
     {
       "id": "stripe-2026-09-30-endive-strict-billing-details-validation",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Requires billing details when Payment Element collection is disabled",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2221,7 +3883,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-updates-available-checkout-session-ui-modes",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates Checkout Session UI mode enum values",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2229,7 +3897,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-capabilities-api-risk-requirements",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds risk requirements to the Capabilities API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2237,7 +3911,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-address-element-getvalue-and-change-event-formatting",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Changes the Address Element state field to default to Latin-formatted characters",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2245,7 +3925,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-elements-update-returns-promise",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates the elements.update() method to return a Promise",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2253,7 +3939,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-disallow-booleans-for-radios",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes support for boolean values in options.layout.radios",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2261,7 +3953,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-remove-legacy-stripejs-methods",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes deprecated Payment Intents, Setup Intents, and Sources methods from Stripe.js",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2269,7 +3967,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-rename-init-checkout-to-init-checkout-elements",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames Checkout initialization method",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2277,7 +3981,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-rename-init-embedded-checkout-to-create-embedded-checkout-page",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames Embedded Checkout initialization method",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2285,7 +3995,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-visa-card-reference-id-optional",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates the Issuing Token card reference ID for Visa to be optional",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2293,7 +4009,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-adds-new-cancellation-reason-subscription-test-retention-policy",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds retention policy cancellation reason to Subscriptions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2301,7 +4023,13 @@
     {
       "id": "stripe-2026-03-25-dahlia-updates-eventsfrom-parameter-on-event-destinations",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates the events_from parameter on event destinations to accept string values",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2309,7 +4037,13 @@
     {
       "id": "stripe-2025-09-30-clover-remove-iterations",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes iterations parameter for subscription schedules",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2317,7 +4051,13 @@
     {
       "id": "stripe-2025-09-30-clover-polymorphic-coupon",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Promotion Codes now reference Coupons using a polymorphic field for promotions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2325,7 +4065,13 @@
     {
       "id": "stripe-2025-09-30-clover-add-discount-source-property",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds the Discount source property and removes the Discount coupon property",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2333,7 +4079,13 @@
     {
       "id": "stripe-2025-09-30-clover-billing-mode-default-flexible",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Makes flexible billing mode the default for new subscriptions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2341,7 +4093,13 @@
     {
       "id": "stripe-2025-09-30-clover-billing-cycle-anchor-resets-during-phase-computation",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates computation of subscription schedule phase end date to consider billing cycle anchor changes",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2349,7 +4107,13 @@
     {
       "id": "stripe-2025-09-30-clover-postal-code-in-card-form-for-non-us-countries",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes postal code for card payments in certain regions on Checkout and Payment Element",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2357,7 +4121,13 @@
     {
       "id": "stripe-2025-09-30-clover-remove-checkout-session-currency-conversion-field",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes currency conversion field from Checkout Sessions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2365,7 +4135,13 @@
     {
       "id": "stripe-2025-09-30-clover-remove-redirect-to-checkout",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes support for the redirectToCheckout method",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2373,7 +4149,13 @@
     {
       "id": "stripe-2025-09-30-clover-update-init-checkout-synchronous",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates initCheckout to be synchronous",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2381,7 +4163,13 @@
     {
       "id": "stripe-2025-09-30-clover-expanded-risk-requirement-descriptions",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds specific descriptions for risk requirements during legal, PEP, and sanctions review",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2389,7 +4177,13 @@
     {
       "id": "stripe-2025-09-30-clover-business-type-error-code",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds a new error code for business type validations",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2397,7 +4191,13 @@
     {
       "id": "stripe-2025-09-30-clover-custom-checkout-saved-payment-method-defaults",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates default behavior for saved payment methods in Elements with Checkout Sessions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2405,7 +4205,13 @@
     {
       "id": "stripe-2025-09-30-clover-client-secret-reuse",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Prevents reusing client secrets for Intents in certain states when initializing Elements",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2413,7 +4219,13 @@
     {
       "id": "stripe-2025-09-30-clover-stripejs-deprecated-elements-removal",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes deprecated messaging and bank elements that were replaced",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2421,7 +4233,13 @@
     {
       "id": "stripe-2025-09-30-clover-lpm-descriptive-decline-codes",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Changes the set of decline codes used for Alma, Amazon Pay, Billie, Satispay, and South Korean payment methods",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2429,7 +4247,13 @@
     {
       "id": "stripe-2025-09-30-clover-stablecoin-payments-processing-status",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds a processing status to submitted stablecoin payments",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2437,7 +4261,13 @@
     {
       "id": "stripe-2025-09-30-clover-radar-manual-review-enum",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds additional enum values for Radar manual reviews",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2445,7 +4275,13 @@
     {
       "id": "stripe-2025-09-30-clover-risk-levels-issuing-authorizations",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates risk levels for Issuing Authorizations to use standard values",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2453,7 +4289,13 @@
     {
       "id": "stripe-2025-03-31-basil-deprecate-subscription-current-period-start-and-end",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds subscription item-level billing periods and removes subscription-level periods",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2461,7 +4303,13 @@
     {
       "id": "stripe-2025-03-31-basil-adds-new-parent-field-to-invoicing-objects",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Invoicing resources now specify how they were generated",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2469,7 +4317,13 @@
     {
       "id": "stripe-2025-03-31-basil-checkout-session-remove-shipping-details",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Checkout Session removes shipping details",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2477,7 +4331,13 @@
     {
       "id": "stripe-2025-03-31-basil-checkout-legacy-subscription-upgrade",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Checkout Sessions have lower latency and new update semantics",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2485,7 +4345,13 @@
     {
       "id": "stripe-2025-03-31-basil-restrict-coupon-duration",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes support for discount coupons that don’t have a specified end time",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2493,7 +4359,13 @@
     {
       "id": "stripe-2025-03-31-basil-deprecate-singular-coupon-promotion-code",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes coupon and promotion code parameters with stackable discounts",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2501,7 +4373,13 @@
     {
       "id": "stripe-2025-03-31-basil-invoice-preview-api-deprecations",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Replaces Upcoming Invoice API methods with the Create Preview Invoice API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2509,7 +4387,13 @@
     {
       "id": "stripe-2025-03-31-basil-deprecate-legacy-usage-based-billing",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes legacy usage-based billing",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2517,7 +4401,13 @@
     {
       "id": "stripe-2025-03-31-basil-invoice-pricing-configurations",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Replaces top-level price fields with improved price modeling on Invoice Items and Invoice Line Items",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2525,7 +4415,13 @@
     {
       "id": "stripe-2025-03-31-basil-invoice-tax-configurations",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Replaces top-level tax-related properties with improved tax modeling on Invoices, Invoice Line Items, and Credit Note Line Items",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2533,7 +4429,13 @@
     {
       "id": "stripe-2025-03-31-basil-add-support-for-multiple-partial-payments-on-invoices",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds support for multiple (partial) payments on invoices",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2541,7 +4443,13 @@
     {
       "id": "stripe-2025-03-31-basil-new-network-fallback-issuing-authorization-reason-code",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds reason code for Issuing authorizations created while Stripe is unavailable",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2549,7 +4457,13 @@
     {
       "id": "stripe-2025-03-31-basil-issuing-json-webhook",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "HTTP Accept headers for webhooks now specify JSON during Issuing authorizations",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2557,7 +4471,13 @@
     {
       "id": "stripe-2025-03-31-basil-issuing-authorizations-expired",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds expired status for Issuing Authorizations",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2565,7 +4485,13 @@
     {
       "id": "stripe-2025-03-31-basil-vault-forward-api-returns-402",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates the Vault and Forward API to return a 402 status code for upstream request timeouts",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2573,7 +4499,13 @@
     {
       "id": "stripe-2025-03-31-basil-deprecate-interac-present-manual-capture-method",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes manual capture method for Interac cards",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2581,7 +4513,13 @@
     {
       "id": "stripe-2025-03-31-basil-naver-pay-payment-method",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Payment Methods won’t allow modifying fields for Naver Pay after the object is first created",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2589,7 +4527,13 @@
     {
       "id": "stripe-2025-03-31-basil-remove-refund-from-partial-capture-and-payment-cancellation-flow",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Partially capturing or canceling payments no longer creates a Refund",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2597,7 +4541,13 @@
     {
       "id": "stripe-2025-03-31-basil-deprecate-total-count-expansion",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes total count expansion for list API methods",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2605,7 +4555,13 @@
     {
       "id": "stripe-2025-03-31-basil-adds-requirement-error-codes",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds new error codes for required verifications",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2613,7 +4569,13 @@
     {
       "id": "stripe-2025-03-31-basil-default-layout-of-payment-element",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates the default layout for Payment Element",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2621,7 +4583,13 @@
     {
       "id": "stripe-2025-03-31-basil-political-exposure-persons-api",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Changes the political exposure property of the Person object from a string to an enum",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2629,7 +4597,13 @@
     {
       "id": "stripe-2024-09-30-acacia-billing-alerts-contextualizing-filters",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds contextual filters to billing alerts",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2637,7 +4611,13 @@
     {
       "id": "stripe-2024-09-30-acacia-terminal-remove-customer-consent-require-allow-redisplay",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates consent modeling for saving cards with Terminal",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2645,7 +4625,13 @@
     {
       "id": "stripe-2024-09-30-acacia-card-shipping-status-submitted-address-validation",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates the default value for shipping address validation",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2653,7 +4639,13 @@
     {
       "id": "stripe-2024-09-30-acacia-additional-risk-verification-details-connected-accounts",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds risk verification details for connected accounts",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2661,7 +4653,13 @@
     {
       "id": "stripe-2024-06-20-v-renames-fuel-attribute-authorization-object",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames a `fuel` attribute of the `Authorization` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2669,7 +4667,13 @@
     {
       "id": "stripe-2024-06-20-v-renames-purchase-details-transaction-object",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames a `purchase_details` attribute of the `Transaction` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2677,7 +4681,13 @@
     {
       "id": "stripe-2024-06-20-v-removes-undocumented-fuel-fields-issuing",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes undocumented fuel fields",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2685,7 +4695,13 @@
     {
       "id": "stripe-2024-06-20-v-removes-undocumented-fleet-fields-issuing",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes undocumented fleet fields",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2693,7 +4709,13 @@
     {
       "id": "stripe-2024-06-20-v-adds-enum-fuel-units-issuing",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds enum values for fuel units",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2701,7 +4723,13 @@
     {
       "id": "stripe-2024-06-20-v-deprecates-alphanumeric-id-issuing",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Deprecates `alphanumeric_id` for Issuing Authorization",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2709,7 +4737,13 @@
     {
       "id": "stripe-2024-06-20-v-adds-enum-disabled-reasons-capabilities",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds enum values for disabled reasons",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2717,7 +4751,13 @@
     {
       "id": "stripe-2024-06-20-v-deprecates-bank-transfer-payments-capabilities",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Deprecates the `bank_transfer_payments` capability type in favor of newer capability types",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2725,7 +4765,13 @@
     {
       "id": "stripe-2024-06-20-v-adds-enum-request-history-reasons-issuing",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds new enum values for request history reasons",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2733,7 +4779,13 @@
     {
       "id": "stripe-2024-04-10-v-automatic-sync-default-paymentintents",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Makes automatic async the default capture method for PaymentIntents when not specified",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2741,7 +4793,13 @@
     {
       "id": "stripe-2024-04-10-v-renames-rendering-options-invoicing",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `rendering_options` attribute for invoices to `rendering`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2749,7 +4807,13 @@
     {
       "id": "stripe-2024-04-10-v-renames-features-attribute-product-object",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `features` attribute of the `Product` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2757,7 +4821,13 @@
     {
       "id": "stripe-2023-10-16-v-adds-account-requirement-error-accounts",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds new account requirement error codes to the Accounts API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2765,7 +4835,13 @@
     {
       "id": "stripe-2023-10-16-v-auto-populates-statement-descriptor-accounts",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Auto-populates the statement descriptor and prefix in the Accounts API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2773,7 +4849,13 @@
     {
       "id": "stripe-2023-08-16-v-automatic-payment-methods",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Enables automatic payment methods by default for PaymentIntents and SetupIntents",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2781,7 +4863,13 @@
     {
       "id": "stripe-2023-08-16-v-no-cost-orders-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "One-time payments in Checkout Sessions support no-cost orders",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2789,7 +4877,13 @@
     {
       "id": "stripe-2023-08-16-v-platform-scope-rendering-payment-method",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Platform-scope rendering for select PaymentMethod fingerprints",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2797,7 +4891,13 @@
     {
       "id": "stripe-2023-08-16-v-klarna-payment-failure-error-code",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds specific error codes for failed Klarna payments",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2805,7 +4905,13 @@
     {
       "id": "stripe-2023-08-16-v-adds-director-verfication-error-accounts",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds new director verification error codes to the Accounts API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2813,7 +4919,13 @@
     {
       "id": "stripe-2022-11-15-v-deprecates-charges-auto-expand",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "The `Charges` object no longer auto-expands refunds by default",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2821,7 +4933,13 @@
     {
       "id": "stripe-2022-11-15-v-removes-charges-attribute-paymentintent",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the `charges` attribute from the `PaymentIntent` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2829,7 +4947,13 @@
     {
       "id": "stripe-2022-11-15-v-adds-decline-codes-paymentintent-paymentmethod",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds new decline codes to the PaymentIntent and PaymentMethod APIs",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2837,7 +4961,13 @@
     {
       "id": "stripe-2022-11-15-v-adds-decline-codes-setupintent",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds new decline codes to the SetupIntent API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2845,7 +4975,13 @@
     {
       "id": "stripe-2022-11-15-v-adds-structure-error-code-accounts",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds a new structure error code to the Accounts API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2853,7 +4989,13 @@
     {
       "id": "stripe-2022-08-01-v-removes-include-require-value-invoices",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the `include_and_require` value when creating invoices",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2861,7 +5003,13 @@
     {
       "id": "stripe-2022-08-01-v-default-customer-creation-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Default customer creation in Checkout Session payment mode changed to `if_required`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2869,7 +5017,13 @@
     {
       "id": "stripe-2022-08-01-v-deferred-paymentintent-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Deferred PaymentIntent creation in Checkout Session payment mode",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2877,7 +5031,13 @@
     {
       "id": "stripe-2022-08-01-v-removes-setupintent-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the `setup_intent` property from Checkout Sessions in subscription mode",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2885,7 +5045,13 @@
     {
       "id": "stripe-2022-08-01-v-replaces-line-item-create-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Replaces line item parameters from the Create Checkout Session endpoint",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2893,7 +5059,13 @@
     {
       "id": "stripe-2022-08-01-v-removes-subscription-data-create-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the subscription data parameter from the Create Checkout Session endpoint",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2901,7 +5073,13 @@
     {
       "id": "stripe-2022-08-01-v-removes-shipping-rate-create-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the shipping rate parameter from Create Checkout Session endpoint",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2909,7 +5087,13 @@
     {
       "id": "stripe-2022-08-01-v-updates-shipping-property-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates Checkout Session shipping properties",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2917,7 +5101,13 @@
     {
       "id": "stripe-2022-08-01-v-adds-3d-secure-exemption-charges",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds 3D Secure exemption status to card charges",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2925,7 +5115,13 @@
     {
       "id": "stripe-2022-08-01-v-error-code-invalid-tos-accounts",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "New error code for invalid terms of service acceptance in Accounts API",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2933,7 +5129,13 @@
     {
       "id": "stripe-2022-08-01-v-endpoints-shipping-status-cards",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "New endpoints for managing a physical card’s shipping status in test mode",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2941,7 +5143,13 @@
     {
       "id": "stripe-2022-08-01-v-adds-design-rejected-value-cards",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds `design_rejected` as a possible cancellation reason for issued cards",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2949,7 +5157,13 @@
     {
       "id": "stripe-2022-08-01-v-removes-default-currency-customer-object",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the `default_currency` attribute from the `Customer` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2957,7 +5171,13 @@
     {
       "id": "stripe-2020-08-27-v-removes-tax-percent-attribute",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the `tax_percent` attribute",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2965,7 +5185,13 @@
     {
       "id": "stripe-2020-08-27-v-renames-phases-attributes-subscription-schedules",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames `phases` attributes in subscription schedules",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2973,7 +5199,13 @@
     {
       "id": "stripe-2020-08-27-v-renames-automatically-updated-event-type",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames event type that triggers on automatic updates",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2981,7 +5213,13 @@
     {
       "id": "stripe-2020-08-27-v-removes-display-items-checkout-session",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes the `display_items` property from Checkout Sessions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2989,7 +5227,13 @@
     {
       "id": "stripe-2020-08-27-v-formats-requirements-key-persons-accounts",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Formats requirements for key persons associated with accounts",
       "effectiveOn": null,
       "status": "confirmed"
@@ -2997,7 +5241,13 @@
     {
       "id": "stripe-2020-08-27-v-adds-error-codes-accounts-persons-capabilities",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds new error codes to the Accounts, Persons, and Capabilities APIs",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3005,7 +5255,13 @@
     {
       "id": "stripe-2020-08-27-v-updates-3d-scure-charge-object",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Updates to 3D Secure details in `Charge` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3013,7 +5269,13 @@
     {
       "id": "stripe-2020-08-27-v-deprecates-auto-expansion-customer-subscriptions",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Customer subscriptions are no longer auto-expanded by default",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3021,7 +5283,13 @@
     {
       "id": "stripe-2020-08-27-v-deprecates-auto-expansion-plan-tiers",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Plan tiers are no longer auto-expanded by default",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3029,7 +5297,13 @@
     {
       "id": "stripe-2020-08-27-v-deprecates-auto-expansion-customer-sources",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Customer sources are no longer auto-expanded by default",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3037,7 +5311,13 @@
     {
       "id": "stripe-2020-08-27-v-deprecates-auto-expansion-tax-id-customer",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Tax IDs are no longer auto-expanded on the `Customer` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3045,7 +5325,13 @@
     {
       "id": "stripe-2020-08-27-v-deprecates-prorate-parameters-subscriptions",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Deprecates subscription `prorate` and `subscription_prorate` parameters",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3053,7 +5339,13 @@
     {
       "id": "stripe-2020-03-02-v-sequentially-number-invoices",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Invoices can now be numbered sequentially across your account",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3061,7 +5353,13 @@
     {
       "id": "stripe-2019-12-03-v-standardizes-invoice-line-item-ids",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Standardizes invoice line item IDs",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3069,7 +5367,13 @@
     {
       "id": "stripe-2019-12-03-v-post-payment-credit-note-requirement",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "New requirement for `out_of_band_amount` when creating post-payment credit notes",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3077,7 +5381,13 @@
     {
       "id": "stripe-2019-12-03-v-customer-balances-returned-voided-invoices",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Customer balances are now returned when voiding invoices",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3085,7 +5395,13 @@
     {
       "id": "stripe-2019-12-03-v-removes-deprecated-tax-information-fields",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Removes deprecated tax information fields from the `Customer` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3093,7 +5409,13 @@
     {
       "id": "stripe-2019-11-05-v-adds-requested-capabilities-requirement-custom-account",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds requirement for `requested_capabilities` on custom account creation",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3101,7 +5423,13 @@
     {
       "id": "stripe-2019-11-05-v-nests-subscription-schedule-settings",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Nested subscription schedule settings under `default_settings`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3109,7 +5437,13 @@
     {
       "id": "stripe-2019-10-17-v-updates-subscription-renewal-properties",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames and updates subscription schedule renewal properties",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3117,7 +5451,13 @@
     {
       "id": "stripe-2019-10-17-v-replaces-subscription-start-field",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Replaces the subscription `start` field with `start_date`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3125,7 +5465,13 @@
     {
       "id": "stripe-2019-10-17-v-renames-billing-attribute",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames `billing` to `collection_method` on invoices, subscriptions, and subscription schedules",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3133,7 +5479,13 @@
     {
       "id": "stripe-2019-10-17-v-invoice-due-date-null",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "The `due_date` property is always null on auto-billed invoices",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3141,7 +5493,13 @@
     {
       "id": "stripe-2019-10-17-v-renames-account-balance-customer-object",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames `account_balance` to `balance` on `Customer` object",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3149,7 +5507,13 @@
     {
       "id": "stripe-2019-10-08-v-renames-person-object-relationship-attribute",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames a `Person` object relationship attribute",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3157,7 +5521,13 @@
     {
       "id": "stripe-2019-09-09-v-2019-09-09-1",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Accounts in many countries now require specifying capabilities at creation time",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3165,7 +5535,13 @@
     {
       "id": "stripe-2019-09-09-v-adds-detail-code-person-document-verification",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Adds new `details_code` values to person document verification",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3173,7 +5549,13 @@
     {
       "id": "stripe-2019-08-14-v-configuring-person-account-opener-no-longer-sets-executive",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `platform_payments` capability for accounts to `card_payments`, requiring the manual specification of the added `transfers` capability",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3181,7 +5563,13 @@
     {
       "id": "stripe-2019-08-14-v-accounts-many-countries-require-specifying-capabilities",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Configuring a person as an account opener no longer automatically sets them as an executive",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3189,7 +5577,13 @@
     {
       "id": "stripe-2019-05-16-v-renames-platform-payments-capability-card-payments",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Bank pull payments no longer expose internal system refunds on failure",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3197,7 +5591,13 @@
     {
       "id": "stripe-2019-03-14-v-renames-application-fee-invoices-application-fee-amount",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames `application_fee` on invoices to `application_fee_amount`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3205,7 +5605,13 @@
     {
       "id": "stripe-2019-03-14-v-subscriptions-successfully-created-first-payment-fails",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Subscriptions are now successfully created even if the first payment fails",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3213,7 +5619,13 @@
     {
       "id": "stripe-2019-03-14-v-invoices-provide-timestamps-state-transitions",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Invoices now provide timestamps for each state transition",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3221,7 +5633,13 @@
     {
       "id": "stripe-2019-03-14-v-renames-date-field-invoices-created",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `date` field for invoices to `created`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3229,7 +5647,13 @@
     {
       "id": "stripe-2019-03-14-v-invoices-specify-finalized-alongside-status-transitions",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Invoices now specify when they’re finalized alongside other status transitions",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3237,7 +5661,13 @@
     {
       "id": "stripe-2019-02-19-v-changes-statement-descriptor-behaviors-charges",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Changes statement descriptor behaviors for card payments created with Charges",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3245,7 +5675,13 @@
     {
       "id": "stripe-2019-02-19-v-several-fields-accounts-refactored",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Several account fields have been refactored to better describe legal entity, verification status and requirements, and configurable settings",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3253,7 +5689,13 @@
     {
       "id": "stripe-2019-02-19-v-business-details-moved-business-profile-object",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Several fields describing an account’s business details have moved to the `business_profile` subhash",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3261,7 +5703,13 @@
     {
       "id": "stripe-2019-02-19-v-verification-accounts-persons-supports-front-back",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Verification of accounts or persons now supports uploading both front and back sides",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3269,7 +5717,13 @@
     {
       "id": "stripe-2019-02-19-v-accounts-no-longer-provide-keys-field",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Accounts no longer provide a `keys` field. Platforms should use their own API key to authenticate as their connected accounts",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3277,7 +5731,13 @@
     {
       "id": "stripe-2019-02-19-v-accounts-us-require-specifying-capabilities-creation",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Accounts in the US now require specifying capabilities at creation time",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3285,7 +5745,13 @@
     {
       "id": "stripe-2019-02-19-v-renames-business-id-number-business-registration-number",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "behaviour-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `business_id_number` for an account’s legal entity to `business_registration_number`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3293,7 +5759,13 @@
     {
       "id": "stripe-2019-02-11-v-renames-several-statuses-payment-intents",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames several statuses for PaymentIntents",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3301,7 +5773,13 @@
     {
       "id": "stripe-2019-02-11-v-renames-save-source-to-customer-save-payment-method",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `save_source_to_customer` field for sources to `save_payment_method`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3309,7 +5787,13 @@
     {
       "id": "stripe-2019-02-11-v-renames-allowed-source-types-payment-method-types",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `allowed_source_types` field for `sources` to `payment_method_types`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3317,7 +5801,13 @@
     {
       "id": "stripe-2019-02-11-v-renames-next-source-action-next-action",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `next_source_action` field for Payment Intents to `next_action`",
       "effectiveOn": null,
       "status": "confirmed"
@@ -3325,7 +5815,13 @@
     {
       "id": "stripe-2019-02-11-v-renames-authorize-with-url-redirect-to-url",
       "provider": "stripe",
+      "subject": {
+        "kind": "api-host",
+        "name": "api.stripe.com",
+        "provider": "stripe"
+      },
       "kind": "parameter-change",
+      "class": "breaks-on-upgrade",
       "title": "Renames the `authorize_with_url` field for Payment Intents to `redirect_to_url`",
       "effectiveOn": null,
       "status": "confirmed"

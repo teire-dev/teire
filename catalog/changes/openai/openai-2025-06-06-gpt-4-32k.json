@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2025-06-06-gpt-4-32k",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "gpt-4-32k",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "gpt-4-32k shutdown",
   "summary": "GPT-4-32K and Vision Preview models. Shutdown date: 2025-06-06. Replacement: gpt-4o.",
-  "announcedOn": "2024-06-06",
-  "effectiveOn": "2025-06-06",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["gpt-4-32k"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2024-06-06",
+    "effectiveOn": "2025-06-06"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "gpt-4-32k",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gpt-4o",
-    "modelIds": ["gpt-4o"]
+    "modelIds": ["gpt-4o"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["gpt-4-32k"],
+        "to": "gpt-4o"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| 2025-06-06    | `gpt-4-32k`                 | $60.00 / 1M input tokens + $120 / 1M output tokens | `gpt-4o`                |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

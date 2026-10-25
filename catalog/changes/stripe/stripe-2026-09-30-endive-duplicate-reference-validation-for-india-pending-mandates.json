@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-09-30-endive-duplicate-reference-validation-for-india-pending-mandates",
-  "provider": "stripe",
-  "title": "Rejects duplicate references for pending India card mandates",
-  "announcedOn": "2026-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Rejects duplicate references for pending India card mandates",
   "summary": "Rejects duplicate references associated with an India recurring card mandate that’s pending when creating a Payment Intent or Setup Intent. Previously, validation only rejected references associated with an active mandate. Requests that reuse a reference associated with a pending mandate now return a resource_already_exists error during intent creation or confirmation. Previously, these requests could succeed while the previous mandate was pending.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2026-09-30.endive"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-09-30.endive"
+    },
+    "announcedOn": "2026-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Use a unique reference for each distinct India recurring card mandate. If you reuse a reference from a pending mandate, your request now returns resource_already_exists. See the India recurring payments guide for more information."
+    {
+      "text": "Use a unique reference for each distinct India recurring card mandate. If you reuse a reference from a pending mandate, your request now returns resource_already_exists. See the India recurring payments guide for more information.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Rejects duplicate references for pending India card mandates](https://docs.stripe.com/changelog/endive/2026-09-30/duplicate-reference-validation-for-india-pending-mandates.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/endive/2026-09-30/duplicate-reference-validation-for-india-pending-mandates.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Requests that reuse a reference associated with a pending mandate now return a `resource_already_exists` error during intent creation or confirmation. Previously, these requests could succeed while the previous mandate was pending.",
       "contentHash": "5c848152b4c93b7d2c585bfa3acaf593de6ee84ca7d051d300154cf98594947a",
-      "checkedAt": "2026-10-24T14:37:29.918Z"
+      "checkedAt": "2026-10-25T01:15:42.486Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

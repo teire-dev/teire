@@ -28,6 +28,8 @@
   "detection": {
     "imports": ["stripe"],
     "envVars": ["STRIPE_SECRET_KEY"],
-    "baseUrls": ["api.stripe.com"]
-  }
+    "baseUrls": ["api.stripe.com"],
+    "calls": []
+  },
+  "apiVersionHeader": "Stripe-Version"
 }

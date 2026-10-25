@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-vault-forward-api-returns-402",
-  "provider": "stripe",
-  "title": "Updates the Vault and Forward API to return a 402 status code for upstream request timeouts",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Updates the Vault and Forward API to return a 402 status code for upstream request timeouts",
   "summary": "The Vault and Forward API now returns a 402 error instead of 502 and 504 errors for specific scenarios. Some users might expect either 502 or 504 statuses for upstream errors. Update your code to expect 402 statuses as well.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Previously, the Vault and Forward API returned a 502 or 504 error for any errors with the upstream destination endpoint, regardless of connection status. Now, you receive a 402 error if a request times out before Stripe establishes a connection with the upstream, allowing for safe retries. Stripe continues returning 502 or 504 errors for all other upstream errors."
+    {
+      "text": "Previously, the Vault and Forward API returned a 502 or 504 error for any errors with the upstream destination endpoint, regardless of connection status. Now, you receive a 402 error if a request times out before Stripe establishes a connection with the upstream, allowing for safe retries. Stripe continues returning 502 or 504 errors for all other upstream errors.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Updates the Vault and Forward API to return a 402 status code for upstream request timeouts](https://docs.stripe.com/changelog/basil/2025-03-31/vault-forward-api-returns-402.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/vault-forward-api-returns-402.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Some users might expect either `502` or `504` statuses for upstream errors. Update your code to expect `402` statuses as well.",
       "contentHash": "d6aeab1d440a21ab9e3865215e0417ca00c2e91bc5c3f53a8e424fb0baab15bb",
-      "checkedAt": "2026-10-24T14:37:32.928Z"
+      "checkedAt": "2026-10-25T01:15:45.566Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

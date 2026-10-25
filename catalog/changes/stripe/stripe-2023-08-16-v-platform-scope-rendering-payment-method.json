@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2023-08-16-v-platform-scope-rendering-payment-method",
-  "provider": "stripe",
-  "title": "Platform-scope rendering for select PaymentMethod fingerprints",
-  "announcedOn": "2023-08-16",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Platform-scope rendering for select PaymentMethod fingerprints",
   "summary": "When being viewed by a platform, PaymentMethod fingerprints of types us_bank_account, acss_debit, sepa_debit, bacs_debit, and au_becs_debit are rendered in platform scope, not the owning merchant (connected account) scope. This works similarly to the 2018-01-23 change for cards and bank accounts.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2023-08-16"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2023-08-16"
+    },
+    "announcedOn": "2023-08-16",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "PaymentMethod fingerprints for bank account-based payment types are now rendered in platform scope when viewed by a platform, aligning with the previous changes for cards and bank accounts."
+    {
+      "text": "PaymentMethod fingerprints for bank account-based payment types are now rendered in platform scope when viewed by a platform, aligning with the previous changes for cards and bank accounts.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Platform-scope rendering for select PaymentMethod fingerprints](https://docs.stripe.com/changelog/2023-08-16/platform-scope-rendering-payment-method.md) | Connect, Payments, Billing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2023-08-16/platform-scope-rendering-payment-method.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "When being viewed by a platform, PaymentMethod fingerprints of types `us_bank_account`, `acss_debit`, `sepa_debit`, `bacs_debit`, and `au_becs_debit` are rendered in platform scope, not the owning merchant (connected account) scope. This works similarly to the [2018-01-23](https://docs.stripe.com/changelog/2018-01-23/connect-platforms-identify-reused-cards-bank-accounts.md) change for cards and bank accounts.",
       "contentHash": "a2e3941d25ea354fbb4c73eed075b9d79bf817b1dfc281bc46cadfd36702462d",
-      "checkedAt": "2026-10-24T14:37:34.779Z"
+      "checkedAt": "2026-10-25T01:15:47.316Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,55 +1,73 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-checkout-session-remove-shipping-details",
-  "provider": "stripe",
-  "title": "Checkout Session removes shipping details",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Checkout Session removes shipping details",
   "summary": "Within a Checkout Session, the shipping_details top-level field has moved to the collected_information.shipping_details field. This change breaks compatibility because we’re removing the shipping_details field to the collected_information sub-hash on the same Checkout Session resource. Update your integration to reflect the new field name.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["shipping_details"],
-    "endpoints": [],
-    "symbols": ["shipping_details"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "This change affects how you access shipping information on the Checkout Session resource: it improves how the API resource is organized, grouping related information more logically. By moving shipping details into the collected_information object, it becomes clearer that the customer provided this information as part of the checkout process.",
-    "To adopt this change:",
-    "1. Review your code that interacts with the Checkout Session resource.",
-    "2. Identify any instances where you’re accessing the shipping_details field.",
-    "3. Update these instances to use collected_information['shipping_details'] instead."
+    {
+      "text": "This change affects how you access shipping information on the Checkout Session resource: it improves how the API resource is organized, grouping related information more logically. By moving shipping details into the collected_information object, it becomes clearer that the customer provided this information as part of the checkout process.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "To adopt this change:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "1. Review your code that interacts with the Checkout Session resource.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "2. Identify any instances where you’re accessing the shipping_details field.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "3. Update these instances to use collected_information['shipping_details'] instead.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Checkout Session removes shipping details](https://docs.stripe.com/changelog/basil/2025-03-31/checkout-session-remove-shipping-details.md) | Checkout | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/checkout-session-remove-shipping-details.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "This change breaks compatibility because we’re removing the `shipping_details` field to the [collected_information](https://docs.stripe.com/api/checkout/sessions/object.md?api-version=2025-03-31.basil#checkout_session_object-collected_information-shipping_details) sub-hash on the same Checkout Session resource. Update your integration to reflect the new field name.",
       "contentHash": "b2d8d158070bb0f18996a3111aabcfd9b747a65b25a145ab2c0dfd83e62b4d0a",
-      "checkedAt": "2026-10-24T14:37:32.178Z"
+      "checkedAt": "2026-10-25T01:15:44.754Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

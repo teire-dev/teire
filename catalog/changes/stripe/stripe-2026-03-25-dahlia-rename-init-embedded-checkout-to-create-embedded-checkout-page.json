@@ -1,40 +1,52 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-03-25-dahlia-rename-init-embedded-checkout-to-create-embedded-checkout-page",
-  "provider": "stripe",
-  "title": "Renames Embedded Checkout initialization method",
-  "announcedOn": "2026-03-25",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Renames Embedded Checkout initialization method",
   "summary": "Renames the stripe.initEmbeddedCheckout() method to stripe.createEmbeddedCheckoutPage(). The options and return type remain the same as for initEmbeddedCheckout(). stripe.initEmbeddedCheckout() has been renamed, so calling it throws an IntegrationError. If your integration uses Embedded Checkout and calls initEmbeddedCheckout(), you need to update your code to instead call createEmbeddedCheckoutPage().",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2026-03-25.dahlia"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-03-25.dahlia"
+    },
+    "announcedOn": "2026-03-25",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Renames Embedded Checkout initialization method](https://docs.stripe.com/changelog/dahlia/2026-03-25/rename-init-embedded-checkout-to-create-embedded-checkout-page.md) | Checkout | Breaking | stripejs |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/rename-init-embedded-checkout-to-create-embedded-checkout-page.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "`stripe.initEmbeddedCheckout()` has been renamed, so calling it throws an `IntegrationError`. If your integration uses [Embedded Checkout](https://docs.stripe.com/checkout/embedded/quickstart.md) and calls `initEmbeddedCheckout()`, you need to update your code to instead call `createEmbeddedCheckoutPage()`.",
       "contentHash": "dea724c821d7eeac744ea31603fa54e8b5601378ae2e736be98c52b5a1b10e76",
-      "checkedAt": "2026-10-24T14:37:30.657Z"
+      "checkedAt": "2026-10-25T01:15:43.267Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

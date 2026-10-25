@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2027-01-20-gpt-4o-realtime",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "gpt-4o-realtime",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "gpt-4o-realtime shutdown",
   "summary": "Legacy audio, realtime, and transcription models. Shutdown date: 2027-01-20. Replacement: gpt-realtime-2.1.",
-  "announcedOn": "2026-07-20",
-  "effectiveOn": "2027-01-20",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["gpt-4o-realtime"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "breaks-on-date",
+    "fixedIn": [],
+    "announcedOn": "2026-07-20",
+    "effectiveOn": "2027-01-20"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "gpt-4o-realtime",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gpt-realtime-2.1",
-    "modelIds": ["gpt-realtime-2.1"]
+    "modelIds": ["gpt-realtime-2.1"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["gpt-4o-realtime"],
+        "to": "gpt-realtime-2.1"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| Jan 20, 2027  | `gpt-4o-realtime`                                     | `gpt-realtime-2.1`                  |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

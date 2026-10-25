@@ -1,21 +1,28 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2024-01-04-v1-fine-tunes",
-  "provider": "openai",
+  "subject": {
+    "kind": "api-host",
+    "name": "api.openai.com",
+    "provider": "openai"
+  },
   "kind": "endpoint-removal",
   "title": "/v1/fine-tunes shutdown",
   "summary": "Fine-tunes endpoint. Shutdown date: 2024-01-04. Replacement: /v1/fine_tuning/jobs.",
-  "announcedOn": "2023-08-22",
-  "effectiveOn": "2024-01-04",
-  "breaking": true,
-  "signatures": {
-    "modelIds": [],
-    "endpoints": ["/v1/fine-tunes"],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2023-08-22",
+    "effectiveOn": "2024-01-04"
   },
+  "signatures": [
+    {
+      "kind": "http-operation",
+      "method": "*",
+      "pathPattern": "/v1/fine-tunes",
+      "hostPattern": "api.openai.com"
+    }
+  ],
   "replacement": {
     "value": "/v1/fine_tuning/jobs",
     "modelIds": []
@@ -24,14 +31,20 @@
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| 2024-01-04    | `/v1/fine-tunes` | `/v1/fine_tuning/jobs`  |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

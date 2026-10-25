@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2023-08-16-v-no-cost-orders-checkout-session",
-  "provider": "stripe",
-  "title": "One-time payments in Checkout Sessions support no-cost orders",
-  "announcedOn": "2023-08-16",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "One-time payments in Checkout Sessions support no-cost orders",
   "summary": "No-cost orders are now enabled for one-time payments in Checkout Sessions, changing the value of payment_method_collection from always to if_required.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2023-08-16"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2023-08-16"
+    },
+    "announcedOn": "2023-08-16",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "This change simplifies the checkout process for free items or zero-cost transactions, potentially reducing friction for scenarios like free trials or promotional offerings."
+    {
+      "text": "This change simplifies the checkout process for free items or zero-cost transactions, potentially reducing friction for scenarios like free trials or promotional offerings.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [One-time payments in Checkout Sessions support no-cost orders](https://docs.stripe.com/changelog/2023-08-16/no-cost-orders-checkout-session.md) | Checkout | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2023-08-16/no-cost-orders-checkout-session.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "[No-cost orders](https://docs.stripe.com/payments/checkout/no-cost-orders.md) are now enabled for one-time payments in Checkout Sessions, changing the value of `payment_method_collection` from `always` to `if_required`.",
       "contentHash": "42ab4df9508f32c7843b5fd5caed7d2ac0afcf005f565c38b6ba364ab39652d4",
-      "checkedAt": "2026-10-24T14:37:34.698Z"
+      "checkedAt": "2026-10-25T01:15:47.224Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -114,8 +114,18 @@
           "items": {
             "type": "string"
           }
+        },
+        "calls": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
+    },
+    "apiVersionHeader": {
+      "type": "string"
     }
   },
   "required": ["schemaVersion", "slug", "name", "homepage", "logo", "officialDomains", "sources", "detection"]

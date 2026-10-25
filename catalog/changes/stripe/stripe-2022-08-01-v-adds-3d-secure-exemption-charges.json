@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2022-08-01-v-adds-3d-secure-exemption-charges",
-  "provider": "stripe",
-  "title": "Adds 3D Secure exemption status to card charges",
-  "announcedOn": "2022-08-01",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds 3D Secure exemption status to card charges",
   "summary": "The three_d_secure hash for card charges now includes an exempted field, indicating when a 3D Secure exemption has been granted.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2022-08-01"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2022-08-01"
+    },
+    "announcedOn": "2022-08-01",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Adding an exempted field to the three_d_secure hash for card charges provides information about 3D Secure exemptions. You can now easily identify when a transaction has been granted a 3D Secure exemption."
+    {
+      "text": "Adding an exempted field to the three_d_secure hash for card charges provides information about 3D Secure exemptions. You can now easily identify when a transaction has been granted a 3D Secure exemption.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds 3D Secure exemption status to card charges](https://docs.stripe.com/changelog/2022-08-01/adds-3d-secure-exemption-charges.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2022-08-01/adds-3d-secure-exemption-charges.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "The `three_d_secure` hash for card charges now includes an `exempted` field, indicating when a 3D Secure exemption has been granted.",
       "contentHash": "d1d2c302469ba8238f4e81047ecb4e73a901ad7b0d03af4dd0649019290fb693",
-      "checkedAt": "2026-10-24T14:37:35.769Z"
+      "checkedAt": "2026-10-25T01:15:48.246Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

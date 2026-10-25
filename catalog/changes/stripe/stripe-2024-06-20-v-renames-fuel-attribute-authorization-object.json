@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2024-06-20-v-renames-fuel-attribute-authorization-object",
-  "provider": "stripe",
-  "title": "Renames a `fuel` attribute of the `Authorization` object",
-  "announcedOn": "2024-06-20",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Renames a `fuel` attribute of the `Authorization` object",
   "summary": "Renames fuel.volume_decimal to fuel.quantity_decimal on the Issuing Authorization resource and related test_helper APIs.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2024-06-20"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2024-06-20"
+    },
+    "announcedOn": "2024-06-20",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Renames a fuel attribute of the Authorization object from volume_decimal to quantity_decimal to more precisely describe the number of items purchased."
+    {
+      "text": "Renames a fuel attribute of the Authorization object from volume_decimal to quantity_decimal to more precisely describe the number of items purchased.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Renames a `fuel` attribute of the `Authorization` object](https://docs.stripe.com/changelog/2024-06-20/renames-fuel-attribute-authorization-object.md) | Issuing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2024-06-20/renames-fuel-attribute-authorization-object.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Renames `fuel.volume_decimal` to `fuel.quantity_decimal` on the [Issuing Authorization](https://docs.stripe.com/api/issuing/authorizations/object.md?api-version=2024-06-20) resource and related `test_helper` APIs.",
       "contentHash": "600037ae1300c835a2ebcd98370771dcb40b180b0e7a30d44c0c78f59210b439",
-      "checkedAt": "2026-10-24T14:37:33.699Z"
+      "checkedAt": "2026-10-25T01:15:46.304Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

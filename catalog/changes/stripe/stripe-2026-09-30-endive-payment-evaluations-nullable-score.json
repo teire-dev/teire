@@ -1,65 +1,61 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-09-30-endive-payment-evaluations-nullable-score",
-  "provider": "stripe",
-  "title": "Makes Payment Evaluation signal scores nullable",
-  "announcedOn": "2026-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Makes Payment Evaluation signal scores nullable",
   "summary": "Makes the score property nullable for all signals in Payment Evaluations. Radar Standard users receive null for score. Other eligible Radar plans continue to return rounded numeric scores. Integrations that expect score to always contain a number can fail when it returns null. Previously, an unavailable score returned -1. After upgrading, it returns null instead.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["score"],
-    "endpoints": [],
-    "symbols": [
-      "Radar.PaymentEvaluation.Signal.FraudulentPayment.score",
-      "Radar.PaymentEvaluation.Signal.FraudulentDispute.score",
-      "Radar.PaymentEvaluation.Signal.EarlyFraudWarning.score",
-      "Radar.PaymentEvaluation.Signal.StolenCard.score",
-      "Radar.PaymentEvaluation.Signal.NonFraudDispute.score",
-      "Radar.PaymentEvaluation.Signal.Bot.score",
-      "Radar.PaymentEvaluation.signals.fraudulent_payment.score",
-      "Radar.PaymentEvaluation.signals.fraudulent_dispute.score",
-      "Radar.PaymentEvaluation.signals.early_fraud_warning.score",
-      "Radar.PaymentEvaluation.signals.stolen_card.score",
-      "Radar.PaymentEvaluation.signals.non_fraud_dispute.score",
-      "Radar.PaymentEvaluation.signals.bot.score"
-    ],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2026-09-30.endive"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-09-30.endive"
+    },
+    "announcedOn": "2026-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Before upgrading, update your integration to handle null signal scores and replace checks for -1 with checks for null. When a score isn’t available, use the corresponding signal’s risk_level property, such as fraudulent_payment.risk_level. Risk levels remain available to Radar Standard users.",
-    "If you use Radar Standard, upgrade your API version to 2026-09-30.endive or later to continue using Payment Evaluations."
+    {
+      "text": "Before upgrading, update your integration to handle null signal scores and replace checks for -1 with checks for null. When a score isn’t available, use the corresponding signal’s risk_level property, such as fraudulent_payment.risk_level. Risk levels remain available to Radar Standard users.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "If you use Radar Standard, upgrade your API version to 2026-09-30.endive or later to continue using Payment Evaluations.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Makes Payment Evaluation signal scores nullable](https://docs.stripe.com/changelog/endive/2026-09-30/payment-evaluations-nullable-score.md) | Radar | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/endive/2026-09-30/payment-evaluations-nullable-score.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Integrations that expect `score` to always contain a number can fail when it returns `null`. Previously, an unavailable score returned `-1`. After upgrading, it returns `null` instead.",
       "contentHash": "70eff941d8cbf178a414dbc534ba3853ff64fc17d36d7b1a93666b7318bf82fc",
-      "checkedAt": "2026-10-24T14:37:29.188Z"
+      "checkedAt": "2026-10-25T01:15:41.712Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

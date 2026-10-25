@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "google-gemini-2025-12-09-gemini-2-0-flash-live-001",
-  "provider": "google-gemini",
+  "subject": {
+    "kind": "model",
+    "name": "gemini-2.0-flash-live-001",
+    "provider": "google-gemini"
+  },
   "kind": "model-retirement",
   "title": "gemini-2.0-flash-live-001 shutdown",
   "summary": "Live API models. Shutdown date: 2025-12-09. Replacement: gemini-3.8-live.",
-  "announcedOn": null,
-  "effectiveOn": "2025-12-09",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["gemini-2.0-flash-live-001"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": null,
+    "effectiveOn": "2025-12-09"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "gemini-2.0-flash-live-001",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gemini-3.8-live",
-    "modelIds": ["gemini-3.8-live"]
+    "modelIds": ["gemini-3.8-live"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["gemini-2.0-flash-live-001"],
+        "to": "gemini-3.8-live"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| `gemini-2.0-flash-live-001` | April 9, 2025 | December 9, 2025 | `gemini-3.8-live` |",
       "contentHash": "3342ebac18090931abc3a2f58e42a07f2f1f4c7f411dc6587c4faf64831c4601",
-      "checkedAt": "2026-10-24T14:37:24.882Z"
+      "checkedAt": "2026-10-25T01:15:36.779Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

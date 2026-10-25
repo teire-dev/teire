@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-09-30-clover-lpm-descriptive-decline-codes",
-  "provider": "stripe",
-  "title": "Changes the set of decline codes used for Alma, Amazon Pay, Billie, Satispay, and South Korean payment methods",
-  "announcedOn": "2025-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Changes the set of decline codes used for Alma, Amazon Pay, Billie, Satispay, and South Korean payment methods",
   "summary": "Adds more granular decline codes to inform you of why a payment method was declined.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2025-09-30.clover"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-09-30.clover"
+    },
+    "announcedOn": "2025-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "The updated decline codes for PaymentIntentsare noted in the last_payment_error.decline_code field. You can also see the decline reason on the Transactions page in the Dashboard. You should update your integration accordingly if your integration relies on this field."
+    {
+      "text": "The updated decline codes for PaymentIntentsare noted in the last_payment_error.decline_code field. You can also see the decline reason on the Transactions page in the Dashboard. You should update your integration accordingly if your integration relies on this field.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Changes the set of decline codes used for Alma, Amazon Pay, Billie, Satispay, and South Korean payment methods](https://docs.stripe.com/changelog/clover/2025-09-30/lpm-descriptive-decline-codes.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/clover/2025-09-30/lpm-descriptive-decline-codes.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Adds more granular decline codes to inform you of why a payment method was declined.",
       "contentHash": "48b1a30e899e627a2e9dcca9db4267df46d3b82d9481eab18ec3bb7efab60a8b",
-      "checkedAt": "2026-10-24T14:37:31.799Z"
+      "checkedAt": "2026-10-25T01:15:44.384Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

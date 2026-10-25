@@ -120,7 +120,14 @@ export const providerRecord = z.object({
     imports: z.array(z.string()).default([]),
     envVars: z.array(z.string()).default([]),
     baseUrls: z.array(z.string()).default([]),
+    /**
+     * Member chains of the SDK calls that send a request with a model and sampling parameters
+     * (`chat.completions.create`, `messages.create`); a removed parameter is matched only on these.
+     */
+    calls: z.array(z.string()).default([]),
   }),
+  /** Header that pins the API version a request is served under (`Stripe-Version`). */
+  apiVersionHeader: z.string().optional(),
 });
 export type ProviderRecord = z.infer<typeof providerRecord>;
 
@@ -136,10 +143,11 @@ export function changeId(provider: string, date: string | null, subject: string)
   return [provider, date ?? "undated", slugify(subject)].join("-").slice(0, 120).replace(/-+$/, "");
 }
 
-/** JSON Schemas published in catalog/ and at /schema/*.json. */
+/**
+ * JSON Schemas published in catalog/ and at /schema/*.json. Change records are contract v2
+ * (`change-v2.schema.json`, from contract.ts); `changeRecord` above is only the row shape the
+ * precision readers produce before conversion.
+ */
 export function catalogJsonSchemas() {
-  return {
-    change: z.toJSONSchema(changeRecord, { target: "draft-2020-12", io: "input" }),
-    provider: z.toJSONSchema(providerRecord, { target: "draft-2020-12", io: "input" }),
-  };
+  return { provider: z.toJSONSchema(providerRecord, { target: "draft-2020-12", io: "input" }) };
 }

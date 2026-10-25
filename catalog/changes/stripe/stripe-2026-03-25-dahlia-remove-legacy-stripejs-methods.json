@@ -1,114 +1,325 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-03-25-dahlia-remove-legacy-stripejs-methods",
-  "provider": "stripe",
-  "title": "Removes deprecated Payment Intents, Setup Intents, and Sources methods from Stripe.js",
-  "announcedOn": "2026-03-25",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Removes deprecated Payment Intents, Setup Intents, and Sources methods from Stripe.js",
   "summary": "Removes several deprecated methods from Stripe.js in favor of equivalent methods with clearer naming and improved functionality. The following methods have been removed and will throw an error if called:",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2026-03-25.dahlia"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-03-25.dahlia"
+    },
+    "announcedOn": "2026-03-25",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "If your integration uses any of the deprecated methods, you must update your code to use different methods, as in the following examples:",
-    "### Payment Intents API methods",
-    "Replace handleCardPayment with confirmCardPayment, which has a similar API signature and behavior.",
-    "javascript",
-    "// Before (deprecated)",
-    "stripe.handleCardPayment(clientSecret, cardElement);",
-    "// After",
-    "stripe.confirmCardPayment(clientSecret, {",
-    "payment_method: {",
-    "card: cardElement,",
-    "},",
-    "});",
-    "",
-    "Replace confirmPaymentIntent with the more explicit confirmCardPayment.",
-    "javascript",
-    "// Before (deprecated)",
-    "stripe.confirmPaymentIntent(clientSecret, {",
-    "payment_method: {",
-    "card: cardElement,",
-    "},",
-    "});",
-    "// After",
-    "stripe.confirmCardPayment(clientSecret, {",
-    "payment_method: {",
-    "card: cardElement,",
-    "},",
-    "});",
-    "",
-    "Replace handleFpxPayment with confirmFpxPayment, which has an identical API signature and behavior.",
-    "javascript",
-    "// Before (deprecated)",
-    "stripe.handleFpxPayment(clientSecret, {",
-    "payment_method: {",
-    "fpx: fpxBankElement,",
-    "},",
-    "});",
-    "// After",
-    "stripe.confirmFpxPayment(clientSecret, {",
-    "payment_method: {",
-    "fpx: fpxBankElement,",
-    "},",
-    "});",
-    "",
-    "### Setup Intents API methods",
-    "Replace handleCardSetup with confirmCardSetup, which has a similar API signature and behavior.",
-    "javascript",
-    "// Before (deprecated)",
-    "stripe.handleCardSetup(clientSecret, cardElement);",
-    "// After",
-    "stripe.confirmCardSetup(clientSecret, {",
-    "payment_method: {",
-    "card: cardElement,",
-    "},",
-    "});",
-    "",
-    "Replace confirmSetupIntent with the more explicit confirmCardSetup.",
-    "javascript",
-    "// Before (deprecated)",
-    "stripe.confirmSetupIntent(clientSecret, {",
-    "payment_method: {",
-    "card: cardElement,",
-    "},",
-    "});",
-    "// After",
-    "stripe.confirmCardSetup(clientSecret, {",
-    "payment_method: {",
-    "card: cardElement,",
-    "},",
-    "});",
-    "",
-    "### Sources API methods",
-    "If your code uses methods like createSource and retrieveSource from the legacy Sources API, migrate your integration to use the Payment Methods API instead.",
-    "The Payment Methods API provides better support for payment methods, reusability, and compliance requirements."
+    {
+      "text": "If your integration uses any of the deprecated methods, you must update your code to use different methods, as in the following examples:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Payment Intents API methods",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Replace handleCardPayment with confirmCardPayment, which has a similar API signature and behavior.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "javascript",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// Before (deprecated)",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.handleCardPayment(clientSecret, cardElement);",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// After",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.confirmCardPayment(clientSecret, {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_method: {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "card: cardElement,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "},",
+      "sourceIndex": 0
+    },
+    {
+      "text": "});",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Replace confirmPaymentIntent with the more explicit confirmCardPayment.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "javascript",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// Before (deprecated)",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.confirmPaymentIntent(clientSecret, {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_method: {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "card: cardElement,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "},",
+      "sourceIndex": 0
+    },
+    {
+      "text": "});",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// After",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.confirmCardPayment(clientSecret, {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_method: {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "card: cardElement,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "},",
+      "sourceIndex": 0
+    },
+    {
+      "text": "});",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Replace handleFpxPayment with confirmFpxPayment, which has an identical API signature and behavior.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "javascript",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// Before (deprecated)",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.handleFpxPayment(clientSecret, {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_method: {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "fpx: fpxBankElement,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "},",
+      "sourceIndex": 0
+    },
+    {
+      "text": "});",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// After",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.confirmFpxPayment(clientSecret, {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_method: {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "fpx: fpxBankElement,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "},",
+      "sourceIndex": 0
+    },
+    {
+      "text": "});",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Setup Intents API methods",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Replace handleCardSetup with confirmCardSetup, which has a similar API signature and behavior.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "javascript",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// Before (deprecated)",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.handleCardSetup(clientSecret, cardElement);",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// After",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.confirmCardSetup(clientSecret, {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_method: {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "card: cardElement,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "},",
+      "sourceIndex": 0
+    },
+    {
+      "text": "});",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Replace confirmSetupIntent with the more explicit confirmCardSetup.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "javascript",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// Before (deprecated)",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.confirmSetupIntent(clientSecret, {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_method: {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "card: cardElement,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "},",
+      "sourceIndex": 0
+    },
+    {
+      "text": "});",
+      "sourceIndex": 0
+    },
+    {
+      "text": "// After",
+      "sourceIndex": 0
+    },
+    {
+      "text": "stripe.confirmCardSetup(clientSecret, {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_method: {",
+      "sourceIndex": 0
+    },
+    {
+      "text": "card: cardElement,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "},",
+      "sourceIndex": 0
+    },
+    {
+      "text": "});",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Sources API methods",
+      "sourceIndex": 0
+    },
+    {
+      "text": "If your code uses methods like createSource and retrieveSource from the legacy Sources API, migrate your integration to use the Payment Methods API instead.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "The Payment Methods API provides better support for payment methods, reusability, and compliance requirements.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Removes deprecated Payment Intents, Setup Intents, and Sources methods from Stripe.js](https://docs.stripe.com/changelog/dahlia/2026-03-25/remove-legacy-stripejs-methods.md) | Payments | Breaking | stripejs |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/remove-legacy-stripejs-methods.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "The following methods have been removed and will throw an error if called:",
       "contentHash": "77a4763466ff376283067902179e1c2bd442472816cd1616f889f01bd1971c59",
-      "checkedAt": "2026-10-24T14:37:30.508Z"
+      "checkedAt": "2026-10-25T01:15:43.156Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

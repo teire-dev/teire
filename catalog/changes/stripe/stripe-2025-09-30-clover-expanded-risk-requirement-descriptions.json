@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-09-30-clover-expanded-risk-requirement-descriptions",
-  "provider": "stripe",
-  "title": "Adds specific descriptions for risk requirements during legal, PEP, and sanctions review",
-  "announcedOn": "2025-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds specific descriptions for risk requirements during legal, PEP, and sanctions review",
   "summary": "Adds two new requirements, resolution paths, and a new error code for risk requirements related to legal holds, PEP reviews, and sanctions reviews. These were previously categorized as other_supportability_inquiry or other_compliance_inquiry requirements. Risk verification requirements follow the <id>.<requirement_description>.<resolution_path> format. This change will break existing integrations that aren’t updated to explicitly handle these new requirements. Sanctions, PEP review, and legal hold requirements were previously represented by the less-specific other_supportability_inquiry requirement description.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2025-09-30.clover"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-09-30.clover"
+    },
+    "announcedOn": "2025-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "You’ll gain a better understanding of capability limitations caused by sanctions reviews, PEP reviews, and legal holds, and whether any action is required from you to resolve the requirement."
+    {
+      "text": "You’ll gain a better understanding of capability limitations caused by sanctions reviews, PEP reviews, and legal holds, and whether any action is required from you to resolve the requirement.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds specific descriptions for risk requirements during legal, PEP, and sanctions review](https://docs.stripe.com/changelog/clover/2025-09-30/expanded-risk-requirement-descriptions.md) | Connect | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/clover/2025-09-30/expanded-risk-requirement-descriptions.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "This change will break existing integrations that aren’t updated to explicitly handle these new requirements. Sanctions, PEP review, and legal hold requirements were previously represented by the less-specific `other_supportability_inquiry` requirement description.",
       "contentHash": "e13245d21eff86629f163fc5c2bb50f7b0c8ac3ee010c83853744bb0aa60ed5d",
-      "checkedAt": "2026-10-24T14:37:31.439Z"
+      "checkedAt": "2026-10-25T01:15:44.035Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

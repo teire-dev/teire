@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2024-06-20-v-adds-enum-request-history-reasons-issuing",
-  "provider": "stripe",
-  "title": "Adds new enum values for request history reasons",
-  "announcedOn": "2024-06-20",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds new enum values for request history reasons",
   "summary": "Adds new values to the Issuing Authorization request_history.reason enum:",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2024-06-20"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2024-06-20"
+    },
+    "announcedOn": "2024-06-20",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Adds new values to the request_history.reason property for the Issuing Authorization resource. You can now more precisely track and understand why specific authorization requests were made"
+    {
+      "text": "Adds new values to the request_history.reason property for the Issuing Authorization resource. You can now more precisely track and understand why specific authorization requests were made",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds new enum values for request history reasons](https://docs.stripe.com/changelog/2024-06-20/adds-enum-request-history-reasons-issuing.md) | Issuing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2024-06-20/adds-enum-request-history-reasons-issuing.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Adds new values to the [Issuing Authorization](https://docs.stripe.com/api/issuing/authorizations/object.md?api-version=2024-06-20) `request_history.reason` enum:",
       "contentHash": "e20df4d30696b0c0ae98806b9bac12df0f161be6d50b241b195217afdc2037d7",
-      "checkedAt": "2026-10-24T14:37:34.289Z"
+      "checkedAt": "2026-10-25T01:15:46.786Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

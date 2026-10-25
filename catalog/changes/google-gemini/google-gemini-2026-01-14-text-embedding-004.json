@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "google-gemini-2026-01-14-text-embedding-004",
-  "provider": "google-gemini",
+  "subject": {
+    "kind": "model",
+    "name": "text-embedding-004",
+    "provider": "google-gemini"
+  },
   "kind": "model-retirement",
   "title": "text-embedding-004 shutdown",
   "summary": "Embedding models. Shutdown date: 2026-01-14. Replacement: gemini-embedding-2.",
-  "announcedOn": null,
-  "effectiveOn": "2026-01-14",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["text-embedding-004"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": null,
+    "effectiveOn": "2026-01-14"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "text-embedding-004",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gemini-embedding-2",
-    "modelIds": ["gemini-embedding-2"]
+    "modelIds": ["gemini-embedding-2"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["text-embedding-004"],
+        "to": "gemini-embedding-2"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| `text-embedding-004` | April 9, 2024 | January 14, 2026 | `gemini-embedding-2` |",
       "contentHash": "3342ebac18090931abc3a2f58e42a07f2f1f4c7f411dc6587c4faf64831c4601",
-      "checkedAt": "2026-10-24T14:37:24.882Z"
+      "checkedAt": "2026-10-25T01:15:36.779Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

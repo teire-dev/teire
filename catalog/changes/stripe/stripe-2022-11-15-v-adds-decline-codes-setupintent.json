@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2022-11-15-v-adds-decline-codes-setupintent",
-  "provider": "stripe",
-  "title": "Adds new decline codes to the SetupIntent API",
-  "announcedOn": "2022-11-15",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds new decline codes to the SetupIntent API",
   "summary": "Adds the following decline codes to the SetupIntent APIs:",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2022-11-15"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2022-11-15"
+    },
+    "announcedOn": "2022-11-15",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Lets you accurately identify additional reasons for SetupIntent declines, improving error handling."
+    {
+      "text": "Lets you accurately identify additional reasons for SetupIntent declines, improving error handling.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds new decline codes to the SetupIntent API](https://docs.stripe.com/changelog/2022-11-15/adds-decline-codes-setupintent.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2022-11-15/adds-decline-codes-setupintent.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Adds the following decline codes to the [SetupIntent](https://docs.stripe.com/api/setup_intents.md?api-version=2024-06-20) APIs:",
       "contentHash": "9c4487d9d9bde47937d8a1d2f5c6b1aeb05ece80844ea12c8a7f1c118d21c679",
-      "checkedAt": "2026-10-24T14:37:35.170Z"
+      "checkedAt": "2026-10-25T01:15:47.696Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

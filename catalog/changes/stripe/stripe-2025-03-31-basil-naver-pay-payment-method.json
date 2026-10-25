@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-naver-pay-payment-method",
-  "provider": "stripe",
-  "title": "Payment Methods won’t allow modifying fields for Naver Pay after the object is first created",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Payment Methods won’t allow modifying fields for Naver Pay after the object is first created",
   "summary": "Removes the ability to update Naver Pay parameters on a PaymentMethod object. You can only set them when first creating a PaymentMethod. This change removes the ability to update Naver Pay parameters when you update a PaymentMethod.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["naver_pay"],
-    "endpoints": [],
-    "symbols": ["naver_pay"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "You can no longer use POST /v1/payment_methods/:id to update Naver Pay parameters. You can only set them when creating a PaymentMethod."
+    {
+      "text": "You can no longer use POST /v1/payment_methods/:id to update Naver Pay parameters. You can only set them when creating a PaymentMethod.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Payment Methods won’t allow modifying fields for Naver Pay after the object is first created](https://docs.stripe.com/changelog/basil/2025-03-31/naver-pay-payment-method.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/naver-pay-payment-method.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "This change removes the ability to update Naver Pay parameters when you [update a PaymentMethod](https://docs.stripe.com/api/payment_methods/update.md?api-version=2025-03-31.basil).",
       "contentHash": "aed5504801c79990512a4247e8bc6467032d1789412d94626c275c2361b6f3a9",
-      "checkedAt": "2026-10-24T14:37:33.099Z"
+      "checkedAt": "2026-10-25T01:15:45.639Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

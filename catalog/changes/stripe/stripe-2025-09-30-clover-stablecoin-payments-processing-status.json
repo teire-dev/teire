@@ -1,47 +1,77 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-09-30-clover-stablecoin-payments-processing-status",
-  "provider": "stripe",
-  "title": "Adds a processing status to submitted stablecoin payments",
-  "announcedOn": "2025-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds a processing status to submitted stablecoin payments",
   "summary": "PaymentIntents confirmed with the crypto payment method for stablecoin payments now have a status of processing when a user submits a transaction to the blockchain for processing. Users only redirect back to your integration when a payment is finalized.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2025-09-30.clover"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-09-30.clover"
+    },
+    "announcedOn": "2025-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Previously, the PaymentIntent denoted success or failure by transitioning from requires_action to either succeeded or requires_payment_method.",
-    "With this change, when using the crypto payment method:",
-    "If you retrieve the PaymentIntent while customers are waiting for the transaction to confirm, the status field now shows a value of processing.",
-    "If you attempt to cancel a confirmed PaymentIntent with the processing status, the request fails with error payment_intent_invalid_cancellation_state.",
-    "You can optionally set up your webhook endpoint to listen for the payment_intent.processing event to be notified when the PaymentIntent transitions to the processing status.",
-    "The customer isn’t redirected while the PaymentIntent has the processing status, so your checkout experience shouldn’t require any changes."
+    {
+      "text": "Previously, the PaymentIntent denoted success or failure by transitioning from requires_action to either succeeded or requires_payment_method.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "With this change, when using the crypto payment method:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "If you retrieve the PaymentIntent while customers are waiting for the transaction to confirm, the status field now shows a value of processing.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "If you attempt to cancel a confirmed PaymentIntent with the processing status, the request fails with error payment_intent_invalid_cancellation_state.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "You can optionally set up your webhook endpoint to listen for the payment_intent.processing event to be notified when the PaymentIntent transitions to the processing status.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "The customer isn’t redirected while the PaymentIntent has the processing status, so your checkout experience shouldn’t require any changes.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds a processing status to submitted stablecoin payments](https://docs.stripe.com/changelog/clover/2025-09-30/stablecoin-payments-processing-status.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/clover/2025-09-30/stablecoin-payments-processing-status.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "[PaymentIntents](https://docs.stripe.com/api/payment_intents.md?api-version=2025-09-30.clover) confirmed with the `crypto` payment method for [stablecoin payments](https://docs.stripe.com/payments/stablecoin-payments.md) now have a [status](https://docs.stripe.com/api/payment_intents/object.md?api-version=2025-09-30.clover#payment_intent_object-status) of `processing` when a user submits a transaction to the blockchain for processing. Users only redirect back to your integration when a payment is finalized.",
       "contentHash": "b1159549dbbcf457502b08d7d5bee45bb6b6b65e5c6150975325e3aed8be65f7",
-      "checkedAt": "2026-10-24T14:37:31.848Z"
+      "checkedAt": "2026-10-25T01:15:44.425Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

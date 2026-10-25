@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2022-11-15-v-deprecates-charges-auto-expand",
-  "provider": "stripe",
-  "title": "The `Charges` object no longer auto-expands refunds by default",
-  "announcedOn": "2022-11-15",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "The `Charges` object no longer auto-expands refunds by default",
   "summary": "The Charge object no longer auto-expands refunds. While you can manually expand refunds, Stripe recommends against it for performance reasons.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["refunds"],
-    "endpoints": [],
-    "symbols": ["Charge.refunds"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2022-11-15"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2022-11-15"
+    },
+    "announcedOn": "2022-11-15",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "This change improves API response times and reduces data transfer, but might require updates to existing code that relied on automatically expanded refund information."
+    {
+      "text": "This change improves API response times and reduces data transfer, but might require updates to existing code that relied on automatically expanded refund information.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [The `Charges` object no longer auto-expands refunds by default](https://docs.stripe.com/changelog/2022-11-15/deprecates-charges-auto-expand.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2022-11-15/deprecates-charges-auto-expand.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "The `Charge` object no longer auto-expands refunds. While you can manually expand refunds, Stripe recommends against it for performance reasons.",
       "contentHash": "6923e94b4286dc3fbace0317e22a9721db371f7611841200f4c63fee4cc20090",
-      "checkedAt": "2026-10-24T14:37:34.949Z"
+      "checkedAt": "2026-10-25T01:15:47.514Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

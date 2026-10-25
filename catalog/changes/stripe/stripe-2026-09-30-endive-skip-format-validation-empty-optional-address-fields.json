@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-09-30-endive-skip-format-validation-empty-optional-address-fields",
-  "provider": "stripe",
-  "title": "Allows empty optional address fields in Elements with Checkout Sessions",
-  "announcedOn": "2026-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Allows empty optional address fields in Elements with Checkout Sessions",
   "summary": "Stops applying format validation to empty optional address fields in Elements with the Checkout Sessions API. Previously, an empty optional field, such as a postal code in a country where postal codes aren’t required, could prevent confirmation because the empty value failed format validation. Starting with Endive, customers can confirm a Checkout Session without entering address fields that are optional for their country. Previous Stripe.js major versions retain the stricter behavior, which might affect integrations that rely on Stripe.js to require these fields.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2026-09-30.endive"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-09-30.endive"
+    },
+    "announcedOn": "2026-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Customers are no longer blocked from confirming because they left an optional address field empty. Stripe.js continues to validate the format when a customer provides a value. If your integration requires a field that Stripe considers optional, collect and validate the address in your own form before confirming the Checkout Session."
+    {
+      "text": "Customers are no longer blocked from confirming because they left an optional address field empty. Stripe.js continues to validate the format when a customer provides a value. If your integration requires a field that Stripe considers optional, collect and validate the address in your own form before confirming the Checkout Session.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Allows empty optional address fields in Elements with Checkout Sessions](https://docs.stripe.com/changelog/endive/2026-09-30/skip-format-validation-empty-optional-address-fields.md) | Checkout, Elements | Breaking | stripejs |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/endive/2026-09-30/skip-format-validation-empty-optional-address-fields.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Starting with Endive, customers can confirm a Checkout Session without entering address fields that are optional for their country. Previous Stripe.js major versions retain the stricter behavior, which might affect integrations that rely on Stripe.js to require these fields.",
       "contentHash": "8ebdb6dde7ef184ea9006f88ea50ceb02639988a1726ad86a0258f9e2cf69bcf",
-      "checkedAt": "2026-10-24T14:37:30.080Z"
+      "checkedAt": "2026-10-25T01:15:42.605Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

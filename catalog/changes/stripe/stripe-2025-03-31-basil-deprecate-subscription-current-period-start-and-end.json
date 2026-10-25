@@ -1,52 +1,61 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-deprecate-subscription-current-period-start-and-end",
-  "provider": "stripe",
-  "title": "Adds subscription item-level billing periods and removes subscription-level periods",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Adds subscription item-level billing periods and removes subscription-level periods",
   "summary": "Subscription items now track their respective billing periods directly instead of as a top-level shared billing period on the subscription resource. - current_period_start and current_period_end fields are no longer available on the subscription resource. - previous_attributes on the customer.subscription.updated webhook now include that the subscription item’s billing period has changed.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["current_period_end", "current_period_start"],
-    "endpoints": [],
-    "symbols": ["current_period_end", "current_period_start"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Update any code that references subscription-level current_period_end and current_period_start fields. Instead, access the subscription item’s billing periods directly using items.data.current_period_end and items.data.current_period_start fields.",
-    "Make sure that your integration correctly handles the previous_attributes field on the customer.subscription.updated webhook. For instance, for price or quantity changes, inspect the previous_attributes.items.data[].price field."
+    {
+      "text": "Update any code that references subscription-level current_period_end and current_period_start fields. Instead, access the subscription item’s billing periods directly using items.data.current_period_end and items.data.current_period_start fields.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Make sure that your integration correctly handles the previous_attributes field on the customer.subscription.updated webhook. For instance, for price or quantity changes, inspect the previous_attributes.items.data[].price field.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds subscription item-level billing periods and removes subscription-level periods](https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-subscription-current-period-start-and-end.md) | Billing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-subscription-current-period-start-and-end.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "- `current_period_start` and `current_period_end` fields are no longer available on the [subscription](https://docs.stripe.com/api/subscriptions/object.md?api-version=2025-03-31.basil) resource.\n- `previous_attributes` on the `customer.subscription.updated` webhook now include that the subscription item’s billing period has changed.",
       "contentHash": "7f1e5278ad197ac489512f4bf97e8dac57a03da6d8531b162702d1625eb4c33d",
-      "checkedAt": "2026-10-24T14:37:32.111Z"
+      "checkedAt": "2026-10-25T01:15:44.704Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

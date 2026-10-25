@@ -1,86 +1,229 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-checkout-legacy-subscription-upgrade",
-  "provider": "stripe",
-  "title": "Checkout Sessions have lower latency and new update semantics",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Checkout Sessions have lower latency and new update semantics",
   "summary": "This version offers improved latency on all Checkout Session APIs for subscription-mode Sessions, including when your customer confirms the Session. Because this change creates the subscription after the user has completed the payment, payment_intent doesn’t reference an invoice until the Checkout Session fully completes. This means the checkout.session.status property must be complete before the invoice is created.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Subscriptions are now created after the user completes payment.",
-    "Failed payment attempts no longer result in an incomplete subscription with a finalized invoice.",
-    "An invoice isn’t present until the Checkout Session is in the complete state.",
-    "#### Ruby",
-    "ruby",
-    "require 'json'",
-    "require 'stripe'",
-    "# Don't put any keys in code. See https://docs.stripe.com/keys-best-practices.",
-    "# Find your keys at https://dashboard.stripe.com/apikeys.",
-    "client = Stripe::StripeClient.new('<<YOUR_SECRET_KEY>>')",
-    "# Using Sinatra",
-    "post '/webhook' do",
-    "payload = request.body.read",
-    "event = nil",
-    "begin",
-    "event = Stripe::Event.construct_from(",
-    "JSON.parse(payload, symbolize_names: true)",
-    ")",
-    "rescue JSON::ParserError => e",
-    "# Invalid payload",
-    "status 400",
-    "return",
-    "end",
-    "# Handle the event",
-    "case event.type",
-    "when 'payment_intent.succeeded'",
-    "payment_intent = event.data.object # contains a Stripe::PaymentIntent",
-    "# The subscription and invoice might not have been created at this stage.",
-    "# Then define and call a method to handle the successful payment intent.",
-    "# handle_payment_intent_succeeded(payment_intent)",
-    "when 'checkout_session.completed'",
-    "checkout_session = event.data.object # contains a Stripe::CheckoutSession",
-    "# checkout_session.payment_intent is a string here,",
-    "# but you can use this payment_intent token to fetch the associated invoice payment",
-    "# through the /v1/invoice_payments API method and its guaranteed associated invoice",
-    "# and invoice payment are non-null at this stage.",
-    "# Then define and call a method to handle the successful completion of a Checkout Session",
-    "# handle_checkout_session_completed(checkout_session)",
-    "# ... handle other event types",
-    "else",
-    "puts \"Unhandled event type: #{event.type}\"",
-    "end",
-    "status 200",
-    "end",
-    ""
+    {
+      "text": "Subscriptions are now created after the user completes payment.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Failed payment attempts no longer result in an incomplete subscription with a finalized invoice.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "An invoice isn’t present until the Checkout Session is in the complete state.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "#### Ruby",
+      "sourceIndex": 0
+    },
+    {
+      "text": "ruby",
+      "sourceIndex": 0
+    },
+    {
+      "text": "require 'json'",
+      "sourceIndex": 0
+    },
+    {
+      "text": "require 'stripe'",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# Don't put any keys in code. See https://docs.stripe.com/keys-best-practices.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# Find your keys at https://dashboard.stripe.com/apikeys.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "client = Stripe::StripeClient.new('<<YOUR_SECRET_KEY>>')",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# Using Sinatra",
+      "sourceIndex": 0
+    },
+    {
+      "text": "post '/webhook' do",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payload = request.body.read",
+      "sourceIndex": 0
+    },
+    {
+      "text": "event = nil",
+      "sourceIndex": 0
+    },
+    {
+      "text": "begin",
+      "sourceIndex": 0
+    },
+    {
+      "text": "event = Stripe::Event.construct_from(",
+      "sourceIndex": 0
+    },
+    {
+      "text": "JSON.parse(payload, symbolize_names: true)",
+      "sourceIndex": 0
+    },
+    {
+      "text": ")",
+      "sourceIndex": 0
+    },
+    {
+      "text": "rescue JSON::ParserError => e",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# Invalid payload",
+      "sourceIndex": 0
+    },
+    {
+      "text": "status 400",
+      "sourceIndex": 0
+    },
+    {
+      "text": "return",
+      "sourceIndex": 0
+    },
+    {
+      "text": "end",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# Handle the event",
+      "sourceIndex": 0
+    },
+    {
+      "text": "case event.type",
+      "sourceIndex": 0
+    },
+    {
+      "text": "when 'payment_intent.succeeded'",
+      "sourceIndex": 0
+    },
+    {
+      "text": "payment_intent = event.data.object # contains a Stripe::PaymentIntent",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# The subscription and invoice might not have been created at this stage.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# Then define and call a method to handle the successful payment intent.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# handle_payment_intent_succeeded(payment_intent)",
+      "sourceIndex": 0
+    },
+    {
+      "text": "when 'checkout_session.completed'",
+      "sourceIndex": 0
+    },
+    {
+      "text": "checkout_session = event.data.object # contains a Stripe::CheckoutSession",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# checkout_session.payment_intent is a string here,",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# but you can use this payment_intent token to fetch the associated invoice payment",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# through the /v1/invoice_payments API method and its guaranteed associated invoice",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# and invoice payment are non-null at this stage.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# Then define and call a method to handle the successful completion of a Checkout Session",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# handle_checkout_session_completed(checkout_session)",
+      "sourceIndex": 0
+    },
+    {
+      "text": "# ... handle other event types",
+      "sourceIndex": 0
+    },
+    {
+      "text": "else",
+      "sourceIndex": 0
+    },
+    {
+      "text": "puts \"Unhandled event type: #{event.type}\"",
+      "sourceIndex": 0
+    },
+    {
+      "text": "end",
+      "sourceIndex": 0
+    },
+    {
+      "text": "status 200",
+      "sourceIndex": 0
+    },
+    {
+      "text": "end",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Checkout Sessions have lower latency and new update semantics](https://docs.stripe.com/changelog/basil/2025-03-31/checkout-legacy-subscription-upgrade.md) | Checkout | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/checkout-legacy-subscription-upgrade.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Because this change creates the subscription *after* the user has completed the payment, `payment_intent` doesn’t reference an invoice until the Checkout Session fully completes. This means the `checkout.session.status` property must be `complete` before the invoice is created.",
       "contentHash": "c1e50cd11003a3215f7c40e336e2990a8d74c0ad015a003c913c1bbd3eeff345",
-      "checkedAt": "2026-10-24T14:37:32.248Z"
+      "checkedAt": "2026-10-25T01:15:44.799Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2024-09-13-gpt-3-5-turbo-0301",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "gpt-3.5-turbo-0301",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "gpt-3.5-turbo-0301 shutdown",
   "summary": "Updated chat models. Shutdown date: 2024-09-13. Replacement: gpt-3.5-turbo.",
-  "announcedOn": "2023-06-13",
-  "effectiveOn": "2024-09-13",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["gpt-3.5-turbo-0301"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2023-06-13",
+    "effectiveOn": "2024-09-13"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "gpt-3.5-turbo-0301",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gpt-3.5-turbo",
-    "modelIds": ["gpt-3.5-turbo"]
+    "modelIds": ["gpt-3.5-turbo"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["gpt-3.5-turbo-0301"],
+        "to": "gpt-3.5-turbo"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| 2024-09-13    | `gpt-3.5-turbo-0301` | $15.00 / 1M input tokens + $20.00 / 1M output tokens  | `gpt-3.5-turbo`         |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

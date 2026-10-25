@@ -1,21 +1,27 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2026-10-01-gpt-5-4-cyber",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "gpt-5.4-cyber",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "gpt-5.4-cyber shutdown",
   "summary": "GPT-5.4-Cyber. Shutdown date: 2026-10-01. Replacement: The most capable cyber model available to you..",
-  "announcedOn": "2026-09-11",
-  "effectiveOn": "2026-10-01",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["gpt-5.4-cyber"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2026-09-11",
+    "effectiveOn": "2026-10-01"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "gpt-5.4-cyber",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "The most capable cyber model available to you.",
     "modelIds": []
@@ -24,14 +30,20 @@
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| Oct 1, 2026   | `gpt-5.4-cyber` | The most capable cyber model available to you. |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

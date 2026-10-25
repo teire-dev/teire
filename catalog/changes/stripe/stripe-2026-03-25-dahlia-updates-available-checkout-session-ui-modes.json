@@ -1,49 +1,52 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-03-25-dahlia-updates-available-checkout-session-ui-modes",
-  "provider": "stripe",
-  "title": "Updates Checkout Session UI mode enum values",
-  "announcedOn": "2026-03-25",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Updates Checkout Session UI mode enum values",
   "summary": "Updates the ui_mode parameter for Checkout Sessions to use the following clearer, more descriptive enum values: Attempting to set a Checkout Session’s ui_mode to hosted, embedded, or custom will fail. If your integration uses any of those values, you must update your code to use the new ui_mode values.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["custom", "embedded", "hosted"],
-    "endpoints": [],
-    "symbols": ["custom", "embedded", "hosted"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2026-03-25.dahlia"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-03-25.dahlia"
+    },
+    "announcedOn": "2026-03-25",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Updates Checkout Session UI mode enum values](https://docs.stripe.com/changelog/dahlia/2026-03-25/updates-available-checkout-session-ui-modes.md) | Checkout, Paymentlinks | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/updates-available-checkout-session-ui-modes.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Attempting to set a Checkout Session’s `ui_mode` to `hosted`, `embedded`, or `custom` will fail. If your integration uses any of those values, you must update your code to use the new `ui_mode` values.",
       "contentHash": "b0cfd2e09cc28a34dfcd3729a7d6f0809e3c670c0be29543ffaaedb53ccba0b3",
-      "checkedAt": "2026-10-24T14:37:30.278Z"
+      "checkedAt": "2026-10-25T01:15:42.857Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

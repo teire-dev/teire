@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-restrict-coupon-duration",
-  "provider": "stripe",
-  "title": "Removes support for discount coupons that don’t have a specified end time",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Removes support for discount coupons that don’t have a specified end time",
   "summary": "We’re removing support for creating new amount_off coupons with a forever duration and applying these to subscriptions, subscription items, subscription schedules, invoices, invoice items, quotes, or checkout sessions. We’re removing the ability to create coupons with both a discount (using the amount_off field) and indefinite length (with duration: 'forever').",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "You can no longer attach forever and amount_off coupons to subscriptions. Instead, directly attach amount_off coupons to the invoices you want to discount. You can do this through the Invoices API, the Dashboard, or in response to a webhook event."
+    {
+      "text": "You can no longer attach forever and amount_off coupons to subscriptions. Instead, directly attach amount_off coupons to the invoices you want to discount. You can do this through the Invoices API, the Dashboard, or in response to a webhook event.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Removes support for discount coupons that don’t have a specified end time](https://docs.stripe.com/changelog/basil/2025-03-31/restrict-coupon-duration.md) | Billing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/restrict-coupon-duration.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "We’re removing the ability to create [coupons](https://docs.stripe.com/api/coupons.md?api-version=2025-03-31.basil) with both a discount (using the `amount_off` field) and indefinite length (with `duration: 'forever'`).",
       "contentHash": "f460b53219f1d93c1754be9063d04a3168ca6bdabf0b416a91d8b3a0853bb4c7",
-      "checkedAt": "2026-10-24T14:37:32.261Z"
+      "checkedAt": "2026-10-25T01:15:44.837Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

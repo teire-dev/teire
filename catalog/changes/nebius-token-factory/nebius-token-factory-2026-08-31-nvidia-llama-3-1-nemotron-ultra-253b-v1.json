@@ -1,43 +1,64 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "nebius-token-factory-2026-08-31-nvidia-llama-3-1-nemotron-ultra-253b-v1",
-  "provider": "nebius-token-factory",
+  "subject": {
+    "kind": "model",
+    "name": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
+    "provider": "nebius-token-factory"
+  },
   "kind": "model-retirement",
   "title": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1 shutdown",
   "summary": "Shutdown date: 2026-08-31. Replacement: nvidia/nemotron-3-super-120b-a12b.",
-  "announcedOn": null,
-  "effectiveOn": "2026-08-31",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["nvidia/Llama-3_1-Nemotron-Ultra-253B-v1"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": null,
+    "effectiveOn": "2026-08-31"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "nvidia/nemotron-3-super-120b-a12b",
-    "modelIds": ["nvidia/nemotron-3-super-120b-a12b"]
+    "modelIds": ["nvidia/nemotron-3-super-120b-a12b"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["nvidia/Llama-3_1-Nemotron-Ultra-253B-v1"],
+        "to": "nvidia/nemotron-3-super-120b-a12b"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://docs.tokenfactory.nebius.com/august-2026-deprecation-notice.md",
+      "kind": "vendor-page",
+      "trustBasis": "official-domain",
       "quote": "| [`nvidia/Llama-3_1-Nemotron-Ultra-253B-v1`](https://tokenfactory.nebius.com/models/catalog/text2text/nvidia%2FLlama-3_1-Nemotron-Ultra-253B-v1) | [`nvidia/nemotron-3-super-120b-a12b`](https://tokenfactory.nebius.com/models/catalog/text2text/nvidia%2Fnemotron-3-super-120b-a12b) |",
       "contentHash": "4c9d8a9f463e8d4cb3ac567b863d5d18dbc74cf0e1c23bbee047ef3ef5d89401",
-      "checkedAt": "2026-10-24T14:37:26.028Z"
+      "checkedAt": "2026-10-25T01:15:38.466Z"
     },
     {
       "url": "https://docs.tokenfactory.nebius.com/august-2026-deprecation-notice.md",
+      "kind": "vendor-page",
+      "trustBasis": "official-domain",
       "quote": "> **On August 31, 2026:**",
       "contentHash": "4c9d8a9f463e8d4cb3ac567b863d5d18dbc74cf0e1c23bbee047ef3ef5d89401",
-      "checkedAt": "2026-10-24T14:37:26.028Z"
+      "checkedAt": "2026-10-25T01:15:38.466Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

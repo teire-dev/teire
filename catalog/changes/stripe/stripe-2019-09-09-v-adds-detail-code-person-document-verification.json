@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2019-09-09-v-adds-detail-code-person-document-verification",
-  "provider": "stripe",
-  "title": "Adds new `details_code` values to person document verification",
-  "announcedOn": "2019-09-09",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds new `details_code` values to person document verification",
   "summary": "Adds additional details_code values to the verification[document] hash on a Person object.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2019-09-09"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2019-09-09"
+    },
+    "announcedOn": "2019-09-09",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Lets you access more detailed information about the verification status of a person’s document by introducing new details_code values in the verification[document] hash of the Person object."
+    {
+      "text": "Lets you access more detailed information about the verification status of a person’s document by introducing new details_code values in the verification[document] hash of the Person object.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds new `details_code` values to person document verification](https://docs.stripe.com/changelog/2019-09-09/adds-detail-code-person-document-verification.md) | Connect | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2019-09-09/adds-detail-code-person-document-verification.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Adds additional `details_code` values to the `verification[document]` hash on a `Person` object.",
       "contentHash": "f1244aaa1bfadc351c29aa1b7564f99cec54a7dee318753a763bc96fa281f042",
-      "checkedAt": "2026-10-24T14:37:37.698Z"
+      "checkedAt": "2026-10-25T01:15:50.214Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

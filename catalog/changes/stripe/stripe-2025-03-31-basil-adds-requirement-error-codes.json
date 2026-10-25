@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-adds-requirement-error-codes",
-  "provider": "stripe",
-  "title": "Adds new error codes for required verifications",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds new error codes for required verifications",
   "summary": "Adds the following error codes to the requirements.errors array in the Accounts API, Capabilities API, Persons API, and Bank Accounts API. Some Connect integrations might require an update to handle the new error codes.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "You’ll be able to handle new error codes for the upcoming requirement updates in Singapore."
+    {
+      "text": "You’ll be able to handle new error codes for the upcoming requirement updates in Singapore.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds new error codes for required verifications](https://docs.stripe.com/changelog/basil/2025-03-31/adds-requirement-error-codes.md) | Connect | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/adds-requirement-error-codes.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Some Connect integrations might require an update to handle the new error codes.",
       "contentHash": "4fd5a935981787fb400c604f09d277aabab39cd8061f68640649c2c7040d7bb2",
-      "checkedAt": "2026-10-24T14:37:33.289Z"
+      "checkedAt": "2026-10-25T01:15:45.843Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

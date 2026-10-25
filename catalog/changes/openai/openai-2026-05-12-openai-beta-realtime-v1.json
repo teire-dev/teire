@@ -1,21 +1,21 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2026-05-12-openai-beta-realtime-v1",
-  "provider": "openai",
+  "subject": {
+    "kind": "api-host",
+    "name": "api.openai.com",
+    "provider": "openai"
+  },
   "kind": "endpoint-removal",
   "title": "OpenAI-Beta: realtime=v1 shutdown",
   "summary": "Realtime API Beta. Shutdown date: 2026-05-12. Replacement: Realtime API.",
-  "announcedOn": "2025-09-15",
-  "effectiveOn": "2026-05-12",
-  "breaking": true,
-  "signatures": {
-    "modelIds": [],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2025-09-15",
+    "effectiveOn": "2026-05-12"
   },
+  "signatures": [],
   "replacement": {
     "value": "Realtime API",
     "modelIds": []
@@ -24,14 +24,20 @@
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| 2026‑05‑12    | OpenAI-Beta: realtime=v1 | Realtime API            |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

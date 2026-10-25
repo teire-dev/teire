@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2019-12-03-v-customer-balances-returned-voided-invoices",
-  "provider": "stripe",
-  "title": "Customer balances are now returned when voiding invoices",
-  "announcedOn": "2019-12-03",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Customer balances are now returned when voiding invoices",
   "summary": "Customer balances applied to all invoices are now debited or credited back to the customer when voided. Earlier, applied customer balances weren’t returned back to the customer and were consumed. To achieve this behavior in earlier API versions:",
-  "signatures": {
-    "modelIds": [],
-    "params": ["balance"],
-    "endpoints": [],
-    "symbols": ["invoice_customer_balance_settings"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2019-12-03"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2019-12-03"
+    },
+    "announcedOn": "2019-12-03",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Lets you have customer balances properly credited back to the customer when invoices are voided. Previously, any customer balances applied to the voided invoices would be consumed and not returned to the customer, which led to unexpected balance depletion."
+    {
+      "text": "Lets you have customer balances properly credited back to the customer when invoices are voided. Previously, any customer balances applied to the voided invoices would be consumed and not returned to the customer, which led to unexpected balance depletion.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Customer balances are now returned when voiding invoices](https://docs.stripe.com/changelog/2019-12-03/customer-balances-returned-voided-invoices.md) | Billing, Invoicing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2019-12-03/customer-balances-returned-voided-invoices.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Customer balances applied to all invoices are now debited or credited back to the customer when voided. Earlier, applied customer balances weren’t returned back to the customer and were consumed. To achieve this behavior in earlier API versions:",
       "contentHash": "fd2eb4014ebd15d8c000fd1c2a88e49457b2cefb75de94683e6773ed9587074c",
-      "checkedAt": "2026-10-24T14:37:37.109Z"
+      "checkedAt": "2026-10-25T01:15:49.595Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

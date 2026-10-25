@@ -1,57 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2019-11-05-v-nests-subscription-schedule-settings",
-  "provider": "stripe",
-  "title": "Nested subscription schedule settings under `default_settings`",
-  "announcedOn": "2019-11-05",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Nested subscription schedule settings under `default_settings`",
   "summary": "On subscription schedules, invoice_settings, default_payment_method, billing_thresholds and collection_method are now nested under default_settings.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["billing_thresholds", "collection_method", "days_until_due", "invoice_settings"],
-    "endpoints": [],
-    "symbols": [
-      "billing_thresholds",
-      "collection_method",
-      "default_payment_method",
-      "default_source",
-      "invoice_settings"
-    ],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2019-11-05"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2019-11-05"
+    },
+    "announcedOn": "2019-11-05",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Lets you more easily manage the various settings associated with subscription schedules. By nesting the invoice_settings, default_payment_method, billing_thresholds, and collection_method properties under a new default_settings field, the subscription schedule API becomes more organized and intuitive."
+    {
+      "text": "Lets you more easily manage the various settings associated with subscription schedules. By nesting the invoice_settings, default_payment_method, billing_thresholds, and collection_method properties under a new default_settings field, the subscription schedule API becomes more organized and intuitive.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Nested subscription schedule settings under `default_settings`](https://docs.stripe.com/changelog/2019-11-05/nests-subscription-schedule-settings.md) | Billing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2019-11-05/nests-subscription-schedule-settings.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "On subscription schedules, `invoice_settings`, `default_payment_method`, `billing_thresholds` and `collection_method` are now nested under `default_settings`.",
       "contentHash": "712a94bb34123e27b565f9196f7bde7076ffce8a4e476906cc7817417e5bf026",
-      "checkedAt": "2026-10-24T14:37:37.259Z"
+      "checkedAt": "2026-10-25T01:15:49.714Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

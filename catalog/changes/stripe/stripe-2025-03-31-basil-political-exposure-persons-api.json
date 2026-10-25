@@ -1,56 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-political-exposure-persons-api",
-  "provider": "stripe",
-  "title": "Changes the political exposure property of the Person object from a string to an enum",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Changes the political exposure property of the Person object from a string to an enum",
   "summary": "Changes the political_exposure property of the Person object to use enum values instead of a string. You can no longer assign a value to the political_exposure property that isn’t on the political exposure enums list.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["political_exposure"],
-    "endpoints": [],
-    "symbols": [
-      "stripe.Account.CreatePersonParams",
-      "stripe.Account.ModifyPersonParams",
-      "stripe.Token.CreateParamsPerson",
-      "TokenCreateParams.person.political_exposure"
-    ],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "You must update any code that creates or updates a Person object using an invalid political_exposure value, or one that expects a Person to have an invalid political_exposure value."
+    {
+      "text": "You must update any code that creates or updates a Person object using an invalid political_exposure value, or one that expects a Person to have an invalid political_exposure value.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Changes the political exposure property of the Person object from a string to an enum](https://docs.stripe.com/changelog/basil/2025-03-31/political-exposure-persons-api.md) | Connect | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/political-exposure-persons-api.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "You can no longer assign a value to the `political_exposure` property that isn’t on the political exposure enums list.",
       "contentHash": "3e9dbc1946821e3cc451758c59200596bb6c41b5a304c3df1d339ab970b823cb",
-      "checkedAt": "2026-10-24T14:37:33.469Z"
+      "checkedAt": "2026-10-25T01:15:46.016Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

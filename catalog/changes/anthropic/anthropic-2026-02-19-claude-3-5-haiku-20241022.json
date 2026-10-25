@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "anthropic-2026-02-19-claude-3-5-haiku-20241022",
-  "provider": "anthropic",
+  "subject": {
+    "kind": "model",
+    "name": "claude-3-5-haiku-20241022",
+    "provider": "anthropic"
+  },
   "kind": "model-retirement",
   "title": "claude-3-5-haiku-20241022 shutdown",
   "summary": "Claude Haiku 3.5 model. Shutdown date: 2026-02-19. Replacement: claude-haiku-4-5-20251001.",
-  "announcedOn": "2025-12-19",
-  "effectiveOn": "2026-02-19",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["claude-3-5-haiku-20241022"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2025-12-19",
+    "effectiveOn": "2026-02-19"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "claude-3-5-haiku-20241022",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "claude-haiku-4-5-20251001",
-    "modelIds": ["claude-haiku-4-5-20251001"]
+    "modelIds": ["claude-haiku-4-5-20251001"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["claude-3-5-haiku-20241022"],
+        "to": "claude-haiku-4-5-20251001"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| February 19, 2026 | `claude-3-5-haiku-20241022` | `claude-haiku-4-5-20251001` |",
       "contentHash": "d2fd9f71fed176557d5ed32e2bd212e72dce5dab836bf62b5a2b40dba2fda0d4",
-      "checkedAt": "2026-10-24T14:37:24.092Z"
+      "checkedAt": "2026-10-25T01:15:35.935Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,46 +1,73 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-09-30-endive-settlement-reserve-api",
-  "provider": "stripe",
-  "title": "Adds destination property and new enum values to Reserve Plans, Holds and Releases",
-  "announcedOn": "2026-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds destination property and new enum values to Reserve Plans, Holds and Releases",
   "summary": "Adds a destination property to all three Reserve objects. You can now identify which balance holds reserved funds and where those funds go when they’re released: Previously, every Reserve Plan and Reserve Hold used the risk_reserved balance, and every Reserve Release sent funds to the payments balance. Those assumptions are no longer valid.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2026-09-30.endive"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-09-30.endive"
+    },
+    "announcedOn": "2026-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "You can now represent risk and settlement reserves accurately, track where released funds are sent, and recognize plans that release funds only when disabled.",
-    "Before upgrading:",
-    "Check the destination property on Reserve Plan, Reserve Hold, and Reserve Release objects rather than assuming a destination.",
-    "Support manual_release plans and use manual_release to identify their release behavior.",
-    "Handle the new Reserve Plan type and status values."
+    {
+      "text": "You can now represent risk and settlement reserves accurately, track where released funds are sent, and recognize plans that release funds only when disabled.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Before upgrading:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Check the destination property on Reserve Plan, Reserve Hold, and Reserve Release objects rather than assuming a destination.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Support manual_release plans and use manual_release to identify their release behavior.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "Handle the new Reserve Plan type and status values.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds destination property and new enum values to Reserve Plans, Holds and Releases](https://docs.stripe.com/changelog/endive/2026-09-30/settlement-reserve-api.md) | Treasury, Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/endive/2026-09-30/settlement-reserve-api.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Previously, every Reserve Plan and Reserve Hold used the `risk_reserved` balance, and every Reserve Release sent funds to the `payments` balance. Those assumptions are no longer valid.",
       "contentHash": "1fcfbd44bb4ed991a1db7cab882f7ccbc73a4ab890743eff24b353489aab8c72",
-      "checkedAt": "2026-10-24T14:37:29.659Z"
+      "checkedAt": "2026-10-25T01:15:42.324Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

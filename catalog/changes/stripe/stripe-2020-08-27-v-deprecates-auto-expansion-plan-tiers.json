@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2020-08-27-v-deprecates-auto-expansion-plan-tiers",
-  "provider": "stripe",
-  "title": "Plan tiers are no longer auto-expanded by default",
-  "announcedOn": "2020-08-27",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Plan tiers are no longer auto-expanded by default",
   "summary": "The tiers property on Plan is no longer included by default.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["tiers"],
-    "endpoints": [],
-    "symbols": ["Plan.tiers"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2020-08-27"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2020-08-27"
+    },
+    "announcedOn": "2020-08-27",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Lets you optimize performance by not automatically including the tiers property on the Plan object. You can still list the tiers, but Stripe recommends against it for performance reasons."
+    {
+      "text": "Lets you optimize performance by not automatically including the tiers property on the Plan object. You can still list the tiers, but Stripe recommends against it for performance reasons.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Plan tiers are no longer auto-expanded by default](https://docs.stripe.com/changelog/2020-08-27/deprecates-auto-expansion-plan-tiers.md) | Billing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2020-08-27/deprecates-auto-expansion-plan-tiers.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "The `tiers` property on `Plan` is no longer included by default.",
       "contentHash": "9e5ec1eaed72415404da22e41708a5a274b81b52eaf8880d65d7fbd9791eba3a",
-      "checkedAt": "2026-10-24T14:37:36.559Z"
+      "checkedAt": "2026-10-25T01:15:49.084Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

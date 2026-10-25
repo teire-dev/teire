@@ -1,11 +1,12 @@
 import { CATALOG } from "../constants";
+import type { ChangeV2 } from "../contract";
 import { readAnthropic } from "./adapters/anthropic";
 import { readDeprecationTables } from "./adapters/deprecation-tables";
 import { readStripe } from "./adapters/stripe";
 import { readTokenFactory } from "./adapters/tokenfactory";
-import { gate } from "./gate";
 import type { ChangeRecord, ProviderRecord } from "./schema";
 import { type FetchedSource, type FetchResult, fetchSource, type PreviousFetch } from "./source";
+import { gateV2, toChangeV2 } from "./v2";
 
 /** What happened to one fetched URL: stored per source so the next run can send conditional GETs. */
 export interface SourceOutcome {
@@ -22,14 +23,19 @@ export interface ProviderIngest {
   provider: string;
   /** True when no source changed, so the stored records stand. */
   unchanged: boolean;
-  records: ChangeRecord[];
+  /** Contract v2 records, each through the quarantine gate. */
+  records: ChangeV2[];
   outcomes: SourceOutcome[];
+  /** Rows that could not become a valid v2 record (a reader bug, never silently dropped). */
+  rejected: { id: string; error: string }[];
 }
 
 export interface IngestOptions {
   /** Last fetch per URL (ETag, Last-Modified, hash). Omit to read everything fresh. */
   previous?: ReadonlyMap<string, PreviousFetch>;
   fetchImpl?: typeof fetch;
+  /** "Today" for already-broken vs breaks-on-date. */
+  now?: Date;
 }
 
 /**
@@ -63,12 +69,16 @@ export async function ingestProvider(
     records.push(...(await readSource(source.adapter, result.source, fetchLinked)));
   }
 
-  return {
-    provider: provider.slug,
-    unchanged: !changed,
-    records: records.map((r) => gate(r, provider, bodies)),
-    outcomes,
-  };
+  const converted: ChangeV2[] = [];
+  const rejected: ProviderIngest["rejected"] = [];
+  for (const row of records) {
+    try {
+      converted.push(gateV2(toChangeV2(row, provider, options.now), provider, bodies));
+    } catch (error) {
+      rejected.push({ id: row.id, error: String(error).slice(0, 500) });
+    }
+  }
+  return { provider: provider.slug, unchanged: !changed, records: converted, outcomes, rejected };
 }
 
 async function readSource(

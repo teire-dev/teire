@@ -1,21 +1,27 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2026-09-24-sora-2-2025-12-08",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "sora-2-2025-12-08",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "sora-2-2025-12-08 shutdown",
   "summary": "Sora 2 video generation models and Videos API. Shutdown date: 2026-09-24. Replacement: ---.",
-  "announcedOn": "2026-03-24",
-  "effectiveOn": "2026-09-24",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["sora-2-2025-12-08"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2026-03-24",
+    "effectiveOn": "2026-09-24"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "sora-2-2025-12-08",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "---",
     "modelIds": []
@@ -24,14 +30,20 @@
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| 2026-09-24    | `sora-2-2025-12-08`     | ---                     |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "anthropic-2024-11-06-claude-instant-1-0",
-  "provider": "anthropic",
+  "subject": {
+    "kind": "model",
+    "name": "claude-instant-1.0",
+    "provider": "anthropic"
+  },
   "kind": "model-retirement",
   "title": "claude-instant-1.0 shutdown",
   "summary": "Claude 1 and Instant models. Shutdown date: 2024-11-06. Replacement: claude-haiku-4-5-20251001.",
-  "announcedOn": "2024-09-04",
-  "effectiveOn": "2024-11-06",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["claude-instant-1.0"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2024-09-04",
+    "effectiveOn": "2024-11-06"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "claude-instant-1.0",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "claude-haiku-4-5-20251001",
-    "modelIds": ["claude-haiku-4-5-20251001"]
+    "modelIds": ["claude-haiku-4-5-20251001"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["claude-instant-1.0"],
+        "to": "claude-haiku-4-5-20251001"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| November 6, 2024 | `claude-instant-1.0` | `claude-haiku-4-5-20251001` |",
       "contentHash": "d2fd9f71fed176557d5ed32e2bd212e72dce5dab836bf62b5a2b40dba2fda0d4",
-      "checkedAt": "2026-10-24T14:37:24.092Z"
+      "checkedAt": "2026-10-25T01:15:35.935Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -40,6 +40,18 @@
   "detection": {
     "imports": ["openai", "@ai-sdk/openai", "@langchain/openai", "langchain_openai"],
     "envVars": ["OPENAI_API_KEY"],
-    "baseUrls": ["api.openai.com"]
+    "baseUrls": ["api.openai.com"],
+    "calls": [
+      "chat.completions.create",
+      "chat.completions.parse",
+      "chat.completions.stream",
+      "beta.chat.completions.parse",
+      "beta.chat.completions.stream",
+      "responses.create",
+      "responses.parse",
+      "responses.stream",
+      "completions.create",
+      "embeddings.create"
+    ]
   }
 }

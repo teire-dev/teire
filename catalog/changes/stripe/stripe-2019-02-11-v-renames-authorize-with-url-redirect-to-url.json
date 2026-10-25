@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2019-02-11-v-renames-authorize-with-url-redirect-to-url",
-  "provider": "stripe",
-  "title": "Renames the `authorize_with_url` field for Payment Intents to `redirect_to_url`",
-  "announcedOn": "2019-02-11",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Renames the `authorize_with_url` field for Payment Intents to `redirect_to_url`",
   "summary": "Renames the authorize_with_url property on the PaymentIntent to redirect_to_url.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["authorize_with_url"],
-    "endpoints": [],
-    "symbols": ["authorize_with_url"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2019-02-11"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2019-02-11"
+    },
+    "announcedOn": "2019-02-11",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Update your code to reference redirect_to_url instead of authorize_with_url when handling URL-based authorization steps in the payment process."
+    {
+      "text": "Update your code to reference redirect_to_url instead of authorize_with_url when handling URL-based authorization steps in the payment process.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Renames the `authorize_with_url` field for Payment Intents to `redirect_to_url`](https://docs.stripe.com/changelog/2019-02-11/renames-authorize-with-url-redirect-to-url.md) | Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2019-02-11/renames-authorize-with-url-redirect-to-url.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Renames the `authorize_with_url` property on the PaymentIntent to `redirect_to_url`.",
       "contentHash": "bd4136645da1873c65a0102db23d1e394636a50cdc9c5847db27def10c6d86fd",
-      "checkedAt": "2026-10-24T14:37:39.069Z"
+      "checkedAt": "2026-10-25T01:15:51.536Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2019-12-03-v-standardizes-invoice-line-item-ids",
-  "provider": "stripe",
-  "title": "Standardizes invoice line item IDs",
-  "announcedOn": "2019-12-03",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Standardizes invoice line item IDs",
   "summary": "Changes the id field of all invoice line items, prefixing them with il_. The new ID has consistent prefixes across all line items, is globally unique, and can be used for pagination. Old prefixes included sub_, su_, item_, sli_, and ii_ and werent globally unique.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["id"],
-    "endpoints": [],
-    "symbols": ["invoice_line_item_unique_id", "unique_id"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2019-12-03"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2019-12-03"
+    },
+    "announcedOn": "2019-12-03",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Lets you work with a more consistent and globally unique invoice line item ID format. The new IDs are prefixed with “il_” instead of various legacy prefixes, providing a standardized approach across all line items."
+    {
+      "text": "Lets you work with a more consistent and globally unique invoice line item ID format. The new IDs are prefixed with “il_” instead of various legacy prefixes, providing a standardized approach across all line items.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Standardizes invoice line item IDs](https://docs.stripe.com/changelog/2019-12-03/standardizes-invoice-line-item-ids.md) | Billing, Invoicing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2019-12-03/standardizes-invoice-line-item-ids.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Changes the [id](https://docs.stripe.com/api/invoice-line-item/object.md?api-version=2024-06-20#invoice_line_item_object-id) field of all invoice line items, prefixing them with `il_`. The new ID has consistent prefixes across all line items, is globally unique, and can be used for pagination. Old prefixes included `sub_`, `su_`, `item_`, `sli_`, and `ii_` and weren`t globally unique.",
       "contentHash": "6ef0a5201019acc04c958cba29e8ddff75d2fe2e2fef32c5544dde37d1309864",
-      "checkedAt": "2026-10-24T14:37:36.870Z"
+      "checkedAt": "2026-10-25T01:15:49.395Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2024-04-10-v-renames-features-attribute-product-object",
-  "provider": "stripe",
-  "title": "Renames the `features` attribute of the `Product` object",
-  "announcedOn": "2024-04-10",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Renames the `features` attribute of the `Product` object",
   "summary": "Renames features to marketing_features in the Product object.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2024-04-10"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2024-04-10"
+    },
+    "announcedOn": "2024-04-10",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Renaming the features attribute of the Product object to marketing_features more precisely defines its purpose."
+    {
+      "text": "Renaming the features attribute of the Product object to marketing_features more precisely defines its purpose.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Renames the `features` attribute of the `Product` object](https://docs.stripe.com/changelog/2024-04-10/renames-features-attribute-product-object.md) | Invoicing, Billing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2024-04-10/renames-features-attribute-product-object.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Renames `features` to `marketing_features` in the `Product` object.",
       "contentHash": "51d20e1c0a182f64d2c307485ade57d5636e131803cb2103e7f91c2d39fe4523",
-      "checkedAt": "2026-10-24T14:37:34.404Z"
+      "checkedAt": "2026-10-25T01:15:46.955Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

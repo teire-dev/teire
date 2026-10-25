@@ -5,8 +5,8 @@
  */
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { catalogJsonSchemas, changeRecord, providerRecord } from "../src/catalog/schema";
-import { contractJsonSchemas } from "../src/contract";
+import { catalogJsonSchemas, providerRecord } from "../src/catalog/schema";
+import { changeV2, contractJsonSchemas } from "../src/contract";
 
 const root = resolve(import.meta.dirname, "../../../catalog");
 const write = process.argv.includes("--write");
@@ -20,7 +20,7 @@ function walk(dir: string): string[] {
 }
 
 for (const file of walk(join(root, "changes"))) {
-  const result = changeRecord.safeParse(JSON.parse(readFileSync(file, "utf8")));
+  const result = changeV2.safeParse(JSON.parse(readFileSync(file, "utf8")));
   if (!result.success) {
     failures++;
     console.error(
@@ -36,12 +36,7 @@ for (const file of walk(join(root, "providers"))) {
   }
 }
 
-const v1 = catalogJsonSchemas();
-const schemas: Record<string, unknown> = {
-  change: v1.change,
-  provider: v1.provider,
-  ...contractJsonSchemas(),
-};
+const schemas: Record<string, unknown> = { ...catalogJsonSchemas(), ...contractJsonSchemas() };
 for (const [name, schema] of Object.entries(schemas)) {
   const path = join(root, "schema", `${name}.schema.json`);
   const expected = `${JSON.stringify(schema, null, 2)}\n`;

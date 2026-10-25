@@ -1,16 +1,6 @@
-import { changes, type Database, eq, providerSources, providers, sql } from "@teire/db";
-import {
-  type ChangeRecord,
-  ingestProvider,
-  PROVIDERS,
-  type PreviousFetch,
-  sha256,
-} from "@teire/engine/catalog";
-
-/** Hash of what a record says, ignoring when it was read, so re-reading an unchanged page writes nothing. */
-function recordHash(record: ChangeRecord) {
-  return sha256(JSON.stringify({ ...record, sources: record.sources.map(({ checkedAt: _, ...s }) => s) }));
-}
+import { changes, type Database, eq, providerSources, providers } from "@teire/db";
+import { ingestProvider, PROVIDERS, type PreviousFetch } from "@teire/engine/catalog";
+import { changeHash, upsertChange } from "../store";
 
 export interface IngestSummary {
   provider: string;
@@ -75,36 +65,22 @@ export async function ingestAll(db: Database): Promise<IngestSummary[]> {
         });
     }
 
+    // Contract v2 records (S04); an unchanged record (same content hash) writes nothing.
+    const stored = new Map(
+      (
+        await db
+          .select({ id: changes.id, hash: changes.contentHash })
+          .from(changes)
+          .where(eq(changes.providerSlug, provider.slug))
+      ).map((r) => [r.id, r.hash]),
+    );
     let written = 0;
     for (const record of run.records) {
-      const contentHash = recordHash(record);
-      const rows = await db
-        .insert(changes)
-        .values({
-          id: record.id,
-          providerSlug: record.provider,
-          kind: record.kind,
-          title: record.title,
-          deadline: record.effectiveOn ? new Date(`${record.effectiveOn}T00:00:00Z`) : null,
-          status: record.status,
-          contentHash,
-          record,
-        })
-        .onConflictDoUpdate({
-          target: changes.id,
-          set: {
-            kind: record.kind,
-            title: record.title,
-            deadline: record.effectiveOn ? new Date(`${record.effectiveOn}T00:00:00Z`) : null,
-            status: record.status,
-            contentHash,
-            record,
-          },
-          setWhere: sql`${changes.contentHash} <> excluded.content_hash`,
-        })
-        .returning({ id: changes.id });
-      written += rows.length;
+      if (stored.get(record.id) === changeHash(record)) continue;
+      await upsertChange(db, record);
+      written++;
     }
+    for (const r of run.rejected) console.error(`[ingest] ${provider.slug}: ${r.id} rejected: ${r.error}`);
 
     summaries.push({
       provider: provider.slug,

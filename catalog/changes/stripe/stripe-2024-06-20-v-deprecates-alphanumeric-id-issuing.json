@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2024-06-20-v-deprecates-alphanumeric-id-issuing",
-  "provider": "stripe",
-  "title": "Deprecates `alphanumeric_id` for Issuing Authorization",
-  "announcedOn": "2024-06-20",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Deprecates `alphanumeric_id` for Issuing Authorization",
   "summary": "Deprecates the fleet.cardholder_prompt_data.alphanumeric_id property for the Issuing Authorization resource. Use driver_id, vehicle_number, unspecified_id, or user_id instead.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2024-06-20"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2024-06-20"
+    },
+    "announcedOn": "2024-06-20",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "This change provides clearer categorization of identifiers in fleet management scenarios, but requires updates to existing code that processes or relies on the alphanumeric_id field."
+    {
+      "text": "This change provides clearer categorization of identifiers in fleet management scenarios, but requires updates to existing code that processes or relies on the alphanumeric_id field.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Deprecates `alphanumeric_id` for Issuing Authorization](https://docs.stripe.com/changelog/2024-06-20/deprecates-alphanumeric-id-issuing.md) | Issuing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2024-06-20/deprecates-alphanumeric-id-issuing.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Deprecates the [fleet.cardholder_prompt_data.alphanumeric_id](https://docs.stripe.com/api/issuing/authorizations/object.md?api-version=2024-06-20#issuing_authorization_object-fleet-cardholder_prompt_data-alphanumeric_id) property for the [Issuing Authorization](https://docs.stripe.com/api/issuing/authorizations/object.md?api-version=2024-06-20) resource. Use `driver_id`, `vehicle_number`, `unspecified_id`, or `user_id` instead.",
       "contentHash": "4cb0edfa7fa4c354bbc369d00d1043331dbc9880bf8edb9448f2224e7676b7e4",
-      "checkedAt": "2026-10-24T14:37:34.039Z"
+      "checkedAt": "2026-10-25T01:15:46.594Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,111 +1,205 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-add-support-for-multiple-partial-payments-on-invoices",
-  "provider": "stripe",
-  "title": "Adds support for multiple (partial) payments on invoices",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Adds support for multiple (partial) payments on invoices",
   "summary": "We’re introducing support for multiple (partial) payments on invoices and credit notes. Invoices also track over-payments and can track out of band payments now. In addition, we’re adding a confirmation_secret field on the Invoice object to enhance support for using the Payment Element. - Removed the payment_intent, charge, paid, and paid_out_of_band fields from the Invoice object. - Removed the invoice field from the PaymentIntent and Charge objects. - Removed the application_fee_amount and transfer_data fields from the Invoice object. For payments made on Stripe, these fields are now accessible through the underlying PaymentIntent by expanding payments.data.payment.payment_intent on the Invoice object. - Deprecated the refund field on the Credit Note object and replaced it with a refunds array. - The amount_paid field on the Invoice object now reflects out of band payments.",
-  "signatures": {
-    "modelIds": [],
-    "params": [
-      "charge",
-      "payment_intent",
-      "transfer_data",
-      "paid",
-      "application_fee_amount",
-      "paid_out_of_band",
-      "refund",
-      "invoice"
-    ],
-    "endpoints": [],
-    "symbols": [
-      "charge",
-      "payment_intent",
-      "transfer_data",
-      "paid",
-      "application_fee_amount",
-      "paid_out_of_band",
-      "refund",
-      "invoice"
-    ],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "We introduced the Invoice Payment object to represent the connection between payments and invoices and removed previous invoice and payment pointers on relevant objects. Make sure that you update your integration to no longer assume that a single invoice must be paid by a single payment, and use the new Invoice Payment object to understand the connection between payments and invoices.",
-    "### Inspect the invoice.payments array for payment information",
-    "You can inspect invoice.payments when interacting with the Invoice object by expanding the payments property:",
-    "curl",
-    "curl -G https://api.stripe.com/v1/invoices/{INVOICE_ID} \\",
-    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
-    "-d \"expand[]=payments\"",
-    "",
-    "The invoice.payments array provides a list of all the payments associated with the invoice and their respective allocation and payment status.",
-    "### Use the new Invoice Payment endpoints for payments and invoice connection",
-    "To understand the connection between a Payment Intent and Invoice object, you can use the List Invoice Payment endpoint:",
-    "curl",
-    "curl -G https://api.stripe.com/v1/invoice_payments \\",
-    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
-    "-d \"payment[type]=payment_intent\" \\",
-    "-d \"payment[payment_intent]={PAYMENT_INTENT_ID}\"",
-    "",
-    "### Use confirmation_secret for Payment Element integrations",
-    "For Payment Element integrations, especially Subscription integrations, that previously relied on expanding invoice.payment_intent.client_secret or latest_invoice.payments.data.payment.payment_intent.client_secret, you can now use the new invoice.confirmation_secret.client_secret field on the Invoice object by expanding confirmation_secret:",
-    "curl",
-    "curl -G https://api.stripe.com/v1/invoices/{INVOICE_ID} \\",
-    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
-    "-d \"expand[]=confirmation_secret\"",
-    "",
-    "### Access application_fee_amount and transfer_data through PaymentIntents",
-    "With the removal of the application_fee_amount and transfer_data fields from the Invoice object, you can now access these fields for payments made on Stripe through the underlying PaymentIntent. Expand payments.data.payment.payment_intent when retrieving the invoice:",
-    "curl",
-    "curl -G https://api.stripe.com/v1/invoices/{INVOICE_ID} \\",
-    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
-    "-d \"expand[]=payments.data.payment.payment_intent\"",
-    "",
-    "You can then access invoice.payments.data[i].payment.payment_intent.application_fee_amount and invoice.payments.data[i].payment.payment_intent.transfer_data from the expanded PaymentIntent object. These fields are only available for payments made on Stripe when the payment type is payment_intent.",
-    "### Identify invoices with out-of-band payments",
-    "With the removal of the paid_out_of_band field, you can now identify invoices with out-of-band payments using the invoice.payments property.",
-    "For API versions that include the amount_paid_off_stripe property, you can now retrieve the invoice with expand[]=amount_paid_off_stripe and check whether the value is greater than 0. This value is the total amount paid on the invoice outside of Stripe, so it can identify invoices with any out-of-band payment without summing payment records yourself:",
-    "curl",
-    "curl -G https://api.stripe.com/v1/invoices/{INVOICE_ID} \\",
-    "-u \"<<YOUR_SECRET_KEY>>:\" \\",
-    "-d \"expand[]=amount_paid_off_stripe\"",
-    "",
-    "If amount_paid_off_stripe is greater than 0, the invoice was at least partially paid out of band. If amount_paid_off_stripe equals amount_paid, the full paid amount was paid outside of Stripe.",
-    "If you’re using an API version that doesn’t include amount_paid_off_stripe, check whether an invoice is fully paid out of band by verifying the invoice status is paid, the amount_due is greater than 0, and the sum of payments of type PaymentIntent in the invoice.payments array equals 0.",
-    "To check if an invoice is partially paid out of band without amount_paid_off_stripe, verify the amount_due is greater than 0, and the sum of payments of type PaymentIntent in the invoice.payments array is less than amount_paid."
+    {
+      "text": "We introduced the Invoice Payment object to represent the connection between payments and invoices and removed previous invoice and payment pointers on relevant objects. Make sure that you update your integration to no longer assume that a single invoice must be paid by a single payment, and use the new Invoice Payment object to understand the connection between payments and invoices.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Inspect the invoice.payments array for payment information",
+      "sourceIndex": 0
+    },
+    {
+      "text": "You can inspect invoice.payments when interacting with the Invoice object by expanding the payments property:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl -G https://api.stripe.com/v1/invoices/{INVOICE_ID} \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-d \"expand[]=payments\"",
+      "sourceIndex": 0
+    },
+    {
+      "text": "The invoice.payments array provides a list of all the payments associated with the invoice and their respective allocation and payment status.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Use the new Invoice Payment endpoints for payments and invoice connection",
+      "sourceIndex": 0
+    },
+    {
+      "text": "To understand the connection between a Payment Intent and Invoice object, you can use the List Invoice Payment endpoint:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl -G https://api.stripe.com/v1/invoice_payments \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-d \"payment[type]=payment_intent\" \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-d \"payment[payment_intent]={PAYMENT_INTENT_ID}\"",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Use confirmation_secret for Payment Element integrations",
+      "sourceIndex": 0
+    },
+    {
+      "text": "For Payment Element integrations, especially Subscription integrations, that previously relied on expanding invoice.payment_intent.client_secret or latest_invoice.payments.data.payment.payment_intent.client_secret, you can now use the new invoice.confirmation_secret.client_secret field on the Invoice object by expanding confirmation_secret:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl -G https://api.stripe.com/v1/invoices/{INVOICE_ID} \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-d \"expand[]=confirmation_secret\"",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Access application_fee_amount and transfer_data through PaymentIntents",
+      "sourceIndex": 0
+    },
+    {
+      "text": "With the removal of the application_fee_amount and transfer_data fields from the Invoice object, you can now access these fields for payments made on Stripe through the underlying PaymentIntent. Expand payments.data.payment.payment_intent when retrieving the invoice:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl -G https://api.stripe.com/v1/invoices/{INVOICE_ID} \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-d \"expand[]=payments.data.payment.payment_intent\"",
+      "sourceIndex": 0
+    },
+    {
+      "text": "You can then access invoice.payments.data[i].payment.payment_intent.application_fee_amount and invoice.payments.data[i].payment.payment_intent.transfer_data from the expanded PaymentIntent object. These fields are only available for payments made on Stripe when the payment type is payment_intent.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Identify invoices with out-of-band payments",
+      "sourceIndex": 0
+    },
+    {
+      "text": "With the removal of the paid_out_of_band field, you can now identify invoices with out-of-band payments using the invoice.payments property.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "For API versions that include the amount_paid_off_stripe property, you can now retrieve the invoice with expand[]=amount_paid_off_stripe and check whether the value is greater than 0. This value is the total amount paid on the invoice outside of Stripe, so it can identify invoices with any out-of-band payment without summing payment records yourself:",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl",
+      "sourceIndex": 0
+    },
+    {
+      "text": "curl -G https://api.stripe.com/v1/invoices/{INVOICE_ID} \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-u \"<<YOUR_SECRET_KEY>>:\" \\",
+      "sourceIndex": 0
+    },
+    {
+      "text": "-d \"expand[]=amount_paid_off_stripe\"",
+      "sourceIndex": 0
+    },
+    {
+      "text": "If amount_paid_off_stripe is greater than 0, the invoice was at least partially paid out of band. If amount_paid_off_stripe equals amount_paid, the full paid amount was paid outside of Stripe.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "If you’re using an API version that doesn’t include amount_paid_off_stripe, check whether an invoice is fully paid out of band by verifying the invoice status is paid, the amount_due is greater than 0, and the sum of payments of type PaymentIntent in the invoice.payments array equals 0.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "To check if an invoice is partially paid out of band without amount_paid_off_stripe, verify the amount_due is greater than 0, and the sum of payments of type PaymentIntent in the invoice.payments array is less than amount_paid.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds support for multiple (partial) payments on invoices](https://docs.stripe.com/changelog/basil/2025-03-31/add-support-for-multiple-partial-payments-on-invoices.md) | Billing, Invoicing, Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/add-support-for-multiple-partial-payments-on-invoices.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "- Removed the `payment_intent`, `charge`, `paid`, and `paid_out_of_band` fields from the `Invoice` object.\n- Removed the `invoice` field from the [PaymentIntent](https://docs.stripe.com/api/payment_intents.md?api-version=2025-03-31.basil) and [Charge](https://docs.stripe.com/api/charges.md?api-version=2025-03-31.basil) objects.\n- Removed the `application_fee_amount` and `transfer_data` fields from the `Invoice` object. For payments made on Stripe, these fields are now accessible through the underlying PaymentIntent by expanding `payments.data.payment.payment_intent` on the `Invoice` object.\n- Deprecated the `refund` field on the [Credit Note](https://docs.stripe.com/api/credit_notes.md?api-version=2025-03-31.basil) object and replaced it with a [refunds](https://docs.stripe.com/api/credit_notes/create.md?api-version=2025-03-31.basil#create_credit_note-refunds) array.\n- The `amount_paid` field on the `Invoice` object now reflects out of band payments.",
       "contentHash": "fce982e329df7618aac5d689e68ac6f4f4f502f7f54e533bab90ca67b9c3ee01",
-      "checkedAt": "2026-10-24T14:37:32.658Z"
+      "checkedAt": "2026-10-25T01:15:45.244Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

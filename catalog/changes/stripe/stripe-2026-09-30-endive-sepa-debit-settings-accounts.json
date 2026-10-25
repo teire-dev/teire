@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-09-30-endive-sepa-debit-settings-accounts",
-  "provider": "stripe",
-  "title": "Standardizes SEPA Direct Debit payment settings in the Accounts API",
-  "announcedOn": "2026-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Standardizes SEPA Direct Debit payment settings in the Accounts API",
   "summary": "The sepa_debit_payments.creditor_id property on Accounts now returns Stripe’s country-specific shared SEPA Creditor Identifier) when an account doesn’t have a custom one. Previously, this property was omitted for accounts using the shared identifier. The sepa_debit_payments.creditor_id property on the Account object was previously omitted for accounts using Stripe’s shared SEPA Creditor Identifier. It now returns the shared identifier value. If your code relies on an omitted value to infer that an account uses the shared identifier, you must update your integration to handle the new response.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2026-09-30.endive"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-09-30.endive"
+    },
+    "announcedOn": "2026-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "If your integration checks whether sepa_debit_payments.creditor_id is null or undefined to determine whether an account uses a shared SEPA Creditor Identifier, update that logic. This property now returns the shared identifier value."
+    {
+      "text": "If your integration checks whether sepa_debit_payments.creditor_id is null or undefined to determine whether an account uses a shared SEPA Creditor Identifier, update that logic. This property now returns the shared identifier value.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Standardizes SEPA Direct Debit payment settings in the Accounts API](https://docs.stripe.com/changelog/endive/2026-09-30/sepa-debit-settings-accounts.md) | Connect, Payments | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/endive/2026-09-30/sepa-debit-settings-accounts.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "The `sepa_debit_payments.creditor_id` property on the Account object was previously omitted for accounts using Stripe’s shared SEPA Creditor Identifier. It now returns the shared identifier value. If your code relies on an omitted value to infer that an account uses the shared identifier, you must update your integration to handle the new response.",
       "contentHash": "041b3dcc62de4f57f3ed6f09a2091c5eab07405a87ba8c9353e761ae1253c0e6",
-      "checkedAt": "2026-10-24T14:37:27.926Z"
+      "checkedAt": "2026-10-25T01:15:40.494Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

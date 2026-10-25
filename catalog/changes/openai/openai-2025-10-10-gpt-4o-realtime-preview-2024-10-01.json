@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2025-10-10-gpt-4o-realtime-preview-2024-10-01",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "gpt-4o-realtime-preview-2024-10-01",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "gpt-4o-realtime-preview-2024-10-01 shutdown",
   "summary": "gpt-4o-realtime-preview-2024-10-01. Shutdown date: 2025-10-10. Replacement: gpt-realtime-1.5.",
-  "announcedOn": "2025-06-10",
-  "effectiveOn": "2025-10-10",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["gpt-4o-realtime-preview-2024-10-01"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2025-06-10",
+    "effectiveOn": "2025-10-10"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "gpt-4o-realtime-preview-2024-10-01",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gpt-realtime-1.5",
-    "modelIds": ["gpt-realtime-1.5"]
+    "modelIds": ["gpt-realtime-1.5"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["gpt-4o-realtime-preview-2024-10-01"],
+        "to": "gpt-realtime-1.5"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| 2025-10-10    | `gpt-4o-realtime-preview-2024-10-01` | `gpt-realtime-1.5`      |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

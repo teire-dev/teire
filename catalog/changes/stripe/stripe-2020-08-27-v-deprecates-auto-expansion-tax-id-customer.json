@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2020-08-27-v-deprecates-auto-expansion-tax-id-customer",
-  "provider": "stripe",
-  "title": "Tax IDs are no longer auto-expanded on the `Customer` object",
-  "announcedOn": "2020-08-27",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Tax IDs are no longer auto-expanded on the `Customer` object",
   "summary": "The tax_ids property on Customers is no longer included by default.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["tax_ids"],
-    "endpoints": [],
-    "symbols": ["Customer.tax_ids"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2020-08-27"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2020-08-27"
+    },
+    "announcedOn": "2020-08-27",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Lets you optimize performance by not automatically including the tax_ids attribute on the Customer object. You can still expand the list of tax IDs, but Stripe recommends against it for performance reasons."
+    {
+      "text": "Lets you optimize performance by not automatically including the tax_ids attribute on the Customer object. You can still expand the list of tax IDs, but Stripe recommends against it for performance reasons.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Tax IDs are no longer auto-expanded on the `Customer` object](https://docs.stripe.com/changelog/2020-08-27/deprecates-auto-expansion-tax-id-customer.md) | All products | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2020-08-27/deprecates-auto-expansion-tax-id-customer.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "The `tax_ids` property on `Customers` is no longer included by default.",
       "contentHash": "884f4336334efe3f92ed00212f8a026c435e355b4beccef9a9d89843953b979e",
-      "checkedAt": "2026-10-24T14:37:36.758Z"
+      "checkedAt": "2026-10-25T01:15:49.244Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2022-08-01-v-default-customer-creation-checkout-session",
-  "provider": "stripe",
-  "title": "Default customer creation in Checkout Session payment mode changed to `if_required`",
-  "announcedOn": "2022-08-01",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Default customer creation in Checkout Session payment mode changed to `if_required`",
   "summary": "When creating a Checkout Session and specifying the mode as payment, the default value of customer_creation has changed from always to if_required.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2022-08-01"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2022-08-01"
+    },
+    "announcedOn": "2022-08-01",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "This change gives you more flexibility in how customers are created. Instead of always creating a customer, the customer is only created if it’s required, reducing the unnecessary creation of a customer."
+    {
+      "text": "This change gives you more flexibility in how customers are created. Instead of always creating a customer, the customer is only created if it’s required, reducing the unnecessary creation of a customer.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Default customer creation in Checkout Session payment mode changed to `if_required`](https://docs.stripe.com/changelog/2022-08-01/default-customer-creation-checkout-session.md) | Checkout | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2022-08-01/default-customer-creation-checkout-session.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "When creating a Checkout Session and specifying the `mode` as `payment`, the default value of `customer_creation` has changed from `always` to `if_required`.",
       "contentHash": "99ea274e430f3f6840d02624b521c27966aefb709275292eb214f9f176752439",
-      "checkedAt": "2026-10-24T14:37:35.358Z"
+      "checkedAt": "2026-10-25T01:15:47.876Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2023-10-16-v-auto-populates-statement-descriptor-accounts",
-  "provider": "stripe",
-  "title": "Auto-populates the statement descriptor and prefix in the Accounts API",
-  "announcedOn": "2023-10-16",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Auto-populates the statement descriptor and prefix in the Accounts API",
   "summary": "In priority order, automatically sets the statement descriptor (when unset), to the first of the following supplied parameters:",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2023-10-16"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2023-10-16"
+    },
+    "announcedOn": "2023-10-16",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "The statement descriptor is only set automatically when you provide one of these fields as a parameter, so existing accounts aren’t impacted unless a dependent field is updated. Similarly, settings.card_payments.statement_descriptor_prefix now defaults to a shortened version of the settings.payments.statement_descriptor. This takes place whenever the statement descriptor is updated (either explicitly or when defaulted)."
+    {
+      "text": "The statement descriptor is only set automatically when you provide one of these fields as a parameter, so existing accounts aren’t impacted unless a dependent field is updated. Similarly, settings.card_payments.statement_descriptor_prefix now defaults to a shortened version of the settings.payments.statement_descriptor. This takes place whenever the statement descriptor is updated (either explicitly or when defaulted).",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Auto-populates the statement descriptor and prefix in the Accounts API](https://docs.stripe.com/changelog/2023-10-16/auto-populates-statement-descriptor-accounts.md) | Connect | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2023-10-16/auto-populates-statement-descriptor-accounts.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "In priority order, automatically sets the statement descriptor (when unset), to the first of the following supplied parameters:",
       "contentHash": "bd0b7ca68b863ebb3a954cca490c1f5bf9fb6be3453a9ca73f7db94ed6a1adad",
-      "checkedAt": "2026-10-24T14:37:34.619Z"
+      "checkedAt": "2026-10-25T01:15:47.136Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

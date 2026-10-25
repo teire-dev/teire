@@ -1,40 +1,54 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "nebius-token-factory-2026-06-22-minimaxai-minimax-m2-5-fast",
-  "provider": "nebius-token-factory",
+  "subject": {
+    "kind": "model",
+    "name": "MiniMaxAI/MiniMax-M2.5-fast",
+    "provider": "nebius-token-factory"
+  },
   "kind": "model-retirement",
   "title": "MiniMaxAI/MiniMax-M2.5-fast shutdown",
   "summary": "Shutdown date: 2026-06-22. No replacement named.",
-  "announcedOn": null,
-  "effectiveOn": "2026-06-22",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["MiniMaxAI/MiniMax-M2.5-fast"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": null,
+    "effectiveOn": "2026-06-22"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "MiniMaxAI/MiniMax-M2.5-fast",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": null,
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://docs.tokenfactory.nebius.com/june-2026-deprecation-notice.md",
+      "kind": "vendor-page",
+      "trustBasis": "official-domain",
       "quote": "| `MiniMaxAI/MiniMax-M2.5-fast` |",
       "contentHash": "69baa5f263d3db28ff85d8291f1594518514e45935c795310aa82bc14f62b066",
-      "checkedAt": "2026-10-24T14:37:26.028Z"
+      "checkedAt": "2026-10-25T01:15:38.467Z"
     },
     {
       "url": "https://docs.tokenfactory.nebius.com/june-2026-deprecation-notice.md",
+      "kind": "vendor-page",
+      "trustBasis": "official-domain",
       "quote": "> **Effective June 22, 2026:**",
       "contentHash": "69baa5f263d3db28ff85d8291f1594518514e45935c795310aa82bc14f62b066",
-      "checkedAt": "2026-10-24T14:37:26.028Z"
+      "checkedAt": "2026-10-25T01:15:38.467Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

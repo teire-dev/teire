@@ -46,6 +46,17 @@
       "langchain_anthropic"
     ],
     "envVars": ["ANTHROPIC_API_KEY"],
-    "baseUrls": ["api.anthropic.com"]
-  }
+    "baseUrls": ["api.anthropic.com"],
+    "calls": [
+      "messages.create",
+      "messages.stream",
+      "messages.parse",
+      "messages.count_tokens",
+      "messages.countTokens",
+      "beta.messages.create",
+      "beta.messages.stream",
+      "completions.create"
+    ]
+  },
+  "apiVersionHeader": "anthropic-version"
 }

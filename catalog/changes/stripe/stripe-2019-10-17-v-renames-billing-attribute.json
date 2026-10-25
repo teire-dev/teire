@@ -1,51 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2019-10-17-v-renames-billing-attribute",
-  "provider": "stripe",
-  "title": "Renames `billing` to `collection_method` on invoices, subscriptions, and subscription schedules",
-  "announcedOn": "2019-10-17",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Renames `billing` to `collection_method` on invoices, subscriptions, and subscription schedules",
   "summary": "Renames the billing attribute on invoices, subscriptions, and subscription schedules to collection_method.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["billing"],
-    "endpoints": [],
-    "symbols": ["billing"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2019-10-17"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2019-10-17"
+    },
+    "announcedOn": "2019-10-17",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "The terminology now better reflects the purpose of the attribute, which is to specify how the payment will be collected, rather than just the billing mechanism."
+    {
+      "text": "The terminology now better reflects the purpose of the attribute, which is to specify how the payment will be collected, rather than just the billing mechanism.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Renames `billing` to `collection_method` on invoices, subscriptions, and subscription schedules](https://docs.stripe.com/changelog/2019-10-17/renames-billing-attribute.md) | Billing, Invoicing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2019-10-17/renames-billing-attribute.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Renames the `billing` attribute on invoices, subscriptions, and subscription schedules to `collection_method`.",
       "contentHash": "54e1599bc282ea34c58b61f68ab9c640fc99120a18989fd148a99c9fe2c95dbc",
-      "checkedAt": "2026-10-24T14:37:37.489Z"
+      "checkedAt": "2026-10-25T01:15:49.965Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

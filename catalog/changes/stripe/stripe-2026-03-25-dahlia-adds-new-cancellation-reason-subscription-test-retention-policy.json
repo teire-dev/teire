@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-03-25-dahlia-adds-new-cancellation-reason-subscription-test-retention-policy",
-  "provider": "stripe",
-  "title": "Adds retention policy cancellation reason to Subscriptions",
-  "announcedOn": "2026-03-25",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds retention policy cancellation reason to Subscriptions",
   "summary": "Adds the canceled_by_retention_policy enum value to the cancellation_details.reason attribute on Subscription objects. For subscriptions canceled by Stripe’s test data retention policy, the cancellation_details.reason property is now canceled_by_retention_policy instead of cancellation_requested.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2026-03-25.dahlia"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-03-25.dahlia"
+    },
+    "announcedOn": "2026-03-25",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "If your integration expects subscriptions canceled by the retention policy to have a cancellation_details.reason of cancellation_requested, then you need to update your code to expect a value of canceled_by_retention_policy instead. Also, if your integration explicitly handles all possible values of cancellation_details.reason, you need to update your code to handle the new canceled_by_retention_policy value."
+    {
+      "text": "If your integration expects subscriptions canceled by the retention policy to have a cancellation_details.reason of cancellation_requested, then you need to update your code to expect a value of canceled_by_retention_policy instead. Also, if your integration explicitly handles all possible values of cancellation_details.reason, you need to update your code to handle the new canceled_by_retention_policy value.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds retention policy cancellation reason to Subscriptions](https://docs.stripe.com/changelog/dahlia/2026-03-25/adds-new-cancellation-reason-subscription-test-retention-policy.md) | Billing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/dahlia/2026-03-25/adds-new-cancellation-reason-subscription-test-retention-policy.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "For subscriptions canceled by Stripe’s test data retention policy, the `cancellation_details.reason` property is now `canceled_by_retention_policy` instead of `cancellation_requested`.",
       "contentHash": "7c7fc3dc28963a2cd0eed628650104ff5e1d75506bacbc51e13eae7c145544ce",
-      "checkedAt": "2026-10-24T14:37:30.738Z"
+      "checkedAt": "2026-10-25T01:15:43.284Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

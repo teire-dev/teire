@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-new-network-fallback-issuing-authorization-reason-code",
-  "provider": "stripe",
-  "title": "Adds reason code for Issuing authorizations created while Stripe is unavailable",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds reason code for Issuing authorizations created while Stripe is unavailable",
   "summary": "Adds network_fallback as an option for the Issuing authorization object’s request_history.reason. Some users might be expecting a fixed set of options for the Issuing authorization object’s request_history.reason property. Update your code to expect this new option.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "You can now identify Issuing authorizations handled by the network when Stripe is unavailable."
+    {
+      "text": "You can now identify Issuing authorizations handled by the network when Stripe is unavailable.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds reason code for Issuing authorizations created while Stripe is unavailable](https://docs.stripe.com/changelog/basil/2025-03-31/new-network-fallback-issuing-authorization-reason-code.md) | Issuing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/new-network-fallback-issuing-authorization-reason-code.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "Some users might be expecting a fixed set of options for the [Issuing authorization](https://docs.stripe.com/api/issuing/authorizations/object.md?api-version=2025-03-31.basil) object’s [request_history.reason](https://docs.stripe.com/api/issuing/authorizations/object.md?api-version=2025-03-31.basil#issuing_authorization_object-request_history-reason) property. Update your code to expect this new option.",
       "contentHash": "a4d95fb90a1509a1a2701b4ce00514f2d88776b5888e60003fb9ac4ce9c0a612",
-      "checkedAt": "2026-10-24T14:37:32.738Z"
+      "checkedAt": "2026-10-25T01:15:45.274Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

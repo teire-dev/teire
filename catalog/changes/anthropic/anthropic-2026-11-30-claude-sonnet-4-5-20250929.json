@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "anthropic-2026-11-30-claude-sonnet-4-5-20250929",
-  "provider": "anthropic",
+  "subject": {
+    "kind": "model",
+    "name": "claude-sonnet-4-5-20250929",
+    "provider": "anthropic"
+  },
   "kind": "model-retirement",
   "title": "claude-sonnet-4-5-20250929 shutdown",
   "summary": "Claude Sonnet 4.5 model. Shutdown date: 2026-11-30. Replacement: claude-sonnet-5-5.",
-  "announcedOn": "2026-09-30",
-  "effectiveOn": "2026-11-30",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["claude-sonnet-4-5-20250929"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "breaks-on-date",
+    "fixedIn": [],
+    "announcedOn": "2026-09-30",
+    "effectiveOn": "2026-11-30"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "claude-sonnet-4-5-20250929",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "claude-sonnet-5-5",
-    "modelIds": ["claude-sonnet-5-5"]
+    "modelIds": ["claude-sonnet-5-5"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["claude-sonnet-4-5-20250929"],
+        "to": "claude-sonnet-5-5"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| November 30, 2026 | `claude-sonnet-4-5-20250929` | `claude-sonnet-5-5`     |",
       "contentHash": "d2fd9f71fed176557d5ed32e2bd212e72dce5dab836bf62b5a2b40dba2fda0d4",
-      "checkedAt": "2026-10-24T14:37:24.092Z"
+      "checkedAt": "2026-10-25T01:15:35.935Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

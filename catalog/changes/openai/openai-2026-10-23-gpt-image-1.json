@@ -1,21 +1,27 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2026-10-23-gpt-image-1",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "gpt-image-1",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "gpt-image-1 shutdown",
   "summary": "Legacy GPT model snapshots. Shutdown date: 2026-10-23. Replacement: gpt-image-2.5-sunburst or gpt-image-2.5-flare.",
-  "announcedOn": "2026-04-22",
-  "effectiveOn": "2026-10-23",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["gpt-image-1"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2026-04-22",
+    "effectiveOn": "2026-10-23"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "gpt-image-1",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gpt-image-2.5-sunburst or gpt-image-2.5-flare",
     "modelIds": ["gpt-image-2.5-sunburst", "gpt-image-2.5-flare"]
@@ -24,14 +30,20 @@
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| October 23, 2026 | `gpt-image-1`                                                          | `gpt-image-2.5-sunburst` or `gpt-image-2.5-flare` |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

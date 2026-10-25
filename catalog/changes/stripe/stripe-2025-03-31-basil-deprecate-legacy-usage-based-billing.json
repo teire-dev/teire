@@ -1,53 +1,65 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2025-03-31-basil-deprecate-legacy-usage-based-billing",
-  "provider": "stripe",
-  "title": "Removes legacy usage-based billing",
-  "announcedOn": "2025-03-31",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "parameter-change",
+  "title": "Removes legacy usage-based billing",
   "summary": "We’ve removed support for legacy usage-based billing. You can no longer create a price with a usage_type of metered without a specified meter. We’ve also removed the billing_thresholds from the subscription endpoints. - Removed billing_thresholds from Subscription endpoints. - Removed aggregate_usage from Price endpoints. - Using usage_type of metered without a specified meter now returns an error on Price creation. - Removed support for attaching prices of usage_type=metered without a set meter to Subscriptions, Subscription Schedules and Quotes.",
-  "signatures": {
-    "modelIds": [],
-    "params": ["create", "list", "usage_record_summaries", "aggregate_usage", "billing_thresholds"],
-    "endpoints": [],
-    "symbols": ["create", "list", "aggregate_usage", "billing_thresholds"],
-    "packages": [
-      {
-        "ecosystem": "pypi",
-        "name": "stripe"
-      },
-      {
-        "ecosystem": "npm",
-        "name": "stripe"
-      }
-    ],
-    "apiVersions": ["2025-03-31.basil"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2025-03-31.basil"
+    },
+    "announcedOn": "2025-03-31",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "Follow our migration guide to update your integration to use meters.",
-    "### Using the legacy UsageRecords API via RawRequest",
-    "You can continue using the legacy UsageRecords API after upgrading your SDK by calling it via RawRequest with a pinned pre-Basil API version. See Upgrade your SDK without migrating from usage records."
+    {
+      "text": "Follow our migration guide to update your integration to use meters.",
+      "sourceIndex": 0
+    },
+    {
+      "text": "### Using the legacy UsageRecords API via RawRequest",
+      "sourceIndex": 0
+    },
+    {
+      "text": "You can continue using the legacy UsageRecords API after upgrading your SDK by calling it via RawRequest with a pinned pre-Basil API version. See Upgrade your SDK without migrating from usage records.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Removes legacy usage-based billing](https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-legacy-usage-based-billing.md) | Billing, Invoicing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-legacy-usage-based-billing.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "- Removed `billing_thresholds` from [Subscription](https://docs.stripe.com/api/subscriptions/object.md?api-version=2025-03-31.basil) endpoints.\n- Removed `aggregate_usage` from [Price](https://docs.stripe.com/api/prices/object.md?api-version=2025-03-31.basil) endpoints.\n- Using `usage_type` of `metered` without a specified `meter` now returns an error on [Price](https://docs.stripe.com/api/prices/object.md?api-version=2025-03-31.basil) creation.\n- Removed support for attaching prices of `usage_type=metered` without a set `meter` to Subscriptions, Subscription Schedules and Quotes.",
       "contentHash": "3e4d6835cd40077c9872f1ce6b554d80fe71b27c3914322226d379ba7abec0b8",
-      "checkedAt": "2026-10-24T14:37:32.549Z"
+      "checkedAt": "2026-10-25T01:15:45.105Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

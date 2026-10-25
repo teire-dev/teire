@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2022-08-01-v-adds-design-rejected-value-cards",
-  "provider": "stripe",
-  "title": "Adds `design_rejected` as a possible cancellation reason for issued cards",
-  "announcedOn": "2022-08-01",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Adds `design_rejected` as a possible cancellation reason for issued cards",
   "summary": "design_rejected is now a possible value for the cancellation_reason field on the issued card object, indicating that the card’s design was rejected by Stripe.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2022-08-01"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2022-08-01"
+    },
+    "announcedOn": "2022-08-01",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "The Card object now includes design_rejected as a possible value for the cancellation_reason field, indicating Stripe’s rejection of the card design."
+    {
+      "text": "The Card object now includes design_rejected as a possible value for the cancellation_reason field, indicating Stripe’s rejection of the card design.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Adds `design_rejected` as a possible cancellation reason for issued cards](https://docs.stripe.com/changelog/2022-08-01/adds-design-rejected-value-cards.md) | Issuing | Breaking | api |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/2022-08-01/adds-design-rejected-value-cards.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "`design_rejected` is now a possible value for the `cancellation_reason` field on the `issued card` object, indicating that the card’s design was rejected by Stripe.",
       "contentHash": "c694a467392502b075f3346fe04651d5434ab3e5fe678d97d1d27c3ea021945c",
-      "checkedAt": "2026-10-24T14:37:35.968Z"
+      "checkedAt": "2026-10-25T01:15:48.454Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

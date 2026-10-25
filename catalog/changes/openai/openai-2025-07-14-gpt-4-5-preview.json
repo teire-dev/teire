@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2025-07-14-gpt-4-5-preview",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "gpt-4.5-preview",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "gpt-4.5-preview shutdown",
   "summary": "GPT-4.5-preview. Shutdown date: 2025-07-14. Replacement: gpt-4.1.",
-  "announcedOn": "2025-04-14",
-  "effectiveOn": "2025-07-14",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["gpt-4.5-preview"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2025-04-14",
+    "effectiveOn": "2025-07-14"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "gpt-4.5-preview",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gpt-4.1",
-    "modelIds": ["gpt-4.1"]
+    "modelIds": ["gpt-4.1"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["gpt-4.5-preview"],
+        "to": "gpt-4.1"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| 2025-07-14    | `gpt-4.5-preview` | `gpt-4.1`               |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

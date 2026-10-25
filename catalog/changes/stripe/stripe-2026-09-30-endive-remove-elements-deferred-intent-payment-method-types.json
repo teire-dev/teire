@@ -1,42 +1,57 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "stripe-2026-09-30-endive-remove-elements-deferred-intent-payment-method-types",
-  "provider": "stripe",
-  "title": "Removes support for the payment method types option in Elements",
-  "announcedOn": "2026-09-30",
-  "effectiveOn": null,
-  "breaking": true,
-  "replacement": null,
-  "extraction": {
-    "method": "table"
+  "subject": {
+    "kind": "api-host",
+    "name": "api.stripe.com",
+    "provider": "stripe"
   },
   "kind": "behaviour-change",
+  "title": "Removes support for the payment method types option in Elements",
   "summary": "Removes support for setting paymentMethodTypes when you create Elements without a Payment or Setup Intent or call elements.update(). Use allowedPaymentMethodTypes to limit available payment methods, or use Dynamic Payment Methods to manage them from the Dashboard. If your integration sets paymentMethodTypes, Stripe.js now throws an integration error and prevents the Elements instance from being created or updated.",
-  "signatures": {
-    "modelIds": [],
-    "params": [],
-    "endpoints": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": ["2026-09-30.endive"]
+  "applicability": {
+    "class": "breaks-on-upgrade",
+    "fixedIn": [],
+    "apiVersion": {
+      "header": "Stripe-Version",
+      "to": "2026-09-30.endive"
+    },
+    "announcedOn": "2026-09-30",
+    "effectiveOn": null
   },
+  "signatures": [],
+  "replacement": null,
   "migrationNotes": [
-    "You can no longer set paymentMethodTypes in your Elements options on Endive. Remove it, replace it with allowedPaymentMethodTypes to limit available payment methods, or manage payment methods in the Dashboard. Previously, Stripe.js versions through Dahlia supported paymentMethodTypes."
+    {
+      "text": "You can no longer set paymentMethodTypes in your Elements options on Endive. Remove it, replace it with allowedPaymentMethodTypes to limit available payment methods, or manage payment methods in the Dashboard. Previously, Stripe.js versions through Dahlia supported paymentMethodTypes.",
+      "sourceIndex": 0
+    }
   ],
   "sources": [
     {
       "url": "https://docs.stripe.com/changelog.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "| [Removes support for the payment method types option in Elements](https://docs.stripe.com/changelog/endive/2026-09-30/remove-elements-deferred-intent-payment-method-types.md) | Elements | Breaking | stripejs |",
       "contentHash": "0eef16b7bc6e9c3ce878cc105d526a425e55660bf3eaf3cdfc9a4f4b8980c103",
-      "checkedAt": "2026-10-24T14:37:26.524Z"
+      "checkedAt": "2026-10-25T01:15:38.993Z"
     },
     {
       "url": "https://docs.stripe.com/changelog/endive/2026-09-30/remove-elements-deferred-intent-payment-method-types.md",
+      "kind": "changelog",
+      "trustBasis": "official-domain",
       "quote": "If your integration sets `paymentMethodTypes`, Stripe.js now throws an integration error and prevents the Elements instance from being created or updated.",
       "contentHash": "bd26a295678be486d5cca12176815e2c4013a24b48e6a4ae7441fe88e8cd20ec",
-      "checkedAt": "2026-10-24T14:37:29.528Z"
+      "checkedAt": "2026-10-25T01:15:42.134Z"
     }
   ],
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
+  },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

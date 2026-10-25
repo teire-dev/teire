@@ -3,7 +3,9 @@ import { readAnthropic } from "../src/catalog/adapters/anthropic";
 import { readDeprecationTables } from "../src/catalog/adapters/deprecation-tables";
 import { breakingRows, readStripe } from "../src/catalog/adapters/stripe";
 import { noticeDate } from "../src/catalog/adapters/tokenfactory";
+import { providerBySlug } from "../src/catalog/providers";
 import { changeRecord } from "../src/catalog/schema";
+import { gateV2, toChangeV2 } from "../src/catalog/v2";
 import { fixture, source } from "./helpers";
 
 const valid = (records: unknown[]) => records.every((r) => changeRecord.safeParse(r).success);
@@ -124,5 +126,70 @@ describe("Stripe changelog", () => {
     expect(anchor?.signatures.packages.map((p) => p.ecosystem).sort()).toEqual(["npm", "pypi"]);
     // Pages that could not be read stay visible but quarantined.
     expect(records.filter((r) => r.status === "quarantined").length).toBe(records.length - 1);
+  });
+});
+
+describe("provider rows in contract v2, through the quarantine gate", () => {
+  const page = source(
+    "catalog/openai-deprecations.excerpt.md",
+    "https://developers.openai.com/api/docs/deprecations.md",
+  );
+  const openai = providerBySlug("openai");
+  const anthropic = providerBySlug("anthropic");
+  if (!openai || !anthropic) throw new Error("launch providers missing");
+  const rows = readDeprecationTables(page, { provider: "openai", sectionLevel: 3 });
+  const bodies = new Map([[page.url, page.body]]);
+  const now = new Date("2026-10-25T00:00:00Z");
+  const gpt4 = rows.find((r) => r.signatures.modelIds.includes("gpt-4"));
+  if (!gpt4) throw new Error("gpt-4 row missing");
+
+  it("turns a shutdown row into a model change with literal signatures and a model swap", () => {
+    const v2 = gateV2(toChangeV2(gpt4, openai, now), openai, bodies);
+    expect(v2).toMatchObject({
+      schemaVersion: 2,
+      id: "openai-2026-10-23-gpt-4-0613",
+      subject: { kind: "model", name: "gpt-4-0613", provider: "openai" },
+      applicability: { class: "already-broken", effectiveOn: "2026-10-23" },
+      replacement: { codemod: { kind: "model-swap", spec: { to: "gpt-5.6-sol" } } },
+      status: "confirmed",
+    });
+    expect(v2.signatures).toContainEqual({ kind: "string-literal", value: "gpt-4", context: "llm-call-arg" });
+    // The day before the shutdown it breaks on a date instead.
+    expect(toChangeV2(gpt4, openai, new Date("2026-10-22T00:00:00Z")).applicability.class).toBe(
+      "breaks-on-date",
+    );
+  });
+
+  it("quarantines a record whose quote is not on the page or whose source is off the provider's domains", () => {
+    const record = toChangeV2(gpt4, openai, now);
+    const forged = {
+      ...record,
+      sources: [{ ...record.sources[0]!, quote: "| October 23, 2026 | `gpt-4o` |" }],
+    };
+    expect(gateV2(forged, openai, bodies)).toMatchObject({
+      status: "quarantined",
+      quarantineReasons: [expect.stringMatching(/Quote not found/)],
+    });
+    expect(gateV2(record, anthropic, bodies).quarantineReasons).toContainEqual(
+      expect.stringMatching(/not on Anthropic's own domains/),
+    );
+  });
+
+  it("turns a removed parameter into arguments of the provider's own LLM calls only", () => {
+    const params = readAnthropic(
+      source(
+        "catalog/anthropic-deprecations.excerpt.md",
+        "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      ),
+    ).find((r) => r.kind === "parameter-change");
+    if (!params) throw new Error("parameter row missing from the fixture");
+    const v2 = toChangeV2(params, anthropic, now);
+    expect(v2.applicability).toMatchObject({
+      class: "breaks-on-upgrade",
+      apiVersion: { header: "anthropic-version", to: "2026-10-21" },
+    });
+    expect(v2.signatures.every((s) => s.kind === "call-arg" && s.callee.includes("messages.create"))).toBe(
+      true,
+    );
   });
 });

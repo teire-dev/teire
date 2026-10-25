@@ -1,43 +1,64 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "nebius-token-factory-2026-08-31-nvidia-nemotron-3-nano-omni",
-  "provider": "nebius-token-factory",
+  "subject": {
+    "kind": "model",
+    "name": "nvidia/Nemotron-3-Nano-Omni",
+    "provider": "nebius-token-factory"
+  },
   "kind": "model-retirement",
   "title": "nvidia/Nemotron-3-Nano-Omni shutdown",
   "summary": "Shutdown date: 2026-08-31. Replacement: nvidia/Nemotron-3_5-Lightning.",
-  "announcedOn": null,
-  "effectiveOn": "2026-08-31",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["nvidia/Nemotron-3-Nano-Omni"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": null,
+    "effectiveOn": "2026-08-31"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "nvidia/Nemotron-3-Nano-Omni",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "nvidia/Nemotron-3_5-Lightning",
-    "modelIds": ["nvidia/Nemotron-3_5-Lightning"]
+    "modelIds": ["nvidia/Nemotron-3_5-Lightning"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["nvidia/Nemotron-3-Nano-Omni"],
+        "to": "nvidia/Nemotron-3_5-Lightning"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://docs.tokenfactory.nebius.com/august-2026-deprecation-notice.md",
+      "kind": "vendor-page",
+      "trustBasis": "official-domain",
       "quote": "| [`nvidia/Nemotron-3-Nano-Omni`](https://tokenfactory.nebius.com/models/catalog/text2text/nvidia%2FNemotron-3-Nano-Omni) | [`nvidia/Nemotron-3_5-Lightning`](https://tokenfactory.nebius.com/models/catalog/text2text/nvidia%2FNemotron-3_5-Lightning) |",
       "contentHash": "4c9d8a9f463e8d4cb3ac567b863d5d18dbc74cf0e1c23bbee047ef3ef5d89401",
-      "checkedAt": "2026-10-24T14:37:26.028Z"
+      "checkedAt": "2026-10-25T01:15:38.466Z"
     },
     {
       "url": "https://docs.tokenfactory.nebius.com/august-2026-deprecation-notice.md",
+      "kind": "vendor-page",
+      "trustBasis": "official-domain",
       "quote": "> **On August 31, 2026:**",
       "contentHash": "4c9d8a9f463e8d4cb3ac567b863d5d18dbc74cf0e1c23bbee047ef3ef5d89401",
-      "checkedAt": "2026-10-24T14:37:26.028Z"
+      "checkedAt": "2026-10-25T01:15:38.466Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }

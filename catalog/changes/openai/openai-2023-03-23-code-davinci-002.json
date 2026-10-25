@@ -1,37 +1,56 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "openai-2023-03-23-code-davinci-002",
-  "provider": "openai",
+  "subject": {
+    "kind": "model",
+    "name": "code-davinci-002",
+    "provider": "openai"
+  },
   "kind": "model-retirement",
   "title": "code-davinci-002 shutdown",
   "summary": "Codex models. Shutdown date: 2023-03-23. Replacement: gpt-4o.",
-  "announcedOn": "2023-03-20",
-  "effectiveOn": "2023-03-23",
-  "breaking": true,
-  "signatures": {
-    "modelIds": ["code-davinci-002"],
-    "endpoints": [],
-    "params": [],
-    "symbols": [],
-    "packages": [],
-    "apiVersions": []
+  "applicability": {
+    "class": "already-broken",
+    "fixedIn": [],
+    "announcedOn": "2023-03-20",
+    "effectiveOn": "2023-03-23"
   },
+  "signatures": [
+    {
+      "kind": "string-literal",
+      "value": "code-davinci-002",
+      "context": "llm-call-arg"
+    }
+  ],
   "replacement": {
     "value": "gpt-4o",
-    "modelIds": ["gpt-4o"]
+    "modelIds": ["gpt-4o"],
+    "codemod": {
+      "kind": "model-swap",
+      "spec": {
+        "from": ["code-davinci-002"],
+        "to": "gpt-4o"
+      }
+    }
   },
   "migrationNotes": [],
   "sources": [
     {
       "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "kind": "provider-table",
+      "trustBasis": "official-domain",
       "quote": "| 2023-03-23    | `code-davinci-002` | `gpt-4o`                |",
       "contentHash": "b5d1cafefc8a491f2c095d77359a6ca185498baa5f65a66bac1cb722e188855f",
-      "checkedAt": "2026-10-24T14:37:23.481Z"
+      "checkedAt": "2026-10-25T01:15:35.314Z"
     }
   ],
-  "extraction": {
-    "method": "table"
+  "provenance": {
+    "method": "table",
+    "confidence": {
+      "overall": 1
+    }
   },
+  "visibility": "public",
   "status": "confirmed",
   "quarantineReasons": []
 }
