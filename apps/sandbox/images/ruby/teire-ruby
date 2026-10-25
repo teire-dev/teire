@@ -32,8 +32,9 @@ start_postgres() {
   export PGDATA=/var/lib/teire/pg
   if ! pg_isready -q -h 127.0.0.1 2>/dev/null; then
     mkdir -p "$PGDATA" /var/run/postgresql && chown postgres "$PGDATA" /var/run/postgresql
-    su postgres -c "initdb -D $PGDATA -A trust -U postgres" >/dev/null || return 4
-    su postgres -c "pg_ctl -D $PGDATA -l $PGDATA/server.log -o \"-c listen_addresses=127.0.0.1 -k /var/run/postgresql\" -w start" >/dev/null || return 4
+    # exec() passes no locale: without -E the cluster is SQL_ASCII and Rails cannot create UTF-8 databases.
+    su postgres -c "initdb -D $PGDATA -A trust -U postgres -E UTF8 --locale=C.UTF-8" >/dev/null || return 4
+    su postgres -c "pg_ctl -D $PGDATA -l $PGDATA/server.log -o \"-c listen_addresses=localhost -k /var/run/postgresql\" -w start" >/dev/null || return 4
   fi
   # Trust authentication on localhost: the roles the app's config names, with any password.
   local user=""
