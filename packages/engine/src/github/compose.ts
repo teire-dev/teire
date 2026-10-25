@@ -6,6 +6,15 @@ import type { DependencyVerdict } from "../impact";
 import type { CheckPlan } from "../verify/commands";
 import type { SideResult } from "../verify/evidence";
 
+const ECOSYSTEM_LABEL: Partial<Record<DependencyInstance["ecosystem"], string>> = {
+  npm: "JavaScript / TypeScript (npm)",
+  pypi: "Python (PyPI)",
+  maven: "Java / Kotlin (Maven)",
+  go: "Go modules",
+  cargo: "Rust (crates.io)",
+  rubygems: "Ruby (RubyGems)",
+};
+
 /**
  * Pull request and onboarding bodies with the same anatomy everywhere (rule 5): verdict first →
  * why this repo → what changed upstream (quoted, linked) → changes per file → verification
@@ -319,11 +328,15 @@ export function composeOnboarding(input: { repo: RepoRef; rows: OnboardingRow[];
   for (const eco of ecosystems) {
     const list = direct.filter((r) => r.instance.ecosystem === eco);
     out.push(
-      `<details><summary>${eco}: ${list.length} direct</summary>\n\n| Package | Version | Scope | Position |\n|---|---|---|---|`,
+      `<details><summary>${ECOSYSTEM_LABEL[eco] ?? eco}: ${list.length} direct</summary>\n\n| Package | Version | Scope | Position |\n|---|---|---|---|`,
     );
     for (const r of list) {
       const chips = [
-        r.instance.version === null ? "unresolved" : null,
+        r.instance.version === null
+          ? r.instance.environment?.markers
+            ? `not installed on Linux (\`${r.instance.environment.markers}\`)`
+            : `unresolved${r.instance.unresolvedReason ? `: ${r.instance.unresolvedReason}` : ""}`
+          : null,
         r.majorsBehind > 0 ? `${r.majorsBehind} major${r.majorsBehind === 1 ? "" : "s"} behind` : null,
         r.deprecated !== null ? "deprecated" : null,
       ].filter(Boolean);
