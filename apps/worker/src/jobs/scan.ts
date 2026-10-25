@@ -17,6 +17,8 @@ import {
   assessApiChanges,
   assessJsRepo,
   assessPyRepo,
+  assessRuntimes,
+  runtimesOf,
 } from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
@@ -167,6 +169,7 @@ export async function scanRepo(
         discover: { cache },
         triage: await pageReader(db),
         openapi: { cache, githubToken: token, repo: { owner, name, sha } },
+        declared: config.sources,
       },
     );
     for (const n of api.openapiNotes) console.log(`[scan] ${repo.fullName}: openapi ${n}`);
@@ -179,6 +182,18 @@ export async function scanRepo(
             .join(", ") || "none"
         }; Tavily ${api.discovery.usage.reduce((n, u) => n + u.credits, 0)} credit(s)${api.discovery.notes.length ? `; ${api.discovery.notes.join("; ")}` : ""}`,
       );
+    // Runtimes the repo runs, against their end of life (notices, never PRs).
+    const runtimes = await assessRuntimes(runtimesOf(tree, js.projects, py.projects), { cache });
+    // Records computed in this scan (OpenAPI diffs, runtime dates) are stored with their findings;
+    // provider records were stored when their pages were read.
+    for (const r of [
+      ...api.records.filter((x) => x.sources.some((s) => s.kind === "openapi-diff")),
+      ...runtimes.records,
+    ])
+      await upsertChange(db, r);
+    const runtimeHashes = new Map(runtimes.records.map((r) => [r.id, changeHash(r)]));
+    for (const f of runtimes.findings)
+      await upsertFinding(db, repoId, scan.id, f, runtimeHashes.get(f.changeId) ?? "");
     const recordHashes = new Map(api.records.map((r) => [r.id, changeHash(r)]));
     for (const f of api.findings)
       await upsertFinding(db, repoId, scan.id, f, recordHashes.get(f.changeId) ?? "");
@@ -211,7 +226,7 @@ export async function scanRepo(
       const { title, body } = composeOnboarding({
         repo: { owner, repo: name, baseSha: sha },
         rows: onboardingRows(assessments),
-        apiFindings: api.findings,
+        apiFindings: [...api.findings, ...runtimes.findings],
       });
       const commit = await commitToBranch({
         octokit: installation.octokit,

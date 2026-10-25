@@ -93,13 +93,20 @@ function signaturesOf(record: ChangeRecord, provider: ProviderRecord): Signature
   return out;
 }
 
+/** A source the scanned repo named in its teire.yml: its trust is the repo's own, and it stays private (D53). */
+export const declaredByRepo = (provider: ProviderRecord) =>
+  provider.discovery?.via.includes("teire.yml") ?? false;
+
 function sourcesOf(record: ChangeRecord, provider: ProviderRecord): SourceRefV2[] {
   const listed = new Map(provider.sources.map((s) => [s.url, SOURCE_KIND[s.kind]]));
+  const declared = declaredByRepo(provider);
   return record.sources.map((s) => ({
     url: s.url,
     // A page linked from the provider's index (a Stripe change page, a Token Factory notice).
-    kind: listed.get(s.url) ?? (provider.sources[0]?.kind === "changelog" ? "changelog" : "vendor-page"),
-    trustBasis: "official-domain",
+    kind: declared
+      ? "repo-declared"
+      : (listed.get(s.url) ?? (provider.sources[0]?.kind === "changelog" ? "changelog" : "vendor-page")),
+    trustBasis: declared ? "repo-config" : "official-domain",
     quote: s.quote,
     contentHash: s.contentHash,
     checkedAt: s.checkedAt,
@@ -167,7 +174,7 @@ export function toChangeV2(record: ChangeRecord, provider: ProviderRecord, now =
         overall: record.status === "confirmed" ? (record.extraction.method === "model" ? 0.8 : 1) : 0.3,
       },
     },
-    visibility: "public",
+    visibility: declaredByRepo(provider) ? "private" : "public",
     status: record.summary.trim() ? record.status : "quarantined",
     quarantineReasons: [
       ...record.quarantineReasons,

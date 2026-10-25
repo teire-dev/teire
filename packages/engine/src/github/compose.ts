@@ -549,18 +549,51 @@ export function composeOnboarding(input: {
         } |`,
       );
   }
-  const api = (input.apiFindings ?? []).filter((f) => f.verdict === "affected");
-  if (api.length) {
-    out.push("### Models and endpoints the providers retired");
+  const found = (input.apiFindings ?? []).filter((f) => f.verdict === "affected");
+  const where = (f: FindingDraft) => {
+    const site = f.callSites[0];
+    return site
+      ? `[\`${site.file}:${site.line}\`](${blob(input.repo, site.file, site.line)})${f.callSites.length > 1 ? ` and ${f.callSites.length - 1} more` : ""}`
+      : "—";
+  };
+  const models = found.filter(
+    (f) => f.changeKind === "model-retirement" || f.changeKind === "model-rerouted",
+  );
+  if (models.length) {
+    out.push("### Models the providers retired");
     out.push("| In your code | Status | Replacement named by the provider | Where |", "|---|---|---|---|");
-    for (const f of api.slice(0, 30)) {
-      const site = f.callSites[0];
+    for (const f of models.slice(0, 30))
       out.push(
-        `| \`${f.position.version ?? f.dependencyKey}\` | ${f.class === "already-broken" ? "already failing" : f.class === "breaks-on-date" ? "retiring" : f.class.replace(/-/g, " ")} | ${f.position.target ? `\`${f.position.target}\`` : "none named"} | ${site ? `[\`${site.file}:${site.line}\`](${blob(input.repo, site.file, site.line)})${f.callSites.length > 1 ? ` and ${f.callSites.length - 1} more` : ""}` : "—"} |`,
+        `| \`${f.position.version ?? f.dependencyKey}\` | ${f.class === "already-broken" ? "already failing" : f.class === "breaks-on-date" ? "retiring" : f.class.replace(/-/g, " ")} | ${f.position.target ? `\`${f.position.target}\`` : "none named"} | ${where(f)} |`,
       );
-    }
     out.push(
       "Teire swaps each one where it is used as a model, adapts the code the new model needs, and proves it with your tests before opening the PR.",
+    );
+  }
+  const apis = found.filter(
+    (f) =>
+      f.changeKind !== "model-retirement" &&
+      f.changeKind !== "model-rerouted" &&
+      f.changeKind !== "runtime-eol",
+  );
+  if (apis.length) {
+    out.push("### API changes on operations you call");
+    out.push("| Change | Your position → latest | Where |", "|---|---|---|");
+    for (const f of apis.slice(0, 30))
+      out.push(
+        `| ${escapeCell(f.reason).slice(0, 220)} | ${f.position.version ?? "?"} → ${f.position.target ?? "?"} | ${where(f)} |`,
+      );
+  }
+  const runtimes = found.filter((f) => f.changeKind === "runtime-eol");
+  if (runtimes.length) {
+    out.push("### Runtimes");
+    out.push("| Runtime | Support | Move to | Set in |", "|---|---|---|---|");
+    for (const f of runtimes)
+      out.push(
+        `| ${escapeCell(f.reason.split(" reach")[0] ?? f.dependencyKey)} | ${escapeCell(f.reason.split(";")[0]?.replace(/^.* (reached|reaches) /, "$1 ") ?? "")} | ${f.position.target ?? "—"} | ${where(f)} |`,
+      );
+    out.push(
+      "<sub>Notices only: nothing in your code breaks on the date, so Teire opens no PR for them.</sub>",
     );
   }
   out.push("### Inventory");

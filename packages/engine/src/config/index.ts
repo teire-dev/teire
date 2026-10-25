@@ -14,7 +14,19 @@ export interface TeireConfig {
   pullRequests: { limit: number; perHour: number };
   dashboardIssue: boolean;
   ignore: string[];
+  /**
+   * Sources the repo names itself (C8, D52): an API host's changelog or spec, or a package's
+   * changelog. Read through the same gate; their records are `repo-config` and private.
+   */
+  sources: DeclaredSource[];
   problems: string[];
+}
+
+export interface DeclaredSource {
+  host?: string;
+  package?: string;
+  changelogUrl?: string;
+  specUrl?: string;
 }
 
 export const CONFIG_PATHS = [".github/teire.yml", ".github/teire.yaml"] as const;
@@ -27,6 +39,7 @@ export function readTeireConfig(tree: RepoTree): TeireConfig {
     pullRequests: { limit: PULL_REQUESTS.maxOpenPerRepo, perHour: PULL_REQUESTS.maxNewPerHour },
     dashboardIssue: true,
     ignore: [],
+    sources: [],
     problems: [],
   };
   const path = CONFIG_PATHS.find((p) => tree.read(p) !== null);
@@ -68,5 +81,44 @@ export function readTeireConfig(tree: RepoTree): TeireConfig {
     [],
     "ignore",
   );
+  config.sources = declaredSources(doc.sources, config.problems);
   return config;
+}
+
+const HOST = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+const httpsUrl = (v: unknown): v is string => {
+  if (typeof v !== "string") return false;
+  try {
+    return new URL(v).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+/** `sources:` entries: a host or a package, with an https changelog or spec URL; anything else is reported. */
+function declaredSources(value: unknown, problems: string[]): DeclaredSource[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    problems.push("sources must be a list");
+    return [];
+  }
+  const out: DeclaredSource[] = [];
+  value.forEach((raw, i) => {
+    const e = (raw ?? {}) as Record<string, unknown>;
+    const host = typeof e.host === "string" && HOST.test(e.host) ? e.host.toLowerCase() : undefined;
+    const pkg = typeof e.package === "string" && e.package.length > 0 ? e.package : undefined;
+    const changelogUrl = httpsUrl(e.changelogUrl) ? e.changelogUrl : undefined;
+    const specUrl = httpsUrl(e.specUrl) ? e.specUrl : undefined;
+    if (!(host || pkg) || !(changelogUrl || specUrl)) {
+      problems.push(`sources[${i}] needs a host or package and an https changelogUrl or specUrl`);
+      return;
+    }
+    out.push({
+      ...(host ? { host } : {}),
+      ...(pkg ? { package: pkg } : {}),
+      ...(changelogUrl ? { changelogUrl } : {}),
+      ...(specUrl ? { specUrl } : {}),
+    });
+  });
+  return out;
 }

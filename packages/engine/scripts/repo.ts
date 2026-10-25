@@ -7,6 +7,7 @@
  * --fix-api=<group> fixes one group (`models/nebius-token-factory`).
  * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/repo.ts owner/repo [--fix=<package>] [--api] [--fix-api=<group>]
  */
+import { readTeireConfig } from "../src/config";
 import { directoryTree, fetchRepoTarball } from "../src/inventory";
 import type { PyProject } from "../src/inventory/python";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "../src/llm";
@@ -126,6 +127,7 @@ if (api) {
     changes: liveProviderChanges({ reader }),
     discover: options,
     triage: reader,
+    declared: readTeireConfig(tree).sources,
     openapi: {
       ...options,
       githubToken: process.env.GITHUB_TOKEN,

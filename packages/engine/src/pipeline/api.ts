@@ -4,6 +4,9 @@ import type { PageReader } from "../catalog/adapters/vendor-page";
 import { type IngestOptions, ingestProvider } from "../catalog/ingest";
 import { PROVIDERS } from "../catalog/providers";
 import type { ProviderRecord } from "../catalog/schema";
+import { CATALOG_SCHEMA_VERSION, providerRecord, slugify } from "../catalog/schema";
+import { sha256 } from "../catalog/source";
+import type { DeclaredSource } from "../config";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import {
   discoverProviders,
@@ -12,6 +15,7 @@ import {
   providerCandidates,
   type TavilyUsage,
 } from "../discover";
+import { registrableDomain } from "../discover/domains";
 import type { CodemodEdit, MigrationNote } from "../fix/codemods";
 import { type FileChange, type FixRun, runFix } from "../fix/run";
 import type { Transaction } from "../fix/transaction";
@@ -74,6 +78,37 @@ export interface ApiSources {
   triage?: PageReader;
   /** OpenAPI diffs for operations the repo calls by URL (spec lookup, the repo's history). */
   openapi?: OpenApiOptions;
+  /** `teire.yml` sources: an API host's changelog or spec named by the repo itself. */
+  declared?: DeclaredSource[];
+}
+
+/**
+ * A changelog the repo names for an API host (`sources: [{host, changelogUrl}]`): read like a
+ * discovered page, through the guarded fetch and the quote gate, on the page's own domain. Its
+ * records carry the repo's trust and stay private.
+ */
+export function declaredProviders(declared: DeclaredSource[], now = new Date()): ProviderUse[] {
+  const out: ProviderUse[] = [];
+  for (const d of declared) {
+    if (!d.host || !d.changelogUrl) continue;
+    const domain = registrableDomain(new URL(d.changelogUrl).hostname);
+    if (!domain) continue;
+    out.push({
+      provider: providerRecord.parse({
+        schemaVersion: CATALOG_SCHEMA_VERSION,
+        slug: `declared-${slugify(d.host)}-${sha256(d.changelogUrl).slice(0, 8)}`,
+        name: d.host,
+        homepage: `https://${domain}`,
+        logo: { light: "/logos/provider.svg", dark: "/logos/provider.svg" },
+        officialDomains: [domain],
+        sources: [{ kind: "custom", url: d.changelogUrl, adapter: "discovered" }],
+        detection: { imports: [], envVars: [], baseUrls: [d.host], calls: [] },
+        discovery: { at: now.toISOString(), via: ["teire.yml"], tavilyCredits: 0, evidence: ["teire.yml"] },
+      }),
+      via: ["teire.yml"],
+    });
+  }
+  return out;
 }
 
 /** Every exact model ID the confirmed records name, for one scan of the repo. */
@@ -144,7 +179,10 @@ export async function assessApiChanges(
   // First pass: URLs only, to see which API hosts the code calls.
   const hostsScan = await locateLiterals({ repoDir, tree, modelIds: new Set() });
   const hosts = new Set(hostsScan.hits.flatMap((h) => (h.host ? [h.host] : [])));
-  const providers: ProviderUse[] = providersUsed(instances, hosts);
+  const providers: ProviderUse[] = [
+    ...providersUsed(instances, hosts),
+    ...declaredProviders(sources.declared ?? [], now),
+  ];
   const discovery: ApiAssessment["discovery"] = { candidates: 0, usage: [], notes: [] };
   if (sources.discover) {
     const candidates: ProviderCandidate[] = await providerCandidates({
@@ -204,7 +242,12 @@ export async function assessApiChanges(
         tree,
         hits: scan.hits,
         providers,
-        options: sources.openapi,
+        options: {
+          ...sources.openapi,
+          declared: (sources.declared ?? []).flatMap((d) =>
+            d.host && d.specUrl ? [{ host: d.host, specUrl: d.specUrl }] : [],
+          ),
+        },
         now,
       });
       records.push(...oas.records);

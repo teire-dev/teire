@@ -128,6 +128,7 @@ async function apiOutcome(
       githubToken: common.options.githubToken,
       repo: { owner: common.repo.owner, name: common.repo.repo, sha: common.repo.baseSha },
     },
+    declared: readTeireConfig(tree).sources,
   });
   const group = findings.filter((f) => f.groupKey === run.groupKey);
   if (!group.some((f) => f.verdict === "affected")) return null;

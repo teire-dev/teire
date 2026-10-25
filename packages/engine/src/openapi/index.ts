@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import YAML from "yaml";
-import type { ProviderRecord } from "../catalog/schema";
+import { type ProviderRecord, slugify } from "../catalog/schema";
 import { sha256 } from "../catalog/source";
 import { OPENAPI } from "../constants";
 import { type ChangeKindV2, type ChangeV2, changeV2 } from "../contract";
@@ -35,6 +35,19 @@ export interface OpenApiOptions extends RegistryOptions {
   githubToken?: string;
   /** The scanned repo on GitHub, for the history of its call-site files. */
   repo?: { owner: string; name: string; sha: string };
+  /** Specs the repo names in teire.yml, as GitHub file URLs (their history gives the revisions). */
+  declared?: { host: string; specUrl: string }[];
+}
+
+/** `https://github.com/o/r/blob/<branch>/<path>` or `https://raw.githubusercontent.com/o/r/<branch>/<path>`. */
+export function githubSpecLocation(url: string): SpecLocation | null {
+  const u = new URL(url);
+  const parts = u.pathname.split("/").filter(Boolean);
+  if (u.hostname === "github.com" && parts[2] === "blob" && parts.length >= 5)
+    return { repo: `${parts[0]}/${parts[1]}`, branch: parts[3] as string, path: parts.slice(4).join("/") };
+  if (u.hostname === "raw.githubusercontent.com" && parts.length >= 4)
+    return { repo: `${parts[0]}/${parts[1]}`, branch: parts[2] as string, path: parts.slice(3).join("/") };
+  return null;
 }
 
 export interface OpenApiAssessment {
@@ -152,18 +165,28 @@ export async function assessOpenApi(input: {
       byHost.set(h.host, [...(byHost.get(h.host) ?? []), h]);
 
   for (const [host, hits] of byHost) {
+    const declared = input.options.declared?.find((d) => d.host === host);
     const domain = registrableDomain(host);
     const use = input.providers.find(
       (p) =>
         p.provider.detection.baseUrls.includes(host) ||
         (domain && p.provider.officialDomains.some((d) => registrableDomain(d) === domain)),
     );
-    if (!use) {
+    if (!use && !declared) {
       out.notes.push(`${host}: no provider SDK names where its API description lives`);
       continue;
     }
-    const owner = await sdkOwner(use.provider, input.options);
-    const location: SpecLocation | null = owner ? await findSpec(owner, host, input.options) : null;
+    const provider = use?.provider ?? { slug: slugify(host), name: host, apiVersionHeader: undefined };
+    const declaredAt = declared ? githubSpecLocation(declared.specUrl) : null;
+    if (declared && !declaredAt) {
+      out.notes.push(
+        `${host}: teire.yml specUrl must be a GitHub file URL, so its history gives the revisions`,
+      );
+      continue;
+    }
+    const owner = declaredAt || !use ? null : await sdkOwner(use.provider, input.options);
+    const location: SpecLocation | null =
+      declaredAt ?? (owner ? await findSpec(owner, host, input.options) : null);
     if (!location) {
       out.notes.push(`${host}: no API description found${owner ? ` in github.com/${owner}` : ""}`);
       continue;
@@ -244,7 +267,7 @@ export async function assessOpenApi(input: {
       });
     }
 
-    const slug = use.provider.slug;
+    const slug = provider.slug;
     const position = pin ? pin.version : base.date.slice(0, 10);
     const latest = headSpec.info?.version ?? head.date.slice(0, 10);
     const perOp = new Map<string, number>();
@@ -268,7 +291,7 @@ export async function assessOpenApi(input: {
           ...(pin
             ? {
                 apiVersion: {
-                  ...(use.provider.apiVersionHeader ? { header: use.provider.apiVersionHeader } : {}),
+                  ...(provider.apiVersionHeader ? { header: provider.apiVersionHeader } : {}),
                   from: pin.version,
                   to: latest,
                 },
@@ -323,7 +346,7 @@ export async function assessOpenApi(input: {
         })),
         coverage: null,
         groupKey: `api/${slug}`,
-        reason: `${key} ${pin ? `differs between the pinned API version ${pin.version} and ${latest}` : `changed in ${use.provider.name}'s API description since ${position}`}: ${item.text}.`,
+        reason: `${key} ${pin ? `differs between the pinned API version ${pin.version} and ${latest}` : `changed in ${provider.name}'s API description since ${position}`}: ${item.text}.`,
       });
     }
     out.notes.push(

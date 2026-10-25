@@ -194,6 +194,12 @@ export const OPENAPI = {
   maxResponseDepth: 3,
 } as const;
 
+/** Runtime end of life (endoflife.date). */
+export const RUNTIMES = {
+  /** A release line this close to its end of life is flagged ahead of the date. */
+  warnDays: 180,
+} as const;
+
 /** Teire's sandbox service (apps/sandbox). Timeouts are set from context/11-build-notes/sandbox-measurements.md. */
 export const SANDBOX = {
   /** Lifetime of a signed per-sandbox token. */
