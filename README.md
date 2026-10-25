@@ -252,6 +252,8 @@ pnpm typecheck && pnpm lint && pnpm test   # engine, worker and web
 | [`packages/db`](packages/db) | Postgres schema and migrations |
 | [`packages/cli`](packages/cli) | `teire scan`, `teire check`, `teire mcp` |
 | [`packages/helpers`](packages/helpers) | The Python and Go helpers the engine runs for griffe, jedi, apidiff and go/types |
+| [`catalog/schema`](catalog/schema) | JSON Schemas of a change record, a provider and a dependency instance |
+| [`fixtures`](fixtures) | Small repositories and pages the engine's tests run against |
 
 ## Credits
 
