@@ -247,10 +247,27 @@ export const RUBY = {
   maxFileBytes: 2 * 1024 * 1024,
   /** The sandbox image's Ruby: the version an upgrade must run on when the repo pins none. */
   sandboxRuby: "4.0.9",
+  /** The fix agent's `lookup_docs` answer from the target gem. */
+  docsLookupMaxChars: 7000,
   /** A gem's version list is reused for this long within one worker process. */
   registryMemoMs: 10 * 60_000,
   /** `/api/v1/versions/<gem>.json` (one entry per platform; aws-sdk-core is ~2 MB). */
   maxVersionListBytes: 16 * 1024 * 1024,
+} as const;
+
+/** Java and Kotlin (plan S08, research jvm.md). */
+export const JVM = {
+  japicmpVersion: "0.26.3",
+  japicmpUrl:
+    "https://repo1.maven.org/maven2/com/github/siom79/japicmp/japicmp/0.26.3/japicmp-0.26.3-jar-with-dependencies.jar",
+  japicmpSha1: "2452e6844f44657acd680656f78641205001bca0",
+  japicmpTimeoutMs: 180_000,
+  maxJarBytes: 128 * 1024 * 1024,
+  /** Central first, then Google's mirror of it (Sonatype rate-limits shared egress with 429s). */
+  mavenMirrors: [
+    "https://repo1.maven.org/maven2",
+    "https://maven-central.storage-download.googleapis.com/maven2",
+  ],
 } as const;
 
 /** Teire's sandbox service (apps/sandbox). Timeouts are set from context/11-build-notes/sandbox-measurements.md. */

@@ -371,7 +371,7 @@ export function diffRubySurfaces(before: RubySurface, after: RubySurface): Surfa
 }
 
 /** A `.gem` is a plain tar holding `data.tar.gz`; its sha256 is checked against the registry's. */
-async function fetchGemLib(name: string, version: string, into: string) {
+export async function fetchGemLib(name: string, version: string, into: string) {
   const res = await guardedFetch(
     `https://rubygems.org/downloads/${encodeURIComponent(name)}-${version}.gem`,
     {

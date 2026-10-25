@@ -2,6 +2,7 @@ import * as pep440 from "@renovatebot/pep440";
 import * as rubySemver from "@renovatebot/ruby-semver";
 import semver from "semver";
 import type { Ecosystem } from "../contract";
+import { compareMaven, isMavenPrerelease, mavenRelease, mavenSatisfies } from "./maven-version";
 
 /**
  * One version grammar per ecosystem, so the target policy, sorting and range checks stay the same
@@ -126,12 +127,23 @@ export const rubygemsScheme: VersionScheme = {
   isRange: (range) => /^\s*(?:[~><=!]+\s*)?\d/.test(range),
 };
 
+export const mavenScheme: VersionScheme = {
+  valid: (v) => /^\d/.test(v),
+  compare: compareMaven,
+  isPrerelease: isMavenPrerelease,
+  major: (v) => mavenRelease(v)[0] ?? 0,
+  breaking: (from, to) => caretBreak(mavenRelease(from), mavenRelease(to)),
+  satisfies: mavenSatisfies,
+  isRange: (range) => /^\s*[[(\d]/.test(range),
+};
+
 const SCHEMES: Partial<Record<Ecosystem, VersionScheme>> = {
   npm: npmScheme,
   pypi: pypiScheme,
   go: goScheme,
   cargo: cargoScheme,
   rubygems: rubygemsScheme,
+  maven: mavenScheme,
 };
 
 export function versionScheme(ecosystem: Ecosystem): VersionScheme {

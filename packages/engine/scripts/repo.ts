@@ -126,6 +126,8 @@ if (fixName) {
       ? `exit ${k.exitCode}${k.counts ? `, ${k.counts.passed}/${k.counts.collected} passed` : ""}`
       : "—";
   };
+  for (const side of [run.baseline, run.after])
+    if (!side.install.ok) log(`\n  ${side.side} install failed (exit ${side.install.exitCode}):\n${side.install.output.slice(-2500)}`);
   log("  | check | baseline | after |");
   for (const name of ["typecheck", "build", "test"])
     if (run.baseline.checks.some((k) => k.name === name))

@@ -33,10 +33,13 @@ export function gemVersions(name: string): Promise<GemVersion[]> {
   const hit = memo.get(name);
   if (hit && Date.now() - hit.at < RUBY.registryMemoMs) return hit.value;
   const value = (async () => {
-    const res = await guardedFetch(`https://rubygems.org/api/v1/versions/${encodeURIComponent(name)}.json`, {
-      allowHosts: ["rubygems.org"],
-      maxBytes: RUBY.maxVersionListBytes,
-    });
+    const get = () =>
+      guardedFetch(`https://rubygems.org/api/v1/versions/${encodeURIComponent(name)}.json`, {
+        allowHosts: ["rubygems.org"],
+        maxBytes: RUBY.maxVersionListBytes,
+      });
+    // One retry: a dropped connection should not cost a run its release notes and target checks.
+    const res = await get().catch(() => get());
     if (res.status === 404) return [];
     if (res.status !== 200) throw new Error(`rubygems.org ${res.status} for ${name}`);
     return res.json<ApiVersion[]>().map((v) => ({

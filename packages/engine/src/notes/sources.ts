@@ -341,11 +341,15 @@ export async function gatherRubyNotes(name: string, from: string, to: string, op
   const checkedAt = new Date().toISOString();
   const sources: NoteSource[] = [];
   const notes: string[] = [];
-  const versions = await gemVersions(name).catch(() => []);
+  let error = "";
+  const versions = await gemVersions(name).catch((e) => {
+    error = e instanceof Error ? e.message : String(e);
+    return [];
+  });
   const links = (versions.find((v) => v.number === to) ?? versions[0])?.links ?? {};
   const repo = githubRepoOf(links.source) ?? githubRepoOf(links.changelog) ?? githubRepoOf(links.homepage);
   if (!repo) {
-    notes.push("no GitHub repository in the gem's metadata");
+    notes.push(error ? `RubyGems unreachable: ${error}` : "no GitHub repository in the gem's metadata");
     return { sources, notes };
   }
   const file = /github\.com\/[^/]+\/[^/]+\/blob\/[^/]+\/(.+)$/.exec(links.changelog ?? "")?.[1];

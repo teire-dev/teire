@@ -16,6 +16,7 @@ import { chooseTarget, type TargetPolicy } from "../registry/target";
 import { rubygemsScheme } from "../registry/versions";
 import { surfaceChangeRecords } from "../surface/records";
 import { rubySurfaceDiff } from "../surface/ruby";
+import { rubyDocsLookup } from "../surface/rubydoc";
 import type { SurfaceDiff } from "../surface/types";
 import { detectRubyChecks } from "../verify/ruby-commands";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
@@ -174,7 +175,12 @@ export async function fixRubyDependency(
   const from = a.instance.version;
 
   input.onEvent?.({ step: "transaction", detail: `reading release notes ${from} → ${target}` });
-  const { sources } = await gatherRubyNotes(a.instance.name, from, target, options);
+  const { sources, notes: notesWhy } = await gatherRubyNotes(a.instance.name, from, target, options);
+  if (!sources.length)
+    input.onEvent?.({
+      step: "transaction",
+      detail: `no release notes read: ${notesWhy.join("; ") || "none found"}`,
+    });
   const docs = documentsForReading(sources);
   const extraction = docs.length
     ? await extractNotes(
@@ -207,9 +213,6 @@ export async function fixRubyDependency(
   const lockCooldown = decision.publishedAt
     ? Math.max(0, Math.floor((Date.now() - Date.parse(decision.publishedAt)) / 86_400_000))
     : REGISTRY.cooldownDays;
-  const changed = (a.diff?.changes ?? [])
-    .slice(0, 80)
-    .map((c) => `${c.kind} ${c.path}${c.guidance ? ` (${c.guidance})` : ""}`);
   const run = await runFix({
     tf: input.tf,
     prices: input.prices,
@@ -228,19 +231,12 @@ export async function fixRubyDependency(
     notes,
     targetDir: "",
     targetPaths: new Set(),
-    // The static diff of both .gem files is the reference: Ruby has no published API index.
-    docs: async (query) => {
-      const words = query
-        .toLowerCase()
-        .split(/[^a-z0-9_:]+/)
-        .filter((w) => w.length >= 3);
-      const hits = changed.filter((c) => words.some((w) => c.toLowerCase().includes(w)));
-      return [
-        `${a.instance.name} ${from} → ${target}, API changes read from both published gems (static; methods generated at runtime are not seen):`,
-        ...(hits.length ? hits : changed).slice(0, 60),
-        `Docs: https://www.rubydoc.info/gems/${a.instance.name}/${target}`,
-      ].join("\n");
-    },
+    // The target gem itself: its upgrade guide and README sections, then lib/ definitions.
+    docs: rubyDocsLookup(
+      a.instance.name,
+      target,
+      sources.map((src) => ({ path: src.url.split("/").pop() ?? src.url, text: src.text })),
+    ),
     onEvent: input.onEvent,
   });
   const groupKey = `gem/${a.instance.name}/${target}`;

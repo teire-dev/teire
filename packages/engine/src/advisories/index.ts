@@ -4,6 +4,7 @@ import { sha256 } from "../catalog/source";
 import { ADVISORIES } from "../constants";
 import { type ChangeV2, changeV2, type Ecosystem, type Signature } from "../contract";
 import { guardedFetch } from "../net/fetch";
+import { mavenSatisfies } from "../registry/maven-version";
 import { rubygemsScheme } from "../registry/versions";
 import { type RubysecAdvisory, rubysecAffects, rubysecDatabase, rubysecFixedIn } from "./rubysec";
 
@@ -100,6 +101,7 @@ function ghsaRangeMatches(range: string | null, version: string, ecosystem: Ecos
     const spec = range.replace(/\s+/g, "");
     return pep440.validRange(spec) ? pep440.satisfies(version, spec) : true;
   }
+  if (ecosystem === "maven") return mavenSatisfies(version, range);
   // RubyGems requirements (`>= 1.0.0, <= 1.10.5`) are read by ruby-semver as written.
   if (ecosystem === "rubygems") {
     try {
