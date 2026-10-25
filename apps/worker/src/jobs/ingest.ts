@@ -1,5 +1,11 @@
 import { and, changes, type Database, eq, lt, providerSources, providers } from "@teire/db";
-import { ingestProvider, PROVIDERS, type PreviousFetch } from "@teire/engine/catalog";
+import {
+  changeRecord,
+  ingestProvider,
+  PROVIDERS,
+  type PreviousFetch,
+  toChangeV2,
+} from "@teire/engine/catalog";
 import { changeHash, upsertChange } from "../store";
 
 export interface IngestSummary {
@@ -88,6 +94,19 @@ export async function ingestAll(db: Database): Promise<IngestSummary[]> {
       written++;
     }
     for (const r of run.rejected) console.error(`[ingest] ${provider.slug}: ${r.id} rejected: ${r.error}`);
+    // History the provider no longer lists stays, converted in place (it was gated when written).
+    if (stale && !run.unchanged) {
+      const leftovers = await db
+        .select({ record: changes.record })
+        .from(changes)
+        .where(and(eq(changes.providerSlug, provider.slug), lt(changes.schemaVersion, 2)));
+      for (const { record } of leftovers) {
+        const parsed = changeRecord.safeParse(record);
+        if (!parsed.success) continue;
+        await upsertChange(db, toChangeV2(parsed.data, provider));
+        written++;
+      }
+    }
 
     summaries.push({
       provider: provider.slug,
