@@ -56,6 +56,36 @@ function cell(side: SideResult, name: string) {
 }
 
 /** The Verification section: one table, both sides, then the evidence that decided the PR. */
+/** Blocks joined by blank lines, except table rows, which must stay on consecutive lines to render as a table. */
+export function joinBlocks(blocks: string[]) {
+  return blocks.join("\n\n").replace(/^(\|.*\|)\n\n(?=\|)/gm, "$1\n");
+}
+
+/** A quoted table row reads as text: `| Oct 23, 2026 | \`gpt-4.1-nano\` | …` → "Oct 23, 2026 · gpt-4.1-nano · …". */
+export function displayQuote(quote: string) {
+  if (!quote.trim().startsWith("|")) return quote;
+  return quote
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/`/g, "")
+    .replace(/\\\|/g, "/")
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** The closing line names the models that worked on this PR, and says so when none did. */
+function footer(runUrl: string | undefined, run: FixRun, extra: (string | undefined)[] = []) {
+  const models = [
+    ...new Set(
+      [...run.attempts.map((a) => a.model), run.review?.model, ...extra]
+        .filter((m): m is string => !!m)
+        .map(modelName),
+    ),
+  ];
+  return `<sub>Teire${runUrl ? ` · [live run](${runUrl})` : ""} · ${models.length ? `${models.join(" and ")} on Nebius Token Factory` : "deterministic fix, no model call"}</sub>`;
+}
+
 function verificationLines(
   run: FixRun,
   plan: CheckPlan,
@@ -288,10 +318,8 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     out.push(
       `\`@teire rebase\` · \`@teire recreate\` · \`@teire explain\` · \`@teire ignore ${instance.name}\``,
     );
-    out.push(
-      `<sub>Teire${input.runUrl ? ` · [live run](${input.runUrl})` : ""} · fixed with NVIDIA Nemotron on Nebius Token Factory</sub>`,
-    );
-    return out.join("\n\n");
+    out.push(footer(input.runUrl, run, [input.notesReceipt?.model]));
+    return joinBlocks(out);
   };
   for (const [diff, sites, notes] of [
     [true, PULL_REQUESTS.maxSitesPerFinding, 8],
@@ -368,14 +396,21 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     }
     if (unsure.length)
       out.push(
-        `<sub>Also mentioned, not passed as a model, left unchanged: ${unsure
-          .flatMap((f) => f.callSites.slice(0, 3))
-          .map((s) => `[\`${s.file}:${s.line}\`](${blob(repo, s.file, s.line)})`)
+        `<sub>Also mentioned, not passed as a model, left unchanged: ${[
+          ...new Set(unsure.flatMap((f) => f.callSites).map((s) => `${s.file}:${s.line}`)),
+        ]
+          .slice(0, 8)
+          .map((at) => {
+            const [file = "", line = "1"] = at.split(/:(?=\d+$)/);
+            return `[\`${at}\`](${blob(repo, file, Number(line))})`;
+          })
           .join(", ")}.</sub>`,
       );
     out.push("### What changed upstream");
     for (const note of input.notes.slice(0, 8))
-      out.push(`> ${escapeCell(note.quote).slice(0, 400)}\n>\n> — ${note.summary} ([source](${note.url}))`);
+      out.push(
+        `> ${escapeCell(displayQuote(note.quote)).slice(0, 400)}\n>\n> — ${note.summary} ([source](${note.url}))`,
+      );
     out.push("### Changes");
     out.push("| File | Change |", "|---|---|");
     for (const f of run.files) {
@@ -415,10 +450,8 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     );
     out.push("### Commands");
     out.push("`@teire rebase` · `@teire recreate` · `@teire explain` · `@teire ignore`");
-    out.push(
-      `<sub>Teire${input.runUrl ? ` · [live run](${input.runUrl})` : ""} · fixed with NVIDIA Nemotron on Nebius Token Factory</sub>`,
-    );
-    return out.join("\n\n");
+    out.push(footer(input.runUrl, run));
+    return joinBlocks(out);
   };
   for (const [diff, sites] of [
     [true, PULL_REQUESTS.maxSitesPerFinding],
@@ -540,5 +573,5 @@ export function composeOnboarding(input: {
   out.push("### Commands");
   out.push("`@teire rescan` · `@teire pause` · `@teire resume` · `@teire help`");
   out.push(`<sub>Teire${input.scanUrl ? ` · [scan](${input.scanUrl})` : ""}</sub>`);
-  return { title: "Configure Teire", body: out.join("\n\n").slice(0, PULL_REQUESTS.bodyMaxChars) };
+  return { title: "Configure Teire", body: joinBlocks(out).slice(0, PULL_REQUESTS.bodyMaxChars) };
 }
