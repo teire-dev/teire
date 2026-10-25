@@ -14,7 +14,7 @@ export function ExamplePr() {
   return (
     <figure className="w-full overflow-hidden rounded-lg bg-card text-left shadow-card">
       <figcaption className="sr-only">
-        An example pull request Teire opened on a demo repository after OpenAI retired gpt-4.1-nano.
+        The pull request Teire composed in a dry run on a demo repository after OpenAI retired gpt-4.1-nano.
       </figcaption>
       <div className="flex items-start gap-3 border-b px-4 py-3">
         <GitPullRequest className="mt-0.5 size-4 shrink-0 text-clear" aria-hidden />

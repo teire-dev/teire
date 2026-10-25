@@ -42,9 +42,9 @@ export async function runMigrations(db: Database, migrationsFolder: string) {
   await migrate(db, { migrationsFolder });
 }
 
-/** A database without TLS, for integration tests against a throwaway local Postgres only. */
-export function createLocalDb(connectionString: string) {
-  const pool = new pg.Pool({ connectionString, max: 2 });
+/** A database without TLS: a Postgres on this machine, for local development and integration tests only. */
+export function createLocalDb(connectionString: string, max = 2) {
+  const pool = new pg.Pool({ connectionString, max });
   const db = drizzle({ client: pool, schema: { ...schema, ...authSchema } });
   return { db, pool };
 }

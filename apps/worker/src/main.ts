@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
-import { createDb, runMigrations, sql, tlsOptions } from "@teire/db";
+import { createDb, createLocalDb, runMigrations, sql, tlsOptions } from "@teire/db";
 import { createGitHubApp, githubAppConfigFromEnv } from "@teire/engine/github";
 import { CreditsExhaustedError } from "@teire/engine/llm";
 import { PgBoss } from "pg-boss";
@@ -16,10 +16,19 @@ const PORT = Number(process.env.PORT ?? 8080);
 const databaseUrl = process.env.DATABASE_URL;
 const caCert = process.env.DATABASE_CA_CERT;
 if (!databaseUrl) throw new Error("DATABASE_URL is not set");
-if (!caCert) throw new Error("DATABASE_CA_CERT is not set");
+// TLS with a pinned CA everywhere, except a database on this machine (running Teire locally).
+const local = !caCert && /@(localhost|127\.0\.0\.1)[:/]/.test(databaseUrl);
+if (!caCert && !local)
+  throw new Error("DATABASE_CA_CERT is not set (only a localhost database may go without TLS)");
 
-const { db, pool } = createDb({ connectionString: databaseUrl, caCert });
-const boss = new PgBoss({ connectionString: databaseUrl, ssl: tlsOptions(caCert), schema: "pgboss" });
+const { db, pool } = caCert
+  ? createDb({ connectionString: databaseUrl, caCert })
+  : createLocalDb(databaseUrl, 10);
+const boss = new PgBoss({
+  connectionString: databaseUrl,
+  ...(caCert ? { ssl: tlsOptions(caCert) } : {}),
+  schema: "pgboss",
+});
 boss.on("error", (error) => console.error("[pg-boss]", error));
 
 const startedAt = new Date();
