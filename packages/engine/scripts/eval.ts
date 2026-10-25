@@ -94,7 +94,8 @@ const CASES: Case[] = [
 const API_CASES: { slug: string; group: string }[] = [
   { slug: "teire-dev/demo-py-agent", group: "models/nebius-token-factory" },
   { slug: "teire-dev/demo-ai-web", group: "models/openai" },
-  { slug: "teire-dev/demo-wrapped-models", group: "models/groq" },
+  // Groq has no hand-written reader: discovery names it after its domain (`groq-com`).
+  { slug: "teire-dev/demo-wrapped-models", group: "models/groq-com" },
 ];
 
 const args = process.argv.slice(2);
@@ -275,10 +276,10 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
   }
 }
 
-// Provider sources are read live, only for the providers each repo talks to.
-const providerChanges = liveProviderChanges({
-  reader: { tf: createTokenFactory(tokenFactoryConfigFromEnv()), prices: await fetchModelPrices() },
-});
+// Provider sources are read live, only for the providers each repo talks to; the same Nemotron
+// reader traces wrapped model IDs, as the worker's scan does.
+const reader = { tf: createTokenFactory(tokenFactoryConfigFromEnv()), prices: await fetchModelPrices() };
+const providerChanges = liveProviderChanges({ reader });
 for (const c of API_CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.endsWith(w)))) {
   const [owner, repo] = c.slug.split("/") as [string, string];
   try {
@@ -293,6 +294,7 @@ for (const c of API_CASES.filter((x) => !wanted.length || wanted.some((w) => x.s
     } = await assessApiChanges(checkout.dir, tree, await repoInstances(checkout.dir, tree), {
       changes: providerChanges,
       discover: { cache: memoryCache() },
+      triage: reader,
     });
     const group = findings.filter((f) => f.groupKey === c.group);
     const assessment = {
