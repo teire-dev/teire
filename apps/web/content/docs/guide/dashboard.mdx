@@ -1,0 +1,91 @@
+---
+title: Dashboard
+description: Every installed repository in one place, in the web app and as a Teire Dashboard issue in each repository, with the same actions as the @teire commands.
+icon: LayoutDashboard
+---
+
+There are two dashboards. The web one at [/app](/app) covers every repository you can see. The **Teire Dashboard** issue lives inside each repository on GitHub. Both show the same findings, and both can start the same actions.
+
+## The web dashboard
+
+Sign in with GitHub. When you sign in, Teire asks GitHub which installations you can see and shows only those repositories. If you install Teire somewhere new, sign out and in again so it shows up.
+
+<Tabs items={["Overview", "Repositories", "A repository", "Settings"]}>
+<Tab value="Overview">
+
+<Shot
+  name="dashboard"
+  alt="Overview: 3 repositories watched, 5 changes reaching code, 0 open Teire PRs, next deadline none; deadlines across repositories, recent runs with a verified dry run, and open pull requests."
+  caption="Overview: the counts, every deadline across your repositories, recent runs and open Teire PRs."
+/>
+
+</Tab>
+<Tab value="Repositories">
+
+<Shot
+  name="repos"
+  alt="Repositories: Action needed (3), each row with name, dependencies, last scan, ecosystem logo, affected count, PRs, status active, and Rescan and Pause buttons."
+  caption="Repositories grouped as Action needed, Setting up, Up to date and Paused, with Rescan and Pause on each row."
+/>
+
+</Tab>
+<Tab value="A repository">
+
+<Shot
+  name="repo-findings"
+  alt="teire-dev/demo-ruby-major, active: Findings (1) shows faraday 2.15.0 removes 43 APIs, affected, with three call sites in lib/status_client.rb, and Fix now and Ignore buttons."
+  caption="A repository's findings: each change with its lines, Fix now (or Open PR #n) and Ignore."
+/>
+
+<Shot
+  name="repo-inventory"
+  alt="Inventory (16) for teire-dev/demo-ruby-major: RubyGems packages with version, scope prod or test, and workspace; transitive ones marked."
+  caption="Inventory: every dependency the last scan read, direct and transitive."
+/>
+
+</Tab>
+<Tab value="Settings">
+
+<Shot
+  name="settings"
+  alt="Settings: the teire-dev installation (organisation, selected repositories) with Change repository access on GitHub, a note that configuration lives in teire.yml, and usage: runs, model tokens, model cost, sandbox time."
+  caption="Settings: your installations, a link to change their access on GitHub, and runs, tokens, model cost and sandbox time across your repositories."
+/>
+
+</Tab>
+</Tabs>
+
+A repository page has five tabs:
+
+| Tab | What it holds |
+|---|---|
+| **Findings** | Affected changes and those needing a person, each with **Fix now** or **Open PR #n**, and **Ignore**. Then the changes checked and ruled out, and the ignored ones with **Unignore** |
+| **Inventory** | Every dependency with its version (or "unresolved"), scope and workspace |
+| **Pull requests** | Teire's PRs, its "needs a human" issues and the onboarding PR, with their state |
+| **Runs** | The latest 25 runs with their evidence and cost |
+| **Config** | The resolved `teire.yml`: key, value, and whether it came from the repository, the organisation or the defaults |
+
+### Buttons
+
+**Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore** and **Unignore** work like their [`@teire` commands](/docs/guide/commands). The page shows "Queued", then the result once the worker has done it.
+
+The same rule applies as for a comment: you must have write access to the repository on GitHub. **Ignore** also closes that change's open PR.
+
+## The Teire Dashboard issue
+
+Once a repository is active, Teire keeps one issue named **Teire Dashboard** up to date. It is refreshed after every scan, every fix run and every action.
+
+| Section | Content | Tick the box to |
+|---|---|---|
+| Header | The last scan's commit and time, whether the repo is paused, a link to Teire | **Rescan now** |
+| Upcoming deadlines | Each dated change, with its PR or verdict | |
+| Affected | Each change with no PR yet: title, sites, priority | **Fix now** |
+| Open PRs | Each Teire PR | **Rebase** |
+| Needs a human | Links to Teire's issues | |
+| Not affected, Not applicable | Collapsed lists with the reason for each | |
+| Ignored | What you ignored | **Unignore** |
+| Inventory | Dependencies per ecosystem | |
+| Config problems | Keys that fell back to their defaults, and why | |
+| Commands | The `@teire` command list | |
+
+Ticking a box runs the action if you have write access. Teire then clears the ticks and comments `@you: …` with what started. Without write access nothing runs and the ticks are cleared. Set `dashboardIssue: false` in `teire.yml` to close the issue.

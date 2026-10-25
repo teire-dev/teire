@@ -1,0 +1,99 @@
+---
+title: Public scan and dry run
+description: See what would break in any public repository without installing anything, then watch Teire fix one change in the sandbox, without opening a pull request.
+icon: ScanSearch
+---
+
+A public scan runs the same assessment as an installed repository. It reads every dependency, every API host and model ID, and the runtime pins. It asks for no repository access and writes nothing to GitHub.
+
+<Shot
+  name="scan"
+  alt="Scan a public repository: a field for owner/name or a GitHub URL, a Scan button, and recent public reports with their affected counts."
+  caption="/scan: paste a repository and see the recent public reports."
+/>
+
+## Limits
+
+| | |
+|---|---|
+| Who | Anyone signed in with GitHub. Reports and runs of public repositories can be read without signing in |
+| How many | **3** scans and **1** dry run per person, over a rolling 24 hours |
+| Which repositories | Public ones, up to **300 MB** as GitHub reports their size |
+| What is read | The default branch at its latest commit, with the repository's own `teire.yml` |
+| GitHub access | Your own sign-in token, read only, so your rate limit applies; anonymous when that fails |
+
+## The report
+
+The report page updates by itself while the scan runs. Most repositories take one to five minutes. A finished report shows:
+
+- **Dependencies read**, per ecosystem as direct · transitive, with the files searched and how the lines were resolved (type-level or syntax-level),
+- **Deadlines**: dated changes that reach the code,
+- **Affected**: each change with its call sites linked to the exact line at the scanned commit,
+- **Needs a person**: changes Teire could not decide alone,
+- **Checked, not reaching this code**: changes Teire looked at and ruled out.
+
+<Tabs items={["Model retirement", "Go major", "Kotlin", "Python", "Nothing to fix"]}>
+<Tab value="Model retirement">
+<Shot name="report-wrapped-models" alt="Report for teire-dev/demo-wrapped-models: npm 4 direct and 60 transitive, 2 changes reaching this code, the Llama shutdown on 2026-08-16 at src/models.ts:7 and :9, and a Node.js 20 end-of-life notice at package.json:8." caption="Model IDs kept in a registry, traced to the request by Nemotron." />
+</Tab>
+<Tab value="Go major">
+<Shot name="report-go-major" alt="Report for teire-dev/demo-go-major with the golang-jwt v4 to v5 change and its call sites in auth/token.go." caption="A Go module major, resolved by type with go/types." />
+</Tab>
+<Tab value="Kotlin">
+<Shot name="report-kotlin-major" alt="Report for teire-dev/demo-kotlin-major: Maven · Gradle 3 direct and 11 transitive, two security advisories for okhttp and okio at PR priority 0, and okhttp 5.5.0 removing 133 APIs with call sites in WebhookClient.kt." caption="Two advisories and an OkHttp major in a Gradle project, at syntax level until the fix reads the compiled classes." />
+</Tab>
+<Tab value="Python">
+<Shot name="report-py-major" alt="Report for teire-dev/demo-py-major: PyPI 2 direct and 20 transitive, claude-2.1 shut down on 2025-07-21 at app/support.py:15, and anthropic 1.15.0 removing 70 APIs with four call sites in app/support.py." caption="A retired Anthropic model and an SDK major in the same file: griffe diffs the SDK, jedi finds the calls." />
+</Tab>
+<Tab value="Nothing to fix">
+<Shot name="report-clean" alt="Report for teire-dev/demo-clean: 1 change reaching the code, a Node.js 20 end-of-life notice at package.json:8, and 2 changes checked and ruled out." caption="Only a runtime notice: Teire reports it, and never opens a PR for a runtime." />
+</Tab>
+</Tabs>
+
+Each change title links to its page in the [public catalog](/changes), with the source's own words.
+
+## Dry-run a fix
+
+On an affected change, **Dry-run a fix** runs the whole fix as an installed repository would:
+
+1. the upgrade or model swap,
+2. the Nemotron agent,
+3. your checks in two sandboxes, before and after,
+4. the review.
+
+Nothing is written to GitHub. The run page shows each step live and keeps the pull request Teire would have opened. Runtime notices have no dry run, because Teire does not change runtimes.
+
+<Shot
+  name="dryrun-ai-web-pr"
+  alt="Dry run for teire-dev/demo-ai-web: status succeeded, evidence verified, The PR tab showing 'Replace retired model gpt-4.1-nano with gpt-5.6-luna' and its body."
+  caption="The PR tab: the title and body Teire would open, here for OpenAI's gpt-4.1-nano shutdown, fixed with no model call."
+/>
+
+The run page has five tabs:
+
+| Tab | Shows |
+|---|---|
+| **Timeline** | Every step as it happens, updated each second while the run is live |
+| **Diff** | The code change, file by file |
+| **Verification** | Each check's command and result on the baseline and after |
+| **Receipt** | Each model call with its tokens and cost, and the sandbox time |
+| **The PR** | The pull request (or the "needs a human" issue) Teire would open once installed |
+
+<Tabs items={["Timeline", "Verification", "Diff", "Receipt"]}>
+<Tab value="Timeline">
+<Shot name="dryrun-go-timeline" alt="The Timeline tab of the Go dry run: numbered events from cloning and installing to agent steps and verification." caption="The Go major dry run as it happened." />
+</Tab>
+<Tab value="Verification">
+<Shot name="dryrun-go-verification" alt="Verification tab: build go build, typecheck go vet and test go test, pass on baseline and after, 4/4 tests." caption="Your checks, before and after, with the network off." />
+</Tab>
+<Tab value="Diff">
+<Shot name="dryrun-go-diff" alt="Diff tab: auth/token.go moved from jwt/v4 StandardClaims to jwt/v5 RegisteredClaims and NumericDate." caption="What Nemotron changed in auth/token.go." />
+</Tab>
+<Tab value="Receipt">
+<Shot name="dryrun-go-receipt" alt="Receipt tab: Nemotron 3 Ultra calls for release notes, the fix and the review, with tokens and cost, then the sandbox time and the total." caption="Every model call of the run, priced." />
+</Tab>
+</Tabs>
+
+<Callout title="From a report to pull requests">
+  Install Teire on the repository and the same changes arrive as pull requests, each verified the same way. See the [Quickstart](/docs/guide/quickstart).
+</Callout>

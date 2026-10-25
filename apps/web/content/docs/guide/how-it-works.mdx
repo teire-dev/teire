@@ -1,0 +1,110 @@
+---
+title: How Teire works
+description: Five steps from a notice to a reviewed fix. Teire reads only what your code uses, finds the exact lines, fixes them, proves it with your own checks, and opens a pull request.
+icon: Workflow
+---
+
+<Shot
+  name="landing-steps"
+  alt="Five columns: Notice, Impact, Fix, Verify, Pull request, each with a one-line description and the tools that do it."
+  caption="The five steps every run takes, as the landing page shows them."
+/>
+
+## 1. Notice
+
+Teire reads the repository at one commit as a GitHub tarball, without git, and inventories every manifest and lockfile. For each dependency it asks the registry for newer versions, their publish dates and deprecations. It also queries OSV and GitHub's advisory database for every locked version, direct and transitive.
+
+The target version is the newest stable one that:
+
+- is at least **7 days** old (`upgrades.cooldownDays`, and longer if your package manager sets its own release-age gate),
+- respects your overrides and pins,
+- is not deprecated, yanked or a prerelease.
+
+Security fixes skip the cooldown and take the smallest version that fixes every advisory.
+
+For APIs, Teire looks at the URL literals and the SDKs in your code. A provider's change pages are read only when your repository talks to it, and at most once every 6 hours, shared by every repository. Nothing is read on a schedule. See [Providers](/docs/ecosystems/providers).
+
+## 2. Impact
+
+For a **major** upgrade, Teire diffs the public API of your installed version against the target, using the tool for your ecosystem. It then finds the lines in your code that use what changed:
+
+| Ecosystem | API diff | Finds your lines with |
+|---|---|---|
+| npm | TypeScript declarations (TS 6.0.3) | the TypeScript type checker (ts-morph) |
+| PyPI | griffe 2.4.1 | jedi |
+| Go | apidiff | go/types |
+| Cargo | cargo-semver-checks 0.51.0 | a syntax-level search |
+| RubyGems | Prism | Prism, syntax level |
+| Maven · Gradle | japicmp 0.26.3 | imports, then your compiled classes during the fix |
+
+Minor and patch upgrades get no API diff. They are plain bumps, and the sandbox decides them. Model IDs and API URLs are found with ast-grep in JS/TS, Python, Go, Rust, Ruby, Java and Kotlin.
+
+Each finding gets one verdict:
+
+| Verdict | Meaning |
+|---|---|
+| **affected** | Your code uses what changed (resolved call sites, a model ID passed as a model, an advisory in your installed range) |
+| **not affected** | Resolved by type, and nothing unresolved is left. Teire says this only with type-level coverage |
+| **inconclusive** | No resolved use, but the search was syntax-level or some sites could not be resolved. The sandbox decides |
+| **needs a human** | The installed version is unknown (no lockfile or exact pin) |
+| **check by hand** | The change names nothing Teire can search for |
+| **not applicable** | The change concerns another version than the one you have |
+
+## 3. Fix
+
+A run starts with the upgrade itself. Teire edits the manifest as text, then your package manager regenerates the lockfile inside the sandbox.
+
+Next come deterministic edits:
+
+- a model swap to the replacement the provider names,
+- for npm packages, an import or call rename that a quoted migration note maps old → new, only where the target proves the new name exists.
+
+If verification is already good enough for a pull request at that point, the run stops **with no model call**.
+
+Otherwise NVIDIA Nemotron 3 Ultra works as an agent with six tools: `read_file`, `search`, `edit_file`, `run_check`, `lookup_docs` and `finish`. It may edit only the files the change reaches and the files your check output names. It never edits manifests, lockfiles, config or CI. It has up to 24 steps per attempt and 4 attempts. After 2 failed verifications it starts over from a plan. When an attempt passes, a review pass reads the diff and sends back any real problem once. See [Nemotron on Token Factory](/docs/nemotron).
+
+<Diagram
+  name="fix-loop"
+  width={1568}
+  height={174}
+  alt="Flow: upgrade transaction, deterministic edits, your checks before vs after; pass goes to the pull request, fail goes to the Nemotron agent, which loops until checks pass or attempts run out; a passing fix goes through the review pass."
+  caption="How a fix run decides what to do next."
+/>
+
+## 4. Verify
+
+Two sandboxes start from the same commit: the **baseline** with your lockfile, and the **after** side with the change.
+
+1. Each side installs. While it does, it may only download from package registries and toolchain hosts.
+2. Each side then runs your typecheck, build and tests **with the network off**.
+
+Teire compares the two sides check by check and test count by test count. The result is one evidence kind, decided by rules, never by a model. See [Verification](/docs/build/verification).
+
+## 5. Pull request
+
+| Evidence | What Teire opens |
+|---|---|
+| `verified` | A ready pull request |
+| `typecheck_only`, `pre_existing_failure`, `needs_live_access`, `needs_local_service`, `environment_mismatch` | A draft pull request that names the reason |
+| `regression`, `unverified`, `timeout` | An issue, **Teire needs a human**, with the best diff and the evidence |
+
+There is one PR per package and target version, and one per provider for model and API changes (`models/openai`, `api/stripe`). A newer target for the same package closes the older PR as superseded. A PR you close stays closed: later scans skip that package version or provider group. See [Anatomy of a Teire PR](/docs/guide/anatomy-of-a-pr).
+
+## What starts a scan
+
+| Trigger | When |
+|---|---|
+| Install | The App is installed, or repositories are added to it |
+| Push | A push to the default branch that touches a manifest, a lockfile, `teire.yml` or a source file |
+| Onboarding | Merging **Configure Teire** |
+| Command | `@teire rescan`, `@teire resume`, or ticking **Rescan now** in the Dashboard issue |
+| Web | **Rescan** or **Resume** on the dashboard |
+| Schedule | `schedule: daily` or `weekly` in `teire.yml`, for active repositories whose last scan is older than that |
+
+Changes are fixed most urgent first:
+
+1. a security fix with a fixed version,
+2. a change that already broke the code,
+3. a dated change within 90 days,
+4. a breaking change,
+5. everything else.

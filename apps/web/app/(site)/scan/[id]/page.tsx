@@ -192,7 +192,7 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
         <div>
           <p className="font-medium">Get these as pull requests</p>
           <p className="text-sm text-muted-foreground">
-            Installed, Teire rescans on every push and opens one verified PR per change.
+            Installed, Teire rescans when a push to your default branch changes dependencies or code, and opens a pull request per change, ready once your own checks pass before and after.
           </p>
         </div>
         <Button asChild shape="pill">

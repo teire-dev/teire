@@ -1,0 +1,63 @@
+---
+title: "@teire commands"
+description: Comment on any issue or pull request to rescan, fix, ignore, rebase, explain or pause. Teire answers in the thread and links the live run.
+icon: MessageSquareText
+---
+
+Start a line of a comment with the command, on any issue or pull request in the repository. Teire reacts with 👀 as soon as it reads the comment, then replies. Commands need **write**, **maintain** or **admin** access to the repository. Anyone else gets "Teire commands need write access to this repository, so nothing was run."
+
+`@teire help` replies with this table:
+
+| Command | What it does |
+|---|---|
+| `@teire rescan` | Scan the default branch again |
+| `@teire fix <change or package>` | Start a fix run now (also: tick "Fix now" in the Dashboard issue) |
+| `@teire ignore <change, package or provider:name>` | Stop reporting it; closes its open PR |
+| `@teire unignore <change, package or provider:name>` | Report it again |
+| `@teire rebase` | On a Teire PR: re-apply on the current base and verify again |
+| `@teire recreate` | On a Teire PR (even closed): run the fix again from scratch |
+| `@teire explain` | On a Teire PR or issue: the evidence behind it |
+| `@teire config` | The resolved config, with where each value came from |
+| `@teire pause` / `@teire resume` | Stop or restart scans and PRs for this repo |
+| `@teire wrong <reason>` | Tell us a finding is a false positive or negative |
+| `@teire help` | This list |
+
+## What each one does
+
+<Accordions>
+<Accordion title="rescan">
+Queues a scan of the default branch, or of `pullRequests.targetBranch` when one is set. The reply is "Rescanning the default branch; the Dashboard issue updates when it finishes." A paused repository answers "`@teire resume` first."
+</Accordion>
+<Accordion title="fix <target>">
+Finds the first finding that matches the target and starts its fix run on the current head. The reply links the run page. If a PR for that change is already open, Teire answers "Already open" with its link. A target matching nothing gets "No finding matches…".
+</Accordion>
+<Accordion title="ignore / unignore <target>">
+The target can be a change ID, a package (`openai` or `npm:openai`), a provider (`provider:groq-com`), or a group such as `models/openai`. Ignoring marks the matching findings ignored and closes each matching open PR with a comment. The ignore is stored on the repository and survives rescans. `unignore` reopens the findings.
+</Accordion>
+<Accordion title="rebase / recreate">
+Both work on a Teire PR or issue. **rebase** reruns the fix on the current base, once per base commit. **recreate** always starts a fresh run, even on a closed PR. Both reset the branch only when every commit on it is Teire's. If someone else pushed to the branch, the run stops and says so on the PR.
+</Accordion>
+<Accordion title="explain">
+On a Teire PR or issue, or with a change named: up to 10 findings, each with its verdict, the reason and up to 5 sites, plus a link to the run with the full evidence.
+</Accordion>
+<Accordion title="config">
+Reads `teire.yml` from the default branch and from the organisation's `teire-config` repository. It replies with every resolved key, where the value came from, and any problems (those keys use their defaults).
+</Accordion>
+<Accordion title="pause / resume">
+**pause** stops scans and pull requests for the repository. A fix run that starts while the repository is paused is cancelled with "repository paused". **resume** restores the previous state and rescans.
+</Accordion>
+<Accordion title="wrong <reason>">
+Records the feedback (up to 2,000 characters) against the repository. The reply is "Thanks; recorded."
+</Accordion>
+</Accordions>
+
+## Without a comment
+
+The same actions exist in two other places:
+
+- **The Dashboard issue.** Tick **Rescan now**, **Fix now**, **Rebase** or **Unignore**.
+- **The web dashboard.** **Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore** and **Unignore** on the repository page.
+
+Both apply the same write-access rule. See [Dashboard](/docs/guide/dashboard).
+
+Teire posts no progress comments while it works. The live view is the run page, linked from the reply, from the PR's footer and from the **Teire** check run's details.

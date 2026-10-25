@@ -1,0 +1,126 @@
+---
+title: Configuration (teire.yml)
+description: One optional file decides what Teire upgrades, how many PRs it opens, which checks it runs and what it reads. Every key has a default, and a mistake never stops a scan.
+icon: Settings2
+---
+
+Teire keeps no settings of its own. Everything lives in the repository, in the first of these files that exists:
+
+<Files>
+  <Folder name=".github" defaultOpen>
+    <File name="teire.yml" />
+  </Folder>
+</Files>
+
+`.github/teire.yaml`, `teire.yml` and `teire.yaml` at the root work too.
+
+An organisation can share defaults in a repository named **`teire-config`**, as `teire.yml` or `.github/teire.yml`. Values resolve **repository → organisation → defaults**:
+
+- Objects merge key by key.
+- The `ignore` and `sources` lists add up: the organisation's first, then the repository's.
+
+Models, endpoints and keys can't be set from a repository.
+
+## The defaults
+
+The **Configure Teire** pull request adds this file:
+
+```yaml title=".github/teire.yml"
+# yaml-language-server: $schema=https://teire.vercel.app/schema.json
+# Teire configuration. Every key is optional; these are the defaults.
+# Reference: https://teire.vercel.app/docs/config
+upgrades:
+  majors: true          # open upgrade PRs across major versions
+  plainBumps: true      # open verified upgrades with no code change (last in the queue)
+  cooldownDays: 7       # wait this long after a release before proposing it
+pullRequests:
+  limit: 5              # open Teire PRs at most
+  perHour: 2            # new Teire PRs per hour at most
+dashboardIssue: true
+```
+
+The first line points editors that use the YAML language server at [`/schema.json`](/schema.json). They complete keys and flag mistakes as you type.
+
+## Every key
+
+Read from the same schema the worker validates with:
+
+<ConfigReference />
+
+## Examples
+
+<Tabs items={["Fewer PRs", "Custom checks", "Your own API", "Monorepo"]}>
+<Tab value="Fewer PRs">
+
+```yaml title=".github/teire.yml"
+upgrades:
+  plainBumps: false        # only upgrades that change your code, and security fixes
+  deny: [react, react-dom] # never these
+pullRequests:
+  limit: 2
+  labels: [dependencies]
+ignore:
+  - provider:stripe        # don't report Stripe API changes
+```
+
+</Tab>
+<Tab value="Custom checks">
+
+```yaml title=".github/teire.yml"
+verify:
+  - workspace: .
+    install: pnpm install --frozen-lockfile --ignore-scripts
+    typecheck: pnpm -r typecheck
+    test: pnpm vitest run --project unit
+```
+
+These replace the commands Teire detects, for that workspace. Install runs with registry access; the checks run with the network off. API and model fixes always use the detected checks.
+
+</Tab>
+<Tab value="Your own API">
+
+```yaml title=".github/teire.yml"
+sources:
+  - host: api.example.com
+    changelogUrl: https://docs.example.com/changelog
+  - host: api.example.com
+    specUrl: https://github.com/example/openapi/blob/main/openapi.yaml
+```
+
+With a `changelogUrl`, Teire reads that page with Nemotron under the same quote rule as any provider, for this repository only. With a `specUrl` (a file on GitHub), Teire diffs your API's OpenAPI spec and matches the operations your code calls. `package` is accepted beside `host` but is not read yet.
+
+</Tab>
+<Tab value="Monorepo">
+
+```yaml title=".github/teire.yml"
+paths: ["services/**", "packages/**"]
+ignorePaths: ["examples/**"]
+ecosystems:
+  maven: false
+pullRequests:
+  targetBranch: develop
+schedule: weekly
+```
+
+</Tab>
+</Tabs>
+
+## When the file has a mistake
+
+The file is read leniently:
+
+- A key with the wrong type falls back to its default.
+- An unknown key is reported.
+- The valid parts of a list or object are kept.
+
+A mistake never stops a scan. Problems show up in three places:
+
+- a **Teire config** check run on the scanned commit, with an annotation on each bad line,
+- **Config problems (defaults used)** in the Dashboard issue,
+- the reply to `@teire config`, which also shows where every value came from.
+
+A problem reads like `.github/teire.yml line 3: upgrades.cooldownDays Too big: expected number to be <=90`, or `line 4: foo unknown key "foo"`.
+
+<Callout title="When changes take effect">
+  Teire stores the resolved file with each scan. Push the change to the default branch: a push that touches `teire.yml` triggers a scan. `@teire rescan` works too.
+</Callout>

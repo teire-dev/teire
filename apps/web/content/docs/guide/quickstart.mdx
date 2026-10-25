@@ -1,0 +1,104 @@
+---
+title: Quickstart
+description: Three ways in. Install the App for pull requests, scan a public repository for a report, or run the CLI on a checkout.
+icon: Rocket
+---
+
+<Tabs items={["GitHub App", "Public scan", "CLI"]}>
+<Tab value="GitHub App">
+
+<Steps>
+<Step>
+
+### Install Teire on GitHub
+
+Open [github.com/apps/teire-bot](https://github.com/apps/teire-bot/installations/new) and pick the repositories. GitHub then sends you to `/welcome`. Sign in with GitHub there to watch each repository's first scan.
+
+</Step>
+<Step>
+
+### Read the first scan
+
+Teire downloads each repository at one commit and reads every manifest and lockfile. It checks each dependency against its registry and the APIs your code calls against their change pages.
+
+If the repository has no `teire.yml`, Teire opens a pull request named **Configure Teire**. It adds only `.github/teire.yml` with the defaults. Its body lists what Teire found and the upgrades it will open once you merge.
+
+A repository that already has a `teire.yml` skips this and goes straight to work.
+
+</Step>
+<Step>
+
+### Merge Configure Teire
+
+The repository becomes active and is scanned again. Teire queues a fix run for each change that reaches your code, most urgent first. By default at most **5** Teire PRs are open at once and **2** new ones open per hour. The **Teire Dashboard** issue appears and stays current.
+
+</Step>
+<Step>
+
+### Review the pull requests
+
+Each PR is **ready** when your checks passed before and after. It is a **draft** when something could not be proven, and the PR says what. When the fix breaks a check, Teire opens an **issue** for a person instead. See [Anatomy of a Teire PR](/docs/guide/anatomy-of-a-pr).
+
+</Step>
+</Steps>
+
+<Shot
+  name="welcome"
+  alt="The welcome page: 'Teire is installed.', First scans listing three repositories as scanned with Open links, and the buttons Open the dashboard and Read how Teire works."
+  caption="/welcome after an install: each repository's first scan, with a link to its page."
+/>
+
+</Tab>
+<Tab value="Public scan">
+
+<Steps>
+<Step>
+
+### Sign in
+
+Go to [/scan](/scan) and sign in with GitHub. A public scan asks for no repository access. Each person gets **3** scans and **1** dry run per rolling 24 hours.
+
+</Step>
+<Step>
+
+### Paste a repository
+
+Enter `owner/name` or its GitHub URL. The repository must be public and at most 300 MB. The report usually takes one to five minutes and updates by itself.
+
+</Step>
+<Step>
+
+### Dry-run a fix
+
+On any affected change, **Dry-run a fix** runs the whole fix: Nemotron and the sandbox, before and after. It opens nothing on GitHub. The run page shows the pull request Teire would open.
+
+</Step>
+</Steps>
+
+<Phones>
+  <Phone name="scan" alt="The Scan a public repository page on a phone: the repository field, the Scan button and recent public reports." caption="/scan" />
+  <Phone name="report-wrapped-models" alt="A public report on a phone: dependencies read, 2 changes reaching this code, deadlines and the affected Llama shutdown." caption="The report" />
+  <Phone name="dryrun-ai-web-pr" alt="A dry run on a phone: succeeded, verified, and the PR tab with 'Replace retired model gpt-4.1-nano with gpt-5.6-luna'." caption="The dry run's PR" />
+</Phones>
+
+</Tab>
+<Tab value="CLI">
+
+```bash
+npx teire scan
+```
+
+The same engine runs on your machine. It reads registries and provider pages and prints what reaches your code. `teire check` fails CI when a deadline is close.
+
+```bash
+npx teire check --fail-on deadline --within 60
+```
+
+<Callout type="warn" title="Not on npm yet">
+  The `teire` package has not been published to npm, so `npx teire` fails for now. Build it from a clone instead: `pnpm install && pnpm --filter teire build`, then `node packages/cli/dist/teire.mjs scan`.
+</Callout>
+
+All commands, toolchains and exit codes are on the [CLI page](/docs/build/cli). The [MCP page](/docs/build/mcp) covers coding agents.
+
+</Tab>
+</Tabs>

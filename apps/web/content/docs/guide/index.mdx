@@ -1,7 +1,108 @@
 ---
-title: Introduction
+title: Teire
 description: When a package, API or model changes, Teire fixes your code.
-icon: BookOpen
+icon: House
 ---
 
-Placeholder while the fact sheets are written.
+A Nemotron coding agent on Nebius Token Factory finds the lines that break, fixes them, runs your own tests before and after, and opens a pull request.
+
+Teire watches every dependency and API your repository uses. That covers six package ecosystems, the AI and payment APIs your code calls, and the runtimes it is pinned to. When one of them changes in a way that reaches your code, Teire finds the exact lines. NVIDIA Nemotron 3 Ultra on Nebius Token Factory edits what a plain swap cannot. Your own checks run in a sandbox before and after the change, and Teire opens a pull request that shows the evidence.
+
+<Diagram
+  name="model-retirement"
+  width={1568}
+  height={500}
+  alt="Sequence: Teire scans teire-dev/demo-wrapped-models, finds Groq's deprecations page, has Nemotron read it with verbatim quotes, traces the wrapped model IDs to the request, swaps them, verifies 0/4 → 4/4 tests in the sandbox, and opens a ready PR."
+  caption="A real run, numbered in order. Groq shut down two Llama models on 2026-08-16. The repository keeps both IDs in a tier registry, not in a model: argument."
+/>
+
+## One change, end to end
+
+The run above is from Teire's evaluation, on [teire-dev/demo-wrapped-models](https://github.com/teire-dev/demo-wrapped-models).
+
+<Steps>
+<Step>
+
+**Notice.** `groq-sdk` is installed and Teire has no hand-written reader for Groq. The SDK's own published code names `api.groq.com`. Groq's `llms.txt` and a Tavily search led to `console.groq.com/docs/deprecations`. Nemotron read that page into change records, and each record was kept only because its quote appears word for word in the fetched page.
+
+</Step>
+<Step>
+
+**Impact.** `llama-3.1-8b-instant` sits in `src/models.ts:7` as `TIERS.quick.id`, not as a `model:` argument, so plain text search can't tell whether it reaches a request. Nemotron traced it: *"src/llm.ts:12 `model: t.id,`"*. Code then checked that the cited line exists in a file the model was shown and names a model. Only then did the finding become **affected**.
+
+</Step>
+<Step>
+
+**Fix.** Teire swapped in the replacements Groq names. Nemotron 3 Ultra adjusted what the swap broke: 1 attempt, 12 steps, $0.095.
+
+</Step>
+<Step>
+
+**Verify.** Both sides ran in their own sandbox with the network off. The baseline's tests passed 0/4, because the retired models are gone. After the change, 4/4 passed.
+
+</Step>
+<Step>
+
+**Pull request.** Evidence `verified` means a ready PR that opens with **Verified.** It carries the quotes, the call sites, the before/after table and the receipt.
+
+</Step>
+</Steps>
+
+<Shot
+  name="report-wrapped-models"
+  alt="Public report for teire-dev/demo-wrapped-models: 2 changes reaching this code, the Llama shutdown with its two lines in src/models.ts, a Dry-run a fix button, and a Node.js 20 end-of-life notice."
+  caption="The same repository as a public scan: the two registry lines, the deadline, and a button to dry-run the fix."
+/>
+
+## Where you use it
+
+<Cards>
+  <Card icon={<Icon name="GitPullRequest" />} title="The GitHub App" href="/docs/guide/quickstart">
+    Install it on a repository. Teire opens one PR per change, keeps a Dashboard issue, and answers `@teire` commands.
+  </Card>
+  <Card icon={<Icon name="ScanSearch" />} title="A public scan" href="/docs/guide/public-scan">
+    Paste any public repository for a report, then dry-run a fix in the sandbox without opening a PR.
+  </Card>
+  <Card icon={<Icon name="LayoutDashboard" />} title="The dashboard" href="/docs/guide/dashboard">
+    Every installed repository, its findings, deadlines, runs and PRs, with buttons for the same actions as the commands.
+  </Card>
+  <Card icon={<Icon name="SquareTerminal" />} title="CLI and MCP" href="/docs/build/cli">
+    `teire scan` and `teire check` in a terminal or CI, and the same tools for coding agents over MCP.
+  </Card>
+</Cards>
+
+## What it reads
+
+Six package ecosystems, each diffed with a tool built for its language:
+
+<EcosystemGrid />
+
+The APIs your code calls. These providers have a reader written for their change pages. Any other API host in your code or your SDKs is discovered and read by Nemotron under the same quote rule ([Providers](/docs/ecosystems/providers)).
+
+<ProviderRow />
+
+Node.js and Python runtimes are checked against their end-of-life dates. Those are notices only, never PRs ([Runtimes](/docs/ecosystems/runtimes)).
+
+## How it is built
+
+<Diagram
+  name="system"
+  width={1568}
+  height={552}
+  alt="System: developers install the GitHub App and use the web app; GitHub webhooks reach the web app, which writes to a Postgres outbox; the worker claims them, reads registries, provider pages and Tavily, calls Nemotron on Token Factory, verifies in Cloudflare Containers, and writes branches, PRs, check runs and issues back to GitHub."
+  caption="The web app on Vercel, the worker and Postgres on Coolify, the sandbox on Cloudflare Containers, and every model call on Nebius Token Factory."
+/>
+
+## What Teire never does
+
+- Push to your default branch or merge anything. Every change goes to a `teire/…` branch in a pull request.
+- Run your code outside a sandbox. Your checks run there with the network off.
+- Send your code to any model but NVIDIA Nemotron on Nebius Token Factory.
+- Act on a provider's change unless its quote matches the page it came from.
+
+<Cards>
+  <Card title="Quickstart" href="/docs/guide/quickstart" />
+  <Card title="How Teire works" href="/docs/guide/how-it-works" />
+  <Card title="Anatomy of a Teire PR" href="/docs/guide/anatomy-of-a-pr" />
+  <Card title="Nemotron on Token Factory" href="/docs/nemotron" />
+</Cards>

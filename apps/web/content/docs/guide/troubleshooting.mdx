@@ -1,0 +1,75 @@
+---
+title: Troubleshooting
+description: Why a change got no pull request, why a PR is a draft, and what to do when Teire stops. Each answer names the place where Teire already says so.
+icon: LifeBuoy
+---
+
+Teire writes down why it did or didn't act. Check these first: the **Teire Dashboard** issue, the repository page in the [dashboard](/app), the run page linked from every PR and reply, and `@teire explain`.
+
+## Why is there no pull request?
+
+<Accordions>
+<Accordion title="The repository is still setting up">
+Teire opens no fix PRs until **Configure Teire** is merged. The repository shows **Setting up** in the dashboard. If you closed that PR without merging, reopen and merge it. Alternatively, commit a `teire.yml` before installing: a repository that already has one starts straight away.
+</Accordion>
+<Accordion title="It is paused">
+`@teire pause` (or **Pause** in the dashboard) stops scans and PRs. A fix run that starts while paused ends as "repository paused". Use `@teire resume`.
+</Accordion>
+<Accordion title="The PR limit is reached">
+By default at most 5 Teire PRs are open and 2 new ones open per hour. A run over the limit shows **waiting for the PR limit** and tries again an hour later. Merge or close PRs, or raise `pullRequests.limit` and `perHour`.
+</Accordion>
+<Accordion title="Model work is paused">
+When the daily model budget is used up ($10 per 24 hours by default) or Token Factory credits run out, runs show **waiting for the model budget** or **waiting for Token Factory credits**. They try again every 30 minutes. The [trust page](/trust) shows the live state.
+</Accordion>
+<Accordion title="The change does not reach your code">
+A major with no resolved use is **not affected**, when resolved by type, or **inconclusive** otherwise. Either way it becomes a plain bump. So does every minor or patch. Plain bumps open only while `upgrades.plainBumps` is on (the default), and they come last in the queue.
+</Accordion>
+<Accordion title="The version is too new, or excluded">
+Versions younger than `upgrades.cooldownDays` (7 by default) wait, as do versions your package manager's own release-age setting holds back. Security fixes don't wait. Check `upgrades.majors`, `upgrades.allow`, `upgrades.deny` and `ignore` with `@teire config`.
+</Accordion>
+<Accordion title="A PR for it was closed">
+Later scans never reopen a change whose PR was closed or merged. Comment `@teire recreate` on the closed PR, or `@teire fix <package>`, to run it again. A newer target version counts as a new change.
+</Accordion>
+<Accordion title="Teire opened an issue instead">
+When the fix breaks a check, no checks can be found, or a check times out, Teire opens **Teire needs a human: …** with its best diff and the evidence, not a PR.
+</Accordion>
+<Accordion title="The installed version is unknown">
+Without a lockfile or an exact pin, a finding reads **needs a human**. Teire won't guess which version you run.
+</Accordion>
+<Accordion title="The push did not trigger a scan">
+Only pushes to the default branch rescan, and only when they touch a manifest, a lockfile, `teire.yml` or a source file. A new upstream release is noticed on the next scan. Set `schedule: daily` or `weekly` to rescan without pushes.
+</Accordion>
+<Accordion title="The scan failed">
+Common causes:
+
+- the repository tarball is over 200 MB or 20,000 files,
+- Go modules that only resolve privately (Teire reads the public Go proxy),
+- a scan running longer than 45 minutes, which is stopped.
+
+Fix the cause, then `@teire rescan`.
+</Accordion>
+</Accordions>
+
+## Why is my PR a draft?
+
+The first line of the PR says which case it is.
+
+| Draft reason | What happened | What you can do |
+|---|---|---|
+| **typecheck only** | A typecheck or build passed on both sides, but no tests were counted | Add tests, or set `verify[].test` |
+| **checks already failing** | The checks failed on your base too, and the change made nothing worse | Fix the base; `@teire rebase` re-verifies |
+| **needs live access** | A check tried the network, which is off during checks. The denied hosts are listed | Mock the calls in tests, or review by hand |
+| **needs a local service** | A test reached for PostgreSQL, MySQL, Redis, MongoDB, Elasticsearch, RabbitMQ or Memcached on localhost | Review by hand. Ruby projects get the services their CI declares |
+| **environment differs** | Your lockfile does not install in the sandbox, for example a Node engine or native binary mismatch | Set `verify[].install`, or review by hand |
+
+## Teire stopped updating this branch
+
+Teire resets a `teire/…` branch only when every commit on it is its own. If someone else pushed to it, the run stops and says so on the PR. Your commits are never overwritten. To have Teire start over, delete the branch, which closes the PR, then comment `@teire recreate` on that PR. Or finish the PR yourself.
+
+## A run says "interrupted"
+
+A run that stops sending its heartbeat for 10 minutes, for example because the worker restarted, is marked interrupted. Comment `@teire recreate` on its PR, or `@teire fix <package>`, to run it again.
+
+## The "Teire config" check failed
+
+The check lists each problem in `teire.yml` at its line. Those keys use their defaults, and everything else still works. See [Configuration](/docs/guide/configuration#when-the-file-has-a-mistake).
