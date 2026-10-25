@@ -27,6 +27,7 @@ import {
   type Phase,
   REGISTRY_HOSTS,
   SANDBOX_ID,
+  START_WAIT_MS,
   WORK_DIR,
 } from "./policy";
 
@@ -133,7 +134,20 @@ export class VerifySandbox extends DurableObject<Env> {
   }
 
   async start(sid: string, options: StartOptions) {
-    if (this.#container.running) throw new Error("conflict: sandbox already running");
+    if (this.#container.running) {
+      // The client's retry of a slow start for the same run: wait for the first start to finish and
+      // answer as it would have. Another run's sandbox is a conflict.
+      if ((await this.ctx.storage.get<string>("sid")) !== sid)
+        throw new Error("conflict: sandbox already running");
+      const deadline = Date.now() + START_WAIT_MS;
+      while (Date.now() < deadline) {
+        const done = await this.ctx.storage.get<{ instance: string; fetchMs: number }>("started");
+        if (done) return { sid, instance: done.instance, startMs: 0, fetchMs: done.fetchMs, reused: true };
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      throw new Error("conflict: sandbox still starting");
+    }
+    await this.ctx.storage.delete("started");
     const started = Date.now();
     const instance = options.instance ?? "standard-2";
     const labels = { sid };
@@ -175,6 +189,7 @@ export class VerifySandbox extends DurableObject<Env> {
       // Drop the tarball grant: from here the token is gone from every handler.
       await this.#routeEgress(sid, "install");
     }
+    await this.ctx.storage.put("started", { instance, fetchMs });
     return { sid, instance, startMs: Date.now() - started, fetchMs };
   }
 

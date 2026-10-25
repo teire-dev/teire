@@ -1,5 +1,7 @@
 import { CATALOG_SCHEMA_VERSION, type ProviderRecord, providerRecord } from "./schema";
 
+export type { ProviderRecord };
+
 /**
  * Readers for providers whose change pages Teire can parse directly (a table, a notices index). They
  * are not a list Teire watches: a provider's pages are read only when a scanned repo talks to it

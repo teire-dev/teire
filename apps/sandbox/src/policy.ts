@@ -7,6 +7,8 @@ export const INTERCEPT_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt"
 export const IDLE_MS = 15 * 60_000;
 /** How often the alarm checks running jobs; each alarm keeps the instance alive. */
 export const ALARM_MS = 60_000;
+/** How long a repeated start for the same run waits for the first one (tarball fetch included). */
+export const START_WAIT_MS = 5 * 60_000;
 /** Hard ceiling for one job, whatever the caller asks for. */
 export const MAX_JOB_SECONDS = 60 * 60;
 /** Short buffered commands (`exec` route) stay small: output lives in Durable Object memory. */

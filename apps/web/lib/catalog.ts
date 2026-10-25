@@ -1,7 +1,9 @@
 import { and, asc, changes, desc, eq, providers, sql } from "@teire/db";
 import type { ChangeV2 } from "@teire/engine/contract";
 import { cacheLife, cacheTag } from "next/cache";
+import { ECOSYSTEMS } from "./brands";
 import { database } from "./db";
+import { providerLogo } from "./logos";
 
 /**
  * Public changes (plan feature 7): every confirmed public change Teire has read, which is only ever
@@ -54,9 +56,19 @@ export function sourceOf(row: Pick<CatalogRow, "provider" | "record">) {
 }
 
 export function sourceLabel(key: string, names: Record<string, string>) {
-  if (key.startsWith("pkg:"))
-    return { npm: "npm packages", pypi: "PyPI packages" }[key.slice(4)] ?? `${key.slice(4)} packages`;
+  if (key.startsWith("pkg:")) return `${ECOSYSTEMS[key.slice(4)]?.label ?? key.slice(4)} packages`;
   return names[key] ?? key;
+}
+
+/** The logo for a source: the provider's own mark, or the package ecosystem's. */
+export function sourceLogo(key: string) {
+  if (key.startsWith("pkg:")) {
+    const e = ECOSYSTEMS[key.slice(4)];
+    return e
+      ? { light: e.light, dark: e.dark }
+      : { light: "/logos/provider.svg", dark: "/logos/provider.svg" };
+  }
+  return providerLogo(key);
 }
 
 export async function listChanges(): Promise<CatalogRow[]> {
