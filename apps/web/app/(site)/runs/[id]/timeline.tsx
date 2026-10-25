@@ -33,9 +33,14 @@ export function Timeline({ runId, initialStatus }: { runId: string; initialStatu
         const res = await fetch(`/api/runs/${runId}/events?after=${after.current}`).catch(() => null);
         if (res?.ok) {
           const data = (await res.json()) as { status: string; events: RunEvent[] };
+          // A poll that lands after unmount (or overlaps another) must not add events twice.
+          if (stopped) return;
           if (data.events.length) {
-            after.current = data.events[data.events.length - 1]?.seq ?? after.current;
-            setEvents((prev) => [...prev, ...data.events]);
+            after.current = Math.max(after.current, data.events[data.events.length - 1]?.seq ?? 0);
+            setEvents((prev) => {
+              const seen = new Set(prev.map((e) => e.seq));
+              return [...prev, ...data.events.filter((e) => !seen.has(e.seq))];
+            });
           }
           setStatus(data.status);
           if (!ACTIVE.has(data.status) && data.events.length === 0) return;

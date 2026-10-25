@@ -11,6 +11,7 @@ import type { ComponentProps } from "react";
 import { ConfigReference } from "./docs/config-reference";
 import { Diagram } from "./docs/diagram";
 import { BuiltOn, EcosystemGrid, ProviderRow } from "./docs/logos";
+import { Phone, Phones, Shot } from "./docs/shots";
 import { ExamplePr } from "./landing/example-pr";
 
 /** A lucide icon by name, so .mdx files can write `icon={<Icon name="Bot" />}` without imports. */
@@ -49,6 +50,9 @@ export function getMDXComponents(components?: MDXComponents) {
     ProviderRow,
     BuiltOn,
     PrExample,
+    Shot,
+    Phone,
+    Phones,
     Icon,
     ...components,
   } satisfies MDXComponents;

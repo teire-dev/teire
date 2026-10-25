@@ -5,6 +5,7 @@ const withMDX = createMDX();
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   cacheComponents: true,
+  devIndicators: false,
   partialPrefetching: true,
   reactCompiler: true,
   transpilePackages: ["@teire/db", "@teire/engine"],

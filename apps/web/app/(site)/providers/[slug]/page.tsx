@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,8 @@ const TONE = { ok: "bg-clear", stale: "bg-human", failing: "bg-affected" } as co
 
 async function Provider({ params }: { params: PageProps<"/providers/[slug]">["params"] }) {
   const { slug } = await params;
+  // "Upcoming" is relative to today: rendered per request, while the data stays cached.
+  await connection();
   const [page, all] = await Promise.all([providerPage(slug), listChanges()]);
   if (!page) notFound();
   const { record, sources } = page;

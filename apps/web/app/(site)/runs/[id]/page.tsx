@@ -2,6 +2,7 @@ import { and, artifacts, asc, eq, llmCalls, runEvents, sandboxExecs } from "@tei
 import { ExternalLink, Loader } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Markdown } from "@/components/markdown";
@@ -41,6 +42,7 @@ const STATUS_TONE: Record<string, string> = {
 
 async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
   const { id } = await params;
+  await connection();
   const row = await visibleRun(id);
   if (!row) return <Pending id={id} />;
   const { run, repo } = row;

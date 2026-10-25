@@ -1,0 +1,146 @@
+{
+ "wide/change-detail": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/changes": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dashboard": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dryrun-ai-web-diff": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dryrun-ai-web-pr": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dryrun-ai-web-verification": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dryrun-go-diff": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dryrun-go-pr": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dryrun-go-receipt": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dryrun-go-timeline": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/dryrun-go-verification": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/landing-coverage": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/landing-steps": {
+  "width": 1280,
+  "height": 531
+ },
+ "wide/landing": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/package-anthropic": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/provider-anthropic": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/provider-groq": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/repo-config": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/repo-findings": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/repo-inventory": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/report-clean": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/report-go-major": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/report-kotlin-major": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/report-py-major": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/report-wrapped-models": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/repos": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/scan": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/settings": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/trust": {
+  "width": 1280,
+  "height": 1080
+ },
+ "wide/welcome": {
+  "width": 1280,
+  "height": 1080
+ },
+ "phone/changes": {
+  "width": 780,
+  "height": 1688
+ },
+ "phone/dashboard": {
+  "width": 780,
+  "height": 1688
+ },
+ "phone/dryrun-ai-web-pr": {
+  "width": 780,
+  "height": 1688
+ },
+ "phone/landing": {
+  "width": 780,
+  "height": 1688
+ },
+ "phone/report-wrapped-models": {
+  "width": 780,
+  "height": 1688
+ },
+ "phone/scan": {
+  "width": 780,
+  "height": 1688
+ }
+}
