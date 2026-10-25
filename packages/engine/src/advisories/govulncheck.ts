@@ -4,8 +4,8 @@ import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import type { CallSite } from "../contract";
 import { GO } from "../constants";
+import type { CallSite } from "../contract";
 import { goBinary, goEnv, scratchHome } from "../golang/toolchain";
 
 const run = promisify(execFile);
@@ -83,7 +83,10 @@ export async function goVulnReachability(repoDir: string, projectRoot: string, m
     const rank: Record<GoVulnLevel, number> = { called: 0, imported: 1, required: 2 };
     // The output is a stream of indented JSON objects.
     for (const chunk of stdout.split(/\n(?=\{)/)) {
-      let msg: { osv?: { id: string; aliases?: string[] }; finding?: { osv: string; fixed_version?: string; trace?: Frame[] } };
+      let msg: {
+        osv?: { id: string; aliases?: string[] };
+        finding?: { osv: string; fixed_version?: string; trace?: Frame[] };
+      };
       try {
         msg = JSON.parse(chunk);
       } catch {
@@ -115,7 +118,9 @@ export async function goVulnReachability(repoDir: string, projectRoot: string, m
         level,
         fixedVersion: f.fixed_version ?? null,
         sites,
-        symbol: top.function ? `${top.package?.split("/").at(-1) ?? ""}.${top.receiver ? `${top.receiver}.` : ""}${top.function}` : null,
+        symbol: top.function
+          ? `${top.package?.split("/").at(-1) ?? ""}.${top.receiver ? `${top.receiver}.` : ""}${top.function}`
+          : null,
       };
       for (const key of [f.osv, ...(aliases.get(f.osv) ?? [])]) {
         const held = out.get(key);

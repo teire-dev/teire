@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { goVulnReachability } from "../advisories/govulncheck";
 import { REGISTRY } from "../constants";
@@ -7,7 +7,7 @@ import { runFix } from "../fix/run";
 import { goTransaction } from "../fix/upgrade-go";
 import { composeFixPullRequest } from "../github/compose";
 import { goEnv } from "../golang/toolchain";
-import { assess, locateTargets, summariseFindings } from "../impact";
+import { assess, locateTargets, priorityOf, summariseFindings } from "../impact";
 import { type GoProject, readGoInventory } from "../inventory/go";
 import type { RepoTree } from "../inventory/tree";
 import { locateGo } from "../locate/go";
@@ -140,6 +140,14 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
   return { projects, assessments };
 }
 
+function lineOf(repoDir: string, file: string, line: number) {
+  try {
+    return (readFileSync(join(repoDir, file), "utf8").split("\n")[line - 1] ?? "").trim().slice(0, 200);
+  } catch {
+    return "";
+  }
+}
+
 const ADVISORY_ID = /\b(?:GO-\d{4}-\d+|GHSA(?:-[0-9a-z]{4}){3}|CVE-\d{4}-\d+)\b/g;
 
 /**
@@ -175,15 +183,32 @@ async function withReachability(
         unresolvedSites: 0,
         transitiveAnalysed: true,
       };
+      const fixedIn = record?.applicability.fixedIn ?? [];
+      const position = `${a.instance.name}@${a.instance.version} is in the vulnerable range${fixedIn.length ? `; fixed in ${fixedIn.join(", ")}` : "; no fixed version is published"}.`;
       if (r.level === "called") {
+        f.verdict = "affected";
         f.reachability = "function-reachable";
-        if (r.sites.length) f.callSites = r.sites;
-        f.reason = `${f.reason} govulncheck: ${r.symbol ?? "the vulnerable function"} is called${r.sites[0] ? ` from ${r.sites[0].file}:${r.sites[0].line}` : ""}.`;
+        f.priority = record ? priorityOf(record, "affected", options.now ?? new Date()) : 0;
+        if (r.sites.length)
+          f.callSites = r.sites.map((site) => ({
+            ...site,
+            snippet: lineOf(repoDir, site.file, site.line) || site.snippet,
+          }));
+        f.reason = `${position} govulncheck: ${r.symbol ?? "the vulnerable function"} is called${r.sites[0] ? ` from ${r.sites[0].file}:${r.sites[0].line}` : ""}.`;
       } else {
+        // Not reached in govulncheck's call graph of this module: stated with that coverage (D74).
+        f.verdict = "not_affected";
         f.reachability = "function-not-reachable";
-        f.reason = `${f.reason} govulncheck: ${r.level === "imported" ? "the vulnerable package is imported, but its vulnerable functions are not called" : "the module is required, but the vulnerable package is not imported"}.`;
+        f.priority = null;
+        f.callSites = [];
+        f.reason = `${position} govulncheck: ${r.level === "imported" ? "the vulnerable package is imported, but its vulnerable functions are not called" : "the module is required, but the vulnerable package is not imported"}.`;
       }
     }
+  for (const a of security) {
+    a.summary = summariseFindings(a.findings);
+    const open = a.findings.filter((f) => f.verdict === "affected").map((f) => f.priority ?? 4);
+    a.priority = open.length && a.decision?.kind === "upgrade" ? Math.min(...open) : null;
+  }
 }
 
 /** The target version's source in the shared module cache (downloaded by the diff), for the agent to read. */

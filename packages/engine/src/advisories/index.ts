@@ -1,3 +1,4 @@
+import * as pep440 from "@renovatebot/pep440";
 import semver from "semver";
 import { sha256 } from "../catalog/source";
 import { ADVISORIES } from "../constants";
@@ -87,13 +88,23 @@ async function osvGet<T>(path: string): Promise<T> {
 }
 
 /** GHSA's `vulnerable_version_range` (`>= 4.0.0, <= 4.17.23`) as a check on one version; npm only for now. */
+/**
+ * Whether a GHSA `vulnerable_version_range` (`>= 1.0, < 1.2.3`) covers the installed version, in the
+ * ecosystem's own grammar; a range Teire cannot read keeps the advisory (never silently dropped).
+ */
 function ghsaRangeMatches(range: string | null, version: string, ecosystem: Ecosystem) {
-  if (!range || ecosystem !== "npm") return true;
+  if (!range) return true;
+  if (ecosystem === "pypi") {
+    const spec = range.replace(/\s+/g, "");
+    return pep440.validRange(spec) ? pep440.satisfies(version, spec) : true;
+  }
+  if (ecosystem !== "npm" && ecosystem !== "go") return true;
   const semverRange = range
     .replace(/,\s*/g, " ")
     .replace(/=\s+/g, "=")
     .replace(/([<>])\s+/g, "$1");
-  return semver.validRange(semverRange) ? semver.satisfies(version, semverRange) : true;
+  const v = ecosystem === "go" ? version.replace(/^v/, "") : version;
+  return semver.validRange(semverRange) ? semver.satisfies(v, semverRange) : true;
 }
 
 /** POSTs through the global fetch: the guarded routine only GETs. The host is fixed, never input. */
@@ -147,9 +158,15 @@ function fixedVersions(vuln: OsvVuln, ecosystem: Ecosystem, name: string) {
   for (const a of vuln.affected ?? []) {
     if (a.package?.name !== name || a.package?.ecosystem !== OSV_ECOSYSTEM[ecosystem]) continue;
     for (const r of a.ranges ?? [])
-      if (r.type !== "GIT") for (const e of r.events) if (e.fixed) fixed.add(e.fixed);
+      if (r.type !== "GIT")
+        for (const e of r.events) if (e.fixed) fixed.add(moduleVersion(ecosystem, e.fixed));
   }
   return [...fixed];
+}
+
+/** OSV and GHSA write Go versions without the `v` a module version has (`0.3.8` → `v0.3.8`). */
+export function moduleVersion(ecosystem: Ecosystem, version: string) {
+  return ecosystem === "go" && /^\d/.test(version) ? `v${version}` : version;
 }
 
 function symbolsOf(vuln: OsvVuln, name: string): Signature[] {
@@ -283,7 +300,7 @@ export async function advisoriesFor(
         g.summary,
         g.html_url,
         g.severity,
-        vuln?.first_patched_version ? [vuln.first_patched_version] : [],
+        vuln?.first_patched_version ? [moduleVersion(query.ecosystem, vuln.first_patched_version)] : [],
         vuln?.vulnerable_version_range ?? undefined,
         [],
         JSON.stringify(g),
