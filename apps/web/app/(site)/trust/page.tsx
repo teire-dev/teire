@@ -207,8 +207,10 @@ function Permissions() {
         <div className="flex flex-col gap-3 rounded-lg bg-card p-4 text-sm text-muted-foreground shadow-card">
           <p>
             <span className="font-medium text-foreground">Models.</span> Only NVIDIA Nemotron on Nebius Token
-            Factory reads code: Nemotron 3 Ultra writes fixes and reads change pages, Nemotron 3 Super steps
-            in while Ultra is unavailable. Every call is on the run&apos;s receipt.
+            Factory reads code: Nemotron 3 Ultra writes fixes, traces model IDs and reads the change pages
+            Teire has no parser for, Nemotron 3 Super steps in while Ultra is unavailable. Every call is
+            recorded with its tokens and cost: a fix&apos;s calls on its run&apos;s receipt, scan-time
+            readings in the spend above.
           </p>
           <p>
             <span className="font-medium text-foreground">Storage.</span> A scan downloads the repository at

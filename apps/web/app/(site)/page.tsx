@@ -26,7 +26,7 @@ const STEPS = [
   {
     icon: ScanSearch,
     title: "Impact",
-    body: "Diffs the API surface between your version and the next, then finds the exact lines that use what changed.",
+    body: "For a new major, diffs the API surface between your version and the target, then finds the exact lines that use what changed.",
     tool: "tsc · griffe · apidiff · japicmp",
   },
   {
@@ -52,15 +52,15 @@ const STEPS = [
 const FAQ = [
   {
     q: "What does Teire need from GitHub?",
-    a: "Contents (to read the code and push one branch per fix), pull requests, issues and checks to write, and Actions logs to read when your CI fails on its PR. The trust page explains each one.",
+    a: "Contents (to read the code and push one branch per fix), pull requests, issues and checks to write, Actions logs to read when your CI fails on its PR, plus metadata and your email address for sign-in. The trust page explains each one.",
   },
   {
     q: "Which model sees my code?",
-    a: "NVIDIA Nemotron 3 Ultra on Nebius Token Factory reads change pages and writes fixes; Nemotron 3 Super takes over only while Ultra is unavailable. Every call is listed with its tokens and cost on the run's receipt.",
+    a: "Only NVIDIA Nemotron on Nebius Token Factory: Nemotron 3 Ultra reads the pages and release notes Teire has no parser for, traces wrapped model IDs and fixes what a swap can't; Nemotron 3 Super takes over only while Ultra is unavailable. A fix's calls are on its run's receipt; scan-time readings are in the totals on the trust page.",
   },
   {
     q: "Will it flood my repo with PRs?",
-    a: "One PR per package and target version, at most five open and two new per hour by default. teire.yml turns off plain version bumps or limits Teire to the packages you name, and a PR you close stays closed.",
+    a: "One PR per package and target version, and one per provider for model and API changes, at most five open and two new per hour by default. teire.yml turns off plain version bumps or limits Teire to the packages you name, and a PR you close stays closed.",
   },
   {
     q: "What if the fix cannot be proven?",
@@ -82,8 +82,9 @@ export default function Home() {
               When a package, API or model changes, Teire fixes your code.
             </h1>
             <p className="max-w-xl text-base text-subtle md:text-lg">
-              A Nemotron coding agent on Nebius Token Factory finds the lines that break, fixes them, runs
-              your own tests before and after, and opens a pull request.
+              Teire finds the lines that break, and a Nemotron coding agent on Nebius Token Factory fixes what
+              a plain swap can&apos;t. Your own tests run before and after, and a pull request shows the
+              proof.
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild shape="pill" size="lg">
@@ -100,7 +101,12 @@ export default function Home() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Or from a terminal: <code className="font-mono text-foreground">npx teire scan</code>
+              Or from a terminal: <code className="font-mono text-foreground">npx teire scan</code>, once the
+              CLI is on npm;{" "}
+              <Link href="/docs/build/cli" className="text-link hover:underline">
+                build it from the repository
+              </Link>{" "}
+              until then.
             </p>
           </div>
           <div className="animate-enter [animation-delay:80ms]">
@@ -158,8 +164,8 @@ export default function Home() {
             Six package ecosystems, read to the symbol
           </h2>
           <p className="text-subtle">
-            Teire reads the exact versions your lockfiles pin and compares each one's public API with the
-            version you would upgrade to, using each ecosystem's own tooling.
+            Teire reads the exact versions your lockfiles pin and, for a new major, compares the public API of
+            your version with the target, using each ecosystem's own tooling.
           </p>
           <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border shadow-card sm:grid-cols-3">
             {Object.entries(ECOSYSTEMS).map(([key, e]) => (
@@ -182,8 +188,9 @@ export default function Home() {
         <div className="flex flex-col gap-4">
           <h2 className="text-2xl font-semibold tracking-tight">Every API your code calls</h2>
           <p className="text-subtle">
-            Model retirements, removed endpoints and parameters, read from each provider&apos;s own pages and
-            kept only when the quote matches the page. Teire reads a provider only when a repository calls it.
+            Model retirements and removed endpoints, read from each provider&apos;s own pages and kept only
+            when the quote matches the page, and breaking API changes from its OpenAPI spec. Teire reads a
+            provider only when a repository calls it.
           </p>
           <div className="rounded-lg bg-card p-5 shadow-card">
             <p className="mb-4 text-xs text-muted-foreground">Readers built for their change pages</p>
@@ -215,8 +222,10 @@ export default function Home() {
               Built on NVIDIA Nemotron and Nebius Token Factory
             </h2>
             <p className="text-subtle">
-              Nemotron 3 Ultra reads every change page and writes every fix; Nemotron 3 Super steps in only
-              while Ultra is unavailable. Each call, its tokens and its cost appear on the run&apos;s receipt.
+              Nemotron 3 Ultra reads the change pages and release notes Teire has no parser for, traces model
+              IDs kept in registries, and fixes what a plain swap can&apos;t; Nemotron 3 Super steps in only
+              while Ultra is unavailable. A fix&apos;s calls, tokens and cost appear on its run&apos;s
+              receipt.
             </p>
             <Link href="/docs/nemotron" className="w-fit text-sm text-link hover:underline">
               What Nemotron does in Teire
@@ -250,6 +259,10 @@ export default function Home() {
               </Link>
             </div>
             <pre className="overflow-x-auto px-4 py-3 font-mono text-xs leading-6">
+              <span className="text-muted-foreground">
+                # not on npm yet: build it from the repository (CLI docs)
+              </span>
+              {"\n"}
               <span className="text-muted-foreground"># the same scan, on your machine</span>
               {"\n"}npx teire scan
               {"\n"}
@@ -283,7 +296,9 @@ export default function Home() {
         <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-6 px-4 py-16 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-2">
             <h2 className="text-2xl font-semibold tracking-tight">See what would break in your repository</h2>
-            <p className="text-subtle">Paste any public GitHub repository; the report takes a few minutes.</p>
+            <p className="text-subtle">
+              Sign in with GitHub and paste a public repository; the report takes a few minutes.
+            </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Button asChild shape="pill" size="lg">

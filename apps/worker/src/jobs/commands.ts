@@ -287,12 +287,26 @@ export async function startRun(
         ?.targetBranch || repo.defaultBranch,
   });
   const sha = branch.commit.sha;
+  // A package group's key ends in its target version; a model or API group's targets are the
+  // replacements its findings name, as the scan records them.
+  let fromVersion: string | null = null;
+  let targetVersion: string | null = groupKey.split("/").pop() ?? null;
+  if (/^(models|api)\//.test(groupKey)) {
+    const positions = (await findingsWithChanges(ctx.db, repo.id))
+      .filter((f) => f.groupKey === groupKey)
+      .map((f) => f.position as { version?: string | null; target?: string | null } | null);
+    const join = (values: (string | null | undefined)[]) =>
+      [...new Set(values.filter(Boolean))].join(", ") || null;
+    fromVersion = join(positions.map((p) => p?.version));
+    targetVersion = join(positions.map((p) => p?.target)) ?? "the named replacements";
+  }
   const { run, created } = await claimRun(ctx.db, {
     repoId: repo.id,
     groupKey,
     kind: "fix",
     status: "queued",
-    targetVersion: groupKey.split("/").pop() ?? null,
+    fromVersion,
+    targetVersion,
     baseSha: sha,
     requestedBy: `${reason}:${by}`,
     idempotencyKey: `${reason}:${repo.id}:${groupKey}:${sha}${reason === "recreate" ? `:${Date.now()}` : ""}`,

@@ -84,6 +84,8 @@ describe.skipIf(!url)("reliability (Postgres)", () => {
 
   it("blocks model work at the daily cap, with the reason", async () => {
     process.env.TEIRE_DAILY_COST_CAP_USD = "1";
+    // The throwaway test database keeps rows between runs; this test counts spend from nothing.
+    await db.delete(llmCalls);
     expect(await modelWorkBlocked(db)).toBeNull();
     await db
       .insert(llmCalls)

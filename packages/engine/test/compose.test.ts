@@ -21,6 +21,13 @@ describe("pull request markdown", () => {
   });
 
   it("summarises a surface record without its package and version, also across a Go major", () => {
+    expect(changeSummary("openai 4.104.0 → 7.38.0: removes 3 API(s)", "openai")).toBe("removes 3 API(s)");
+    expect(
+      changeSummary(
+        "com.squareup.okhttp3:okhttp 3.14.9 → 5.5.0: removes 133 API(s)",
+        "com.squareup.okhttp3:okhttp",
+      ),
+    ).toBe("removes 133 API(s)");
     expect(changeSummary("openai 7.38.0 removes 3 API(s)", "openai")).toBe("removes 3 API(s)");
     expect(
       changeSummary("github.com/golang-jwt/jwt/v4 v5.3.1 removes 34 API(s)", "github.com/golang-jwt/jwt/v4"),

@@ -15,7 +15,7 @@ import {
   upsertRepo,
 } from "../store";
 import { handleRepoAction } from "./actions";
-import { canWrite, handleComment, matchesTarget, startRun } from "./commands";
+import { canWrite, handleComment, matchesTarget, parseCommand, startRun } from "./commands";
 import { syncDashboard, tickedActions } from "./dashboard";
 import { requestDryRun } from "./public";
 import { ONBOARDING_BRANCH, type WorkerContext } from "./scan";
@@ -145,7 +145,12 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       return;
     }
     case "issue_comment": {
-      if (delivery.action === "created") await handleComment(ctx, p);
+      if (delivery.action !== "created") return;
+      await handleComment(ctx, p);
+      // Commands that change what the Dashboard issue lists re-render it now, not at the next scan.
+      const command = parseCommand(String(p.comment?.body ?? ""), ctx.gh.slug);
+      if (command && ["ignore", "unignore", "pause", "resume"].includes(command.name) && p.repository?.id)
+        await syncDashboard(ctx, p.repository.id).catch(() => undefined);
       return;
     }
     case "issues": {

@@ -1,7 +1,7 @@
 {
-  "name": "teire",
+  "name": "teire-monorepo",
   "private": true,
-  "description": "Teire keeps your code working when the services it depends on change.",
+  "description": "When a package, API or model changes, Teire fixes your code.",
   "license": "MIT",
   "packageManager": "pnpm@11.24.0",
   "engines": {

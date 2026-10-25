@@ -29,6 +29,16 @@ export async function ensureQueues(boss: PgBoss) {
   await boss.createQueue(QUEUES.scan, { policy: "key_strict_fifo", retryLimit: 2, retryDelay: 30 });
   await boss.createQueue(QUEUES.fix, { policy: "key_strict_fifo", retryLimit: 1, retryDelay: 60 });
   await boss.createQueue(QUEUES.public, { policy: "standard", retryLimit: 0 });
+  // pg-boss expires an active job after 15 minutes by default; a fix run with four attempts can
+  // take longer. The reliability ticker reaps stuck work first (runs 10 min without a heartbeat,
+  // scans after 45 min), so these bounds only stop pg-boss retrying work that is still running.
+  // updateQueue also applies them to queues created before this setting existed.
+  for (const [name, expireInSeconds] of [
+    [QUEUES.scan, 3600],
+    [QUEUES.public, 3600],
+    [QUEUES.fix, 7200],
+  ] as const)
+    await boss.updateQueue(name, { expireInSeconds });
   for (const name of RETIRED_QUEUES) {
     await boss.unschedule(name).catch(() => undefined);
     await boss.deleteQueue(name).catch(() => undefined);

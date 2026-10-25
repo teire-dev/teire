@@ -107,9 +107,10 @@ export function installCommand(manager: JsManager, lockfileVersion?: string): st
         "--config.verify-deps-before-run=false",
       ];
     case "yarn":
-      // berry lockfiles carry `__metadata`; classic ones are version 1
+      // berry lockfiles carry `__metadata`; classic ones are version 1. Berry's `--mode=skip-build`
+      // is its --ignore-scripts: no dependency build or lifecycle script runs.
       return lockfileVersion && lockfileVersion !== "1"
-        ? ["yarn", "install", "--immutable"]
+        ? ["yarn", "install", "--immutable", "--mode=skip-build"]
         : ["yarn", "install", "--frozen-lockfile", "--ignore-scripts", "--non-interactive"];
     case "bun":
       return ["bun", "install", "--frozen-lockfile", "--ignore-scripts"];

@@ -160,7 +160,8 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
         id: `${diff.ecosystem}/${diff.name}/${diff.fromVersion}..${diff.toVersion}/${kind}`,
         subject: { kind: "package", ecosystem: diff.ecosystem, name: diff.name },
         kind,
-        title: `${diff.name} ${diff.toVersion} ${(TITLE[kind] ?? "changes {n} API(s)").replace("{n}", String(list.length))}`,
+        // Both versions: a Go major moves the module path, so "<name> <to>" alone would mislead.
+        title: `${diff.name} ${diff.fromVersion} → ${diff.toVersion}: ${(TITLE[kind] ?? "changes {n} API(s)").replace("{n}", String(list.length))}`,
         summary: `Compared with ${diff.fromVersion}: ${headline}${list.length > 5 ? `, and ${list.length - 5} more` : ""}.${newly ? ` ${newly} newly deprecated.` : ""}`,
         applicability: {
           class: "breaks-on-upgrade",

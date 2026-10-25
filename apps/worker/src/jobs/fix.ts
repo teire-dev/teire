@@ -237,8 +237,16 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const repo = await getRepo(db, run.repoId);
   // A dry run (C9) works on any public repo: no installation, no GitHub writes, no PR caps.
   const dry = run.kind === "dry_run";
-  if (!repo || (!dry && !repo.installationId) || !run.groupKey || !run.targetVersion || !run.baseSha)
+  if (!repo || (!dry && !repo.installationId) || !run.groupKey || !run.targetVersion || !run.baseSha) {
+    // Recorded on the run, so it shows as failed instead of waiting in the queue forever.
+    await updateRun(db, runId, {
+      status: "failed",
+      step: "incomplete",
+      error: `run ${runId} is incomplete: ${!repo ? "the repository is gone" : !dry && !repo.installationId ? "Teire is no longer installed on it" : "it has no group, target or base commit"}`,
+      finishedAt: new Date(),
+    });
     throw new Error(`run ${runId} is incomplete`);
+  }
   const groupKey = run.groupKey;
   const isApi = /^(models|api)\//.test(groupKey);
   const [owner = "", name = ""] = repo.fullName.split("/");
@@ -479,6 +487,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         finishedAt: new Date(),
       });
       await event("pr", "issue", { url: issue.html_url, evidence: fix.evidence.kind });
+      // The Dashboard issue links "Needs a human" issues, and this group no longer offers "Fix now".
+      await syncDashboard(ctx, repo.id).catch(() => undefined);
       return { issue: issue.html_url };
     }
 

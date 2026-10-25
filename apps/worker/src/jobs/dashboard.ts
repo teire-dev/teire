@@ -151,6 +151,8 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
   const [owner = "", name = ""] = repo.fullName.split("/");
   const { octokit } = await gh.installation(repo.installationId);
   const existing = await getArtifact(db, repoId, "dashboard");
+  // The issue starts with the repository's first active scan; nothing before it creates one.
+  if (!existing && repo.status !== "active") return null;
   if (config?.dashboardIssue === false) {
     if (existing?.number && existing.state === "open") {
       await octokit.rest.issues.update({ owner, repo: name, issue_number: existing.number, state: "closed" });

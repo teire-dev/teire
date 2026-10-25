@@ -85,12 +85,12 @@ export function ExamplePr() {
             </thead>
             <tbody>
               <tr className="border-t">
-                <td className="py-1.5">tsc --noEmit</td>
+                <td className="py-1.5">npm run typecheck</td>
                 <td className="py-1.5 text-right text-clear">pass</td>
                 <td className="py-1.5 text-right text-clear">pass</td>
               </tr>
               <tr className="border-t">
-                <td className="py-1.5">vitest run</td>
+                <td className="py-1.5">npm run test</td>
                 <td className="py-1.5 text-right text-affected">1/3</td>
                 <td className="py-1.5 text-right text-clear">
                   3/3 <Check className="inline size-3" aria-label="passed" />

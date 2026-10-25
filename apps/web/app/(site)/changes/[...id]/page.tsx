@@ -71,7 +71,7 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {logo ? <BrandLogo light={logo.light} dark={logo.dark} alt="" className="h-4" /> : null}
           {ownerHref ? (
-            <Link href={ownerHref} className="hover:text-foreground">
+            <Link href={ownerHref} className="entity-link hover:text-foreground">
               {ownerName}
             </Link>
           ) : (
@@ -82,6 +82,17 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{record.title}</h1>
         <p className="text-subtle">{record.summary}</p>
+        {record.status === "candidate" ? (
+          <p className="rounded-md bg-human-soft px-3 py-2 text-sm text-human">
+            Not confirmed by the source yet: Teire computed this from the published code, and no release note
+            quotes it. A fix for it is still proven in the sandbox like any other.
+          </p>
+        ) : record.status === "quarantined" ? (
+          <p className="rounded-md bg-affected-soft px-3 py-2 text-sm text-affected">
+            Unconfirmed: this record failed the quote check, so Teire never applies it to code.
+            {record.quarantineReasons.length ? ` ${record.quarantineReasons.join(" ")}` : ""}
+          </p>
+        ) : null}
       </header>
 
       {record.replacement || a.effectiveOn ? (
@@ -159,7 +170,7 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
         <div>
           <p className="font-medium">Does this reach your code?</p>
           <p className="text-sm text-muted-foreground">
-            Scan a public repository, or run npx teire scan in yours.
+            Scan a public repository, or run the Teire CLI on your own checkout.
           </p>
         </div>
         <Button asChild>

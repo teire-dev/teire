@@ -57,16 +57,18 @@ function cell(side: SideResult, name: string) {
 
 /** The Verification section: one table, both sides, then the evidence that decided the PR. */
 /** Blocks joined by blank lines, except table rows, which must stay on consecutive lines to render as a table. */
-/**
- * A surface record's title without its "<name> <version> " lead ("removes 34 API(s)"). A Go major
- * also moves the module path, so the version is whatever word follows the name.
- */
-export function changeSummary(title: string, name: string) {
-  return title.startsWith(`${name} `) ? title.slice(name.length + 1).replace(/^\S+ /, "") : title;
-}
-
 export function joinBlocks(blocks: string[]) {
   return blocks.join("\n\n").replace(/^(\|.*\|)\n\n(?=\|)/gm, "$1\n");
+}
+
+/**
+ * A surface record's title without its "<name> <from> → <to>: " lead ("removes 34 API(s)"). Records
+ * stored before both versions were in the title read "<name> <version> removes …".
+ */
+export function changeSummary(title: string, name: string) {
+  const lead = title.indexOf(": ");
+  if (lead > 0 && title.slice(0, lead).includes(" → ")) return title.slice(lead + 2);
+  return title.startsWith(`${name} `) ? title.slice(name.length + 1).replace(/^\S+ /, "") : title;
 }
 
 /** A quoted table row reads as text: `| Oct 23, 2026 | \`gpt-4.1-nano\` | …` → "Oct 23, 2026 · gpt-4.1-nano · …". */
@@ -235,9 +237,13 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
         );
     }
     if (sites.length) {
-      out.push(
-        `${instance.name} ${run.target} removes or changes APIs this repo calls (resolved by type, not by name):`,
-      );
+      // A Go major's target already names its new module path ("…/jwt/v5 v5.3.1").
+      const target = run.target.includes(" ") ? run.target : `${instance.name} ${run.target}`;
+      const how =
+        input.summary.coverage?.resolutionLevel === "type"
+          ? "resolved by type, not by name"
+          : "found by name, not by type; the sandbox decides";
+      out.push(`${target} removes or changes APIs this repo calls (${how}):`);
       for (const { s, f } of sites.slice(0, siteCap))
         out.push(
           `- [\`${s.file}:${s.line}\`](${blob(repo, s.file, s.line)}) \`${escapeCell(s.snippet).slice(0, 120)}\` (${f.changeKind.replace(/-/g, " ")})`,
@@ -331,12 +337,8 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     for (const r of risks) out.push(`- ${r}`);
 
     out.push("### Rollback");
-    const reverted = [
-      ...run.manifest.map((m) => `\`${m.path}\``),
-      ...(run.lockfile ? [`\`${run.lockfile.path}\``] : []),
-    ];
     out.push(
-      `Revert this pull request: ${reverted.join(" and ")} return to ${instance.name} ${instance.version}.`,
+      `Revert this pull request: every file listed under Changes returns to ${instance.name} ${instance.version}.`,
     );
     out.push("### Commands");
     out.push(

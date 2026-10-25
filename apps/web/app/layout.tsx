@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     template: "%s · Teire",
   },
   description:
-    "A Nemotron coding agent on Nebius Token Factory finds the lines a package, API or model change breaks, fixes them, runs your own tests before and after, and opens a pull request.",
+    "Teire finds the lines a package, API or model change breaks, and a Nemotron coding agent on Nebius Token Factory fixes what a plain swap can't. Your own tests run before and after, and a pull request shows the proof.",
 };
 
 /**
