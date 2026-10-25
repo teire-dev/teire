@@ -86,7 +86,8 @@ export function documentsForReading(sources: NoteSource[]): NoteDocument[] {
   for (const s of sources.filter((x) => x.kind === "migration-guide")) push("Migration guide", s, s.text);
   for (const s of sources.filter((x) => x.kind !== "migration-guide")) {
     for (const entry of s.entries ?? []) {
-      const major = /^\d+\.0\.0$/.test(entry.version);
+      // A new major in any spelling: `5.0.0`, `21.0` (Guava), `33.0.0-jre`, `2.0`.
+      const major = /^\d+(?:\.0)+(?:[-+][\w.]+)?$/.test(entry.version);
       const body = major
         ? entry.body
         : entry.body

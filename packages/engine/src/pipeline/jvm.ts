@@ -206,7 +206,7 @@ export async function fixJvmDependency(
     input.onEvent?.({
       step: "transaction",
       model: extraction.receipt.model,
-      detail: `${extraction.items.length} quoted item(s) from ${sources.length} source(s), ${extraction.dropped.length} dropped`,
+      detail: `${extraction.items.length} quoted item(s) from ${sources.length} source(s), ${extraction.dropped.length} dropped${extraction.error ? `; ${extraction.error}` : ""}`,
       costUsd: extraction.receipt.costUsd,
     });
 
