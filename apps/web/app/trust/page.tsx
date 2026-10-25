@@ -1,4 +1,5 @@
 import { gte, llmCalls, runs, sql, systemState } from "@teire/db";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { database } from "@/lib/db";
 
@@ -61,6 +62,8 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: "ok"
 }
 
 async function Live() {
+  // Live state: rendered per request, never at build time.
+  await connection();
   const db = database();
   const state = new Map((await db.select().from(systemState)).map((r) => [r.key, r.value]));
   const worker = state.get("worker") as Worker | undefined;
