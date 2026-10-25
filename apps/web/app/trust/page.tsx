@@ -1,0 +1,208 @@
+import { gte, llmCalls, runs, sql, systemState } from "@teire/db";
+import { Suspense } from "react";
+import { database } from "@/lib/db";
+
+export const metadata = {
+  title: "Trust · Teire",
+  description:
+    "How Teire runs: the worker's heartbeat, model credits and failover, spend, run outcomes, and how code and secrets are handled.",
+};
+
+/**
+ * Teire's live operating state and its standing rules (plan S10, card C12). Aggregates only: no
+ * repository is named here.
+ */
+export default function TrustPage() {
+  return (
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-12">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Trust</h1>
+        <p className="text-sm text-foreground/70">
+          What Teire is doing right now, what it has spent, and the rules every run follows.
+        </p>
+      </header>
+      <Suspense fallback={<p className="text-sm text-foreground/60">Loading the live state…</p>}>
+        <Live />
+      </Suspense>
+      <Rules />
+    </main>
+  );
+}
+
+type Worker = { at: string; version: string };
+type Credits = { exhausted: boolean; since: string; detail: string; checkedAt: string };
+type Models = { at: string; unhealthy: { model: string; until: string }[] };
+type Redelivery = { at: string; failed: number; redelivered: number };
+
+const ago = (iso: string | undefined) => {
+  if (!iso) return "never";
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  return s < 90 ? `${s} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+};
+
+function Row({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" | "bad" }) {
+  const dot =
+    tone === "bad"
+      ? "bg-red-500"
+      : tone === "warn"
+        ? "bg-amber-500"
+        : tone === "ok"
+          ? "bg-emerald-500"
+          : "bg-foreground/30";
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-foreground/10 py-2 text-sm last:border-0">
+      <span className="flex items-center gap-2 text-foreground/70">
+        <span className={`inline-block size-2 rounded-full ${dot}`} aria-hidden />
+        {label}
+      </span>
+      <span className="text-right">{value}</span>
+    </div>
+  );
+}
+
+async function Live() {
+  const db = database();
+  const state = new Map((await db.select().from(systemState)).map((r) => [r.key, r.value]));
+  const worker = state.get("worker") as Worker | undefined;
+  const credits = state.get("credits") as Credits | undefined;
+  const models = state.get("models") as Models | undefined;
+  const redelivery = state.get("redelivery") as Redelivery | undefined;
+  const day = new Date(Date.now() - 24 * 3600_000);
+  const week = new Date(Date.now() - 7 * 24 * 3600_000);
+  const [spend] = await db
+    .select({
+      day: sql<string>`coalesce(sum(${llmCalls.costUsd}) filter (where ${llmCalls.createdAt} >= ${day}), 0)`,
+      week: sql<string>`coalesce(sum(${llmCalls.costUsd}), 0)`,
+    })
+    .from(llmCalls)
+    .where(gte(llmCalls.createdAt, week));
+  const byModel = await db
+    .select({
+      model: llmCalls.model,
+      calls: sql<number>`count(*)::int`,
+      cost: sql<string>`sum(${llmCalls.costUsd})`,
+    })
+    .from(llmCalls)
+    .where(gte(llmCalls.createdAt, week))
+    .groupBy(llmCalls.model);
+  const outcomes = await db
+    .select({
+      kind: sql<string>`coalesce(${runs.evidenceKind}, ${runs.status})`,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(runs)
+    .where(gte(runs.createdAt, week))
+    .groupBy(sql`1`);
+  const alive = worker && Date.now() - Date.parse(worker.at) < 5 * 60_000;
+  return (
+    <>
+      <section className="flex flex-col gap-1">
+        <h2 className="text-base font-semibold">Now</h2>
+        <div className="rounded-lg border border-foreground/10 px-4 py-1">
+          <Row
+            label="Worker"
+            value={
+              worker ? `heartbeat ${ago(worker.at)} · ${worker.version.slice(0, 7)}` : "no heartbeat yet"
+            }
+            tone={alive ? "ok" : "bad"}
+          />
+          <Row
+            label="Model credits (Token Factory)"
+            value={
+              credits?.exhausted
+                ? `exhausted since ${credits.since.slice(0, 16).replace("T", " ")} UTC; runs wait`
+                : "available"
+            }
+            tone={credits?.exhausted ? "bad" : "ok"}
+          />
+          <Row
+            label="Model routing"
+            value={
+              models?.unhealthy?.length
+                ? `failover in use for ${models.unhealthy.map((u) => u.model).join(", ")}`
+                : "primary models answering (Nemotron 3 Ultra)"
+            }
+            tone={models?.unhealthy?.length ? "warn" : "ok"}
+          />
+          <Row
+            label="Missed GitHub deliveries"
+            value={
+              redelivery
+                ? `${redelivery.failed} failed, ${redelivery.redelivered} redelivered (checked ${ago(redelivery.at)})`
+                : "not checked yet"
+            }
+          />
+        </div>
+      </section>
+      <section className="flex flex-col gap-1">
+        <h2 className="text-base font-semibold">Last 7 days</h2>
+        <div className="rounded-lg border border-foreground/10 px-4 py-1">
+          <Row
+            label="Model spend"
+            value={`$${Number(spend?.day ?? 0).toFixed(2)} today · $${Number(spend?.week ?? 0).toFixed(2)} this week`}
+          />
+          {byModel.map((m) => (
+            <Row key={m.model} label={m.model} value={`${m.calls} call(s) · $${Number(m.cost).toFixed(2)}`} />
+          ))}
+          {outcomes.length ? (
+            outcomes.map((o) => (
+              <Row key={o.kind} label={`Runs: ${o.kind.replace(/_/g, " ")}`} value={String(o.n)} />
+            ))
+          ) : (
+            <Row label="Runs" value="none this week" />
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function Rules() {
+  const rules: [string, string][] = [
+    [
+      "Reads only what you use",
+      "A package's notes and an API's change pages are read only when a watched repository depends on it, then shared and cached. Nothing is read on a schedule.",
+    ],
+    [
+      "Quotes or it did not happen",
+      "Every change Teire acts on quotes its source, and the quote is checked against the fetched page before any code changes.",
+    ],
+    [
+      "Your code runs only in a sandbox",
+      "Installs, builds and tests run in an isolated container per side (before and after the change). The worker never runs repository code.",
+    ],
+    [
+      "Registries only, then offline",
+      "During the install the sandbox may read package registries (GET only). Checks run with the network off; any other request is denied and recorded.",
+    ],
+    [
+      "No secrets in the sandbox",
+      "GitHub tokens and model keys never enter it; the repository arrives as a tarball the sandbox service fetches itself.",
+    ],
+    [
+      "Evidence decides the PR",
+      "A ready PR needs the same checks to pass before and after the change; anything less is a draft that says what was not proven, or an issue for a person.",
+    ],
+    [
+      "Your commits are never overwritten",
+      "If someone pushes to a Teire branch, Teire stops updating it and says so.",
+    ],
+    [
+      "Spending stops itself",
+      "Model work pauses when Token Factory credits run out or the daily budget is used, and resumes on its own.",
+    ],
+  ];
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-base font-semibold">Rules every run follows</h2>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {rules.map(([title, body]) => (
+          <li key={title} className="rounded-lg border border-foreground/10 p-4">
+            <p className="text-sm font-medium">{title}</p>
+            <p className="mt-1 text-sm text-foreground/70">{body}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

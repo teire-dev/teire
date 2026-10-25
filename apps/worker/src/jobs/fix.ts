@@ -1,5 +1,6 @@
 import { rm } from "node:fs/promises";
 import { readTeireConfig } from "@teire/engine/config";
+import { RUNS } from "@teire/engine/constants";
 import type { CallSite } from "@teire/engine/contract";
 import type { FixRun } from "@teire/engine/fix";
 import {
@@ -11,7 +12,12 @@ import {
 } from "@teire/engine/github";
 import type { JvmProject, PyProject, RepoTree, RubyProject, RustProject } from "@teire/engine/inventory";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
-import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
+import {
+  CreditsExhaustedError,
+  createTokenFactory,
+  fetchModelPrices,
+  tokenFactoryConfigFromEnv,
+} from "@teire/engine/llm";
 import {
   type AssessedProject,
   type Assessment,
@@ -35,6 +41,7 @@ import {
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
 import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
+import { markCreditsExhausted, modelWorkBlocked } from "../reliability";
 import {
   appendEvent,
   getArtifact,
@@ -52,6 +59,8 @@ import { syncDashboard } from "./dashboard";
 import { pageReader, storedProviderChanges } from "./providers";
 import type { WorkerContext } from "./scan";
 
+/** A run deferred for credits or the daily budget tries again after this long. */
+const BUDGET_RETRY_SECONDS = 30 * 60;
 const DEFER_SECONDS = 3600;
 
 /** What a fix produced, whatever was fixed (a package upgrade or a provider's API change). */
@@ -219,6 +228,11 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const { db, gh } = ctx;
   const run = await getRun(db, runId);
   if (!run || run.status === "succeeded" || run.status === "cancelled") return { skipped: true };
+  // A run the reaper failed (its worker stopped) is retried by its queue: it starts over cleanly.
+  // Any other failure stays failed until someone asks again (`@teire recreate`).
+  if (run.status === "failed" && run.step !== "interrupted") return { skipped: true };
+  if (run.status === "failed" || run.status === "running")
+    await updateRun(db, runId, { status: "queued", attempt: run.attempt + 1, error: null });
   const repo = await getRepo(db, run.repoId);
   if (!repo?.installationId || !run.groupKey || !run.targetVersion || !run.baseSha)
     throw new Error(`run ${runId} is incomplete`);
@@ -239,7 +253,21 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     return { deferred: true };
   }
 
+  // Money and the model service decide whether model work may start (S10).
+  const blocked = await modelWorkBlocked(db);
+  if (blocked) {
+    await updateRun(db, runId, { status: "queued", step: "waiting for the model budget" });
+    await event("queue", "deferred", { reason: blocked });
+    await ctx.enqueueFix(runId, repo.id, BUDGET_RETRY_SECONDS);
+    return { deferred: blocked };
+  }
+
   await updateRun(db, runId, { status: "running", step: "assess", startedAt: new Date() });
+  // A heartbeat while the run works, so the reaper can tell a long sandbox step from a dead worker.
+  const heartbeat = setInterval(
+    () => void updateRun(db, runId, {}).catch(() => undefined),
+    RUNS.heartbeatEveryMs,
+  );
   await event("assess", "started", { group: groupKey, from: run.fromVersion, target: run.targetVersion });
   const token = await installation.token();
   let dir: string | null = null;
@@ -501,6 +529,18 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     );
     return { pr: pr.url };
   } catch (error) {
+    if (error instanceof CreditsExhaustedError) {
+      // Not this run's fault: it waits, and every other run waits, until credits are back.
+      await markCreditsExhausted(db, error.message);
+      await updateRun(db, runId, {
+        status: "queued",
+        step: "waiting for Token Factory credits",
+        error: error.message,
+      });
+      await event("queue", "deferred", { reason: error.message });
+      await ctx.enqueueFix(runId, repo.id, BUDGET_RETRY_SECONDS);
+      return { deferred: error.message };
+    }
     const message =
       error instanceof HumanCommitsError
         ? `stopped: ${error.message}`
@@ -525,6 +565,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     if (!(error instanceof HumanCommitsError)) throw error;
     return { stopped: message };
   } finally {
+    clearInterval(heartbeat);
     if (dir) await rm(dir, { recursive: true, force: true });
   }
 }

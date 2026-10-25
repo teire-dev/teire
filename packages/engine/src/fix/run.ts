@@ -154,7 +154,8 @@ function checkText(checks: SideResult["checks"]) {
       const lines = c.output.split("\n");
       const keep = new Set<number>();
       lines.forEach((l, i) => {
-        if (!/error|Error|FAIL|✗|×|expected|Expected|Received|panicked/.test(l)) return;
+        // Case-insensitive (Maven's `[ERROR]`), and kotlinc's `e: file:///…: Unresolved reference`.
+        if (!/error|fail|✗|×|expected|received|panicked|^e: |unresolved reference|cannot find symbol/i.test(l)) return;
         for (let j = i; j < Math.min(lines.length, i + FIX.errorContextLines + 1); j++) {
           if (j > i && lines[j]?.trim() === "") break;
           keep.add(j);

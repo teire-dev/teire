@@ -29,6 +29,7 @@ import { versionScheme } from "@teire/engine/registry";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
 import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
+import { modelWorkBlocked } from "../reliability";
 import {
   changeHash,
   claimRun,
@@ -168,6 +169,9 @@ export async function scanRepo(
     );
     config.ignore = [...new Set([...config.ignore, ...((repo.ignores as string[] | null) ?? [])])];
     const tree = scopedTree(directoryTree(checkout.dir), config);
+    // Model work (provider pages, wrapped-model triage) waits while credits or the budget are out (S10).
+    const blocked = await modelWorkBlocked(db);
+    if (blocked) console.log(`[scan] ${repo.fullName}: model reading skipped: ${blocked}`);
     const on = config.ecosystems;
     const none = { projects: [], assessments: [] };
     const cache = postgresRegistryCache(db);
@@ -250,9 +254,9 @@ export async function scanRepo(
           tree,
           projects.flatMap((p) => p.instances),
           {
-            changes: storedProviderChanges(db, () => revalidateWeb(["catalog"])),
+            changes: storedProviderChanges(db, () => revalidateWeb(["catalog"]), !blocked),
             discover: { cache },
-            triage: await pageReader(db),
+            ...(blocked ? {} : { triage: await pageReader(db) }),
             openapi: { cache, githubToken: token, repo: { owner, name, sha } },
             declared: config.sources,
           },

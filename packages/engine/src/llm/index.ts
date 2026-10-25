@@ -24,7 +24,93 @@ export function tokenFactoryConfigFromEnv(env: NodeJS.ProcessEnv = process.env):
   return { apiKey, baseURL: env.TOKENFACTORY_BASE_URL || TOKENFACTORY.defaultBaseUrl, models };
 }
 
-export function createTokenFactory(config: TokenFactoryConfig) {
+/** Token Factory answered 402: the account has no credits left. Runs stop until an operator tops up. */
+export class CreditsExhaustedError extends Error {
+  constructor(detail: string) {
+    super(`Token Factory credits are exhausted (402): ${detail}`);
+    this.name = "CreditsExhaustedError";
+  }
+}
+
+/** Model health shared by every client in this process: model id → unhealthy until (ms). */
+const unhealthyUntil = new Map<string, number>();
+
+export function modelHealth() {
+  const now = Date.now();
+  return [...unhealthyUntil]
+    .filter(([, until]) => until > now)
+    .map(([model, until]) => ({ model, until: new Date(until) }));
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * The client's fetch (plan S10): retries 429/5xx and dropped connections with backoff (honouring
+ * Retry-After); turns a 402 credit error into `CreditsExhaustedError`; and when a model still fails
+ * after its retries, marks it unhealthy for a while and sends that request, and the next ones, to
+ * the failover model (Nemotron 3 Super), so a run continues instead of dying.
+ */
+export function tokenFactoryFetch(config: TokenFactoryConfig, base: typeof fetch = fetch): typeof fetch {
+  const failover = config.models.failover;
+  const withModel = (body: RequestInit["body"], model: string) => {
+    if (typeof body !== "string") return body;
+    try {
+      return JSON.stringify({ ...JSON.parse(body), model });
+    } catch {
+      return body;
+    }
+  };
+  return (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    let body = init?.body;
+    let model: string | undefined;
+    if (typeof body === "string")
+      try {
+        model = (JSON.parse(body) as { model?: string }).model;
+      } catch {
+        model = undefined;
+      }
+    if (model && model !== failover && (unhealthyUntil.get(model) ?? 0) > Date.now()) {
+      body = withModel(body, failover);
+      model = failover;
+    }
+    for (let attempt = 1; ; attempt++) {
+      let res: Response;
+      try {
+        res = await base(input, { ...init, body });
+      } catch (error) {
+        if ((error as Error)?.name === "AbortError") throw error;
+        if (attempt < TOKENFACTORY.attempts) {
+          await sleep(TOKENFACTORY.backoffMs * 2 ** (attempt - 1));
+          continue;
+        }
+        throw error;
+      }
+      if (res.status === 402) {
+        const text = await res.clone().text();
+        if (/credit|balance|payment|insufficient/i.test(text))
+          throw new CreditsExhaustedError(text.slice(0, 300));
+        return res;
+      }
+      if ((res.status === 429 || res.status >= 500) && attempt < TOKENFACTORY.attempts) {
+        const after = Number(res.headers.get("retry-after"));
+        await sleep(
+          after > 0
+            ? Math.min(after * 1000, TOKENFACTORY.maxRetryAfterMs)
+            : TOKENFACTORY.backoffMs * 2 ** (attempt - 1),
+        );
+        continue;
+      }
+      // Still failing (or the model is gone): the failover model takes this request and the next ones.
+      if ((res.status >= 500 || res.status === 404) && model && failover && model !== failover) {
+        unhealthyUntil.set(model, Date.now() + TOKENFACTORY.unhealthyForMs);
+        return base(input, { ...init, body: withModel(body, failover) });
+      }
+      return res;
+    }
+  }) as typeof fetch;
+}
+
+export function createTokenFactory(config: TokenFactoryConfig, fetchImpl?: typeof fetch) {
   const provider = createOpenAICompatible({
     name: TOKENFACTORY.providerName,
     apiKey: config.apiKey,
@@ -32,11 +118,19 @@ export function createTokenFactory(config: TokenFactoryConfig) {
     includeUsage: true,
     // Token Factory accepts response_format json_schema (smoke check 6), so let the SDK send it.
     supportsStructuredOutputs: true,
+    fetch: tokenFactoryFetch(config, fetchImpl),
   });
+  // The model a request will actually use: the failover while the role's model is unhealthy.
+  const active = (role: ModelRole) => {
+    const id = config.models[role];
+    return id !== config.models.failover && (unhealthyUntil.get(id) ?? 0) > Date.now()
+      ? config.models.failover
+      : id;
+  };
   return {
     config,
     model: (role: ModelRole) => provider(config.models[role]),
-    modelId: (role: ModelRole) => config.models[role],
+    modelId: active,
   };
 }
 

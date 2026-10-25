@@ -355,6 +355,17 @@ export const artifacts = pgTable(
   (t) => [uniqueIndex("artifacts_repo_kind_change_idx").on(t.repoId, t.kind, t.changeKey)],
 );
 
+/**
+ * Operational state the worker keeps (plan S10): `credits` (Token Factory 402 seen, cleared when a
+ * ping succeeds), `worker` (heartbeat), `models` (failover in use), `redelivery` (last sweep).
+ * The /trust page reads it.
+ */
+export const systemState = pgTable("system_state", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: updatedAt(),
+});
+
 /** `@teire wrong <reason>`: a finding someone says is a false positive or negative (C7). */
 export const feedback = pgTable(
   "feedback",

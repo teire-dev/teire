@@ -5,6 +5,12 @@ export const TOKENFACTORY = {
   defaultBaseUrl: "https://api.tokenfactory.nebius.com/v1/",
   /** AI SDK provider name; provider options are keyed by it (providerOptions.tokenfactory). */
   providerName: "tokenfactory",
+  /** Attempts per request on 429/5xx/dropped connections (S10), backoff doubling from this. */
+  attempts: 4,
+  backoffMs: 2000,
+  maxRetryAfterMs: 30_000,
+  /** A model that keeps failing is skipped for this long; its requests go to the failover model. */
+  unhealthyForMs: 10 * 60_000,
 } as const;
 
 /** NVIDIA Nemotron settings from the Nemotron 3 Super model card. */

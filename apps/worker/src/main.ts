@@ -2,12 +2,14 @@ import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { createDb, runMigrations, sql, tlsOptions } from "@teire/db";
 import { createGitHubApp, githubAppConfigFromEnv } from "@teire/engine/github";
+import { CreditsExhaustedError } from "@teire/engine/llm";
 import { PgBoss } from "pg-boss";
 import { handleDelivery } from "./jobs/events";
 import { fixRun } from "./jobs/fix";
 import { scanRepo } from "./jobs/scan";
 import { startOutbox } from "./outbox";
 import { ensureQueues, QUEUES } from "./queues";
+import { markCreditsExhausted, startTicker } from "./reliability";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const databaseUrl = process.env.DATABASE_URL;
@@ -56,6 +58,8 @@ async function main() {
   // GitHub App: scans, fixes and the webhook outbox (S02b). Without the App's credentials the
   // worker only answers its health checks.
   let stopOutbox: (() => Promise<void>) | null = null;
+  // Heartbeat, reaper, credit re-check and webhook redeliveries (S10).
+  let stopTicker: (() => void) | null = null;
   try {
     const gh = createGitHubApp(githubAppConfigFromEnv());
     const webUrl = process.env.TEIRE_WEB_URL?.replace(/\/$/, "") ?? null;
@@ -87,6 +91,7 @@ async function main() {
               JSON.stringify(await scanRepo(ctx, job.data.repoId, job.data.trigger)),
             );
           } catch (error) {
+            if (error instanceof CreditsExhaustedError) await markCreditsExhausted(db, error.message);
             console.error("[scan] failed", job.data.repoId, error);
           }
         }
@@ -102,11 +107,13 @@ async function main() {
       }
     });
     stopOutbox = startOutbox({ db, pool, handle: (delivery) => handleDelivery(ctx, delivery) });
+    stopTicker = startTicker(db, gh, process.env.SOURCE_COMMIT ?? "dev");
     console.log(`[worker] GitHub App ${gh.slug} ready`);
   } catch (error) {
     console.warn("[worker] GitHub App not configured:", error instanceof Error ? error.message : error);
   }
   shutdownHooks.push(async () => {
+    stopTicker?.();
     await stopOutbox?.();
   });
 

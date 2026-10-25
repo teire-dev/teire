@@ -50,6 +50,13 @@
       "when": 1792931788240,
       "tag": "0006_s09_github_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792932929136,
+      "tag": "0007_s10_system_state",
+      "breakpoints": true
     }
   ]
 }
