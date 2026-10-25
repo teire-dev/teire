@@ -1,3 +1,4 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -217,5 +218,60 @@ describe("python surface diff and call sites (live)", () => {
     expect(sites).toEqual(expect.arrayContaining(["app/llm.py:1", "app/llm.py:7", "app/llm.py:13"]));
     // `messages.create(temperature=1)` on the repo's own Cache class resolves to the repo, not anthropic.
     expect(sites).not.toContain("app/llm.py:28");
+  }, 180_000);
+});
+
+describe("python constructor keywords and local names (live)", () => {
+  it("httpx 0.27 → 0.28: flags Client(proxies=…), not Client(proxy=…) or a parameter named like a removed function", async () => {
+    const repoDir = mkdtempSync(join(tmpdir(), "teire-httpx-"));
+    mkdirSync(join(repoDir, "app"));
+    writeFileSync(join(repoDir, "app/__init__.py"), "");
+    writeFileSync(
+      join(repoDir, "app/net.py"),
+      [
+        "import httpx",
+        "",
+        "",
+        "def old(url):",
+        '    return httpx.Client(proxies={"all://": url})',
+        "",
+        "",
+        "def new(url):",
+        "    return httpx.Client(proxy=url)",
+        "",
+        "",
+        "def handler(request: httpx.Request) -> httpx.Response:",
+        "    return httpx.Response(200, json={'path': request.url.path})",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(repoDir, "app/wsgi.py"),
+      "def app(environ, start):\n    return [environ.get('PATH_INFO', '').encode()]\n",
+    );
+    const records = surfaceChangeRecords(await pypiSurfaceDiff("httpx", "0.27.2", "0.28.1", options));
+    const wheel = await fetchPypiWheel("httpx", "0.27.2", options);
+    const located = await locatePython({
+      repoDir,
+      projectRoot: ".",
+      packages: wheel.topLevel,
+      siteDirs: [wheel.dir],
+      ...locateTargets(records),
+    });
+    const summary = summariseFindings(
+      assess({
+        instance: { ...instance("httpx", "==0.27.2"), version: "0.27.2" },
+        target: "0.28.1",
+        isMajor: true,
+        records,
+        locate: located,
+      }),
+    );
+    expect(summary.verdict).toBe("affected");
+    expect(summary.breaking.flatMap((f) => f.callSites.map((s) => `${s.file}:${s.line}`))).toEqual([
+      "app/net.py:5",
+    ]);
+    // `request` (a parameter) and `environ.get` (a file that never imports httpx) are not unknowns.
+    expect(summary.coverage?.unresolvedSites).toBe(0);
   }, 180_000);
 });

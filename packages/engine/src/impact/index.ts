@@ -45,7 +45,7 @@ export interface ImpactInput {
 
 const DAY = 86_400_000;
 
-function priorityOf(record: ChangeV2, verdict: Verdict, now: Date): number | null {
+export function priorityOf(record: ChangeV2, verdict: Verdict, now: Date): number | null {
   if (verdict !== "affected") return null;
   const cls = record.applicability.class;
   if (cls === "security") return record.applicability.fixedIn.length ? 0 : 4;
@@ -262,6 +262,11 @@ export function locateTargets(records: ChangeV2[]) {
       } else {
         declKeys.add(s.declKey);
         names.add(last);
+        // A constructor is called by its class name (`httpx.Client(…)` runs `Client.__init__`).
+        if (last === "__init__" || last === "constructor") {
+          const owner = s.path.split(".").at(-2);
+          if (owner) names.add(owner);
+        }
       }
     }
   }
@@ -297,3 +302,4 @@ export function summariseFindings(findings: FindingDraft[]): DependencyVerdict {
         : "not_affected";
   return { verdict, breaking, annotations, coverage };
 }
+export * from "./provider";

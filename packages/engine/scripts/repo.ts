@@ -2,15 +2,22 @@
  * The whole loop on one public repo, any supported ecosystem, through the same pipeline calls the
  * worker makes (no GitHub writes): assess every dependency, then with --fix=<package> fix that one
  * and print the diff, the baseline-vs-after table and the model per step.
- * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/repo.ts owner/repo [--fix=<package>]
+ * With --api it also scans for the provider changes in the git catalog (retired models, removed
+ * endpoints); --fix-api=<group> fixes one group (`models/nebius-token-factory`).
+ * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/repo.ts owner/repo [--fix=<package>] [--api] [--fix-api=<group>]
  */
+import { readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { type ChangeV2, changeV2 } from "../src/contract";
 import { directoryTree, fetchRepoTarball } from "../src/inventory";
 import type { PyProject } from "../src/inventory/python";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "../src/llm";
 import {
   type Assessment,
+  assessApiChanges,
   assessJsRepo,
   assessPyRepo,
+  fixApiChanges,
   fixJsDependency,
   fixPyDependency,
 } from "../src/pipeline";
@@ -19,6 +26,8 @@ import { type SideResult, selectBackend } from "../src/verify";
 
 const args = process.argv.slice(2);
 const fixName = args.find((a) => a.startsWith("--fix="))?.slice("--fix=".length);
+const fixApi = args.find((a) => a.startsWith("--fix-api="))?.slice("--fix-api=".length);
+const api = args.includes("--api") || !!fixApi;
 const [slug = "teire-dev/demo-py-major"] = args.filter((a) => !a.startsWith("--"));
 const [owner, repo] = slug.split("/") as [string, string];
 const options = { cache: memoryCache(), githubToken: process.env.GITHUB_TOKEN };
@@ -107,4 +116,62 @@ if (fixName) {
       `  attempt ${a.n}${a.replan ? " (replan)" : ""}: ${a.model}${a.failover ? " (failover)" : ""}, ${a.steps} steps, $${a.costUsd.toFixed(4)} → ${a.evidence}`,
     );
   log(`  run ${Math.round(run.ms / 1000)} s; PR title: ${result.pr.title}`);
+}
+
+if (api) {
+  const root = resolve(import.meta.dirname, "../../../catalog/changes");
+  const records: ChangeV2[] = readdirSync(root).flatMap((dir) =>
+    readdirSync(join(root, dir)).map((f) =>
+      changeV2.parse(JSON.parse(readFileSync(join(root, dir, f), "utf8"))),
+    ),
+  );
+  const { scan, findings } = await assessApiChanges(checkout.dir, tree, records);
+  log(
+    `\n## Provider changes (${records.length} records; ${scan.filesScanned} files, ${scan.languages.join(", ")}, ${scan.ms} ms)`,
+  );
+  for (const f of findings) {
+    log(
+      `- [${f.groupKey}] ${f.changeId}: ${f.verdict} (${f.class}, priority ${f.priority ?? "-"}) — ${f.reason}`,
+    );
+    for (const site of f.callSites) log(`    ${site.file}:${site.line} ${site.snippet.slice(0, 100)}`);
+  }
+  if (fixApi) {
+    const group = findings.filter((f) => f.groupKey === fixApi);
+    if (!group.length) throw new Error(`no findings in group ${fixApi}`);
+    const tf = createTokenFactory(tokenFactoryConfigFromEnv());
+    const { backend, note } = await selectBackend();
+    const provider = records.find((r) => r.id === group[0]?.changeId)?.subject.provider;
+    log(`\n## Fix ${fixApi} (${note})`);
+    const result = await fixApiChanges({
+      tf,
+      prices: await fetchModelPrices(),
+      backend,
+      backendNote: note,
+      runId: `repo-api-${Date.now().toString(36)}`,
+      repoDir: checkout.dir,
+      tree,
+      repo: { owner, repo, baseSha: checkout.sha ?? "main" },
+      tarball: { url: `https://api.github.com/repos/${owner}/${repo}/tarball/${checkout.sha ?? "main"}` },
+      options: { ...options, context7Key: process.env.CONTEXT7_API_KEY },
+      findings: group,
+      records: records.filter((r) => group.some((f) => f.changeId === r.id)),
+      related: records.filter((r) => r.subject.provider === provider && r.status === "confirmed"),
+      onEvent: (e) =>
+        log(
+          `    [${e.step}${e.model ? ` · ${e.model}` : ""}] ${e.detail}${e.costUsd ? ` ($${e.costUsd.toFixed(4)})` : ""}`,
+        ),
+    });
+    const run = result.run;
+    log("\n## Diff");
+    for (const f of run.files) log(f.patch);
+    log(
+      `\n  => ${run.evidence.kind.toUpperCase()} (${run.evidence.prMode}) — ${run.evidence.reasons.join("; ")}`,
+    );
+    for (const a of run.attempts)
+      log(
+        `  attempt ${a.n}${a.replan ? " (replan)" : ""}: ${a.model}, ${a.steps} steps, $${a.costUsd.toFixed(4)} → ${a.evidence}`,
+      );
+    log(`  run ${Math.round(run.ms / 1000)} s; PR title: ${result.pr.title}\n`);
+    log(result.pr.body);
+  }
 }

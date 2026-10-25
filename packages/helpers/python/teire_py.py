@@ -557,6 +557,7 @@ def cmd_resolve_refs(repo: str, project_root: str, names_file: str, *site_dirs: 
     imports = re.compile(r"^\s*(from|import)\s+(" + "|".join(re.escape(p) for p in prefixes) + r")\b", re.M) if prefixes else None
     hits = []
     unresolved = 0
+    unresolved_at: list[str] = []
     scanned = 0
     skipped = 0
     for dirpath, dirnames, filenames in os.walk(base):
@@ -593,7 +594,13 @@ def cmd_resolve_refs(repo: str, project_root: str, names_file: str, *site_dirs: 
                     defs = []
                 full = sorted({d.full_name for d in defs if d.full_name})
                 if not full:
+                    # A local name (a parameter, a variable) is the repo's own; only a name with no
+                    # definition at all, in a file that imports the package, could be the package's.
+                    if defs or not (imports and imports.search(text)):
+                        continue
                     unresolved += 1
+                    if len(unresolved_at) < 20:
+                        unresolved_at.append(f"{path.relative_to(root)}:{name.line} {name.name}")
                     continue
                 if not any(f == p or f.startswith(p + ".") for f in full for p in prefixes):
                     continue  # resolves to the repo's own code or another library
@@ -611,7 +618,7 @@ def cmd_resolve_refs(repo: str, project_root: str, names_file: str, *site_dirs: 
                     hit["argCount"] = len(call.args)
                     hit["kwargs"] = [k.arg for k in call.keywords if k.arg]
                 hits.append(hit)
-    out({"hits": hits, "unresolved": unresolved, "filesScanned": scanned, "filesSkipped": skipped})
+    out({"hits": hits, "unresolved": unresolved, "unresolvedAt": unresolved_at, "filesScanned": scanned, "filesSkipped": skipped})
 
 
 def main(argv: list[str]) -> None:

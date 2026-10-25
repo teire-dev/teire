@@ -46,7 +46,12 @@ export async function locatePython(input: {
     const hits: Hit[] = [];
     const seen = new Set<string>();
     for (const h of result.hits) {
-      const declKey = h.fullNames.find((f) => input.declKeys.has(f));
+      // Calling a class runs its `__init__`: a removed constructor keyword is keyed there.
+      const declKey =
+        h.fullNames.find((f) => input.declKeys.has(f)) ??
+        (h.kind === "call"
+          ? h.fullNames.map((f) => `${f}.__init__`).find((f) => input.declKeys.has(f))
+          : undefined);
       if (!declKey) continue;
       const key = `${h.file}:${h.line}:${declKey}`;
       if (seen.has(key)) continue;

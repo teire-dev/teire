@@ -52,6 +52,8 @@ export interface FixInput {
   headline?: string;
   /** Deterministic edits the caller planned (model swaps at located literals), applied before the agent. */
   edits?: CodemodEdit[];
+  /** Keep going until the checks pass, even when they also failed on the baseline (already-broken changes). */
+  requirePassing?: boolean;
   findings: FindingDraft[];
   records: ChangeV2[];
   notes: MigrationNote[];
@@ -99,7 +101,15 @@ export interface FixRun {
   exhausted: boolean;
 }
 
-const acceptable = (e: Evidence) => PR_MODE_BY_EVIDENCE[e.kind] !== "issue";
+/**
+ * When a run may stop: an upgrade stops at any evidence that opens a PR (failing checks that were
+ * already failing are no worse); a change that already broke the repo (a retired model) stops only
+ * when the checks pass, because the failing baseline is the change itself.
+ */
+const acceptableFor = (requirePassing: boolean) => (e: Evidence) =>
+  requirePassing
+    ? e.kind === "verified" || e.kind === "typecheck_only"
+    : PR_MODE_BY_EVIDENCE[e.kind] !== "issue";
 
 const SYSTEM = `You are Teire's fix agent. Something this repository depends on changed: a package was upgraded (manifest and lockfile are already done), or an API it calls changed (a model was retired, a parameter removed). The code must be adapted so the repo's own typecheck and tests pass again, with the smallest correct change.
 Rules:
@@ -156,6 +166,7 @@ function describeFindings(input: FixInput) {
 
 export async function runFix(input: FixInput): Promise<FixRun> {
   const started = Date.now();
+  const acceptable = acceptableFor(input.requirePassing ?? false);
   const events: FixEvent[] = [];
   const emit = (e: FixEvent) => {
     events.push(e);

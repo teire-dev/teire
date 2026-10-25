@@ -1,8 +1,8 @@
-import { PULL_REQUESTS } from "../constants";
+import { PR_MODE_BY_EVIDENCE, PULL_REQUESTS } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import type { MigrationNote } from "../fix/codemods";
 import type { FixRun } from "../fix/run";
-import type { DependencyVerdict } from "../impact";
+import type { DependencyVerdict, FindingDraft } from "../impact";
 import type { CheckPlan } from "../verify/commands";
 import type { SideResult } from "../verify/evidence";
 
@@ -53,6 +53,59 @@ function cell(side: SideResult, name: string) {
     : "";
   const errors = c.typeErrors ? `${c.typeErrors} type errors` : "";
   return `${c.exitCode === 0 ? "✓" : "✗"} exit ${c.exitCode}${counts || errors ? ` · ${[counts, errors].filter(Boolean).join(", ")}` : ""}`;
+}
+
+/** The Verification section: one table, both sides, then the evidence that decided the PR. */
+function verificationLines(
+  run: FixRun,
+  plan: CheckPlan,
+  backendNote: string,
+  setup: string,
+  before: string,
+  after: string,
+) {
+  const out = ["### Verification"];
+  out.push(
+    `${setup} (${backendNote.split(" (")[0]}; registry-only network), then ran the repo's checks with the network off.`,
+  );
+  out.push(`| Check | Before (${before}) | After (${after}) |`, "|---|---|---|");
+  for (const c of plan.checks)
+    out.push(
+      `| ${c.name} \`${escapeCell(c.argv.join(" ")).slice(0, 80)}\` | ${cell(run.baseline, c.name)} | ${cell(run.after, c.name)} |`,
+    );
+  out.push(`Evidence: **${run.evidence.kind.replace(/_/g, " ")}**. ${run.evidence.reasons.join("; ")}.`);
+  return out;
+}
+
+/** The Receipt section: model, tokens and cost per step, and sandbox time. */
+function receiptLines(
+  run: FixRun,
+  backendNote: string,
+  notesReceipt?: { model: string; tokensIn: number; tokensOut: number; costUsd: number },
+) {
+  const out = ["### Receipt", "| Step | Model | Tokens in / out | Cost |", "|---|---|---|---|"];
+  if (notesReceipt)
+    out.push(
+      `| Read the release notes | ${modelName(notesReceipt.model)} | ${tokens(notesReceipt.tokensIn)} / ${tokens(notesReceipt.tokensOut)} | ${usd(notesReceipt.costUsd)} |`,
+    );
+  if (run.codemods.length) out.push(`| Deterministic edits (${run.codemods.length}) | none | — | $0 |`);
+  for (const a of run.attempts) {
+    const steps = run.agentSteps.filter((s) => s.model === a.model);
+    const tin = steps.reduce((n, s) => n + s.tokensIn, 0);
+    const tout = steps.reduce((n, s) => n + s.tokensOut, 0);
+    out.push(
+      `| Fix attempt ${a.n}${a.replan ? " (replanned)" : ""}: ${a.steps} steps → ${a.evidence.replace(/_/g, " ")} | ${modelName(a.model)}${a.failover ? " (failover)" : ""} | ${tokens(tin)} / ${tokens(tout)} | ${usd(a.costUsd)} |`,
+    );
+  }
+  const sandboxMs = [...run.baseline.checks, ...run.after.checks].reduce(
+    (n, c) => n + c.ms,
+    run.baseline.install.ms + run.after.install.ms,
+  );
+  out.push(
+    `| Sandboxes: install + checks, both sides | ${backendNote.split(" (")[0]} | — | ${Math.round(sandboxMs / 1000)} s |`,
+  );
+  out.push(`Model total: **${usd(run.costUsd + (notesReceipt?.costUsd ?? 0))}**.`);
+  return out;
 }
 
 export interface FixPullRequestInput {
@@ -185,42 +238,17 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
         `<details><summary>Code diff</summary>\n\n\`\`\`diff\n${codeFiles.map((f) => f.patch.replace(/^=+\n/, "")).join("\n")}\n\`\`\`\n\n</details>`,
       );
 
-    // Verification
-    out.push("### Verification");
     out.push(
-      `Each side installed its own lockfile in its own sandbox (${input.backendNote.split(" (")[0]}; registry-only network), then ran the repo's checks with the network off.`,
+      ...verificationLines(
+        run,
+        plan,
+        input.backendNote,
+        "Each side installed its own lockfile in its own sandbox",
+        instance.version ?? "",
+        run.target,
+      ),
     );
-    out.push(`| Check | Before (${instance.version}) | After (${run.target}) |`, "|---|---|---|");
-    for (const c of plan.checks)
-      out.push(
-        `| ${c.name} \`${escapeCell(c.argv.join(" ")).slice(0, 80)}\` | ${cell(run.baseline, c.name)} | ${cell(run.after, c.name)} |`,
-      );
-    out.push(`Evidence: **${run.evidence.kind.replace(/_/g, " ")}**. ${run.evidence.reasons.join("; ")}.`);
-
-    // Receipt
-    out.push("### Receipt");
-    out.push("| Step | Model | Tokens in / out | Cost |", "|---|---|---|---|");
-    if (input.notesReceipt)
-      out.push(
-        `| Read the release notes | ${modelName(input.notesReceipt.model)} | ${tokens(input.notesReceipt.tokensIn)} / ${tokens(input.notesReceipt.tokensOut)} | ${usd(input.notesReceipt.costUsd)} |`,
-      );
-    if (run.codemods.length) out.push(`| Deterministic edits (${run.codemods.length}) | none | — | $0 |`);
-    for (const a of run.attempts) {
-      const steps = run.agentSteps.filter((s) => s.model === a.model);
-      const tin = steps.reduce((n, s) => n + s.tokensIn, 0);
-      const tout = steps.reduce((n, s) => n + s.tokensOut, 0);
-      out.push(
-        `| Fix attempt ${a.n}${a.replan ? " (replanned)" : ""}: ${a.steps} steps → ${a.evidence.replace(/_/g, " ")} | ${modelName(a.model)}${a.failover ? " (failover)" : ""} | ${tokens(tin)} / ${tokens(tout)} | ${usd(a.costUsd)} |`,
-      );
-    }
-    const sandboxMs = [...run.baseline.checks, ...run.after.checks].reduce(
-      (n, c) => n + c.ms,
-      run.baseline.install.ms + run.after.install.ms,
-    );
-    out.push(
-      `| Sandboxes: install + checks, both sides | ${input.backendNote.split(" (")[0]} | — | ${Math.round(sandboxMs / 1000)} s |`,
-    );
-    out.push(`Model total: **${usd(run.costUsd + (input.notesReceipt?.costUsd ?? 0))}**.`);
+    out.push(...receiptLines(run, input.backendNote, input.notesReceipt));
 
     // Risks not covered
     out.push("### Risks not covered");
@@ -262,6 +290,131 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     if (body.length <= PULL_REQUESTS.bodyMaxChars) return { title, body };
   }
   return { title, body: sections(false, 1, 0).slice(0, PULL_REQUESTS.bodyMaxChars) };
+}
+
+export interface ApiChangePullRequestInput {
+  repo: RepoRef;
+  runId: string;
+  runUrl?: string;
+  groupKey: string;
+  findings: FindingDraft[];
+  records: ChangeV2[];
+  run: FixRun;
+  plan: CheckPlan;
+  backendNote: string;
+  notes: MigrationNote[];
+}
+
+/**
+ * A pull request for a provider's API change (a retired model, a removed endpoint), in the same
+ * anatomy as an upgrade: verdict, why this repo, the provider's own words, changes, verification,
+ * receipt, risks, rollback, commands.
+ */
+export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
+  title: string;
+  body: string;
+} {
+  const { run, repo, plan } = input;
+  const affected = input.findings.filter((f) => f.verdict === "affected");
+  const unsure = input.findings.filter((f) => f.verdict !== "affected");
+  const provider = input.records[0]?.subject.provider ?? "the provider";
+  const swaps = [
+    ...new Set(
+      affected.filter((f) => f.position.target).map((f) => `${f.position.version} → ${f.position.target}`),
+    ),
+  ];
+  const broken = input.records.some((r) => r.applicability.class === "already-broken");
+  const title =
+    swaps.length === 1
+      ? `Replace ${broken ? "retired" : "retiring"} model ${swaps[0]?.replace(" → ", " with ")}`
+      : swaps.length
+        ? `Replace ${swaps.length} ${broken ? "retired" : "retiring"} ${provider} models`
+        : `Adapt to ${input.records[0]?.title ?? "an API change"}`;
+  const test = run.after.checks.find((c) => c.name === "test");
+  const code = run.files.length;
+  const what = `${swaps.join(", ") || input.records.map((r) => r.title).join("; ")}${code ? `, ${code} file${code === 1 ? "" : "s"} changed` : ""}`;
+  const verdict =
+    run.evidence.kind === "verified"
+      ? `**Verified.** ${what}. The repo's checks pass before and after${test?.counts ? ` (${test.counts.passed}/${test.counts.collected} tests)` : ""}.`
+      : PR_MODE_BY_EVIDENCE[run.evidence.kind] === "draft"
+        ? `**Draft: ${run.evidence.kind.replace(/_/g, " ")}.** ${what}. ${run.evidence.reasons.join("; ")}.`
+        : `**Needs a human.** ${what}. ${run.evidence.reasons.join("; ")}.`;
+  const sections = (withDiff: boolean, siteCap: number) => {
+    const out: string[] = [`<!-- teire:group=${input.groupKey} run=${input.runId} -->`, verdict];
+    out.push("### Why this repo");
+    for (const f of affected) {
+      const record = input.records.find((r) => r.id === f.changeId);
+      out.push(`${f.reason}`);
+      for (const s of f.callSites.slice(0, siteCap))
+        out.push(
+          `- [\`${s.file}:${s.line}\`](${blob(repo, s.file, s.line)}) \`${escapeCell(s.snippet).slice(0, 120)}\``,
+        );
+      if (f.callSites.length > siteCap) out.push(`- and ${f.callSites.length - siteCap} more`);
+      if (record?.applicability.effectiveOn && record.applicability.class === "already-broken")
+        out.push(`<sub>Calls with this model have failed since ${record.applicability.effectiveOn}.</sub>`);
+    }
+    if (unsure.length)
+      out.push(
+        `<sub>Also mentioned, not passed as a model, left unchanged: ${unsure
+          .flatMap((f) => f.callSites.slice(0, 3))
+          .map((s) => `[\`${s.file}:${s.line}\`](${blob(repo, s.file, s.line)})`)
+          .join(", ")}.</sub>`,
+      );
+    out.push("### What changed upstream");
+    for (const note of input.notes.slice(0, 8))
+      out.push(`> ${escapeCell(note.quote).slice(0, 400)}\n>\n> — ${note.summary} ([source](${note.url}))`);
+    out.push("### Changes");
+    out.push("| File | Change |", "|---|---|");
+    for (const f of run.files) {
+      const mods = run.codemods.filter((c) => c.file === f.path).map((c) => c.reason);
+      const agent = run.attempts.length ? modelName(run.attempts.at(-1)?.model ?? "") : "";
+      out.push(
+        `| \`${f.path}\` | ${escapeCell([mods.length ? `Teire: ${mods.join(", ")}` : "", agent && !mods.length ? `edited by ${agent}` : ""].filter(Boolean).join("; ") || "edited")} |`,
+      );
+    }
+    if (run.summary) out.push(`<sub>${escapeCell(run.summary).slice(0, 1200)}</sub>`);
+    if (withDiff && run.files.length)
+      out.push(
+        `<details><summary>Code diff</summary>\n\n\`\`\`diff\n${run.files.map((f) => f.patch.replace(/^=+\n/, "")).join("\n")}\n\`\`\`\n\n</details>`,
+      );
+    out.push(
+      ...verificationLines(
+        run,
+        plan,
+        input.backendNote,
+        "Both sides installed the same lockfile in their own sandboxes",
+        "old model",
+        "new model",
+      ),
+    );
+    out.push(...receiptLines(run, input.backendNote));
+    out.push("### Risks not covered");
+    const risks = [
+      "Tests run with the network off, so no request reached the provider: the new model's answers were not checked against the live API.",
+      ...(run.evidence.kind !== "verified" ? [run.evidence.reasons.join("; ")] : []),
+      "Prompts tuned for the old model may need review for the new one's style and output length.",
+    ];
+    for (const r of risks) out.push(`- ${r}`);
+    out.push("### Rollback");
+    out.push(
+      "Revert this pull request: the model IDs and edited lines return to what they were. No dependency changed.",
+    );
+    out.push("### Commands");
+    out.push("`@teire rebase` · `@teire recreate` · `@teire explain` · `@teire ignore`");
+    out.push(
+      `<sub>Teire${input.runUrl ? ` · [live run](${input.runUrl})` : ""} · fixed with NVIDIA Nemotron on Nebius Token Factory</sub>`,
+    );
+    return out.join("\n\n");
+  };
+  for (const [diff, sites] of [
+    [true, PULL_REQUESTS.maxSitesPerFinding],
+    [false, PULL_REQUESTS.maxSitesPerFinding],
+    [false, 3],
+  ] as const) {
+    const body = sections(diff, sites);
+    if (body.length <= PULL_REQUESTS.bodyMaxChars) return { title, body };
+  }
+  return { title, body: sections(false, 1).slice(0, PULL_REQUESTS.bodyMaxChars) };
 }
 
 export interface OnboardingRow {
