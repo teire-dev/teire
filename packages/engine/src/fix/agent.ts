@@ -46,9 +46,9 @@ export interface AgentResult {
 }
 
 const NEVER_EDIT =
-  /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|yarn\.lock|bun\.lockb?|\.npmrc|\.yarnrc\.yml|tsconfig[^/]*\.json|[^/]*\.config\.[cm]?[jt]s|\.github\/.*|\.env[^/]*|pyproject\.toml|uv\.lock|poetry\.lock|Pipfile(\.lock)?|pylock[^/]*\.toml|requirements[^/]*\.(txt|in)|setup\.(py|cfg)|tox\.ini|noxfile\.py|mypy\.ini|pytest\.ini|go\.(mod|sum|work)|Cargo\.(toml|lock)|rust-toolchain(\.toml)?|\.cargo\/.*)$/;
+  /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|yarn\.lock|bun\.lockb?|\.npmrc|\.yarnrc\.yml|tsconfig[^/]*\.json|[^/]*\.config\.[cm]?[jt]s|\.github\/.*|\.env[^/]*|pyproject\.toml|uv\.lock|poetry\.lock|Pipfile(\.lock)?|pylock[^/]*\.toml|requirements[^/]*\.(txt|in)|setup\.(py|cfg)|tox\.ini|noxfile\.py|mypy\.ini|pytest\.ini|go\.(mod|sum|work)|Cargo\.(toml|lock)|rust-toolchain(\.toml)?|\.cargo\/.*|Gemfile(\.lock)?|gems\.(rb|locked)|[^/]*\.gemspec|\.ruby-version|\.bundle\/.*|config\/(database|credentials)[^/]*\.yml)$/;
 const NEVER_READ = /(^|\/)(\.env[^/]*|\.git\/.*|node_modules\/.*|[^/]*\.(pem|key|p12))$/;
-const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md|py|pyi|toml|cfg|ini|go|rs)$/;
+const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md|py|pyi|toml|cfg|ini|go|rs|rb|rake|ru|erb|yml)$/;
 
 function safePath(repoDir: string, path: string) {
   const rel = normalize(path).split(sep).join("/").replace(/^\.\//, "");

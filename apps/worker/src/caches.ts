@@ -1,10 +1,11 @@
 import { and, type Database, eq, extractionCache, registryCache, surfaceDiffs } from "@teire/db";
-import { GO, PYTHON, RUST, SURFACE } from "@teire/engine/constants";
+import { GO, PYTHON, RUBY, RUST, SURFACE } from "@teire/engine/constants";
 import type { RegistryCache } from "@teire/engine/registry";
 import {
   type NpmSurfaceOptions,
   npmSurfaceDiff,
   pypiSurfaceDiff,
+  rubySurfaceDiff,
   type SurfaceDiff,
 } from "@teire/engine/surface";
 
@@ -48,7 +49,7 @@ export function postgresRegistryCache(db: Database): RegistryCache {
  */
 export async function cachedSurfaceDiff(
   db: Database,
-  ecosystem: "npm" | "pypi" | "go" | "cargo",
+  ecosystem: "npm" | "pypi" | "go" | "cargo" | "rubygems",
   name: string,
   fromVersion: string,
   toVersion: string,
@@ -63,7 +64,9 @@ export async function cachedSurfaceDiff(
         ? { name: "apidiff", version: GO.apidiffVersion }
         : ecosystem === "cargo"
           ? { name: "cargo-semver-checks", version: RUST.semverChecksVersion }
-          : { name: SURFACE.tool, version: SURFACE.toolVersion };
+          : ecosystem === "rubygems"
+            ? { name: "teire-prism-surface", version: RUBY.extractorVersion }
+            : { name: SURFACE.tool, version: SURFACE.toolVersion };
   const key = and(
     eq(surfaceDiffs.ecosystem, ecosystem),
     eq(surfaceDiffs.name, name),
@@ -80,7 +83,9 @@ export async function cachedSurfaceDiff(
     ? await compute()
     : ecosystem === "pypi"
       ? await pypiSurfaceDiff(name, fromVersion, toVersion, options)
-      : await npmSurfaceDiff(name, fromVersion, toVersion, options);
+      : ecosystem === "rubygems"
+        ? await rubySurfaceDiff(name, fromVersion, toVersion)
+        : await npmSurfaceDiff(name, fromVersion, toVersion, options);
   // A Go diff that could not be computed (a private module, a toolchain error) is not cached.
   if (diff.unanalyzable) return diff;
   await db

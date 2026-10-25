@@ -1,0 +1,14 @@
+#!/bin/bash
+# teire-job-status <dir> → one JSON line: missing | starting | running | exited | lost.
+# A PID from another boot (a restored snapshot reuses PIDs) never counts as running.
+set -u
+dir="$1"
+if [ ! -d "$dir" ]; then echo '{"state":"missing"}'; exit 0; fi
+if [ -f "$dir/exit-code" ]; then printf '{"state":"exited","exitCode":%s}\n' "$(cat "$dir/exit-code")"; exit 0; fi
+if [ ! -f "$dir/pid" ]; then echo '{"state":"starting"}'; exit 0; fi
+read -r pid boot < "$dir/pid"
+if [ "$boot" = "$(cat /proc/sys/kernel/random/boot_id)" ] && kill -0 "$pid" 2>/dev/null; then
+  printf '{"state":"running","pid":%s}\n' "$pid"
+else
+  echo '{"state":"lost"}'
+fi

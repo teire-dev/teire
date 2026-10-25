@@ -122,6 +122,26 @@ export function countsFromOutput(output: string): TestCounts | null {
     const errors = (text.match(/^error: could not compile/gm) ?? []).length;
     return { collected: passed + failed + skipped, passed, failed, skipped, errors };
   }
+  // RSpec: "12 examples, 1 failure, 2 pending" (+ "1 error occurred outside of examples").
+  const rspec = [
+    ...text.matchAll(
+      /^(\d+) examples?, (\d+) failures?(?:, (\d+) pending)?(?:, (\d+) errors? occurred outside of examples)?/gm,
+    ),
+  ];
+  if (rspec.length) {
+    const sum = (i: number) => rspec.reduce((n, m) => n + Number(m[i] ?? 0), 0);
+    const [collected, failed, skipped, errors] = [sum(1), sum(2), sum(3), sum(4)];
+    return { collected, passed: collected - failed - skipped, failed, skipped, errors };
+  }
+  // Minitest (rails test, rake test): "5 runs, 9 assertions, 0 failures, 0 errors, 0 skips", one per task.
+  const minitest = [
+    ...text.matchAll(/^(\d+) (?:runs|tests), \d+ assertions, (\d+) failures, (\d+) errors, (\d+) skips/gm),
+  ];
+  if (minitest.length) {
+    const sum = (i: number) => minitest.reduce((n, m) => n + Number(m[i] ?? 0), 0);
+    const [collected, failed, errors, skipped] = [sum(1), sum(2), sum(3), sum(4)];
+    return { collected, passed: collected - failed - errors - skipped, failed, skipped, errors };
+  }
   // vitest: "Tests  2 passed | 1 failed | 1 skipped (4)"
   const vitest = /^\s*Tests\s+(.+?)\s+\((\d+)\)\s*$/m.exec(text);
   if (vitest?.[1] && vitest[2]) {

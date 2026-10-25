@@ -140,6 +140,11 @@ export interface SurfaceDiff {
   unanalyzable: boolean;
   /** Modules compared only in part (or not at all) while others were: the changes listed stand, more may exist. */
   partial?: string[];
+  /**
+   * Method names the new version still defines anywhere (Ruby). A removed method found only by
+   * name, with its receiver's class unknown, is ambiguous when another class keeps that name.
+   */
+  keptMethodNames?: string[];
   notes: string[];
   tool: { name: string; version: string; noiseFilterVersion: string };
 }

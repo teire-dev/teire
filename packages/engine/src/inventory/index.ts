@@ -5,5 +5,6 @@ export * from "./js-policy";
 export * from "./osv";
 export * from "./python";
 export * from "./repo";
+export * from "./ruby";
 export * from "./rust";
 export * from "./tree";

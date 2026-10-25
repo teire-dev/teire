@@ -142,7 +142,12 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
   }
   const records: ChangeV2[] = [];
   for (const [kind, list] of groups) {
-    const candidate = kind === "optional-to-required" || kind === "required-added";
+    // Ruby's surface is read statically from a dynamic language: a symbol change stays a candidate
+    // until a changelog quote or the sandbox confirms it (plan S07); a removed file or dependency is certain.
+    const candidate =
+      kind === "optional-to-required" ||
+      kind === "required-added" ||
+      (diff.ecosystem === "rubygems" && kind !== "deep-import-removed");
     const drift = kind === "symbol-changed" || kind === "symbol-deprecated";
     const headline = list
       .slice(0, 5)

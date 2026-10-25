@@ -4,6 +4,8 @@ import { sha256 } from "../catalog/source";
 import { ADVISORIES } from "../constants";
 import { type ChangeV2, changeV2, type Ecosystem, type Signature } from "../contract";
 import { guardedFetch } from "../net/fetch";
+import { rubygemsScheme } from "../registry/versions";
+import { type RubysecAdvisory, rubysecAffects, rubysecDatabase, rubysecFixedIn } from "./rubysec";
 
 /**
  * Security advisories for exact installed versions (card C2 step 4, D51), research
@@ -98,7 +100,15 @@ function ghsaRangeMatches(range: string | null, version: string, ecosystem: Ecos
     const spec = range.replace(/\s+/g, "");
     return pep440.validRange(spec) ? pep440.satisfies(version, spec) : true;
   }
-  if (ecosystem !== "npm" && ecosystem !== "go") return true;
+  // RubyGems requirements (`>= 1.0.0, <= 1.10.5`) are read by ruby-semver as written.
+  if (ecosystem === "rubygems") {
+    try {
+      return rubygemsScheme.satisfies(version, range);
+    } catch {
+      return true;
+    }
+  }
+  if (ecosystem !== "npm" && ecosystem !== "go" && ecosystem !== "cargo") return true;
   const semverRange = range
     .replace(/,\s*/g, " ")
     .replace(/=\s+/g, "=")
@@ -231,6 +241,11 @@ export async function advisoriesFor(
     }
   }
 
+  // ruby-advisory-db: what OSV and the global GHSA API lack for gems (merged, deduplicated by alias).
+  const rubysec = unique.some((q) => q.ecosystem === "rubygems")
+    ? await rubysecDatabase().catch(() => new Map<string, RubysecAdvisory[]>())
+    : new Map<string, RubysecAdvisory[]>();
+
   const checkedAt = new Date().toISOString();
   const matches: AdvisoryMatch[] = [];
   unique.forEach((query, index) => {
@@ -306,6 +321,11 @@ export async function advisoriesFor(
         JSON.stringify(g),
       );
     }
+    if (query.ecosystem === "rubygems")
+      for (const r of rubysec.get(query.name) ?? []) {
+        if (!rubysecAffects(r, query.version)) continue;
+        add(r.id, r.aliases, r.title, r.url, r.severity, rubysecFixedIn(r), undefined, [], JSON.stringify(r));
+      }
   });
   return matches;
 }

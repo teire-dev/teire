@@ -10,6 +10,7 @@
 import { readTeireConfig } from "../src/config";
 import { directoryTree, fetchRepoTarball } from "../src/inventory";
 import type { PyProject } from "../src/inventory/python";
+import type { RubyProject } from "../src/inventory/ruby";
 import type { RustProject } from "../src/inventory/rust";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "../src/llm";
 import {
@@ -18,11 +19,13 @@ import {
   assessGoRepo,
   assessJsRepo,
   assessPyRepo,
+  assessRubyRepo,
   assessRustRepo,
   fixApiChanges,
   fixGoDependency,
   fixJsDependency,
   fixPyDependency,
+  fixRubyDependency,
   fixRustDependency,
   type GoAssessment,
   liveProviderChanges,
@@ -53,13 +56,15 @@ const js = await assessJsRepo(checkout.dir, tree, options);
 const py = await assessPyRepo(checkout.dir, tree, options);
 const go = await assessGoRepo(checkout.dir, tree, options);
 const rust = await assessRustRepo(checkout.dir, tree, options);
+const ruby = await assessRubyRepo(checkout.dir, tree, options);
 const all: Assessment<{ root: string; manager: string; instances: Assessment["instance"][] }>[] = [
   ...js.assessments,
   ...py.assessments,
   ...go.assessments,
   ...rust.assessments,
+  ...ruby.assessments,
 ];
-for (const p of [...js.projects, ...py.projects, ...go.projects, ...rust.projects])
+for (const p of [...js.projects, ...py.projects, ...go.projects, ...rust.projects, ...ruby.projects])
   log(
     `\n## ${p.root} (${p.manager}${p.lockfile ? `, ${p.lockfile}` : ""}): ${p.instances.filter((i) => i.direct).length} direct, ${p.instances.filter((i) => !i.direct).length} transitive`,
   );
@@ -107,7 +112,9 @@ if (fixName) {
         ? await fixGoDependency({ ...common, assessment: target as unknown as GoAssessment })
         : target.instance.ecosystem === "cargo"
           ? await fixRustDependency({ ...common, assessment: target as unknown as Assessment<RustProject> })
-          : await fixJsDependency({ ...common, assessment: target as unknown as Assessment });
+          : target.instance.ecosystem === "rubygems"
+            ? await fixRubyDependency({ ...common, assessment: target as unknown as Assessment<RubyProject> })
+            : await fixJsDependency({ ...common, assessment: target as unknown as Assessment });
   const run = result.run;
   log("\n## Diff");
   for (const m of run.manifest) log(`  ${m.path}: ${m.from} → ${m.to}`);

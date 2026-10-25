@@ -18,6 +18,7 @@ import {
 import { RUBY, SURFACE } from "../constants";
 import { extractTarGz } from "../inventory/archive";
 import { guardedFetch } from "../net/fetch";
+import { gemVersionDetail } from "../registry/rubygems";
 import type { SurfaceChange, SurfaceDiff } from "./types";
 
 /**
@@ -90,7 +91,7 @@ function paramsOf(p: ParametersNode | null): Params {
 
 /** Literal symbol or string arguments of a call (`attr_reader :a, :b`, `private :x`). */
 function literalArgs(call: CallNode): string[] {
-  const args = (call.arguments_ as unknown as { arguments?: Node[] } | null)?.arguments ?? [];
+  const args = (call.arguments_ as unknown as { arguments_?: Node[] } | null)?.arguments_ ?? [];
   return args.flatMap((a) => {
     const n = a as unknown as { constructor: { name: string }; unescaped?: { value?: string } | string };
     if (n.constructor.name !== "SymbolNode" && n.constructor.name !== "StringNode") return [];
@@ -356,7 +357,8 @@ export function diffRubySurfaces(before: RubySurface, after: RubySurface): Surfa
         out.push({
           path: key,
           declKey: key,
-          kind: other.some((w) => w.startsWith("new required keyword")) ? "required-added" : "arity-changed",
+          // A new required keyword breaks every call that does not pass it: an arity change.
+          kind: "arity-changed",
           symbolKind: "method",
           severity: "breaking",
           before: a.where,
@@ -379,13 +381,7 @@ async function fetchGemLib(name: string, version: string, into: string) {
     },
   );
   if (res.status !== 200) throw new Error(`gem ${res.status} for ${name}-${version}`);
-  const meta = await guardedFetch(
-    `https://rubygems.org/api/v2/rubygems/${encodeURIComponent(name)}/versions/${version}.json`,
-    {
-      allowHosts: ["rubygems.org"],
-    },
-  ).catch(() => null);
-  const expected = meta && meta.status === 200 ? meta.json<{ sha?: string }>().sha : undefined;
+  const expected = (await gemVersionDetail(name, version))?.sha ?? undefined;
   const actual = createHash("sha256").update(res.body).digest("hex");
   if (expected && expected !== actual) throw new Error(`sha256 mismatch for ${name}-${version}.gem`);
   // Outer tar: find data.tar.gz (512-byte headers, size in octal).
@@ -418,6 +414,7 @@ export async function rubySurfaceDiff(name: string, from: string, to: string): P
   let changes: SurfaceChange[] = [];
   let unanalyzable = false;
   let sizes = { a: 0, b: 0 };
+  let kept: string[] = [];
   try {
     const [libA, libB] = await Promise.all([
       fetchGemLib(name, from, join(scratch, "a")),
@@ -425,7 +422,21 @@ export async function rubySurfaceDiff(name: string, from: string, to: string): P
     ]);
     const [a, b] = await Promise.all([rubySurface(libA), rubySurface(libB)]);
     sizes = { a: a.symbols.size, b: b.symbols.size };
+    kept = [...new Set([...b.symbols.keys()].flatMap((k) => /[#.]([^#.:]+)$/.exec(k)?.[1] ?? []))];
     changes = diffRubySurfaces(a, b);
+    // Runtime dependencies the new version dropped: code that requires them loses them (registry data).
+    const [da, db] = await Promise.all([gemVersionDetail(name, from), gemVersionDetail(name, to)]);
+    for (const dep of da?.runtime ?? [])
+      if (db && !db.runtime.some((d) => d.name === dep.name))
+        changes.push({
+          path: `gem:${dep.name}`,
+          declKey: `gem:${dep.name}`,
+          kind: "entry-removed",
+          severity: "breaking",
+          before: `${dep.name} ${dep.requirements}`,
+          after: null,
+          guidance: `${name} ${to} no longer depends on ${dep.name}: code that requires it needs its own Gemfile entry`,
+        });
     notes.push(
       `Prism extractor over lib/ (${a.files}/${b.files} files, ${a.symbols.size}/${b.symbols.size} symbols${a.parseErrors + b.parseErrors ? `, ${a.parseErrors + b.parseErrors} files with parse errors` : ""}); methods generated at runtime are not seen`,
     );
@@ -458,6 +469,7 @@ export async function rubySurfaceDiff(name: string, from: string, to: string): P
     moved: {},
     unanalyzable,
     notes,
+    keptMethodNames: kept,
     tool: {
       name: "teire-prism-surface",
       version: RUBY.extractorVersion,

@@ -9,7 +9,7 @@ import {
   openOrUpdatePullRequest,
   publishCheckRun,
 } from "@teire/engine/github";
-import type { PyProject, RepoTree, RustProject } from "@teire/engine/inventory";
+import type { PyProject, RepoTree, RubyProject, RustProject } from "@teire/engine/inventory";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
 import {
@@ -19,11 +19,13 @@ import {
   assessGoRepo,
   assessJsRepo,
   assessPyRepo,
+  assessRubyRepo,
   assessRustRepo,
   fixApiChanges,
   fixGoDependency,
   fixJsDependency,
   fixPyDependency,
+  fixRubyDependency,
   fixRustDependency,
   type GoAssessment,
   repoInstances,
@@ -69,7 +71,16 @@ async function packageOutcome(
   common: Common,
 ): Promise<Outcome | null> {
   const head = run.groupKey.split("/")[0];
-  const ecosystem = head === "pypi" ? "pypi" : head === "go" ? "go" : head === "cargo" ? "cargo" : "npm";
+  const ecosystem =
+    head === "pypi"
+      ? "pypi"
+      : head === "go"
+        ? "go"
+        : head === "cargo"
+          ? "cargo"
+          : head === "gem"
+            ? "rubygems"
+            : "npm";
   const packageName = run.groupKey.split("/").slice(1, -1).join("/");
   const cache = postgresRegistryCache(ctx.db);
   const assessOptions = {
@@ -99,7 +110,9 @@ async function packageOutcome(
                   cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
                 ),
             })
-          : await assessJsRepo(repoDir, tree, assessOptions);
+          : ecosystem === "rubygems"
+            ? await assessRubyRepo(repoDir, tree, assessOptions)
+            : await assessJsRepo(repoDir, tree, assessOptions);
   const assessment = (assessments as Assessment<AssessedProject>[]).find(
     (a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion,
   );
@@ -114,7 +127,12 @@ async function packageOutcome(
               ...common,
               assessment: assessment as unknown as Assessment<RustProject>,
             })
-          : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
+          : ecosystem === "rubygems"
+            ? await fixRubyDependency({
+                ...common,
+                assessment: assessment as unknown as Assessment<RubyProject>,
+              })
+            : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
   return {
     fix: result.run,
     pr: result.pr,

@@ -18,6 +18,7 @@ import {
   assessGoRepo,
   assessJsRepo,
   assessPyRepo,
+  assessRubyRepo,
   assessRuntimes,
   assessRustRepo,
   runtimesOf,
@@ -178,7 +179,19 @@ export async function scanRepo(
           cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
         ),
     });
-    const projects: AssessedProject[] = [...js.projects, ...py.projects, ...go.projects, ...rust.projects];
+    const ruby = await assessRubyRepo(checkout.dir, tree, {
+      cache,
+      cooldownDays: config.upgrades.cooldownDays,
+      githubToken: token,
+      surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
+    });
+    const projects: AssessedProject[] = [
+      ...js.projects,
+      ...py.projects,
+      ...go.projects,
+      ...rust.projects,
+      ...ruby.projects,
+    ];
     // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.
     const api = await assessApiChanges(
       checkout.dir,
@@ -222,6 +235,7 @@ export async function scanRepo(
       ...py.assessments,
       ...go.assessments,
       ...rust.assessments,
+      ...ruby.assessments,
     ];
     await saveInstances(
       db,
@@ -245,6 +259,7 @@ export async function scanRepo(
         ...(py.projects.length ? ["python"] : []),
         ...(go.projects.length ? ["go"] : []),
         ...(rust.projects.length ? ["rust"] : []),
+        ...(ruby.projects.length ? ["ruby"] : []),
       ],
       ...(config.present ? { config, configSource: config.path } : {}),
     });

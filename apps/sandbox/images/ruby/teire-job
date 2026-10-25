@@ -1,0 +1,19 @@
+#!/bin/bash
+# teire-job <dir> <timeout-seconds> <cwd> -- <argv...>
+# Runs one command in its own process group, so it outlives the request that started it.
+# Writes "<pid> <boot-id>" to <dir>/pid, output to <dir>/stdout.log and <dir>/stderr.log, and the
+# exit code to <dir>/exit-code (renamed into place, so a reader never sees a partial file).
+# Pattern: developers.cloudflare.com/sandbox/commands/run-background-processes/
+set -u
+dir="$1"; timeout_s="$2"; cwd="$3"; shift 4
+boot="$(cat /proc/sys/kernel/random/boot_id)"
+exec setsid bash -c '
+  dir="$1"; timeout_s="$2"; cwd="$3"; boot="$4"; shift 4
+  echo "$$ $boot" > "$dir/pid"
+  code=127
+  if cd "$cwd"; then
+    timeout --kill-after=5 "$timeout_s" "$@" > "$dir/stdout.log" 2> "$dir/stderr.log" < /dev/null
+    code=$?
+  fi
+  echo "$code" > "$dir/exit-code.tmp" && mv "$dir/exit-code.tmp" "$dir/exit-code"
+' teire-job "$dir" "$timeout_s" "$cwd" "$boot" "$@"

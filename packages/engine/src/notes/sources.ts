@@ -5,7 +5,15 @@ import { RUST, SURFACE } from "../constants";
 import { guardedFetch } from "../net/fetch";
 import { getNpmVersion, type RegistryOptions } from "../registry/clients";
 import { getPypiVersion } from "../registry/pypi";
-import { cargoScheme, goScheme, npmScheme, pypiScheme, type VersionScheme } from "../registry/versions";
+import { gemVersions } from "../registry/rubygems";
+import {
+  cargoScheme,
+  goScheme,
+  npmScheme,
+  pypiScheme,
+  rubygemsScheme,
+  type VersionScheme,
+} from "../registry/versions";
 import { type ChangelogEntry, sliceChangelog } from "./slicer";
 
 /**
@@ -316,6 +324,38 @@ export async function gatherCargoNotes(name: string, from: string, to: string, o
     scheme: cargoScheme,
     repo,
     directory: "",
+    sources,
+    notes,
+    checkedAt,
+    options,
+  });
+  return { sources, notes };
+}
+
+/**
+ * A gem's notes (plan S07, research ruby.md Job 3): the repository from the target version's gemspec
+ * links (source_code_uri, changelog_uri, homepage_uri); a changelog_uri pointing at a file in a
+ * subdirectory (`rails/rails/blob/v8.1.4/actionmailer/CHANGELOG.md`) keeps that directory.
+ */
+export async function gatherRubyNotes(name: string, from: string, to: string, options: NotesOptions) {
+  const checkedAt = new Date().toISOString();
+  const sources: NoteSource[] = [];
+  const notes: string[] = [];
+  const versions = await gemVersions(name).catch(() => []);
+  const links = (versions.find((v) => v.number === to) ?? versions[0])?.links ?? {};
+  const repo = githubRepoOf(links.source) ?? githubRepoOf(links.changelog) ?? githubRepoOf(links.homepage);
+  if (!repo) {
+    notes.push("no GitHub repository in the gem's metadata");
+    return { sources, notes };
+  }
+  const file = /github\.com\/[^/]+\/[^/]+\/blob\/[^/]+\/(.+)$/.exec(links.changelog ?? "")?.[1];
+  await gatherRepoNotes({
+    name,
+    from,
+    to,
+    scheme: rubygemsScheme,
+    repo,
+    directory: file?.includes("/") ? file.slice(0, file.lastIndexOf("/")) : "",
     sources,
     notes,
     checkedAt,

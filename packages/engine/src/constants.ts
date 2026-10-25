@@ -242,11 +242,11 @@ export const RUST = {
 /** Ruby (plan S07, research generic/ruby.md). */
 export const RUBY = {
   /** Version of Teire's Prism surface extractor; bump when its rules change (cached diffs). */
-  extractorVersion: "1",
+  extractorVersion: "2",
   maxGemBytes: 64 * 1024 * 1024,
   maxFileBytes: 2 * 1024 * 1024,
-  /** `bundle lock --cooldown` needs Bundler ≥ 4.0.18 (research). */
-  cooldownDays: 14,
+  /** The sandbox image's Ruby: the version an upgrade must run on when the repo pins none. */
+  sandboxRuby: "4.0.9",
   /** A gem's version list is reused for this long within one worker process. */
   registryMemoMs: 10 * 60_000,
   /** `/api/v1/versions/<gem>.json` (one entry per platform; aws-sdk-core is ~2 MB). */
@@ -349,6 +349,10 @@ export const ADVISORIES = {
   /** Packages per GHSA `affects` query, under URL length limits. */
   ghsaPackagesPerCall: 100,
   maxResponseBytes: 32 * 1024 * 1024,
+  /** ruby-advisory-db as one tarball (~600 KB), reused for an hour (research ruby.md Job 9). */
+  rubysecTarball: "https://codeload.github.com/rubysec/ruby-advisory-db/tar.gz/refs/heads/master",
+  rubysecMaxBytes: 16 * 1024 * 1024,
+  rubysecTtlMs: 60 * 60_000,
 } as const;
 
 /** Teire's Python helper (S03): the interpreter and pins it runs with outside the worker image. */

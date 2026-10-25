@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# The Ruby sandbox's helper (plan S07, research ruby.md Jobs 7 and 8).
+#   teire-ruby install          install phase: Ruby version, platform, gems, services, database
+#   teire-ruby lock GEM [DAYS]  the upgrade: bundle lock --update GEM --conservative [--cooldown DAYS],
+#                               then drop platforms the sandbox added (lockfile noise)
+# Inputs come from the environment the worker's plan sets: TEIRE_RUBY_VERSION, TEIRE_SERVICES
+# (postgres,redis,mysql), TEIRE_DB_SETUP (e.g. "bin/rails db:prepare"), DATABASE_URL.
+set -uo pipefail
+# exec() passes no image ENV; root is the only user in a throwaway sandbox.
+export BUNDLE_SILENCE_ROOT_WARNING=1
+
+LOCK="${BUNDLE_GEMFILE:-Gemfile}.lock"
+[ -f "$LOCK" ] || LOCK=gems.locked
+
+platforms() { awk '/^PLATFORMS$/{f=1;next} /^[^ ]/{f=0} f&&NF{print $1}' "$LOCK" 2>/dev/null; }
+
+use_ruby() {
+  local want="$1" have
+  have="$(ruby -e 'print RUBY_VERSION')"
+  [ "$have" = "$want" ] && return 0
+  echo "teire-ruby: the repo pins Ruby $want; the image has $have: installing it with rv"
+  rv ruby install "$want" || return 3
+  local bin
+  bin="$(find / -path /proc -prune -o -type f -path "*ruby-${want}*/bin/ruby" -print 2>/dev/null | head -1)"
+  [ -n "$bin" ] || { echo "teire-ruby: rv installed nothing for $want"; return 3; }
+  # Later commands get a fixed PATH: put this Ruby's executables first in it.
+  for f in "$(dirname "$bin")"/*; do ln -sf "$f" "/usr/local/sbin/$(basename "$f")"; done
+  ruby -v
+}
+
+start_postgres() {
+  export PGDATA=/var/lib/teire/pg
+  if ! pg_isready -q -h 127.0.0.1 2>/dev/null; then
+    mkdir -p "$PGDATA" /var/run/postgresql && chown postgres "$PGDATA" /var/run/postgresql
+    su postgres -c "initdb -D $PGDATA -A trust -U postgres" >/dev/null || return 4
+    su postgres -c "pg_ctl -D $PGDATA -l $PGDATA/server.log -o \"-c listen_addresses=127.0.0.1 -k /var/run/postgresql\" -w start" >/dev/null || return 4
+  fi
+  # Trust authentication on localhost: the roles the app's config names, with any password.
+  local user=""
+  [[ "${DATABASE_URL:-}" =~ ^postgres(ql)?://([^:@/]+) ]] && user="${BASH_REMATCH[2]}"
+  for r in root rails $user; do
+    psql -h 127.0.0.1 -U postgres -qc "CREATE ROLE \"$r\" LOGIN SUPERUSER" 2>/dev/null || true
+  done
+  echo "teire-ruby: postgres $(pg_ctl --version | awk "{print \$3}") on 127.0.0.1:5432"
+}
+
+start_redis() {
+  redis-cli ping >/dev/null 2>&1 || redis-server --daemonize yes --bind 127.0.0.1 >/dev/null || return 4
+  echo "teire-ruby: redis on 127.0.0.1:6379"
+}
+
+start_mysql() {
+  if ! mariadb-admin ping >/dev/null 2>&1; then
+    mariadb-install-db --user=mysql >/dev/null 2>&1
+    mkdir -p /run/mysqld && chown mysql /run/mysqld
+    (mariadbd-safe --user=mysql --bind-address=127.0.0.1 >/dev/null 2>&1 &)
+    for _ in $(seq 1 30); do mariadb-admin ping >/dev/null 2>&1 && break; sleep 1; done
+  fi
+  mariadb -e "ALTER USER 'root'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD(''); CREATE USER IF NOT EXISTS 'root'@'127.0.0.1'; GRANT ALL ON *.* TO 'root'@'127.0.0.1'; FLUSH PRIVILEGES;" || return 4
+  echo "teire-ruby: mariadb on 127.0.0.1:3306"
+}
+
+case "${1:-}" in
+  install)
+    if [ -n "${TEIRE_RUBY_VERSION:-}" ]; then use_ruby "$TEIRE_RUBY_VERSION" || exit $?; fi
+    # A frozen install fails when the lockfile has neither `ruby` nor this platform (research gotcha 2).
+    if [ -f "$LOCK" ] && ! platforms | grep -qE '^(ruby|x86_64-linux)'; then
+      bundle lock --add-platform x86_64-linux || exit $?
+    fi
+    bundle install --jobs 4 || exit $?
+    for s in ${TEIRE_SERVICES:+${TEIRE_SERVICES//,/ }}; do "start_$s" || exit $?; done
+    if [ -n "${TEIRE_DB_SETUP:-}" ]; then
+      echo "teire-ruby: $TEIRE_DB_SETUP"
+      bash -c "$TEIRE_DB_SETUP" || exit $?
+    fi
+    ;;
+  lock)
+    gem="${2:?gem}"
+    [[ "$gem" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "teire-ruby: bad gem name"; exit 2; }
+    before="$(platforms)"
+    args=(lock --update "$gem" --conservative)
+    [ -n "${3:-}" ] && args+=(--cooldown "$3")
+    bundle "${args[@]}" || exit $?
+    for p in $(platforms); do
+      grep -qxF "$p" <<<"$before" || bundle lock --remove-platform "$p" || exit $?
+    done
+    ;;
+  *)
+    echo "usage: teire-ruby install | lock GEM [COOLDOWN_DAYS]"; exit 2 ;;
+esac
