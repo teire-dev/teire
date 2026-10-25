@@ -37,6 +37,8 @@ export interface Discovery {
   note?: string;
   /** The search itself failed: nothing is cached, the next scan tries again. */
   transient?: boolean;
+  /** No deprecations page was found (changelogs at most): cached briefly, then searched again. */
+  partial?: boolean;
 }
 
 const DEPRECATIONS = /deprecat|retire|retirement|sunset|lifecycle|end-of-life|\beol\b|decommission|shutdown/i;
@@ -120,8 +122,11 @@ async function readLlmsTxt(host: string, domains: string[]) {
 export async function discoverProvider(candidate: ProviderCandidate, now = new Date()): Promise<Discovery> {
   const { domains, repos } = allowlistOf(candidate);
   const usage: TavilyUsage[] = [];
-  const found = new Map<string, { url: string; title: string; score: number; via: "llms.txt" | "tavily" }>();
-  const add = (url: string, title: string, via: "llms.txt" | "tavily") => {
+  const found = new Map<
+    string,
+    { url: string; title: string; score: number; via: "llms.txt" | "tavily" | "probe" }
+  >();
+  const add = (url: string, title: string, via: "llms.txt" | "tavily" | "probe") => {
     const clean = url.replace(/#.*$/, "");
     const s = score(clean, title);
     if (s === 0 || !onAllowlist(clean, domains)) return;
@@ -173,6 +178,37 @@ export async function discoverProvider(candidate: ProviderCandidate, now = new D
     }
   }
 
+  // 3. Still no deprecations page: the usual paths on the docs hosts already seen (search ranking
+  //    varies run to run; the page's place on a docs host does not).
+  if (![...found.values()].some((f) => f.score >= 5)) {
+    const hosts = new Map<string, number>();
+    for (const f of found.values()) {
+      const host = new URL(f.url).hostname;
+      hosts.set(host, (hosts.get(host) ?? 0) + 1);
+    }
+    for (const h of tried) if (onAllowlist(`https://${h}/`, domains)) hosts.set(h, (hosts.get(h) ?? 0) + 0.5);
+    const top = [...hosts.entries()].sort((a, b) => b[1] - a[1]).slice(0, DISCOVERY.probeHosts);
+    for (const [host] of top)
+      for (const path of DISCOVERY.probePaths) {
+        const url = `https://${host}${path}`;
+        try {
+          const res = await guardedFetch(url, {
+            allowHosts: domains.flatMap((d) => [d, `.${d}`]),
+            maxBytes: 4 * 1024 * 1024,
+          });
+          // Landing on the page itself (not a redirect home) that talks about deprecations.
+          if (
+            res.status === 200 &&
+            DEPRECATIONS.test(new URL(res.finalUrl).pathname) &&
+            DEPRECATIONS.test(res.text())
+          )
+            add(res.finalUrl, "", "probe");
+        } catch {
+          // Not there: the next path.
+        }
+      }
+  }
+
   const pages = [...found.values()]
     .sort((a, b) => b.score - a.score || a.url.length - b.url.length)
     .slice(0, DISCOVERY.maxPagesPerProvider);
@@ -200,5 +236,5 @@ export async function discoverProvider(candidate: ProviderCandidate, now = new D
       evidence: candidate.via,
     },
   });
-  return { record, usage };
+  return { record, usage, partial: !pages.some((p) => p.score >= 5) };
 }

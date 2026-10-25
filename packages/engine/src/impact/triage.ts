@@ -53,6 +53,9 @@ Answer per site:
 Use only the code shown. Line numbers are printed at the start of each line.`;
 
 const MODEL_PARAM = /\bmodel\w*\b|\bModel\b/;
+/** Tests and fixtures name retired models on purpose (stand-ins, expectations): never a fix site. */
+const TEST_FILE =
+  /(?:^|\/)(?:tests?|__tests__|spec|fixtures?)\/|\.(?:test|spec)\.[cm]?[jt]sx?$|(?:^|\/)test_[^/]*\.py$|_test\.(?:py|go)$/;
 
 /** Files that import `file` by module path (JS/TS relative imports, Python dotted imports). */
 function importers(tree: RepoTree, repoDir: string, file: string) {
@@ -118,7 +121,9 @@ export async function triageModelSites(input: {
   const traced = new Map<string, { evidence: string; reason: string }>();
   let budget = DISCOVERY.maxTriageSites;
   for (const [slug, findings] of byProvider) {
-    const sites = findings.flatMap((f) => f.callSites.map((s) => ({ f, s }))).slice(0, budget);
+    const sites = findings
+      .flatMap((f) => f.callSites.filter((s) => !TEST_FILE.test(s.file)).map((s) => ({ f, s })))
+      .slice(0, budget);
     budget -= sites.length;
     if (!sites.length) break;
     const files = [...new Set(sites.map((x) => x.s.file))];

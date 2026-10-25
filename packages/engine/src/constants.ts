@@ -139,6 +139,11 @@ export const CATALOG = {
 export const DISCOVERY = {
   /** A provider's discovered notice pages are reused this long before the search runs again. */
   freshForMs: 7 * 24 * 60 * 60 * 1000,
+  /** …and this long when no deprecations page was found (search ranking varies between runs). */
+  partialFreshForMs: 24 * 60 * 60 * 1000,
+  /** Last resort for the deprecations page: these paths on the provider's busiest docs hosts. */
+  probePaths: ["/docs/deprecations", "/deprecations"],
+  probeHosts: 3,
   /** Direct dependencies whose published files are read for a default API base URL, per scan. */
   maxSdkPackages: 40,
   sdkConcurrency: 4,

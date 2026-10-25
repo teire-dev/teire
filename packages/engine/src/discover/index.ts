@@ -135,8 +135,10 @@ export async function discoverProviders(
   for (const candidate of candidates) {
     const cached = await options.cache.get("discovery", candidate.domain);
     let record: ProviderRecord | null;
-    if (cached && now.getTime() - Date.parse(cached.fetchedAt) < DISCOVERY.freshForMs) {
-      record = (cached.data as { record: ProviderRecord | null }).record;
+    const stored = cached?.data as { record: ProviderRecord | null; partial?: boolean } | undefined;
+    const freshFor = stored?.partial || !stored?.record ? DISCOVERY.partialFreshForMs : DISCOVERY.freshForMs;
+    if (cached && stored && now.getTime() - Date.parse(cached.fetchedAt) < freshFor) {
+      record = stored.record;
     } else {
       const found = await discoverProvider(candidate, now);
       usage.push(...found.usage);
@@ -147,7 +149,7 @@ export async function discoverProviders(
           etag: null,
           lastModified: null,
           bodyHash: sha256(JSON.stringify(record)),
-          data: { record },
+          data: { record, partial: found.partial ?? false },
           fetchedAt: now.toISOString(),
         });
     }

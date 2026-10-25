@@ -39,8 +39,10 @@ export function quoteInSource(quote: string, source: string): string | null {
   const haystack = plainText(source);
   const q = plainText(quote);
   if (q.length >= 12 && haystack.includes(q)) return q;
-  const parts = q
-    .split(/\s*(?:\.\.\.|…)\s*|(?<=[.!?:;])\s+(?=[A-Z`/([])/)
+  // Lines are parts too: a table quoted as its header and one row skips the rows in between.
+  const parts = quote
+    .split(/\n+/)
+    .flatMap((line) => plainText(line).split(/\s*(?:\.\.\.|…)\s*|(?<=[.!?:;])\s+(?=[A-Z`/([])/))
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
   if (!parts.length || parts.every((p) => p.length < 12)) return null;

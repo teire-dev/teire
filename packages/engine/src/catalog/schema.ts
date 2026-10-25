@@ -135,7 +135,7 @@ export const providerRecord = z.object({
   discovery: z
     .object({
       at: z.iso.datetime(),
-      via: z.array(z.enum(["llms.txt", "tavily"])),
+      via: z.array(z.enum(["llms.txt", "tavily", "probe"])),
       query: z.string().optional(),
       tavilyCredits: z.number().min(0).default(0),
       evidence: z.array(z.string()).default([]),

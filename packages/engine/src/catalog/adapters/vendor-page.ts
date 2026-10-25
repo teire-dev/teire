@@ -186,15 +186,21 @@ export async function readVendorPage(
       : { value: (await compute()).value, cached: false };
     receipts.push({ step: "read-page", model, ...value.receipt, ms: Date.now() - started, cached });
     for (const item of value.items) {
-      const quote = quoteInSource(item.quote, source.body);
-      if (!quote) {
+      const verified = quoteInSource(item.quote, source.body);
+      if (!verified) {
         dropped.push({ item, reason: "quote not found in the fetched page" });
         continue;
       }
-      if (!quote.includes(clean(item.subject))) {
+      const subject = clean(item.subject);
+      if (!verified.includes(subject)) {
         dropped.push({ item, reason: "the identifier is not in its quote" });
         continue;
       }
+      // A table quote keeps only the subject's own row: its date and replacements, not a neighbour's.
+      const row = item.quote
+        .split("\n")
+        .find((line) => line.includes(subject) && (line.match(/\|/g) ?? []).length >= 2);
+      const quote = (row && quoteInSource(row, source.body)) || verified;
       records.push(recordOf(item, quote, source, provider, model));
     }
   }
