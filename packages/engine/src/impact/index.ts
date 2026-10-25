@@ -167,6 +167,18 @@ export function assess(input: ImpactInput): FindingDraft[] {
         callSites: [],
         reason: `computed for ${pinnedTo}; this instance is at ${instance.version}`,
       };
+    if (record.applicability.class === "security" && !record.signatures.some((s) => s.kind === "symbol")) {
+      // npm/PyPI/Maven/RubyGems advisories name no function: the package at a vulnerable version is the fact (D74).
+      const fixedIn = record.applicability.fixedIn;
+      return {
+        ...base,
+        verdict: "affected",
+        reachability: "package-present",
+        priority: priorityOf(record, "affected", now),
+        callSites: [],
+        reason: `${instance.name}@${instance.version} is in the vulnerable range${fixedIn.length ? `; fixed in ${fixedIn.join(", ")}` : "; no fixed version is published"}. The advisory names no function to look for, so use cannot be ruled out.`,
+      };
+    }
     const searchable = record.signatures.some((s) => s.kind === "symbol" || s.kind === "import-path");
     if (!searchable)
       return {

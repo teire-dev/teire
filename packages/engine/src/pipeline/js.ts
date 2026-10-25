@@ -1,3 +1,4 @@
+import { advisoriesFor } from "../advisories";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import { lookupDocs } from "../fix/context7";
 import { type FixRun, runFix } from "../fix/run";
@@ -18,7 +19,7 @@ import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "
 import { gatherNpmNotes, githubRepoOf } from "../notes/sources";
 import { getNpmVersion, getPackageInfo } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
-import { chooseTarget, type TargetDecision } from "../registry/target";
+import { chooseFixedTarget, chooseTarget, type TargetDecision } from "../registry/target";
 import type { PackageInfo } from "../registry/types";
 import { npmScheme } from "../registry/versions";
 import { type NpmSurfaceOptions, npmSurface, npmSurfaceDiff, npmTypesLayout } from "../surface/npm";
@@ -33,6 +34,8 @@ import { detectJsChecks } from "../verify/commands";
  * → codemods → agent → verification → PR body).
  */
 export interface Assessment {
+  /** An upgrade to the newest allowed version, or the smallest version that clears advisories. */
+  purpose: "upgrade" | "security";
   project: JsProject;
   instance: DependencyInstance;
   info: PackageInfo | null;
@@ -49,6 +52,9 @@ export interface Assessment {
 
 export interface AssessOptions extends NpmSurfaceOptions {
   cooldownDays?: number;
+  /** Look up advisories for every locked version (default on). */
+  advisories?: boolean;
+  githubToken?: string;
   onlyPackage?: string;
   /** A cached surface diff (the worker's `surface_diffs`); defaults to computing it. */
   surfaceDiff?: (name: string, from: string, to: string) => Promise<SurfaceDiff>;
@@ -65,6 +71,7 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
       if (!instance.direct || instance.source !== "registry") continue;
       if (options.onlyPackage && instance.name !== options.onlyPackage) continue;
       const base: Assessment = {
+        purpose: "upgrade",
         project,
         instance,
         info: null,
@@ -129,8 +136,84 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
       }
       assessments.push(a);
     }
+    if (options.advisories !== false)
+      assessments.push(...(await securityAssessments(project, policy, options)));
   }
   return { projects, assessments };
+}
+
+/**
+ * Advisories for every locked version in a project, direct and transitive (D51): one assessment
+ * per affected instance, targeting the smallest version that clears every advisory it has.
+ */
+async function securityAssessments(
+  project: JsProject,
+  policy: ReturnType<typeof readJsUpgradePolicy>,
+  options: AssessOptions,
+): Promise<Assessment[]> {
+  const instances = [
+    ...new Map(
+      project.instances
+        .filter((i) => i.version && i.source === "registry")
+        .filter((i) => !options.onlyPackage || i.name === options.onlyPackage)
+        .map((i) => [`${i.name}@${i.version}@${i.direct ? i.workspace : "."}`, i] as const),
+    ).values(),
+  ];
+  if (!instances.length) return [];
+  options.onProgress?.(`advisories for ${instances.length} locked versions`);
+  const matches = await advisoriesFor(
+    instances.map((i) => ({ ecosystem: "npm" as const, name: i.name, version: i.version ?? "" })),
+    { githubToken: options.githubToken },
+  ).catch((error) => {
+    options.onProgress?.(`advisories unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  });
+  const out: Assessment[] = [];
+  for (const instance of instances) {
+    const records = matches
+      .filter((m) => m.query.name === instance.name && m.query.version === instance.version)
+      .map((m) => m.record);
+    if (!records.length || !instance.version) continue;
+    const info = await getPackageInfo("npm", instance.name, options).catch(() => null);
+    if (!info) continue;
+    const targetPolicy = jsTargetPolicy(policy, instance.name, instance.version, {
+      cooldownDays: options.cooldownDays,
+    });
+    // Each advisory's smallest fix on the installed line, then the highest of those clears them all.
+    const fixes = records
+      .map((r) =>
+        chooseFixedTarget(info, instance.version ?? "", r.applicability.fixedIn, targetPolicy, npmScheme),
+      )
+      .flatMap((d) => (d.kind === "upgrade" ? [d.to] : []));
+    const required = fixes.sort((x, y) => npmScheme.compare(y, x))[0];
+    const decision: TargetDecision = required
+      ? chooseFixedTarget(info, instance.version, [required], targetPolicy, npmScheme)
+      : { kind: "blocked", from: instance.version, reason: "no fixed version is published", skipped: [] };
+    const target = decision.kind === "upgrade" ? decision.to : null;
+    const findings = assess({
+      instance,
+      target,
+      isMajor: decision.kind === "upgrade" && decision.isMajor,
+      records,
+      locate: null,
+    });
+    const summary = summariseFindings(findings);
+    out.push({
+      purpose: "security",
+      project,
+      instance,
+      info,
+      decision,
+      diff: null,
+      records,
+      deprecation: null,
+      located: null,
+      findings,
+      summary,
+      priority: target ? Math.min(...findings.map((f) => f.priority ?? 4)) : null,
+    });
+  }
+  return out;
 }
 
 export interface FixDependencyInput {

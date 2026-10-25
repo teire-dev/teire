@@ -64,6 +64,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       cache,
       cooldownDays: repoConfig.upgrades.cooldownDays,
       onlyPackage: packageName,
+      githubToken: token,
       surfaceDiff: (n, f, t) => cachedNpmSurfaceDiff(db, n, f, t, { cache }),
     });
     const assessment = assessments.find(

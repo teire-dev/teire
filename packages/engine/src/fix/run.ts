@@ -1,19 +1,26 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTwoFilesPatch } from "diff";
-import { FIX, PR_MODE_BY_EVIDENCE } from "../constants";
+import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import type { FindingDraft } from "../impact";
-import type { JsProject } from "../inventory/js";
-import type { RepoTree } from "../inventory/tree";
+import { type JsProject, readJsProject } from "../inventory/js";
+import { memoryTree, type RepoTree } from "../inventory/tree";
 import type { ModelPrice, TokenFactory } from "../llm";
-import type { VerifyBackend } from "../verify/backend";
+import { npmScheme } from "../registry/versions";
+import type { VerifyBackend, VerifySession } from "../verify/backend";
 import type { CheckPlan } from "../verify/commands";
 import { decideEvidence, type Evidence, type SideResult } from "../verify/evidence";
 import { prepareSide, runChecks, runSide, type SideRun } from "../verify/run";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
-import { lockfileCommand, type ManifestEdit, planManifestEdits } from "./upgrade-js";
+import {
+  lockfileCommand,
+  type ManifestEdit,
+  overrideEdit,
+  planManifestEdits,
+  transitiveUpdateCommand,
+} from "./upgrade-js";
 
 /**
  * One fix run for one dependency and target (card C4 + C5, plan S02a task 9): the upgrade
@@ -143,6 +150,86 @@ function describeFindings(input: FixInput) {
     .join("\n");
 }
 
+/** Versions of `name` a lockfile pins, read with Teire's own lockfile readers. */
+function lockedVersions(input: FixInput, lockText: string) {
+  const root = input.project.root === "." ? "" : `${input.project.root}/`;
+  const files: Record<string, string> = {};
+  for (const f of input.tree.files())
+    if (f.startsWith(root) && f.endsWith("package.json")) files[f] = input.tree.read(f) ?? "";
+  if (input.project.lockfile) files[input.project.lockfile] = lockText;
+  return readJsProject(memoryTree(files), input.project.root)
+    .instances.filter((i) => i.name === input.instance.name && i.version)
+    .map((i) => i.version as string);
+}
+
+/**
+ * Transitive bump, sandbox side (D71): the package manager's own update within the parents'
+ * ranges first; if the vulnerable version is still locked, an override in the root manifest pins
+ * the fix and the lockfile is regenerated; if that still fails, the run stops and quotes why.
+ */
+async function prepareTransitive(
+  session: VerifySession,
+  input: FixInput,
+  manifest: ManifestEdit[],
+  remember: (path: string) => void,
+  log: (line: string) => void,
+): Promise<SideRun> {
+  const lockfilePath = input.project.lockfile;
+  const failed = (output: string): SideRun => ({
+    side: "after",
+    install: { ok: false, exitCode: 1, ms: 0, output },
+    checks: [],
+    deniedHosts: [],
+  });
+  if (!lockfilePath) return failed("the project has no lockfile to bump");
+  const fixed = (text: string | undefined) => {
+    if (!text) return false;
+    const versions = lockedVersions(input, text);
+    return (
+      !versions.includes(input.instance.version ?? "") &&
+      versions.some((v) => npmScheme.compare(v, input.target) >= 0)
+    );
+  };
+  const regenerate = async (argv: string[], label: string) => {
+    const run = await session.run(`after-${label}`, argv, {
+      cwd: input.plan.cwd,
+      timeoutSec: VERIFY.installTimeoutSec,
+    });
+    log(`after: ${label} exit ${run.exitCode} in ${run.ms} ms`);
+    const bytes = run.exitCode === 0 ? await session.readFile(`${VERIFY.workDir}/${lockfilePath}`) : null;
+    return { run, text: bytes ? new TextDecoder().decode(bytes) : undefined };
+  };
+
+  const update = transitiveUpdateCommand(
+    input.plan.manager,
+    input.instance.name,
+    input.project.lockfileVersion,
+  );
+  let result = update ? await regenerate(update, "update") : null;
+  if (!fixed(result?.text)) {
+    const manifestPath = input.project.root === "." ? "package.json" : `${input.project.root}/package.json`;
+    const edit = overrideEdit(
+      input.tree,
+      input.plan.manager,
+      manifestPath,
+      input.instance.name,
+      input.target,
+    );
+    if (!edit) return failed(`could not pin ${input.instance.name} to ${input.target} in ${manifestPath}`);
+    remember(edit.path);
+    writeFileSync(join(input.repoDir, edit.path), edit.after);
+    manifest.push(edit);
+    await session.writeFile(`${VERIFY.workDir}/${edit.path}`, new TextEncoder().encode(edit.after));
+    result = await regenerate(lockfileCommand(input.plan.manager, input.project.lockfileVersion), "override");
+    if (!fixed(result.text))
+      return failed(
+        `${input.instance.name} ${input.instance.version} is still locked after an override to ^${input.target}: ${(result.run.stdout + result.run.stderr).slice(-1500)}`,
+      );
+  }
+  const side = await prepareSide(session, input.plan, "after", undefined, log);
+  return { ...side, ...(result?.text ? { lockfile: result.text } : {}) };
+}
+
 export async function runFix(input: FixInput): Promise<FixRun> {
   const started = Date.now();
   const events: FixEvent[] = [];
@@ -156,8 +243,10 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     if (!originals.has(path)) originals.set(path, read(path));
   };
 
-  // 1. Upgrade transaction, worker side: the manifest as text.
-  const manifest = planManifestEdits(input.tree, input.instance, input.target);
+  // 1. Upgrade transaction, worker side: the manifest as text (a transitive bump has none unless
+  // an override turns out to be needed, decided in the sandbox below).
+  const transitive = !input.instance.direct;
+  const manifest = transitive ? [] : planManifestEdits(input.tree, input.instance, input.target);
   for (const e of manifest) {
     remember(e.path);
     writeFileSync(join(input.repoDir, e.path), e.after);
@@ -175,17 +264,19 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       emit({ step: line.startsWith("baseline") ? "baseline" : "install", detail: line });
     const [baseline, prepared] = await Promise.all([
       runSide(base, input.plan, "baseline", undefined, log),
-      prepareSide(
-        after,
-        input.plan,
-        "after",
-        {
-          files: Object.fromEntries(manifest.map((e) => [e.path, e.after])),
-          lockfile: lockfileCommand(input.plan.manager, input.project.lockfileVersion),
-          ...(input.project.lockfile ? { lockfilePath: input.project.lockfile } : {}),
-        },
-        log,
-      ),
+      transitive
+        ? prepareTransitive(after, input, manifest, remember, log)
+        : prepareSide(
+            after,
+            input.plan,
+            "after",
+            {
+              files: Object.fromEntries(manifest.map((e) => [e.path, e.after])),
+              lockfile: lockfileCommand(input.plan.manager, input.project.lockfileVersion),
+              ...(input.project.lockfile ? { lockfilePath: input.project.lockfile } : {}),
+            },
+            log,
+          ),
     ]);
     await base.close();
     const lockfilePath = input.project.lockfile;

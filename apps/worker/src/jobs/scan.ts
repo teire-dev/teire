@@ -105,6 +105,7 @@ export async function scanRepo(
     const { projects, assessments } = await assessJsRepo(checkout.dir, tree, {
       cache,
       cooldownDays: config.upgrades.cooldownDays,
+      githubToken: token,
       surfaceDiff: (n, f, t) => cachedNpmSurfaceDiff(db, n, f, t, { cache }),
     });
     await saveInstances(

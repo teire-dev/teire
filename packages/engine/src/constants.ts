@@ -202,3 +202,12 @@ export const NOTES = {
   maxOutputTokens: 16_000,
   maxRemovedApisInPrompt: 60,
 } as const;
+
+/** Advisory matching (cross-cutting.md §2): OSV batch limit verified live (1,001 → HTTP 400). */
+export const ADVISORIES = {
+  osvBatchSize: 1000,
+  detailConcurrency: 8,
+  /** Packages per GHSA `affects` query, under URL length limits. */
+  ghsaPackagesPerCall: 100,
+  maxResponseBytes: 32 * 1024 * 1024,
+} as const;

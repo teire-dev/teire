@@ -89,13 +89,29 @@ function verdictLine(input: FixPullRequestInput) {
 export function composeFixPullRequest(input: FixPullRequestInput): { title: string; body: string } {
   const { run, instance, repo, plan } = input;
   const codeFiles = run.files.filter((f) => !run.manifest.some((m) => m.path === f.path));
-  const title = `Upgrade ${instance.name} from ${instance.version} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
+  const advisories = input.records.filter((r) => r.kind === "security-advisory");
+  const title = advisories.length
+    ? `Upgrade ${instance.name} from ${instance.version} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
+    : `Upgrade ${instance.name} from ${instance.version} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
   const sections = (withDiff: boolean, siteCap: number, noteCap: number) => {
     const out: string[] = [`<!-- teire:group=${input.groupKey} run=${input.runId} -->`, verdictLine(input)];
 
     // Why this repo
     const sites = input.summary.breaking.flatMap((f) => f.callSites.map((s) => ({ s, f })));
     out.push("### Why this repo");
+    if (advisories.length) {
+      out.push(
+        `${instance.name} ${instance.version} is ${instance.direct ? "a direct dependency" : "locked as a dependency of your dependencies"} and is in the vulnerable range of:`,
+      );
+      for (const r of advisories)
+        out.push(
+          `- [${r.id.split("/").at(-1)}](${r.sources[0]?.url ?? "#"}) ${escapeCell(r.summary).slice(0, 240)}${r.applicability.fixedIn.length ? ` Fixed in ${r.applicability.fixedIn.join(", ")}.` : ""}`,
+        );
+      if (!sites.length)
+        out.push(
+          "The advisories name no function to look for, so Teire cannot rule out that your code reaches the vulnerable path.",
+        );
+    }
     if (sites.length) {
       out.push(
         `${instance.name} ${run.target} removes or changes APIs this repo calls (resolved by type, not by name):`,
@@ -105,7 +121,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
           `- [\`${s.file}:${s.line}\`](${blob(repo, s.file, s.line)}) \`${escapeCell(s.snippet).slice(0, 120)}\` (${f.changeKind.replace(/-/g, " ")})`,
         );
       if (sites.length > siteCap) out.push(`- and ${sites.length - siteCap} more`);
-    } else {
+    } else if (!advisories.length) {
       const c = input.summary.coverage;
       out.push(
         `No located use of a removed or changed API${c ? ` (${c.filesScanned} files, ${c.resolutionLevel}-resolved, ${c.unresolvedSites} unresolved)` : ""}. This is a plain upgrade, verified in the sandbox.`,
@@ -207,8 +223,12 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     for (const r of risks) out.push(`- ${r}`);
 
     out.push("### Rollback");
+    const reverted = [
+      ...run.manifest.map((m) => `\`${m.path}\``),
+      ...(run.lockfile ? [`\`${run.lockfile.path}\``] : []),
+    ];
     out.push(
-      `Revert this pull request: ${run.manifest.map((m) => `\`${m.path}\``).join(", ")}${run.lockfile ? ` and \`${run.lockfile.path}\`` : ""} return to ${instance.name} ${instance.version}.`,
+      `Revert this pull request: ${reverted.join(" and ")} return to ${instance.name} ${instance.version}.`,
     );
     out.push("### Commands");
     out.push(
