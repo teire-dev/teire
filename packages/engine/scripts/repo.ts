@@ -2,13 +2,11 @@
  * The whole loop on one public repo, any supported ecosystem, through the same pipeline calls the
  * worker makes (no GitHub writes): assess every dependency, then with --fix=<package> fix that one
  * and print the diff, the baseline-vs-after table and the model per step.
- * With --api it also scans for the provider changes in the git catalog (retired models, removed
- * endpoints); --fix-api=<group> fixes one group (`models/nebius-token-factory`).
+ * With --api it also checks the API providers the repo talks to (an installed SDK, an API host in
+ * its code) for retired models and removed endpoints, reading only those providers' sources;
+ * --fix-api=<group> fixes one group (`models/nebius-token-factory`).
  * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/repo.ts owner/repo [--fix=<package>] [--api] [--fix-api=<group>]
  */
-import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { type ChangeV2, changeV2 } from "../src/contract";
 import { directoryTree, fetchRepoTarball } from "../src/inventory";
 import type { PyProject } from "../src/inventory/python";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "../src/llm";
@@ -20,6 +18,8 @@ import {
   fixApiChanges,
   fixJsDependency,
   fixPyDependency,
+  liveProviderChanges,
+  repoInstances,
 } from "../src/pipeline";
 import { memoryCache } from "../src/registry";
 import { type SideResult, selectBackend } from "../src/verify";
@@ -119,15 +119,19 @@ if (fixName) {
 }
 
 if (api) {
-  const root = resolve(import.meta.dirname, "../../../catalog/changes");
-  const records: ChangeV2[] = readdirSync(root).flatMap((dir) =>
-    readdirSync(join(root, dir)).map((f) =>
-      changeV2.parse(JSON.parse(readFileSync(join(root, dir, f), "utf8"))),
-    ),
+  // Only the providers this repo talks to are read, live (the worker caches them across repos).
+  const instances = await repoInstances(checkout.dir, tree);
+  const { scan, findings, providers, records } = await assessApiChanges(
+    checkout.dir,
+    tree,
+    instances,
+    liveProviderChanges(),
   );
-  const { scan, findings } = await assessApiChanges(checkout.dir, tree, records);
   log(
-    `\n## Provider changes (${records.length} records; ${scan.filesScanned} files, ${scan.languages.join(", ")}, ${scan.ms} ms)`,
+    `\n## Providers this repo uses: ${providers.map((p) => `${p.provider.name} (${p.via.join(", ")})`).join("; ") || "none"}`,
+  );
+  log(
+    `## Provider changes (${records.length} records read; ${scan.filesScanned} files, ${scan.languages.join(", ")}, ${scan.ms} ms)`,
   );
   for (const f of findings) {
     log(

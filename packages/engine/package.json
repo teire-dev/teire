@@ -25,7 +25,6 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "smoke": "tsx --env-file=../../.env.local scripts/smoke-tokenfactory.ts",
-    "catalog:sync": "tsx scripts/catalog-sync.ts",
     "compare-models": "tsx --env-file=../../.env.local scripts/compare-models.ts",
     "test": "vitest run",
     "catalog:validate": "tsx scripts/catalog-validate.ts",

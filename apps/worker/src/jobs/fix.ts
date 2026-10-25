@@ -21,12 +21,12 @@ import {
   fixApiChanges,
   fixJsDependency,
   fixPyDependency,
+  repoInstances,
 } from "@teire/engine/pipeline";
 import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
   appendEvent,
-  confirmedProviderChanges,
   getArtifact,
   getRepo,
   getRun,
@@ -36,6 +36,7 @@ import {
   updateRun,
   upsertArtifact,
 } from "../store";
+import { storedProviderChanges } from "./providers";
 import type { WorkerContext } from "./scan";
 
 const DEFER_SECONDS = 3600;
@@ -114,17 +115,21 @@ async function apiOutcome(
   tree: RepoTree,
   common: Common,
 ): Promise<Outcome | null> {
-  const provider = await confirmedProviderChanges(ctx.db);
-  const { findings } = await assessApiChanges(repoDir, tree, provider.records);
+  const { findings, records: read } = await assessApiChanges(
+    repoDir,
+    tree,
+    await repoInstances(repoDir, tree),
+    storedProviderChanges(ctx.db),
+  );
   const group = findings.filter((f) => f.groupKey === run.groupKey);
   if (!group.some((f) => f.verdict === "affected")) return null;
-  const records = provider.records.filter((r) => group.some((f) => f.changeId === r.id));
+  const records = read.filter((r) => group.some((f) => f.changeId === r.id));
   const slug = records[0]?.subject.provider;
   const result = await fixApiChanges({
     ...common,
     findings: group,
     records,
-    related: provider.records.filter((r) => r.subject.provider === slug),
+    related: read.filter((r) => r.subject.provider === slug),
   });
   return {
     fix: result.run,

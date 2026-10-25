@@ -5,9 +5,7 @@
  * agent differs. One JSON line per run goes to --out; nothing is written to GitHub.
  * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/eval.ts --out=<file> [--case=<slug>] [--models=ultra,super]
  */
-import { appendFileSync, readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { type ChangeV2, changeV2 } from "../src/contract";
+import { appendFileSync } from "node:fs";
 import { directoryTree, fetchRepoTarball } from "../src/inventory";
 import type { PyProject } from "../src/inventory/python";
 import { createTokenFactory, fetchModelPrices, tokenFactoryConfigFromEnv } from "../src/llm";
@@ -19,6 +17,8 @@ import {
   fixApiChanges,
   fixJsDependency,
   fixPyDependency,
+  liveProviderChanges,
+  repoInstances,
 } from "../src/pipeline";
 import { memoryCache } from "../src/registry";
 import { type SideResult, selectBackend } from "../src/verify";
@@ -208,19 +208,20 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
   }
 }
 
-const catalogRoot = resolve(import.meta.dirname, "../../../catalog/changes");
-const catalog: ChangeV2[] = readdirSync(catalogRoot).flatMap((dir) =>
-  readdirSync(join(catalogRoot, dir)).map((f) =>
-    changeV2.parse(JSON.parse(readFileSync(join(catalogRoot, dir, f), "utf8"))),
-  ),
-);
+// Provider sources are read live, only for the providers each repo talks to.
+const providerChanges = liveProviderChanges();
 for (const c of API_CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.endsWith(w)))) {
   const [owner, repo] = c.slug.split("/") as [string, string];
   try {
     const token = process.env.GITHUB_TOKEN ? { token: process.env.GITHUB_TOKEN } : {};
     const checkout = await fetchRepoTarball(owner, repo, "main", token);
     const t0 = Date.now();
-    const { scan, findings } = await assessApiChanges(checkout.dir, directoryTree(checkout.dir), catalog);
+    const tree = directoryTree(checkout.dir);
+    const {
+      scan,
+      findings,
+      records: catalog,
+    } = await assessApiChanges(checkout.dir, tree, await repoInstances(checkout.dir, tree), providerChanges);
     const group = findings.filter((f) => f.groupKey === c.group);
     const assessment = {
       case: c.slug,

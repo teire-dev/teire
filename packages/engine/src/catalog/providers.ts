@@ -1,9 +1,10 @@
 import { CATALOG_SCHEMA_VERSION, type ProviderRecord, providerRecord } from "./schema";
 
 /**
- * Launch providers. Source URLs were fetched live (HTTP 200, markdown) on 2026-10-24; SDK package
- * names were checked on the npm and PyPI registries. `scripts/catalog-sync.ts` publishes these as
- * catalog/providers/<slug>.json.
+ * Readers for providers whose change pages Teire can parse directly (a table, a notices index). They
+ * are not a list Teire watches: a provider's pages are read only when a scanned repo talks to it
+ * (its SDK is installed, or its API host is in the code), D82. Source URLs were fetched live (HTTP
+ * 200, markdown) on 2026-10-24; SDK package names were checked on the npm and PyPI registries.
  */
 const definitions: ProviderRecord[] = [
   {

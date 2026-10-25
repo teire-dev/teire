@@ -114,10 +114,13 @@ export const GITHUB = {
 } as const;
 
 export const CATALOG = {
-  userAgent: "TeireBot/0.1 (+https://teire.vercel.app; catalog ingestion)",
+  userAgent: "TeireBot/0.1 (+https://teire.vercel.app; provider change sources)",
   fetchTimeoutMs: 20_000,
-  /** How often each provider source is checked. */
-  checkEveryMs: 3 * 60 * 60 * 1000,
+  /**
+   * A provider's change sources are read when a scanned repo uses the provider, and reused by every
+   * repo for this long (D82); nothing is read on a schedule.
+   */
+  freshForMs: 6 * 60 * 60 * 1000,
   /** A source that has not been read successfully for this long is shown as stale. */
   staleAfterMs: 24 * 60 * 60 * 1000,
   /** Verdicts depending on a stale source become "inconclusive" after this long (capability card C2). */

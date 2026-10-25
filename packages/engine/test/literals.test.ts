@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { directoryTree } from "../src/inventory";
 import { locateLiterals, sourceContext } from "../src/locate/literals";
+import { providersUsed } from "../src/pipeline/api";
 
 const IDS = new Set([
   "gpt-4",
@@ -64,4 +65,26 @@ describe("literal locator across languages", () => {
     );
     expect(scan.hits.some((h) => h.file.startsWith("node_modules"))).toBe(false);
   }, 60_000);
+});
+
+describe("which providers a repo talks to (D82: nothing else is read)", () => {
+  const pkg = (ecosystem: "npm" | "pypi", name: string) => ({ ecosystem, name });
+  const names = (list: ReturnType<typeof providersUsed>) =>
+    list.map((p) => `${p.provider.slug}:${p.via.join("+")}`);
+
+  it("names a provider by its installed SDK or its API host in the code, and nothing else", () => {
+    expect(names(providersUsed([pkg("npm", "zod"), pkg("pypi", "httpx")], new Set()))).toEqual([]);
+    expect(names(providersUsed([pkg("pypi", "anthropic")], new Set()))).toEqual(["anthropic:pypi:anthropic"]);
+    expect(names(providersUsed([pkg("npm", "@ai-sdk/openai")], new Set()))).toEqual([
+      "openai:npm:@ai-sdk/openai",
+    ]);
+  });
+
+  it("an OpenAI-compatible provider reached through the OpenAI SDK counts only once its host is in the code", () => {
+    expect(names(providersUsed([pkg("pypi", "openai")], new Set()))).toEqual(["openai:pypi:openai"]);
+    expect(names(providersUsed([pkg("pypi", "openai")], new Set(["api.tokenfactory.nebius.com"])))).toEqual([
+      "openai:pypi:openai",
+      "nebius-token-factory:api.tokenfactory.nebius.com",
+    ]);
+  });
 });

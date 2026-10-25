@@ -21,8 +21,8 @@ import {
 import { versionScheme } from "@teire/engine/registry";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import {
+  changeHash,
   claimRun,
-  confirmedProviderChanges,
   finishScan,
   getArtifact,
   getRepo,
@@ -33,6 +33,8 @@ import {
   upsertChange,
   upsertFinding,
 } from "../store";
+import { revalidateWeb } from "../web";
+import { storedProviderChanges } from "./providers";
 
 export interface WorkerContext {
   db: Database;
@@ -154,12 +156,17 @@ export async function scanRepo(
       githubToken: token,
       surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
     });
-    // Provider changes: retired models and removed endpoints the repo's code names (S04).
-    const provider = await confirmedProviderChanges(db);
-    const api = await assessApiChanges(checkout.dir, tree, provider.records);
-    for (const f of api.findings)
-      await upsertFinding(db, repoId, scan.id, f, provider.hashes.get(f.changeId) ?? "");
     const projects: AssessedProject[] = [...js.projects, ...py.projects];
+    // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.
+    const api = await assessApiChanges(
+      checkout.dir,
+      tree,
+      projects.flatMap((p) => p.instances),
+      storedProviderChanges(db, () => revalidateWeb(["catalog"])),
+    );
+    const recordHashes = new Map(api.records.map((r) => [r.id, changeHash(r)]));
+    for (const f of api.findings)
+      await upsertFinding(db, repoId, scan.id, f, recordHashes.get(f.changeId) ?? "");
     const assessments: AnyAssessment[] = [...js.assessments, ...py.assessments];
     await saveInstances(
       db,

@@ -1,24 +1,21 @@
 import type { PgBoss } from "pg-boss";
 
 /**
- * Four queues (plan D27/architecture review):
+ * Three queues (plan D27/architecture review):
  * - event: GitHub webhook deliveries claimed from the outbox
- * - ingest: provider source refresh (scheduled)
  * - scan / fix: one job at a time per repo (key_strict_fifo keyed by repo id)
+ * Provider change sources are read inside scans, for the providers a repo uses (D82).
  */
 export const QUEUES = {
   event: "event",
-  ingest: "ingest",
   scan: "scan",
   fix: "fix",
 } as const;
 
-export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
+/** Queues and schedules of earlier designs, removed from pg-boss at startup (D82: no scheduled ingest). */
+export const RETIRED_QUEUES = ["ingest"] as const;
 
-/** Cron schedules (UTC). Provider pages are re-read every 3 hours (CATALOG.checkEveryMs). */
-export const SCHEDULES = {
-  ingest: "17 */3 * * *",
-} as const;
+export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
 export async function ensureQueues(boss: PgBoss) {
   await boss.createQueue(QUEUES.event, {
@@ -27,9 +24,12 @@ export async function ensureQueues(boss: PgBoss) {
     retryDelay: 10,
     retryBackoff: true,
   });
-  await boss.createQueue(QUEUES.ingest, { policy: "singleton", retryLimit: 2, retryDelay: 60 });
   await boss.createQueue(QUEUES.scan, { policy: "key_strict_fifo", retryLimit: 2, retryDelay: 30 });
   await boss.createQueue(QUEUES.fix, { policy: "key_strict_fifo", retryLimit: 1, retryDelay: 60 });
+  for (const name of RETIRED_QUEUES) {
+    await boss.unschedule(name).catch(() => undefined);
+    await boss.deleteQueue(name).catch(() => undefined);
+  }
 }
 
 /** Webhook outbox loop (outbox.ts). */

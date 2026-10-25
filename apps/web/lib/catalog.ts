@@ -4,8 +4,9 @@ import { cacheLife, cacheTag } from "next/cache";
 import { database } from "./db";
 
 /**
- * The public catalog (plan feature 7): every confirmed public change, read through Cache Components
- * and refreshed when the worker writes (`catalog` tag via /api/revalidate).
+ * Public changes (plan feature 7): every confirmed public change Teire has read, which is only ever
+ * a change to something a watched repository depends on (D82: package diffs and provider pages are
+ * read on demand during scans). Cache Components, refreshed when the worker writes (`catalog` tag).
  */
 export interface CatalogRow {
   id: string;
@@ -17,6 +18,7 @@ export interface CatalogRow {
   record: ChangeV2;
 }
 
+/** Display names for providers Teire can read; a source appears only once a repo uses it. */
 export const PROVIDER_NAMES: Record<string, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
@@ -25,7 +27,18 @@ export const PROVIDER_NAMES: Record<string, string> = {
   stripe: "Stripe",
 };
 
-export async function listChanges(provider: string | null): Promise<CatalogRow[]> {
+/** Where a change belongs in the filters: its provider, or the package registry it came from. */
+export function sourceOf(row: Pick<CatalogRow, "provider" | "record">) {
+  return row.provider ?? (row.record.subject.ecosystem ? `pkg:${row.record.subject.ecosystem}` : "other");
+}
+
+export function sourceLabel(key: string) {
+  if (key.startsWith("pkg:"))
+    return { npm: "npm packages", pypi: "PyPI packages" }[key.slice(4)] ?? `${key.slice(4)} packages`;
+  return PROVIDER_NAMES[key] ?? key;
+}
+
+export async function listChanges(): Promise<CatalogRow[]> {
   "use cache";
   cacheTag("catalog");
   cacheLife("hours");
@@ -41,12 +54,7 @@ export async function listChanges(provider: string | null): Promise<CatalogRow[]
     })
     .from(changes)
     .where(
-      and(
-        eq(changes.schemaVersion, 2),
-        eq(changes.status, "confirmed"),
-        eq(changes.visibility, "public"),
-        provider ? eq(changes.providerSlug, provider) : sql`${changes.providerSlug} is not null`,
-      ),
+      and(eq(changes.schemaVersion, 2), eq(changes.status, "confirmed"), eq(changes.visibility, "public")),
     )
     // Upcoming shutdowns first (soonest first), then the rest newest first.
     .orderBy(

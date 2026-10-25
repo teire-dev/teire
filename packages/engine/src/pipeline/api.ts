@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ChangeV2 } from "../contract";
+import { type IngestOptions, ingestProvider } from "../catalog/ingest";
+import { PROVIDERS } from "../catalog/providers";
+import type { ProviderRecord } from "../catalog/schema";
+import type { ChangeV2, DependencyInstance } from "../contract";
 import type { CodemodEdit, MigrationNote } from "../fix/codemods";
 import { type FixRun, runFix } from "../fix/run";
 import type { Transaction } from "../fix/transaction";
@@ -15,16 +18,26 @@ import { detectPyChecks } from "../verify/python-commands";
 import type { FixDependencyInput } from "./js";
 
 /**
- * API changes a provider announced, end to end (plan S04): the literal scan finds the retired
- * models and removed endpoints this repo uses, each becomes a finding; the fix swaps each model ID
- * where it is used as a model for the provider's named replacement, then the same baseline-vs-after
- * verification and agent loop as an upgrade adapts whatever else the swap needs (a parameter the
- * new model rejects, a test that pins the old ID). Nothing in the manifest or lockfile changes.
+ * API changes a provider announced, for the providers this repo talks to (plan S04, D82). Nothing is
+ * read ahead of time: the repo's own dependencies and code name the providers (an installed SDK, an
+ * API host in a URL literal), and only those providers' change sources are read, through the
+ * caller's cache (the worker shares them across repos, like package diffs). The literal scan then
+ * finds the retired models and removed endpoints the repo uses; each becomes a finding. The fix swaps
+ * each model ID where it is used as a model for the provider's named replacement, then the same
+ * baseline-vs-after verification and agent loop as an upgrade adapts whatever else the swap needs.
+ * Nothing in the manifest or lockfile changes.
  */
 export interface ApiAssessment {
   scan: LiteralScan;
   findings: FindingDraft[];
+  /** Providers the repo uses, and why (the SDK package or host that names each). */
+  providers: { provider: ProviderRecord; via: string[] }[];
+  /** The change records read for those providers. */
+  records: ChangeV2[];
 }
+
+/** Reads a provider's change records (worker: stored and refreshed when stale; scripts: live). */
+export type ProviderChanges = (providers: ProviderRecord[]) => Promise<ChangeV2[]>;
 
 /** Every exact model ID the confirmed records name, for one scan of the repo. */
 export function catalogModelIds(records: ChangeV2[]) {
@@ -35,14 +48,70 @@ export function catalogModelIds(records: ChangeV2[]) {
   return ids;
 }
 
+/**
+ * The providers a repo talks to: one of the provider's SDK packages is installed, or the provider's
+ * API host appears in a URL in the code. An OpenAI-compatible provider reached through the OpenAI
+ * SDK (Token Factory) counts once its host is in the code.
+ */
+export function providersUsed(
+  instances: Pick<DependencyInstance, "ecosystem" | "name">[],
+  hosts: ReadonlySet<string>,
+  catalog: readonly ProviderRecord[] = PROVIDERS,
+) {
+  const used: { provider: ProviderRecord; via: string[] }[] = [];
+  for (const provider of catalog) {
+    const own = provider.detection.baseUrls.filter((h) => hosts.has(h));
+    const sharedWithAnother = (sdk: (typeof provider.sdks)[number]) =>
+      catalog.some(
+        (p) => p !== provider && p.sdks.some((x) => x.ecosystem === sdk.ecosystem && x.name === sdk.name),
+      );
+    const sdks = provider.sdks
+      .filter((sdk) => !(sharedWithAnother(sdk) && provider.detection.imports.length === 0))
+      .filter((sdk) => instances.some((i) => i.ecosystem === sdk.ecosystem && i.name === sdk.name))
+      .map((sdk) => `${sdk.ecosystem}:${sdk.name}`);
+    if (own.length || sdks.length) used.push({ provider, via: [...sdks, ...own] });
+  }
+  return used;
+}
+
+/** Reads each provider's sources live when first asked, once per process (scripts and tests). */
+export function liveProviderChanges(options: IngestOptions = {}): ProviderChanges {
+  const read = new Map<string, Promise<ChangeV2[]>>();
+  return async (providers) => {
+    const lists = providers.map((p) => {
+      const known = read.get(p.slug);
+      if (known) return known;
+      const pending = ingestProvider(p, options).then((r) => r.records);
+      read.set(p.slug, pending);
+      return pending;
+    });
+    return (await Promise.all(lists)).flat();
+  };
+}
+
+/** Every package the repo's JS and Python projects lock, for provider detection. */
+export async function repoInstances(repoDir: string, tree: RepoTree) {
+  return [
+    ...readJsInventory(tree).flatMap((p) => p.instances),
+    ...(await readPythonInventory(repoDir)).flatMap((p) => p.instances),
+  ];
+}
+
 export async function assessApiChanges(
   repoDir: string,
   tree: RepoTree,
-  records: ChangeV2[],
+  instances: Pick<DependencyInstance, "ecosystem" | "name">[],
+  changesFor: ProviderChanges,
   now = new Date(),
 ): Promise<ApiAssessment> {
+  // First pass: URLs only, to see which API hosts the code calls.
+  const hostsScan = await locateLiterals({ repoDir, tree, modelIds: new Set() });
+  const hosts = new Set(hostsScan.hits.flatMap((h) => (h.host ? [h.host] : [])));
+  const providers = providersUsed(instances, hosts);
+  if (!providers.length) return { scan: hostsScan, findings: [], providers, records: [] };
+  const records = await changesFor(providers.map((p) => p.provider));
   const scan = await locateLiterals({ repoDir, tree, modelIds: catalogModelIds(records) });
-  return { scan, findings: assessProviderChanges({ records, scan, now }) };
+  return { scan, findings: assessProviderChanges({ records, scan, now }), providers, records };
 }
 
 /**

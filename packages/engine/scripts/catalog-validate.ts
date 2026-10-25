@@ -1,11 +1,12 @@
 /**
- * CI check: every committed catalog file matches its schema, and the published JSON Schemas are
- * exactly what the zod schemas generate (`--write` regenerates them).
+ * CI check: the published JSON Schemas are exactly what the zod schemas generate (`--write`
+ * regenerates them), and any curated or contributed change record in catalog/changes matches the
+ * contract (D72: generated records live in the database, read on demand, D82).
  * Run: pnpm --filter @teire/engine catalog:validate [--write]
  */
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { catalogJsonSchemas, providerRecord } from "../src/catalog/schema";
+import { catalogJsonSchemas } from "../src/catalog/schema";
 import { changeV2, contractJsonSchemas } from "../src/contract";
 
 const root = resolve(import.meta.dirname, "../../../catalog");
@@ -13,6 +14,7 @@ const write = process.argv.includes("--write");
 let failures = 0;
 
 function walk(dir: string): string[] {
+  if (!existsSync(dir)) return [];
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     return statSync(path).isDirectory() ? walk(path) : path.endsWith(".json") ? [path] : [];
@@ -26,13 +28,6 @@ for (const file of walk(join(root, "changes"))) {
     console.error(
       `${file}: ${result.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`,
     );
-  }
-}
-for (const file of walk(join(root, "providers"))) {
-  const result = providerRecord.safeParse(JSON.parse(readFileSync(file, "utf8")));
-  if (!result.success) {
-    failures++;
-    console.error(`${file}: ${result.error.issues.map((i) => i.message).join("; ")}`);
   }
 }
 

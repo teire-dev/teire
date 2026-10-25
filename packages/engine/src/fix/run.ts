@@ -352,6 +352,8 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     const brief = input.instance
       ? `Upgrade ${input.instance.name} ${input.instance.version} → ${input.target}`
       : (input.headline ?? `Move to ${input.target}`);
+    // The failure the agent started from: the reviewer needs to know why the code had to change.
+    const startingFailure = current.text;
     let reviewRounds = 0;
     let reviewFeedback: Review["problems"] = [];
     let passing: {
@@ -451,6 +453,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
           brief,
           notes: input.notes,
           patch: codePatch(),
+          failure: startingFailure,
         });
         emit({
           step: "review",
