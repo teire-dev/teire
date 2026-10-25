@@ -1,1 +1,20 @@
-{ "title": "Guide", "description": "What Teire does and every surface", "icon": "Compass", "root": true, "pages": ["index", "quickstart", "how-it-works", "anatomy-of-a-pr", "---Use it---", "public-scan", "dashboard", "commands", "configuration", "---Help---", "troubleshooting", "comparison"] }
+{
+  "title": "Guide",
+  "description": "What Teire does and every surface",
+  "icon": "Compass",
+  "root": true,
+  "pages": [
+    "index",
+    "quickstart",
+    "how-it-works",
+    "anatomy-of-a-pr",
+    "---Use it---",
+    "public-scan",
+    "dashboard",
+    "commands",
+    "configuration",
+    "---Help---",
+    "troubleshooting",
+    "comparison"
+  ]
+}

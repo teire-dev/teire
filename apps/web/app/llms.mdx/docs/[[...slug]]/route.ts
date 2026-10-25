@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 import { docsLlms, source } from "@/lib/source";
 
-export const revalidate = false;
-
 /** One docs page as Markdown ("Copy Markdown", "View as Markdown", Open in ChatGPT/Claude). */
 export async function GET(_req: Request, { params }: RouteContext<"/llms.mdx/docs/[[...slug]]">) {
   const { slug } = await params;

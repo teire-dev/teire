@@ -14,7 +14,9 @@ export function Shot({ name, alt, caption }: { name: string; alt: string; captio
       <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card">
         <ImageZoom src={`/shots/wide/${name}.webp`} alt={alt} {...size} className="block w-full" />
       </div>
-      {caption ? <figcaption className="mt-2 text-[13px] text-fd-muted-foreground">{caption}</figcaption> : null}
+      {caption ? (
+        <figcaption className="mt-2 text-[13px] text-fd-muted-foreground">{caption}</figcaption>
+      ) : null}
     </figure>
   );
 }
@@ -26,7 +28,9 @@ export function Phone({ name, alt, caption }: { name: string; alt: string; capti
       <div className="w-full overflow-hidden rounded-[28px] border-[6px] border-fd-border bg-fd-card">
         <ImageZoom src={`/shots/phone/${name}.webp`} alt={alt} {...size} className="block w-full" />
       </div>
-      {caption ? <figcaption className="text-center text-[12px] text-fd-muted-foreground">{caption}</figcaption> : null}
+      {caption ? (
+        <figcaption className="text-center text-[12px] text-fd-muted-foreground">{caption}</figcaption>
+      ) : null}
     </figure>
   );
 }

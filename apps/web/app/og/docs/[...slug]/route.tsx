@@ -2,8 +2,6 @@ import { generateOGImage } from "fumadocs-ui/og";
 import { notFound } from "next/navigation";
 import { getPageImage, source } from "@/lib/source";
 
-export const revalidate = false;
-
 /** A docs page's link preview: its title and description on Teire's dark canvas, the link accent. */
 export async function GET(_req: Request, { params }: RouteContext<"/og/docs/[...slug]">) {
   const { slug } = await params;

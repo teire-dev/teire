@@ -9,13 +9,26 @@ import {
 import { createRelativeLink } from "fumadocs-ui/mdx";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { getMDXComponents } from "@/components/mdx";
 import { SOURCE_URL } from "@/lib/site";
 import { getPageImage, getPageMarkdownUrl, source } from "@/lib/source";
 
 const SITE_URL = "https://teire.vercel.app";
 
-export default async function Page({ params }: PageProps<"/docs/[[...slug]]">) {
+/**
+ * The slug is URL data, so the page reads it inside Suspense: the docs bar and sidebar (the layout)
+ * stay instant on navigation, and every known page is still prerendered from generateStaticParams.
+ */
+export default function Page({ params }: PageProps<"/docs/[[...slug]]">) {
+  return (
+    <Suspense fallback={<div className="flex-1" aria-hidden />}>
+      <DocsContent params={params} />
+    </Suspense>
+  );
+}
+
+async function DocsContent({ params }: Pick<PageProps<"/docs/[[...slug]]">, "params">) {
   const page = source.getPage((await params).slug);
   if (!page) notFound();
   const MDX = page.data.body;
