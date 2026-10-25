@@ -101,23 +101,27 @@ export function editRequirements(
   return after === text ? null : { path, before: text, after, from, to };
 }
 
-/** The read-back lock (or pinned requirements line) names `target` for this package. */
+/**
+ * The read-back lock (or pinned requirements line) holds this package at `target` or above (a
+ * Poetry `update` may lock a newer allowed release than an advisory's smallest fix).
+ */
 function lockedCheck(manager: PyProject["manager"], lock: string | undefined, name: string, target: string) {
   const n = namePattern(name);
-  const v = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const version = `([A-Za-z0-9_.!+-]+)`;
   const patterns: Record<string, RegExp> = {
-    uv: new RegExp(`name = "${n}"\\s*\\nversion = "${v}"`, "i"),
-    poetry: new RegExp(`name = "${n}"\\s*\\nversion = "${v}"`, "i"),
-    pipenv: new RegExp(`"${n}":\\s*\\{[^}]*"version":\\s*"==${v}"`, "is"),
+    uv: new RegExp(`name = "${n}"\\s*\\nversion = "${version}"`, "i"),
+    poetry: new RegExp(`name = "${n}"\\s*\\nversion = "${version}"`, "i"),
+    pipenv: new RegExp(`"${n}":\\s*\\{[^}]*"version":\\s*"==${version}"`, "is"),
   };
-  const re =
-    patterns[manager] ?? new RegExp(`^\\s*${n}\\s*(?:\\[[^\\]]*\\])?\\s*==\\s*${v}(?![\\w.+-])`, "im");
+  const re = patterns[manager] ?? new RegExp(`^\\s*${n}\\s*(?:\\[[^\\]]*\\])?\\s*==\\s*${version}`, "im");
   return (files: Record<string, string>) => {
     const text = lock ? files[lock] : Object.values(files).join("\n");
     if (text === undefined) return `${lock} was not read back`;
-    return re.test(text)
+    const locked = re.exec(text)?.[1];
+    if (!locked) return `${lock ?? "the requirements"} no longer lists ${name}`;
+    return pypiScheme.valid(locked) && pypiScheme.compare(locked, target) >= 0
       ? null
-      : `${lock ?? "the requirements"} does not pin ${name} ${target} after the update`;
+      : `${lock ?? "the requirements"} still pins ${name} ${locked}, below ${target}, after the update`;
   };
 }
 

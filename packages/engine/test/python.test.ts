@@ -117,8 +117,10 @@ describe("python upgrade transaction", () => {
     expect(t.commands).toEqual([["uv", "lock", "--upgrade-package", "anthropic"]]);
     expect(t.check?.({ "uv.lock": '[[package]]\nname = "anthropic"\nversion = "1.15.0"\n' })).toBeNull();
     expect(t.check?.({ "uv.lock": '[[package]]\nname = "anthropic"\nversion = "0.125.0"\n' })).toMatch(
-      /does not pin/,
+      /still pins anthropic 0.125.0/,
     );
+    // A newer allowed release than the target also satisfies the check (Poetry `update`).
+    expect(t.check?.({ "uv.lock": '[[package]]\nname = "anthropic"\nversion = "1.16.0"\n' })).toBeNull();
   });
 
   it("uv: a range that already allows the target only relocks", () => {
