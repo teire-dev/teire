@@ -1,4 +1,5 @@
 import * as pep440 from "@renovatebot/pep440";
+import * as rubySemver from "@renovatebot/ruby-semver";
 import semver from "semver";
 import type { Ecosystem } from "../contract";
 
@@ -105,11 +106,32 @@ export const cargoScheme: VersionScheme = {
   isRange: (range) => semver.validRange(cargoRange(range)) !== null,
 };
 
+/**
+ * RubyGems (`Gem::Version`, `Gem::Requirement`) through @renovatebot/ruby-semver: `1.2.3.rc1` is a
+ * pre-release (any letter); requirements are `~> 2.0`, `>= 1, < 3`. The caret rule applies to release
+ * numbers as everywhere else.
+ */
+const gemRelease = (v: string) =>
+  v
+    .split(".")
+    .filter((p) => /^\d+$/.test(p))
+    .map(Number);
+export const rubygemsScheme: VersionScheme = {
+  valid: (v) => rubySemver.valid(v) !== null,
+  compare: (a, b) => (rubySemver.lt(a, b) ? -1 : rubySemver.gt(a, b) ? 1 : 0),
+  isPrerelease: (v) => /[a-zA-Z]/.test(v),
+  major: (v) => rubySemver.major(v) ?? 0,
+  breaking: (from, to) => caretBreak(gemRelease(from), gemRelease(to)),
+  satisfies: (v, range) => rubySemver.satisfies(v, range),
+  isRange: (range) => /^\s*(?:[~><=!]+\s*)?\d/.test(range),
+};
+
 const SCHEMES: Partial<Record<Ecosystem, VersionScheme>> = {
   npm: npmScheme,
   pypi: pypiScheme,
   go: goScheme,
   cargo: cargoScheme,
+  rubygems: rubygemsScheme,
 };
 
 export function versionScheme(ecosystem: Ecosystem): VersionScheme {

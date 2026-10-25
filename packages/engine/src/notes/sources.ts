@@ -114,6 +114,11 @@ const REPO_CHANGELOGS = [
   "CHANGES.rst",
   "HISTORY.rst",
   "NEWS.md",
+  // Ruby gems
+  "History.md",
+  "Changelog.md",
+  "History.rdoc",
+  "CHANGELOG.rdoc",
 ];
 
 /**

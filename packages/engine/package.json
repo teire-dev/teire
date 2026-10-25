@@ -34,6 +34,8 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.77",
     "@renovatebot/pep440": "5.0.1",
+    "@renovatebot/ruby-semver": "5.0.0",
+    "@ruby/prism": "1.9.0",
     "@yarnpkg/parsers": "3.1.0",
     "ai": "7.0.150",
     "cjs-module-lexer": "2.3.0",

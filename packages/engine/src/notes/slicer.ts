@@ -49,9 +49,14 @@ export function versionHeadings(markdown: string, scheme: VersionScheme): Headin
     let bodyStart = offset;
     const atx = /^(#{1,4})\s+(.+?)\s*#*\s*$/.exec(line);
     const next = lines[i + 1] ?? "";
+    // RDoc headings (`== 2.0.0 / 2022-01-04`), common in Ruby gems' History.rdoc.
+    const rdoc = /^(={1,4})\s+(\S.*?)\s*$/.exec(line);
     if (atx?.[1] && atx[2]) {
       level = atx[1].length;
       text = atx[2];
+    } else if (rdoc?.[1] && rdoc[2]) {
+      level = rdoc[1].length;
+      text = rdoc[2];
     } else if (line.trim() && /^(=+|-+)\s*$/.test(next) && next.trim().length >= 3) {
       level = next.startsWith("=") ? 1 : 2;
       text = line.trim();

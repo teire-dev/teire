@@ -26,6 +26,9 @@ export const MODEL_ENV = {
 } as const;
 
 export const FIX = {
+  /** Lines kept after an error line, up to the next blank line (a rustc diagnostic with its `help:`). */
+  errorContextLines: 30,
+  maxErrorLines: 220,
   /** Failed verifications before the agent discards its plan and starts over from the evidence. */
   replanAfterFailures: 2,
   /** Fix attempts at one target version before falling back one major (plan D71). */
@@ -226,11 +229,28 @@ export const RUST = {
   /** rustdoc JSON format versions cargo-semver-checks 0.51.0 reads ("supported formats are v57, v60, v61"). */
   rustdocFormats: [57, 60, 61] as number[],
   maxRustdocBytes: 256 * 1024 * 1024,
+  /** The fix agent's `lookup_docs` answer from the target's rustdoc JSON. */
+  docsLookupMaxItems: 25,
+  docsLookupMaxChars: 7000,
   semverChecksTimeoutMs: 300_000,
   /** Route B compiles both versions and their dependency graphs (research: 109 s for async-openai). */
   routeBTimeoutSec: 1200,
   /** The sandbox's stable toolchain; checks never let rustup install another (RUSTUP_AUTO_INSTALL=0). */
   sandboxRust: "1.99.1",
+} as const;
+
+/** Ruby (plan S07, research generic/ruby.md). */
+export const RUBY = {
+  /** Version of Teire's Prism surface extractor; bump when its rules change (cached diffs). */
+  extractorVersion: "1",
+  maxGemBytes: 64 * 1024 * 1024,
+  maxFileBytes: 2 * 1024 * 1024,
+  /** `bundle lock --cooldown` needs Bundler ≥ 4.0.18 (research). */
+  cooldownDays: 14,
+  /** A gem's version list is reused for this long within one worker process. */
+  registryMemoMs: 10 * 60_000,
+  /** `/api/v1/versions/<gem>.json` (one entry per platform; aws-sdk-core is ~2 MB). */
+  maxVersionListBytes: 16 * 1024 * 1024,
 } as const;
 
 /** Teire's sandbox service (apps/sandbox). Timeouts are set from context/11-build-notes/sandbox-measurements.md. */
