@@ -1,0 +1,60 @@
+---
+title: PyPI
+description: uv, Poetry, Pipenv, pip-tools and plain pip projects, diffed with griffe from the published wheels and located with jedi.
+icon: Package
+---
+
+| | |
+|---|---|
+| Managers | uv, Poetry, Pipenv, pip-tools, `uv pip`, pip, `pylock.toml` |
+| Lockfiles | `uv.lock`, `poetry.lock`, `Pipfile.lock`, `pylock*.toml`, a compiled `requirements.txt` from a `.in` |
+| API diff | griffe 2.4.1, static only (no code imported) |
+| Finds your lines with | jedi, in safe mode, against the installed wheel |
+| Sandbox | Python 3.12 with uv 0.13.5, Poetry, Pipenv and pip-tools |
+| Docs for the agent | none yet |
+
+## What Teire reads
+
+Any directory with `pyproject.toml`, a `Pipfile` or `requirements*.txt`/`.in`. That covers PEP 621 dependencies and PEP 735 groups, Poetry tables, Pipfiles, and requirements files with `-r`/`-c` includes, `--hash` lines, `-e` and URLs. Versions come only from a lockfile or an exact `==` pin; anything looser is unresolved. Environment markers are evaluated for Linux and CPython 3.12. Dev groups and `requirements-dev`/`test`/`lint` files count as development scope.
+
+A Python helper does the reading, run in isolated mode with pinned `packaging`, `griffe` and `jedi`.
+
+## How breaks are found
+
+For a major, Teire downloads the wheels of both versions (sdists are never built). It checks their sha256 and has griffe compare them **without importing any code**. Removed functions, classes, parameters and attributes become breaks.
+
+jedi then resolves your calls statically against the installed wheel, recording the keyword arguments of each call. A removed keyword argument counts only at calls that pass it.
+
+Versions whose every file needs a newer Python than 3.12 are skipped.
+
+## How it upgrades
+
+| Manager | Command |
+|---|---|
+| uv | `uv lock --upgrade-package name==X` (the `pyproject.toml` range is edited first if it excludes X) |
+| Poetry | `poetry add name==X --lock`, or `poetry update name --lock` |
+| Pipenv | `pipenv upgrade name==X` |
+| pip-tools | `pip-compile --upgrade-package name==X` (or `uv pip compile`) |
+| pip | the pinned line edited |
+
+Hash-pinned requirements get every target file's sha256; without them, the edit is refused. Teire never re-locks everything.
+
+## How it verifies
+
+Install with `uv sync --frozen --all-groups`, `poetry install --no-root`, `pipenv sync --dev`, or a fresh `.venv` from the lock. The checks are pytest, mypy and pyright (or basedpyright), taken from CI or configured in the project, and run through your own runner (`uv run --frozen --offline`, `poetry run`, `pipenv run`). pytest writes a JUnit report for exact test counts.
+
+## In the evaluation
+
+| Repository | Upgrade | Sites | Nemotron 3 Ultra |
+|---|---|---|---|
+| demo-py-major | `anthropic` 0.125.0 → 1.15.0 | 4 | verified · 1 attempt · 11 steps · $0.042 |
+| demo-py-openai | `openai` 0.28.1 → 3.35.1 | 2 | verified · 1 · 8 · $0.036 |
+| demo-py-httpx | `httpx` 0.27.2 → 0.28.1 | 2 | verified · 1 · 12 · $0.045 |
+| demo-py-pydantic | `pydantic` 1.10.18 → 2.14.1 | 4 | verified · 2 · 29 · $0.205 |
+| demo-py-clean | `httpx` 0.27.2 → 0.28.1, with a look-alike `Mirror.create(app=…, proxies=…)` | 0 | not affected · plain bump verified · $0 |
+
+The look-alike resolves to the repository's own class, not to httpx, so it isn't counted.
+
+<Callout type="warn" title="Limits">
+  The sandbox runs Python 3.12 only. A project that needs another Python is not switched. griffe can't see return or attribute type changes; release notes cover those. The agent has no version-pinned docs lookup for PyPI packages yet. Only uv installs are proven to work offline.
+</Callout>

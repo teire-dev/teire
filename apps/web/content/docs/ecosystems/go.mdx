@@ -1,0 +1,62 @@
+---
+title: Go
+description: Go modules, diffed with apidiff, located with go/types, and security advisories judged by govulncheck on the code you actually call.
+icon: Package
+---
+
+| | |
+|---|---|
+| Manifests | every `go.mod` (not `vendor`, `testdata` or examples), `go.work` module by module |
+| Versions | from the Go toolchain: `go list -m all` on a scratch copy, as minimal version selection picks them |
+| API diff | `golang.org/x/exp/apidiff` in Teire's Go helper |
+| Finds your lines with | go/types, over your packages and tests |
+| Advisories | govulncheck v1.8.0: called, imported or only required |
+| Sandbox | Go 1.27.2 |
+| Docs for the agent | the target module's own exported declarations and doc comments |
+
+## What Teire reads
+
+Versions come from the toolchain itself, run in a safe mode:
+
+- `GOTOOLCHAIN=local`, `CGO_ENABLED=0`, `GOWORK=off`,
+- the public Go proxy only, with `GOVCS=*:off`,
+- a scratch home directory.
+
+`// indirect` requirements are transitive; local `replace` directives keep their versions, with a note.
+
+The next version may be a new major. Teire merges the versions of the module you have with those of `/v2`, `/v3`… (or `gopkg.in` `.vN`), checking up to 6 majors on the proxy. Pseudo-versions are skipped.
+
+## How breaks are found
+
+apidiff compares the two versions' exported API and ignores the noise of the `/vN` path. A trailing `...Option` parameter added to a function is an annotation, not a break. Teire's helper then loads your packages with go/types and records every use of a changed object, resolved by type.
+
+For advisories, govulncheck decides. If your code **calls** the vulnerable function, the finding is **affected**, with the call site. If the module is only imported or required, it is **not affected**, and the report says how far govulncheck could see.
+
+## How it upgrades
+
+- Within a major: `go get module@version`, never `-u`.
+- Across a major: Teire first rewrites your import paths (`…/v4` → `…/v5`, keeping aliases). Then `go get`, `go mod tidy`, and `go mod vendor` when the module vendors.
+
+## How it verifies
+
+`go mod download` with `GOTOOLCHAIN=local`. Then, with `GOPROXY=off` and `-mod=readonly`:
+
+| Check | Command |
+|---|---|
+| build | `go build -o /dev/null ./...` |
+| typecheck | `go vet ./...` |
+| test | `go test -count=1 -json ./...`, with build tags taken from your CI |
+
+## In the evaluation
+
+`golang-jwt/jwt` v4.5.2 → v5.3.1 on demo-go-major: 4 sites, verified by Nemotron 3 Ultra in 1 attempt. The fix replaced `StandardClaims` with `RegisteredClaims`, Unix times with `NewNumericDate`, and the `ValidationError` bitmask with `errors.Is(err, jwt.ErrTokenExpired)`. See [Anatomy of a Teire PR](/docs/guide/anatomy-of-a-pr). The same upgrade on demo-go-clean was judged **not affected** by type, and verified as a plain bump.
+
+<Shot
+  name="dryrun-go-diff"
+  alt="Diff tab of the Go dry run: auth/token.go switching to jwt/v5, RegisteredClaims, NewNumericDate and errors.Is(err, jwt.ErrTokenExpired)."
+  caption="The code Nemotron changed for golang-jwt v5."
+/>
+
+<Callout type="warn" title="Limits">
+  Private modules that the public proxy can't serve fail the scan, and the report says so. Release notes are read only for modules hosted on GitHub. The sandbox has Go 1.27.2, and targets needing a newer Go aren't excluded. `-race` isn't run, because the sandbox has no cgo toolchain.
+</Callout>

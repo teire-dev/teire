@@ -1,0 +1,24 @@
+---
+title: Runtimes
+description: The Node.js and Python versions your project pins, checked against their end-of-life dates. Teire reports them, and never changes a runtime for you.
+icon: CalendarClock
+---
+
+| Runtime | Where Teire reads it |
+|---|---|
+| Node.js | Volta, `.nvmrc`, `.node-version`, or `engines.node` in `package.json` |
+| Python | `.python-version`, else the `requires-python` floor in `pyproject.toml` |
+
+Dates come from [endoflife.date](https://endoflife.date), cached for 24 hours. A runtime is flagged once it is past its end of life, or within **180 days** of it. The notice names the newest maintained line, the LTS line for Node.js.
+
+Runtime notices appear in the onboarding PR, the web dashboard, the public report and the CLI, with the line that sets the version. They never open a pull request, and they have no dry run.
+
+<Shot
+  name="report-clean"
+  alt="Report for teire-dev/demo-clean: Node.js 20 reached end of life on 2026-04-30, at package.json:8 with engines node >=20, labelled 'A notice: Teire does not change runtimes for you.'"
+  caption="A runtime notice on a public report, pointing at the engines line that sets it."
+/>
+
+<Callout type="warn" title="Limits">
+  Only Node.js and Python are detected. Ruby, Go and Java versions are not checked for end of life yet.
+</Callout>

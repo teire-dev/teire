@@ -1,0 +1,62 @@
+---
+title: RubyGems
+description: Bundler projects and Rails apps, diffed with Prism from both published gems, upgraded with bundle lock --conservative, and verified with your tests and databases.
+icon: Gem
+---
+
+| | |
+|---|---|
+| Manifests and locks | `Gemfile` and `Gemfile.lock`, or `gems.rb` and `gems.locked` |
+| Lockfile parser | Teire's own port of Bundler's grammar. The Gemfile is never evaluated, and no Ruby runs on the worker |
+| API diff | Prism (`@ruby/prism` 1.9.0) over both gems' `lib/` |
+| Finds your lines with | Prism, syntax level |
+| Advisories | OSV and GitHub, plus ruby-advisory-db |
+| Sandbox | Ruby 4.0.9 with Bundler, PostgreSQL, MySQL (MariaDB) and Redis; other Rubies through rv |
+| Docs for the agent | the target gem's README, UPGRADING, CHANGELOG and documented `lib/` definitions |
+
+## How breaks are found
+
+Teire downloads both `.gem` files, checks their sha256 and extracts the public methods, constants and `require` paths with Prism. Prism sees classes, modules and constants, methods from `def`, `attr_*`, `alias`, `define_method(:name)` and delegators, their visibility and their parameters. Teire also notes runtime dependencies the new version drops.
+
+Your code is searched for:
+
+- the gem's constants, as written,
+- `require` of removed paths or dropped dependencies,
+- method calls by name, only in files that reference the gem's top constant.
+
+Keyword arguments are recorded per call.
+
+The next version skips releases whose `required_ruby_version` rejects your Ruby. That Ruby is read from the lockfile, else assumed to be 4.0.9.
+
+## How it upgrades
+
+Prism finds the `gem "x", "…"` line (or `add_dependency` in a gemspec). Teire replaces only the requirement, and only if it excludes the target. Then the sandbox runs `bundle lock --update GEM --conservative`, with a cooldown so Bundler lands on exactly the analysed version.
+
+## How it verifies
+
+The sandbox installs the Ruby your Gemfile or lockfile names, then runs `bundle install`. It starts PostgreSQL, MySQL or Redis when your CI's `services:` or `config/database.yml` needs them, and runs your database setup.
+
+The checks:
+
+- **tests**: your CI's test step, else RSpec, `bin/rails test` or `rake`,
+- **typecheck**: `bin/rails zeitwerk:check` for Rails, `srb tc` for Sorbet, `steep check` for Steep.
+
+The checks run with `RAILS_ENV=test` and only your CI's plain environment variables, never secrets.
+
+## In the evaluation
+
+| Repository | Upgrade | Result |
+|---|---|---|
+| demo-ruby-major | `faraday` 1.10.6 → 2.15.0, 3 sites | verified by Nemotron 3 Ultra · 2 attempts · 33 steps · $0.239 |
+| demo-rails-db | `faraday` 1.10.6 → 2.15.0 in a Rails 8.1 app on PostgreSQL | verified · 1 attempt · 24 steps · $0.166 |
+| demo-ruby-clean | `faraday` 1.10.6 → 2.15.0 | inconclusive (name-level search), upgrade verified as a plain bump |
+
+<Shot
+  name="repo-findings"
+  alt="teire-dev/demo-ruby-major in the dashboard: faraday 2.15.0 removes 43 APIs, affected, at lib/status_client.rb:18 and :19 and raise_on_server_error.rb:5."
+  caption="The faraday 2 change in the dashboard, with the three lines it reaches."
+/>
+
+<Callout type="warn" title="Limits">
+  The search is by name, so a gem you don't use reads **inconclusive**. Methods defined at runtime or through `method_missing` can't be seen. `.ruby-version` isn't read yet; the Gemfile's `ruby` line and the lockfile are.
+</Callout>

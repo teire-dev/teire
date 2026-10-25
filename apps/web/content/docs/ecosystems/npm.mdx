@@ -1,0 +1,71 @@
+---
+title: npm
+description: npm, pnpm, Yarn and Bun projects, diffed from their TypeScript declarations and located with the TypeScript type checker.
+icon: Package
+---
+
+| | |
+|---|---|
+| Managers | npm, pnpm, Yarn (v1 and Berry), Bun |
+| Lockfiles | `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` |
+| API diff | Teire's declaration walker on the TypeScript 6.0.3 compiler API |
+| Finds your lines with | the TypeScript type checker (ts-morph), against the installed version |
+| Sandbox | `node:24`, Corepack enabled |
+| Docs for the agent | Context7, at the indexed version closest to your target |
+
+## What Teire reads
+
+Every directory with a `package.json` and a lockfile, plus the root. Workspaces resolve per importer: pnpm importers, npm `packages`, Yarn `workspaces`, Berry `@workspace:`, Bun workspaces. It reads `dependencies`, `devDependencies`, `optionalDependencies` and `peerDependencies`, and resolves `npm:` aliases to the real package.
+
+Your own rules hold:
+
+- npm `overrides`, `pnpm.overrides` and Yarn `resolutions` pin a version.
+- Release-age gates from pnpm `minimumReleaseAge`, `.npmrc` `min-release-age`, `.yarnrc.yml` `npmMinimalAgeGate` and `bunfig.toml` stretch the cooldown. Teire uses the longest gate that applies.
+- `@types/node` never goes above your Node major (from Volta, `.nvmrc`, `.node-version` or `engines.node`).
+
+## How breaks are found
+
+For a major, Teire walks the package's bundled `.d.ts` files, or `@types/<name>` on the same major, or its exports when there are no types. It compares the old version with the new and records:
+
+- removed exports and members,
+- calls with too few or too many arguments,
+- properties that became required,
+- deep imports through `exports` that no longer resolve.
+
+A changed type is an annotation, not a break.
+
+Your code is then type-checked against the installed version. A site counts only where the checker resolves it to the package: a method with the same name on your own class doesn't count.
+
+## How it upgrades
+
+The version range in `package.json` is edited as text, keeping its style (`^`, `~`, exact). For pnpm `catalog:` entries, the edit goes into `pnpm-workspace.yaml`. Then the lockfile alone is regenerated in the sandbox:
+
+| Manager | Command |
+|---|---|
+| npm | `npm install --package-lock-only --ignore-scripts --no-audit --no-fund` |
+| pnpm | `pnpm install --lockfile-only --ignore-scripts` |
+| Yarn Berry | `yarn install --mode=update-lockfile` |
+| Yarn v1 | `yarn install --ignore-scripts --non-interactive` |
+| Bun | `bun install --lockfile-only --ignore-scripts` |
+
+A transitive security fix first tries an in-range update (`pnpm update`, `yarn up -R`, `npm update`), then an override.
+
+Deterministic codemods apply on npm: a removed deep import rewritten to the path the migration note names, or a renamed call, only where the target proves the new name exists.
+
+## How it verifies
+
+Install: `npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable` or `--frozen-lockfile`, `bun install --frozen-lockfile`. Lifecycle scripts never run.
+
+The checks come from your CI first: workflow steps that run a package script for typecheck, build or test. Next come your scripts (`typecheck`, `type-check`, `test`, `test:unit`…). Last come the defaults: `tsc --noEmit` when you have TypeScript and a `tsconfig.json`, then `vitest run` or `jest --ci`. Test counts come from a JSON report when the script is a plain Vitest or Jest call, otherwise from the summary line. Watch, e2e, Playwright, Cypress, lint and format scripts are skipped.
+
+## In the evaluation
+
+| Repository | Upgrade | Sites | Nemotron 3 Ultra |
+|---|---|---|---|
+| demo-npm-major | `openai` 4.104.0 → 7.38.0 | 3 | verified · 1 attempt · 20 steps · $0.179 |
+| demo-npm-zod | `zod` 3.25.76 → 4.6.7 | 7 | verified · 2 attempts after the review caught a widened schema · $0.168 |
+| demo-clean | `openai` 4.104.0 → 7.38.0, no use of what changed | 0 | not affected · plain bump verified, no agent |
+
+<Callout type="warn" title="Limits">
+  The binary `bun.lockb` can't be read; use the text `bun.lock`. Bun and Yarn v1 have no in-range transitive update, so a transitive security fix becomes an override. Yarn and Bun installs aren't yet proven to work offline (npm and pnpm are). The sandbox runs Node 24 only.
+</Callout>

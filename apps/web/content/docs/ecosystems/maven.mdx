@@ -1,0 +1,64 @@
+---
+title: Maven and Gradle
+description: Java and Kotlin projects, diffed with japicmp on the published jars, located again from your compiled classes during the fix, and verified with your build tool offline.
+icon: Coffee
+---
+
+| | |
+|---|---|
+| Maven | every `pom.xml` in the modules tree, local parents, `${properties}`, local `dependencyManagement` |
+| Gradle | `settings.gradle(.kts)`, `build.gradle(.kts)`, the `libs.versions.toml` catalog, `gradle.lockfile` |
+| API diff | japicmp 0.26.3 on both jars' bytecode |
+| Finds your lines with | your imports at scan time, then your compiled classes during the fix |
+| Sandbox | Eclipse Temurin JDK 21, with 17 and 25 beside it; Maven 3.9.16 and Gradle 9.8.1 |
+| Docs for the agent | japicmp's changes and the target's sources jar with its Javadoc or KDoc |
+
+## What Teire reads
+
+Maven versions come from literal `<version>` tags, properties (5 levels deep) and local parents.
+
+Gradle declarations are read from:
+
+- `"group:artifact:version"` strings,
+- `libs.x.y` catalog accessors,
+- configurations from `implementation` and `api` to `kapt` and `ksp`.
+
+Versions come from `gradle.lockfile` when you have one, which also gives the transitive dependencies. Without it, a declared version is treated as a floor. The `mvnw` and `gradlew` wrappers are used when present. A version stays in its flavour: a `-jre` artifact never moves to `-android`.
+
+## How breaks are found
+
+japicmp compares the old and new jars' bytecode in two passes, leaving out `internal`, `impl` and `shaded` packages. Kotlin multiplatform libraries are read through their `-jvm` variant. Kotlin's `@Deprecated(level = ERROR or HIDDEN)` counts as removed, with its `replaceWith`.
+
+At scan time your sources are matched through their imports: explicit, wildcard, static and Kotlin `as`. A clean project therefore reads **inconclusive**. During the fix, once your baseline compiles, Teire reads the references out of your **compiled classes**. Those type-level sites replace the textual ones in the PR.
+
+## How it upgrades
+
+Teire changes only the version text, wherever it lives:
+
+- Maven: the `<version>` tag, the property, or local `dependencyManagement`.
+- Gradle: the coordinate string, the catalog `[versions]` entry (all entries sharing that `version.ref` move together), or a `gradle.properties` variable.
+
+Projects with a `gradle.lockfile` then run `dependencies --update-locks` for that module.
+
+## How it verifies
+
+Teire runs your real build once online so the dependencies download. Only a resolution failure counts at this stage. It does this on the unchanged repository first. Then, offline:
+
+| Build | typecheck | test |
+|---|---|---|
+| Maven | `mvn -o test-compile` | `mvn -o verify` |
+| Gradle | `gradle --offline testClasses` | `gradle --offline --continue test` |
+
+The JDK follows your CI's `setup-java`, `.java-version`, `.sdkmanrc`, `.tool-versions`, or the Gradle toolchain or Maven release, else 21. Test tasks always run, never "up to date". Test counts come from Surefire or Teire's Gradle init script.
+
+## In the evaluation
+
+| Repository | Upgrade | Result |
+|---|---|---|
+| demo-jvm-major | `guava` 19.0 → 33.7.2-jre, 4 sites | verified by Nemotron 3 Ultra · 1 attempt · 17 steps · $0.165 |
+| demo-kotlin-major | `okhttp` 3.14.9 → 5.5.0 (Gradle, Kotlin), 13 sites | verified · 1 attempt · 24 steps · $0.249 |
+| demo-jvm-clean | `guava` 19.0 → 33.7.2-jre | inconclusive at scan time, upgrade verified as a plain bump |
+
+<Callout type="warn" title="Limits">
+  Android projects aren't supported: there is no Android SDK or Android Gradle Plugin in the sandbox. Maven has no lockfile, so transitive dependencies and versions managed by a remote parent or BOM aren't read. Versions computed with `$` interpolation in Gradle scripts are unresolved.
+</Callout>

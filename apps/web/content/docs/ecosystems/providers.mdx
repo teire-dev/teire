@@ -1,0 +1,91 @@
+---
+title: Providers, models and APIs
+description: Retired models, removed endpoints and API changes, read from each provider's own pages only when your code talks to it, and kept only when the quote matches the page.
+icon: Globe
+---
+
+A model retirement never shows up as a new package version. Your code keeps sending `gpt-4.1-nano` until the day the provider stops answering. Teire reads the providers' own deprecation pages and changelogs and finds the model IDs and endpoints in your code. Then it fixes them like any other change.
+
+<ProviderRow />
+
+## Readers written for these providers
+
+| Provider | Page read | Recognised by |
+|---|---|---|
+| OpenAI | `developers.openai.com/api/docs/deprecations.md` | `openai`, `@ai-sdk/openai`, `@langchain/openai`, `langchain-openai`; `api.openai.com` |
+| Anthropic | `platform.claude.com/docs/en/about-claude/model-deprecations.md`, plus its parameter deprecations table | `@anthropic-ai/sdk`, `@ai-sdk/anthropic`, `anthropic`, `langchain-anthropic`; `api.anthropic.com` |
+| Google Gemini | `ai.google.dev/gemini-api/docs/deprecations.md.txt` | `@google/genai`, `@google/generative-ai`, `@ai-sdk/google`, `google-genai`; `generativelanguage.googleapis.com` |
+| Nebius Token Factory | the deprecation notices linked from `docs.tokenfactory.nebius.com/llms.txt` | its API host in your code (it uses the OpenAI SDK) |
+| Stripe | `docs.stripe.com/changelog.md` and each breaking change's page, for the Node.js and Python SDKs | `stripe`; `api.stripe.com` |
+
+These readers parse each page's own tables and headings in code, with nothing inferred. A provider counts as used when one of its SDKs is installed (npm or PyPI) or its API host appears in a URL in your code. Its pages are read then, at most once every 6 hours, shared by every repository. Nothing is read on a schedule.
+
+## Any other provider
+
+When your code calls an API host that has no reader, Teire **discovers** the provider. It finds hosts in two ways:
+
+1. a URL in your code whose host or path looks like an API (`api.`, `/v1`, `/api`),
+2. an installed npm or PyPI SDK whose published code names an API host on its own domain. Up to 40 SDKs are read per scan, never run.
+
+Then it looks for the provider's notices:
+
+1. `llms.txt` on the docs host and the domain, scoring links that say deprecat, retire, sunset or changelog,
+2. if that finds no deprecations page, a **Tavily** search limited to the provider's own domains,
+3. last, `/docs/deprecations` and `/deprecations` on its busiest docs hosts.
+
+At most 3 pages are kept per provider, deprecations first. Every fetch and redirect must stay on the provider's domains.
+
+<Shot
+  name="provider-groq"
+  alt="Groq, discovered from code: pages Teire reads (console.groq.com deprecations, changelog, legacy changelog, all ok, checked 2026-10-25), models with a change and their replacements and dates, and the SDK package groq-sdk."
+  caption="Groq has no hand-written reader. Teire found it through groq-sdk, read its three pages with Nemotron, and lists every model change it confirmed."
+/>
+
+## The quote gate
+
+A page read by Nemotron becomes one record per model or endpoint, each with a verbatim quote of up to 400 characters. Code then checks every record before Teire acts on it:
+
+1. The quote is found in the page Teire fetched.
+2. The model ID is inside its own quote. A replacement missing from the quote is removed.
+3. Every source is on the provider's official domains.
+4. For a page Nemotron read, the ID, the replacement and the date all appear in the quotes.
+
+A record that fails any check is kept as **unconfirmed** and never applied to code. Only confirmed records produce findings. The same rule applies to package release notes: an item that doesn't quote the fetched text is dropped.
+
+## Finding the models in your code
+
+ast-grep searches the strings of your JS/TS, Python, Go, Rust, Ruby, Java and Kotlin code for the exact IDs the confirmed records name. It also searches config files (`.env*`, YAML, TOML, JSON, INI, `.properties`) for them as whole words. Where an ID sits decides the verdict:
+
+| Where the ID is | Verdict |
+|---|---|
+| Passed as a model: `model: "…"`, `model="…"`, `openai("…")`, `ChatOpenAI(…)` | **affected** |
+| In a model-named variable, or under a model key in config | **affected** |
+| Anywhere else, such as a registry, a list or a test | **inconclusive**, until traced |
+
+Nemotron then traces the inconclusive ones. It is shown the files holding the IDs and the JS/TS or Python files that import them, and asked whether each ID reaches a request. Its answer counts only if the line it cites exists in a file it was shown and names a model. Test and fixture files are never fix sites.
+
+If your code builds the provider's client from an environment variable such as `OPENAI_BASE_URL`, the deployment decides which service answers. Teire marks those findings inconclusive instead of affected.
+
+Endpoints work the same way: a URL in your code on the provider's host whose path is the removed one, or below it.
+
+## API changes from OpenAPI specs
+
+For API hosts your code calls by URL, Teire looks for the provider's OpenAPI spec. It searches the GitHub organisation behind the provider's SDK, or uses a `specUrl` you set in `teire.yml`. It diffs the spec with **oasdiff 1.34.1** from your position, which is the API version pinned in your code (`apiVersion`, `stripe_version`…) or else the date of your last commit touching those files. Breaking changes on operations your URLs reach become findings.
+
+## The fix
+
+One PR per provider. Each retired model is swapped for the replacement the provider names. If that replacement was later retired too, Teire follows it, up to 5 hops. When a provider names several options, the agent chooses. Parameter changes from the same provider ride along as migration notes when your code uses that parameter. Then your checks run before and after, as for packages. For a model that has already stopped working, the baseline's checks fail by definition. "Already failing" is not accepted there: the run keeps going until the checks pass after the change.
+
+## The public catalog
+
+Every confirmed change Teire has read is public at [/changes](/changes), with its quote, its source, and what Teire searches your code for.
+
+<Shot
+  name="change-detail"
+  alt="Change page: Anthropic, breaks on a date, model retirement: claude-sonnet-4-5-20250929 shutdown on 2026-11-30, replacement claude-sonnet-5-5, the source's own words with a link to platform.claude.com, checked date and page hash, and what Teire searches your code for."
+  caption="One change: the replacement, the date, the exact quote the gate checked with the page's hash, and the model ID Teire looks for."
+/>
+
+<Callout type="warn" title="Limits">
+  Provider SDKs and discovery read npm and PyPI packages only. Model IDs and URLs are found in all seven languages. Model and API fixes are verified in JavaScript/TypeScript or Python projects. Stripe is read for its Node.js and Python SDK sections. Parameter and API-version records don't become findings on their own. The OpenAPI diff matches URLs in your code, not SDK method calls.
+</Callout>

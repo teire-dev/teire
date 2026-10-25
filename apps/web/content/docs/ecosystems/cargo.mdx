@@ -1,0 +1,48 @@
+---
+title: Cargo
+description: Rust crates, diffed with cargo-semver-checks from docs.rs or a sandbox build, then upgraded with cargo update --precise and verified with your tests.
+icon: Package
+---
+
+| | |
+|---|---|
+| Manifests | `Cargo.toml`, read as TOML (Cargo isn't run on the worker): workspace members, dependencies, dev- and build-dependencies, target tables, `workspace = true`, renames |
+| Lockfile | `Cargo.lock` v1 to v4 |
+| API diff | cargo-semver-checks 0.51.0 |
+| Finds your lines with | a syntax-level search |
+| Sandbox | Rust 1.99.1 |
+| Docs for the agent | the target's rustdoc JSON from docs.rs |
+
+## How breaks are found
+
+cargo-semver-checks compares the two published versions. It takes their rustdoc JSON from docs.rs when both are there in a supported format, so nothing is compiled. Otherwise it builds both versions in the Rust sandbox. Features a new version removes come from the crates.io index.
+
+Your code is then searched for the changed items. The search covers full and module paths, `use` groups, prelude globs, trait methods in files that import the trait, and removed features in `Cargo.toml`. Comments and strings are blanked first.
+
+This search works on syntax, not types, so a crate you don't use reads **inconclusive** rather than **not affected**. The sandbox then decides.
+
+## How it upgrades
+
+The requirement in `Cargo.toml` is edited as text in its own style. Removed features are dropped, and `workspace = true` dependencies are bumped in the root `[workspace.dependencies]`. Then `cargo update -p name@old --precise new` regenerates the lockfile.
+
+## How it verifies
+
+`cargo fetch --locked`, then with `CARGO_NET_OFFLINE`:
+
+| Check | Command |
+|---|---|
+| build | `cargo build --workspace --locked --offline` |
+| test | `cargo test --workspace --locked --offline --no-fail-fast` |
+
+`--features` or `--all-features` are copied from your CI's `cargo test`.
+
+## In the evaluation
+
+| Repository | Upgrade | Result |
+|---|---|---|
+| demo-rust-major | `rand` 0.8.8 → 0.10.3, 4 sites | verified by Nemotron 3 Ultra · 1 attempt · 16 steps · $0.129 |
+| demo-rust-clean | `thiserror` 1.0.69 → 2.0.21 | inconclusive (syntax-level), upgrade verified as a plain bump |
+
+<Callout type="warn" title="Limits">
+  The search is syntax-level and can miss `use crate::*` globs and renamed imports. There is no clippy step. The sandbox runs stable Rust 1.99.1, and a `rust-toolchain.toml` can't install another; crates needing nightly or a newer MSRV aren't excluded. Advisories that name a function read **inconclusive**, because their call sites aren't searched.
+</Callout>
