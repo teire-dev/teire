@@ -17,7 +17,7 @@ import { chooseTarget, type TargetPolicy } from "../registry/target";
 import { mavenScheme } from "../registry/versions";
 import { jvmSurfaceDiff } from "../surface/jvm";
 import { jvmDocsLookup } from "../surface/jvmdoc";
-import { surfaceChangeRecords } from "../surface/records";
+import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectJvmChecks } from "../verify/jvm-commands";
@@ -131,7 +131,9 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
       };
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: japicmp`);
-        a.diff = await diffOf(instance.name, instance.version, decision.to);
+        a.diff = await diffOf(instance.name, instance.version, decision.to).catch((error: unknown) =>
+          unreadableDiff("maven", instance.name, instance.version as string, decision.to, error),
+        );
         a.records = surfaceChangeRecords(a.diff);
         const { declKeys } = locateTargets(a.records);
         a.located = locateJvm({

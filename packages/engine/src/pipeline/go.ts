@@ -20,7 +20,7 @@ import { chooseTarget, type TargetPolicy } from "../registry/target";
 import { goScheme } from "../registry/versions";
 import { goSurfaceDiff } from "../surface/go";
 import { goDocsLookup } from "../surface/godoc";
-import { surfaceChangeRecords } from "../surface/records";
+import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectGoChecks } from "../verify/go-commands";
@@ -106,7 +106,10 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
           options.onProgress?.(
             `${instance.name} ${instance.version} → ${targetPath} ${decision.to}: apidiff`,
           );
-          a.diff = await diffOf(instance.name, instance.version, targetPath, decision.to);
+          a.diff = await diffOf(instance.name, instance.version, targetPath, decision.to).catch(
+            (error: unknown) =>
+              unreadableDiff("go", instance.name, instance.version as string, decision.to, error),
+          );
           a.records = surfaceChangeRecords(a.diff);
           a.located = await locateGo({
             repoDir,

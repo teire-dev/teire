@@ -15,6 +15,7 @@ import {
   resolveSubpath,
   surfaceChangeRecords,
   typesPackageName,
+  unreadableDiff,
   verifyIntegrity,
 } from "../src/surface";
 
@@ -49,6 +50,24 @@ describe("tarball integrity", () => {
     expect(verifyIntegrity(bytes, sri, null)).toBe(sri);
     expect(() => verifyIntegrity(new TextEncoder().encode("tampered"), sri, null)).toThrow(IntegrityError);
     expect(() => verifyIntegrity(bytes, null, null)).toThrow(IntegrityError);
+  });
+});
+
+describe("a diff the tool could not compute", () => {
+  it("becomes one candidate to check by hand, with the reason, instead of failing the scan", () => {
+    const diff = unreadableDiff(
+      "pypi",
+      "llm-echo",
+      "0.3a3",
+      "0.5.0",
+      new Error("llm-echo 0.5.0 publishes no wheel (sdists are not read: building one runs code)"),
+    );
+    expect(diff.unanalyzable).toBe(true);
+    const records = surfaceChangeRecords(diff);
+    expect(records).toHaveLength(1);
+    expect(records[0]?.status).toBe("candidate");
+    expect(records[0]?.signatures).toEqual([]);
+    expect(records[0]?.summary).toContain("publishes no wheel");
   });
 });
 

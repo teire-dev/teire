@@ -29,12 +29,12 @@ Cursor, Windsurf and other clients take the same command in their MCP config:
 
 | Tool | Input | Returns |
 |---|---|---|
-| `scan_path` | `path`, optional `fresh` | The scan as JSON: ecosystems, providers, groups of findings with their sites, and notes. Results are cached 5 minutes per path, unless `fresh` |
-| `explain_finding` | `path`, `key` (a group key, change ID or package name) | The finding group with every call site and its change records: the computed API diff for a package, or the provider's quoted notice |
-| `list_changes` | optional `provider`, `ecosystem`, `kind`, `subject` | Changes from the public catalog: ID, title, kind, class, date and replacement |
+| `scan_path` | `path` (a folder, or a public GitHub repository as `owner/name` or its URL), optional `fresh` | The groups that need action, one per pull request Teire would open: verdict, priority, deadline, the version or model to move to and the first call sites. The rest are counted. Results are kept 5 minutes per path, unless `fresh` |
+| `explain_finding` | `path`, `key` (a group key, change ID or package name) | One group in full: its change records with summary, replacement, migration notes and quoted sources, and up to 50 call sites with their code, product code first |
+| `list_changes` | optional `provider`, `ecosystem`, `kind`, `subject` | Changes from the public catalog, or read on the spot from a provider's pages when the catalog doesn't hold them yet: ID, title, kind, class, date and replacement, 60 at a time |
 | `get_change` | `id` | One full change record |
 
-Every tool is marked read-only. None of them writes to the repository or to GitHub.
+Every tool is marked read-only. None of them writes to the repository or to GitHub. A large repository takes a minute or two to scan; when the client asks for progress, each step is sent as a progress notification, which also keeps clients that reset their timeout on progress from giving up.
 
 ## What an agent does with it
 

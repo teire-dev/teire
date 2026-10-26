@@ -24,7 +24,7 @@ import { chooseTarget, type TargetDecision } from "../registry/target";
 import type { PackageInfo } from "../registry/types";
 import { npmScheme } from "../registry/versions";
 import { type NpmSurfaceOptions, npmSurface, npmSurfaceDiff, npmTypesLayout } from "../surface/npm";
-import { surfaceChangeRecords } from "../surface/records";
+import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import type { VerifyBackend } from "../verify/backend";
 import { detectJsChecks, withVerifyOverrides } from "../verify/commands";
@@ -118,19 +118,29 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
       };
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: API-surface diff`);
-        a.diff = await diffOf(instance.name, instance.version, decision.to);
+        a.diff = await diffOf(instance.name, instance.version, decision.to).catch((error: unknown) =>
+          unreadableDiff("npm", instance.name, instance.version as string, decision.to, error),
+        );
         a.records = surfaceChangeRecords(a.diff);
-        const from = await npmTypesLayout(instance.name, instance.version, options);
-        const to = await npmTypesLayout(instance.name, decision.to, options);
-        a.located = locateTs({
-          repoDir,
-          projectRoot: project.root,
-          packageName: instance.name,
-          link: from.link,
-          roots: from.roots,
-          targetDir: to.link.dir,
-          ...locateTargets(a.records),
-        });
+        // An unreadable diff has nothing to search for; a locator that fails leaves the finding
+        // inconclusive ("the repo's code was not analysed"), never the whole scan failed.
+        const records = a.records;
+        const version = instance.version;
+        a.located = a.diff.unanalyzable
+          ? null
+          : await (async () => {
+              const from = await npmTypesLayout(instance.name, version, options);
+              const to = await npmTypesLayout(instance.name, decision.to, options);
+              return locateTs({
+                repoDir,
+                projectRoot: project.root,
+                packageName: instance.name,
+                link: from.link,
+                roots: from.roots,
+                targetDir: to.link.dir,
+                ...locateTargets(records),
+              });
+            })().catch(() => null);
         a.findings = assess({
           instance,
           target: decision.to,

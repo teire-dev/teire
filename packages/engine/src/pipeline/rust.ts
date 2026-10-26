@@ -13,7 +13,7 @@ import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { chooseTarget, type TargetPolicy } from "../registry/target";
 import { cargoScheme } from "../registry/versions";
-import { surfaceChangeRecords } from "../surface/records";
+import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import { cargoSurfaceDiff } from "../surface/rust";
 import { rustDocsLookup } from "../surface/rustdoc";
 import type { SurfaceDiff } from "../surface/types";
@@ -88,7 +88,9 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
       };
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: cargo-semver-checks`);
-        a.diff = await diffOf(instance.name, instance.version, decision.to);
+        a.diff = await diffOf(instance.name, instance.version, decision.to).catch((error: unknown) =>
+          unreadableDiff("cargo", instance.name, instance.version as string, decision.to, error),
+        );
         a.records = surfaceChangeRecords(a.diff);
         a.located = locateRust({
           repoDir,

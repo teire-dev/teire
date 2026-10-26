@@ -53,12 +53,13 @@ export function groupFindings(rows: FindingRow[]): FindingGroup[] {
     byKey.set(r.groupKey ?? r.changeId, [...(byKey.get(r.groupKey ?? r.changeId) ?? []), r]);
   return [...byKey].map(([key, list]) => {
     // Within one verdict, a change that opens a PR (a removal, an advisory) leads, not an annotation
-    // (a deprecation, a changed type), then the most urgent.
+    // (a deprecation, a changed type), then the most urgent, then the soonest date.
     const sorted = [...list].sort(
       (a, b) =>
         RANK[a.verdict] - RANK[b.verdict] ||
         Number(opensPr(b.kind)) - Number(opensPr(a.kind)) ||
-        (a.priority ?? 9) - (b.priority ?? 9),
+        (a.priority ?? 9) - (b.priority ?? 9) ||
+        (iso(a.deadline) ?? "9999").localeCompare(iso(b.deadline) ?? "9999"),
     );
     const head = sorted[0] as FindingRow;
     // The group says what its strongest verdict says: title, deadline and sites come from those rows.

@@ -14,7 +14,7 @@ import { deprecationChange } from "../registry/deprecation";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
 import { chooseTarget, type TargetPolicy } from "../registry/target";
 import { rubygemsScheme } from "../registry/versions";
-import { surfaceChangeRecords } from "../surface/records";
+import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import { rubySurfaceDiff } from "../surface/ruby";
 import { rubyDocsLookup } from "../surface/rubydoc";
 import type { SurfaceDiff } from "../surface/types";
@@ -121,7 +121,9 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
       };
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: Prism surface diff`);
-        a.diff = await diffOf(instance.name, instance.version, decision.to);
+        a.diff = await diffOf(instance.name, instance.version, decision.to).catch((error: unknown) =>
+          unreadableDiff("rubygems", instance.name, instance.version as string, decision.to, error),
+        );
         a.records = surfaceChangeRecords(a.diff);
         const { declKeys } = locateTargets(a.records);
         for (const r of a.records)

@@ -1,6 +1,6 @@
 ---
 title: CLI
-description: teire scan runs Teire's own engine on a checkout and prints every change that reaches your code, with its lines. teire check turns that into a CI gate.
+description: teire scan runs Teire's own engine on a folder or any public GitHub repository and prints every change that reaches your code, with its lines. teire check turns that into a CI gate.
 icon: SquareTerminal
 ---
 
@@ -13,6 +13,12 @@ The package is [`teire-cli`](https://www.npmjs.com/package/teire-cli) on npm. In
 ```bash
 npm install -g teire-cli
 teire scan
+```
+
+To try it on a repository you haven't cloned, give its `owner/name` or URL. Teire downloads that commit as one archive into a temporary folder, scans it and deletes it:
+
+```bash
+npx teire-cli scan meridianlabs-ai/inspect_ai
 ```
 
 This is a real run on [teire-dev/demo-ai-web](https://github.com/teire-dev/demo-ai-web), with the path shortened:
@@ -35,11 +41,13 @@ Affected (2)
     runtime/node
     package.json:8
 
-1 more change checked, none reaching your code; 0 outside your installed versions (--all lists them)
+1 more change checked, none reaching your code (--all lists them)
 
 Notes
   4 model mention(s) not traced through wrappers or registries (Nemotron does this when TOKENFACTORY_API_KEY is set)
 ```
+
+A group holds every change one pull request would fix, so a provider's retirements share a line: `o1-preview shutdown and 9 more`. The date beside it belongs to the change the title names. Product code is listed before tests and fixtures. In a terminal the current step shows on one line while the scan runs; a large repository takes a minute or two.
 
 The scan makes the same engine calls as the Teire worker. Its findings match the dashboard once `TOKENFACTORY_API_KEY` is set, which lets Nemotron trace wrapped model IDs, for a repository with no organisation config. Packages are diffed and located on your machine. API and model changes come from Teire's [public catalog](/changes). For a provider the catalog hasn't read yet, the CLI reads that provider's pages itself, through the same quote gate.
 
@@ -47,10 +55,10 @@ The scan makes the same engine calls as the Teire worker. Its findings match the
 
 | Command | What it does |
 |---|---|
-| `teire scan [path] [--json] [--all]` | Scan a checkout (default: the current directory). `--all` also lists changes outside your installed versions |
-| `teire check [path] [--fail-on affected\|deadline\|any] [--within 90]` | Exit 1 when the gate fails |
-| `teire explain <change-id> [--json]` | One change: summary, replacement, migration notes and the quoted sources |
-| `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | The public catalog |
+| `teire scan [target] [--json] [--all]` | Scan a folder (default: the current one), or a public GitHub repository as `owner/name` or its URL. `--all` also lists changes outside your installed versions |
+| `teire check [target] [--fail-on affected\|deadline\|any] [--within 90]` | Exit 1 when the gate fails |
+| `teire explain <change-id> [target] [--json]` | One change: summary, replacement, migration notes and the quoted sources. A package change ID is read from a scan of `target` |
+| `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | The public catalog. For a provider with a built-in reader whose changes the catalog doesn't hold yet, its pages are read on the spot |
 | `teire mcp` | Serve the same tools to coding agents over stdio. See [MCP](/docs/build/mcp) |
 
 ## Gating CI
@@ -88,7 +96,7 @@ Node.js 22 or newer. npm and Ruby need nothing else, because TypeScript and Pris
 
 | To read | Needs |
 |---|---|
-| Python packages | [uv](https://docs.astral.sh/uv), which supplies Python 3.12 and the pinned griffe and jedi |
+| Python packages | [uv](https://docs.astral.sh/uv), which supplies Python 3.12 and the pinned griffe and jedi. Without uv, a Python 3.11 or newer already installed gets a virtual environment with the same pins, made once in `~/.cache/teire` |
 | Go modules | Go (`TEIRE_GO` for a specific binary) |
 | Rust crates | `cargo install cargo-semver-checks --version 0.51.0 --locked` |
 | Maven and Gradle | Java 17 or newer (`TEIRE_JAVA`); japicmp is downloaded once and checked against its SHA-1 |
@@ -99,6 +107,8 @@ Node.js 22 or newer. npm and Ruby need nothing else, because TypeScript and Pris
 | `TOKENFACTORY_API_KEY` | Nemotron traces model IDs through wrappers and registries, and reads discovered providers' pages |
 | `TAVILY_API_KEY` | Searches for the notices of an API host neither the catalog nor the built-in readers cover |
 | `TEIRE_URL` | Another Teire deployment (default `https://teire.vercel.app`) |
+
+A package the repository doesn't pin is listed but not compared, and the notes count it: a Gemfile with no `Gemfile.lock`, or a Maven dependency whose version comes from a parent POM or BOM outside the repository. A diff that can't be computed (a release with no wheel, a download that timed out) becomes a "check by hand" item with its reason; the rest of the scan carries on.
 
 `teire.yml` is honoured for `ignore`, `ecosystems`, `paths`, `ignorePaths`, `upgrades.cooldownDays` and `sources`.
 

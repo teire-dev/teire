@@ -1,17 +1,18 @@
-import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { getChange, listChanges } from "./catalog";
-import { groupFindings, scanJson } from "./render";
+import { changesFor, findChange } from "./catalog";
+import { groupDetail, groupFindings, scanSummary } from "./render";
 import { type ScanResult, scanPath } from "./scan";
+import { resolveTarget } from "./target";
 
 declare const TEIRE_VERSION: string;
 
 /**
  * `teire mcp` (card C11): the CLI's tools for a coding agent over stdio. A scan is kept for a few
- * minutes per path, so `explain_finding` after `scan_path` does not scan again. Stdout carries the
- * protocol only; anything the engine logs goes to stderr.
+ * minutes per target (a folder, or a public GitHub repository), so `explain_finding` after
+ * `scan_path` does not scan again. Stdout carries the protocol only; anything the engine logs goes
+ * to stderr.
  */
 const SCAN_TTL_MS = 5 * 60_000;
 
@@ -25,27 +26,67 @@ export async function serveMcp(options: { catalogUrl: string; githubToken?: stri
   console.log = console.error;
   console.info = console.error;
   const scans = new Map<string, { at: number; scan: Promise<ScanResult> }>();
-  const scanOf = (path: string, fresh = false) => {
-    const dir = resolve(path);
-    const kept = scans.get(dir);
+  const scanOf = (path: string, fresh = false, progress?: (step: string) => void) => {
+    const key = path.trim();
+    const kept = scans.get(key);
     if (kept && !fresh && Date.now() - kept.at < SCAN_TTL_MS) return kept.scan;
-    const scan = scanPath(dir, options);
-    scans.set(dir, { at: Date.now(), scan });
-    scan.catch(() => scans.delete(dir));
+    const scan = (async () => {
+      progress?.(`resolving ${key}`);
+      const target = await resolveTarget(key, options.githubToken);
+      try {
+        return await scanPath(target.dir, {
+          ...options,
+          label: target.label,
+          ...(target.github ? { origin: target.github } : {}),
+          ...(progress ? { progress } : {}),
+        });
+      } finally {
+        await target.cleanup();
+      }
+    })();
+    scans.set(key, { at: Date.now(), scan });
+    scan.catch(() => scans.delete(key));
     return scan;
   };
+  // A large repository takes a minute or more: each step is a progress notification when the client
+  // asked for them (a progress token), which also keeps clients that reset their timeout on progress.
+  const progressOf = (extra: {
+    _meta?: { progressToken?: string | number };
+    sendNotification: (n: {
+      method: "notifications/progress";
+      params: { progressToken: string | number; progress: number; message: string };
+    }) => Promise<void>;
+  }) => {
+    const token = extra._meta?.progressToken;
+    if (token === undefined) return undefined;
+    let step = 0;
+    return (message: string) => {
+      extra
+        .sendNotification({
+          method: "notifications/progress",
+          params: { progressToken: token, progress: ++step, message },
+        })
+        .catch(() => undefined);
+    };
+  };
+  const failure = (error: unknown) => ({
+    ...text(error instanceof Error ? error.message : String(error)),
+    isError: true,
+  });
 
   const server = new McpServer({ name: "teire", version: TEIRE_VERSION });
   server.registerTool(
     "scan_path",
     {
-      title: "Scan a checkout",
+      title: "Scan a repository",
       description:
-        "Scan a local repository for dependency and API changes that affect it: every package across npm, PyPI, Go, Cargo, RubyGems and Maven/Gradle, the API hosts and model IDs the code calls, and runtime end-of-life dates. Returns findings grouped as Teire opens PRs, each with its verdict, priority, deadline and the exact call sites.",
+        "Scan a repository for dependency and API changes that affect it: every package across npm, PyPI, Go, Cargo, RubyGems and Maven/Gradle, the API hosts and model IDs the code calls, and runtime end-of-life dates. Works on a local folder or a public GitHub repository (downloaded, no clone). Returns the groups that need action (one per PR Teire would open) with verdict, priority, deadline and their first call sites; explain_finding gives one group in full. A large repository can take a minute or two.",
       inputSchema: {
         path: z
           .string()
-          .describe("Directory of the checkout (absolute, or relative to where the server runs)"),
+          .describe(
+            "A folder (absolute, or relative to where the server runs), or a public GitHub repository as owner/name or its URL",
+          ),
         fresh: z
           .boolean()
           .optional()
@@ -53,10 +94,12 @@ export async function serveMcp(options: { catalogUrl: string; githubToken?: stri
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ path, fresh }) => {
-      const scan = await scanOf(path, fresh ?? false);
-      const { changes: _, ...summary } = scanJson(scan);
-      return text(summary);
+    async ({ path, fresh }, extra) => {
+      try {
+        return text(scanSummary(await scanOf(path, fresh ?? false, progressOf(extra))));
+      } catch (error) {
+        return failure(error);
+      }
     },
   );
   server.registerTool(
@@ -64,15 +107,20 @@ export async function serveMcp(options: { catalogUrl: string; githubToken?: stri
     {
       title: "Explain a finding",
       description:
-        "One finding group from a scan (its `key` from scan_path, a change id, or a package name): the change record with its quoted sources and migration notes, and every call site in the repo it reaches.",
+        "One finding group from a scan (its `key` from scan_path, a change id, or a package name): its change records with summary, replacement, migration notes and quoted sources, and up to 50 call sites in the repo with their code (product code first, tests last).",
       inputSchema: {
-        path: z.string().describe("The scanned checkout"),
+        path: z.string().describe("The folder or GitHub repository given to scan_path"),
         key: z.string().describe("A group key from scan_path, a change id, or a package name"),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ path, key }) => {
-      const scan = await scanOf(path);
+    async ({ path, key }, extra) => {
+      let scan: ScanResult;
+      try {
+        scan = await scanOf(path, false, progressOf(extra));
+      } catch (error) {
+        return failure(error);
+      }
       const groups = groupFindings(scan);
       const group =
         groups.find((g) => g.key === key) ??
@@ -80,11 +128,10 @@ export async function serveMcp(options: { catalogUrl: string; githubToken?: stri
         groups.find((g) => g.findings.some((f) => /^[^:]+:(.+?)@/.exec(f.dependencyKey)?.[1] === key));
       if (!group)
         return {
-          ...text(`No finding for ${key} in ${resolve(path)}. Run scan_path to list the keys.`),
+          ...text(`No finding for ${key} in ${scan.label}. Run scan_path to list the keys.`),
           isError: true,
         };
-      const ids = [...new Set(group.findings.map((f) => f.changeId))];
-      return text({ ...group, changes: ids.map((id) => scan.records.get(id)).filter(Boolean) });
+      return text(groupDetail(scan, group));
     },
   );
   server.registerTool(
@@ -92,7 +139,7 @@ export async function serveMcp(options: { catalogUrl: string; githubToken?: stri
     {
       title: "List public changes",
       description:
-        "Confirmed changes in Teire's public catalog: API deprecations and shutdowns, model retirements, breaking package releases. Every record carries the exact source quote it was confirmed against.",
+        "Confirmed changes Teire has read: API deprecations and shutdowns, model retirements, breaking package releases. From Teire's public catalog, or read live from the provider's own pages when the catalog doesn't hold them yet. Every record carries the exact source quote it was confirmed against.",
       inputSchema: {
         provider: z
           .string()
@@ -108,9 +155,15 @@ export async function serveMcp(options: { catalogUrl: string; githubToken?: stri
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async (filters) => {
-      const changes = await listChanges(options.catalogUrl, filters);
-      return text(
-        changes.map((r) => ({
+      const notes: string[] = [];
+      const changes = await changesFor(options.catalogUrl, filters, notes);
+      const shown = 60;
+      return text({
+        ...(notes.length ? { notes } : {}),
+        ...(changes.length > shown
+          ? { total: changes.length, more: `${changes.length - shown} more; narrow with subject or kind` }
+          : {}),
+        changes: changes.slice(0, shown).map((r) => ({
           id: r.id,
           title: r.title,
           kind: r.kind,
@@ -118,7 +171,7 @@ export async function serveMcp(options: { catalogUrl: string; githubToken?: stri
           effectiveOn: r.applicability.effectiveOn ?? null,
           replacement: r.replacement?.value ?? null,
         })),
-      );
+      });
     },
   );
   server.registerTool(
@@ -131,8 +184,15 @@ export async function serveMcp(options: { catalogUrl: string; githubToken?: stri
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ id }) => {
-      const record = await getChange(options.catalogUrl, id);
-      return record ? text(record) : { ...text(`No public change with id ${id}`), isError: true };
+      const record = await findChange(options.catalogUrl, id, []);
+      return record
+        ? text(record)
+        : {
+            ...text(
+              `No change with id ${id}. Ids come from list_changes, or from scan_path for package changes (use explain_finding there).`,
+            ),
+            isError: true,
+          };
     },
   );
   await server.connect(new StdioServerTransport());

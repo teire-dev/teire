@@ -96,6 +96,36 @@ function signaturesOf(name: string, c: SurfaceChange, ecosystem: SurfaceDiff["ec
   return out;
 }
 
+/**
+ * A diff whose tool failed (a release with no wheel, a registry error, a toolchain crash): unreadable,
+ * with the reason, so one package's failure becomes "compare it by hand" instead of ending the scan.
+ */
+export function unreadableDiff(
+  ecosystem: SurfaceDiff["ecosystem"],
+  name: string,
+  fromVersion: string,
+  toVersion: string,
+  error: unknown,
+): SurfaceDiff {
+  const side = { source: { kind: "bundled" as const }, symbols: 0, truncated: false, ms: 0, integrity: "" };
+  return {
+    ecosystem,
+    name,
+    fromVersion,
+    toVersion,
+    from: side,
+    to: side,
+    changes: [],
+    counts: {},
+    moved: {},
+    unanalyzable: true,
+    notes: [
+      (error instanceof Error ? error.message : String(error)).split("\n")[0]?.slice(0, 300) ?? "failed",
+    ],
+    tool: { name: "surface-diff", version: "failed", noiseFilterVersion: SURFACE.noiseFilterVersion },
+  };
+}
+
 export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().toISOString()): ChangeV2[] {
   const contentHash = sha256(JSON.stringify(diff.changes));
   const source = {

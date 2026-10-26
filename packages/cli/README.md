@@ -15,6 +15,12 @@ npm install -g teire-cli
 teire scan
 ```
 
+No checkout at hand? Give a public GitHub repository as `owner/name` or its URL. It is downloaded as one archive, scanned and deleted:
+
+```bash
+npx teire-cli scan meridianlabs-ai/inspect_ai
+```
+
 ```
 Teire ~/src/support-bot
 PyPI 2 direct + 20 transitive · 6 files · 10.9 s
@@ -38,10 +44,10 @@ Affected (2)
 
 | Command                                                                          | What it does                                                                                                                                                                                    |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `teire scan [path] [--json] [--all]`                                             | Scans a checkout (default: the current directory). `--all` also lists the changes that don't reach your code.                                                                                   |
-| `teire check [path] [--fail-on affected\|deadline\|any] [--within 90]`           | Exits 1 when the gate fails. `affected`: any change reaches your code. `deadline`: an affected change has a shutdown date within `--within` days. `any`: anything affected or left for a human. |
+| `teire scan [target] [--json] [--all]`                                           | Scans a folder (default: the current one) or a public GitHub repository (`owner/name` or its URL). `--all` also lists the changes that don't reach your code.                                   |
+| `teire check [target] [--fail-on affected\|deadline\|any] [--within 90]`         | Exits 1 when the gate fails. `affected`: any change reaches your code. `deadline`: an affected change has a shutdown date within `--within` days. `any`: anything affected or left for a human. |
 | `teire explain <change-id> [--json]`                                             | Shows one change record: summary, replacement, migration notes, and the quoted sources it was confirmed against.                                                                                |
-| `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | Lists Teire's public catalog of confirmed changes.                                                                                                                                              |
+| `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | Lists Teire's public catalog of confirmed changes, or reads a provider's own pages when the catalog doesn't hold them yet.                                                                      |
 | `teire mcp`                                                                      | Serves `scan_path`, `explain_finding`, `list_changes` and `get_change` to coding agents over stdio.                                                                                             |
 
 ## In CI
@@ -80,7 +86,7 @@ If a toolchain is missing, the scan says which one and how to get it. It never g
 
 | To read         | Needs                                                                                      |
 | --------------- | ------------------------------------------------------------------------------------------ |
-| Python packages | [uv](https://docs.astral.sh/uv) (it supplies Python 3.12 and the helper's pinned packages) |
+| Python packages | [uv](https://docs.astral.sh/uv) (it supplies Python 3.12 and the helper's pinned packages), or Python 3.11+ already installed (a virtual environment is made once in `~/.cache/teire`) |
 | Go modules      | Go (`TEIRE_GO` points at a specific binary)                                                |
 | Rust crates     | `cargo install cargo-semver-checks --version 0.51.0 --locked`                              |
 | Maven/Gradle    | Java 17 or newer (`TEIRE_JAVA`); japicmp is downloaded once and checked against its SHA-1  |

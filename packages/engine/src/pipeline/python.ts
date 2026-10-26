@@ -16,7 +16,7 @@ import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
 import { chooseTarget, type TargetPolicy } from "../registry/target";
 import { pypiScheme } from "../registry/versions";
 import { fetchPypiWheel, pypiSurfaceDiff } from "../surface/pypi";
-import { surfaceChangeRecords } from "../surface/records";
+import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectPyChecks } from "../verify/python-commands";
@@ -113,16 +113,25 @@ export async function assessPyRepo(repoDir: string, _tree: RepoTree, options: Py
       };
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: griffe diff`);
-        a.diff = await diffOf(instance.name, instance.version, decision.to);
+        a.diff = await diffOf(instance.name, instance.version, decision.to).catch((error: unknown) =>
+          unreadableDiff("pypi", instance.name, instance.version as string, decision.to, error),
+        );
         a.records = surfaceChangeRecords(a.diff);
-        const wheel = await fetchPypiWheel(instance.name, instance.version, options);
-        a.located = await locatePython({
-          repoDir,
-          projectRoot: project.root,
-          packages: wheel.topLevel,
-          siteDirs: [wheel.dir],
-          ...locateTargets(a.records),
-        });
+        // As npm: nothing to search for after an unreadable diff; a failed locator leaves it inconclusive.
+        const records = a.records;
+        const version = instance.version;
+        a.located = a.diff.unanalyzable
+          ? null
+          : await (async () => {
+              const wheel = await fetchPypiWheel(instance.name, version, options);
+              return locatePython({
+                repoDir,
+                projectRoot: project.root,
+                packages: wheel.topLevel,
+                siteDirs: [wheel.dir],
+                ...locateTargets(records),
+              });
+            })().catch(() => null);
         a.findings = assess({
           instance,
           target: decision.to,

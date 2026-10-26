@@ -88,7 +88,7 @@ On any affected change, **Dry-run a fix** runs the whole fix: Nemotron and the s
 npx teire-cli scan
 ```
 
-The same engine runs on your machine. It reads registries and provider pages and prints what reaches your code. `teire check` fails CI when a deadline is close.
+The same engine runs on your machine. It reads registries and provider pages and prints what reaches your code. Give it `owner/name` to scan a public repository without cloning it. `teire check` fails CI when a deadline is close.
 
 ```bash
 npx teire-cli check --fail-on deadline --within 60

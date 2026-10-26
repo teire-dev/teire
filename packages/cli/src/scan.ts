@@ -19,6 +19,14 @@ import {
   runtimesOf,
 } from "@teire/engine/pipeline";
 import { memoryCache } from "@teire/engine/registry";
+import {
+  cargoSurfaceDiff,
+  goSurfaceDiff,
+  jvmSurfaceDiff,
+  npmSurfaceDiff,
+  pypiSurfaceDiff,
+  rubySurfaceDiff,
+} from "@teire/engine/surface";
 import { remoteCatalog } from "./catalog";
 
 /**
@@ -30,7 +38,11 @@ import { remoteCatalog } from "./catalog";
  */
 export interface ScanResult {
   root: string;
+  /** What the report calls it: the folder, or github.com/owner/name@sha for a downloaded repository. */
+  label: string;
   ecosystems: { name: string; projects: number; direct: number; transitive: number }[];
+  /** Ecosystems with manifests that could not be read on this machine (the reason is in `notes`). */
+  skipped: string[];
   findings: FindingDraft[];
   records: Map<string, ChangeV2>;
   providers: string[];
@@ -66,23 +78,63 @@ const TOOLS: Record<string, string> = {
   "cargo-semver-checks":
     "cargo install cargo-semver-checks --version 0.51.0 --locked, or set TEIRE_CARGO_SEMVER_CHECKS",
   cargo: "install Rust (https://rustup.rs)",
-  uv: "install uv (https://docs.astral.sh/uv); it supplies Python 3.12 and the helper's pinned packages",
+  uv: "install uv (https://docs.astral.sh/uv) or Python 3.11+",
   java: "install Java 17 or newer, or set TEIRE_JAVA",
+  oasdiff:
+    "install oasdiff (https://github.com/oasdiff/oasdiff) to compare the OpenAPI spec of each endpoint the code calls, or set TEIRE_OASDIFF",
 };
 
 function plainNote(note: string) {
-  return note.replace(/(?:[\w.-]+ failed: )?spawn (\S+) ENOENT/, (_, bin: string) => {
-    const tool = bin.split("/").pop() as string;
-    return `${tool} is not installed${TOOLS[tool] ? `: ${TOOLS[tool]}` : ""}`;
-  });
+  return note
+    .replace(
+      "The operation was aborted due to timeout",
+      "a download timed out; scanning again usually gets it",
+    )
+    .replace(/(?:[\w.-][\w .-]* failed: )?spawn (\S+) ENOENT/, (_, bin: string) => {
+      const tool = bin.split("/").pop() as string;
+      return `${tool} is not installed${TOOLS[tool] ? `: ${TOOLS[tool]}` : ""}`;
+    });
 }
+
+/** One diff per package and version pair in a scan, however many of the repo's projects need it. */
+function once<A extends string[], R>(fn: (...args: A) => Promise<R>) {
+  const seen = new Map<string, Promise<R>>();
+  return (...args: A) => {
+    const key = args.join("\0");
+    let result = seen.get(key);
+    if (!result) {
+      result = fn(...args);
+      seen.set(key, result);
+    }
+    return result;
+  };
+}
+
+/** Each ecosystem's manifests: its reader (and the toolchain it may need) runs only when one is present. */
+const MANIFESTS: Record<string, RegExp> = {
+  npm: /(^|\/)package\.json$/,
+  PyPI: /(^|\/)(pyproject\.toml|Pipfile|requirements[^/]*\.(txt|in)|setup\.py|pylock[^/]*\.toml)$/,
+  Go: /(^|\/)go\.(mod|work)$/,
+  Cargo: /(^|\/)Cargo\.toml$/,
+  RubyGems: /(^|\/)(Gemfile|gems\.rb)$/,
+  "Maven/Gradle": /(^|\/)(pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?)$/,
+};
 
 export async function scanPath(
   dir: string,
-  options: { catalogUrl: string; githubToken?: string },
+  options: {
+    catalogUrl: string;
+    githubToken?: string;
+    label?: string;
+    /** A repository downloaded from GitHub has no git remote to read its origin from. */
+    origin?: { owner: string; name: string; sha: string };
+    /** One line per step, so a long scan shows it is moving. */
+    progress?: (step: string) => void;
+  },
 ): Promise<ScanResult> {
   const started = Date.now();
   const notes: string[] = [];
+  const skipped: string[] = [];
   const config = readTeireConfig(directoryTree(dir));
   for (const p of config.problems) notes.push(`teire.yml: ${p}`);
   const tree = scopedTree(directoryTree(dir), config);
@@ -92,28 +144,60 @@ export async function scanPath(
     cache,
     cooldownDays: config.upgrades.cooldownDays,
     ...(token ? { githubToken: token } : {}),
+    ...(options.progress ? { onProgress: options.progress } : {}),
   };
   const on = config.ecosystems;
+  const files = tree.files();
   const run = async (name: string, enabled: boolean, fn: () => Promise<Assessed>) => {
-    if (!enabled) return NONE;
+    if (!enabled || !files.some((f) => MANIFESTS[name]?.test(f))) return NONE;
+    options.progress?.(`reading ${name} packages and their registries`);
     try {
       return await fn();
     } catch (error) {
-      const message = (error instanceof Error ? error.message : String(error)).split("\n")[0]?.slice(0, 200);
+      const message = (error instanceof Error ? error.message : String(error)).split("\n")[0]?.slice(0, 400);
       notes.push(`${name}: not scanned; ${message}`);
+      skipped.push(name);
       return NONE;
     }
   };
   // One ecosystem at a time, as the worker runs them (registry rate limits, memory).
-  const js = await run("npm", on.npm, () => assessJsRepo(dir, tree, base));
-  const py = await run("PyPI", on.pypi, () => assessPyRepo(dir, tree, base));
-  const go = await run("Go", on.go, () => assessGoRepo(dir, tree, base));
-  const rust = await run("Cargo", on.cargo, () => assessRustRepo(dir, tree, base));
-  const ruby = await run("RubyGems", on.rubygems, () => assessRubyRepo(dir, tree, base));
-  const jvm = await run("Maven/Gradle", on.maven, () => assessJvmRepo(dir, tree, base));
+  const js = await run("npm", on.npm, () =>
+    assessJsRepo(dir, tree, { ...base, surfaceDiff: once((n, f, t) => npmSurfaceDiff(n, f, t, base)) }),
+  );
+  const py = await run("PyPI", on.pypi, () =>
+    assessPyRepo(dir, tree, { ...base, surfaceDiff: once((n, f, t) => pypiSurfaceDiff(n, f, t, base)) }),
+  );
+  const go = await run("Go", on.go, () =>
+    assessGoRepo(dir, tree, { ...base, surfaceDiff: once(goSurfaceDiff) }),
+  );
+  const rust = await run("Cargo", on.cargo, () =>
+    assessRustRepo(dir, tree, { ...base, surfaceDiff: once((n, f, t) => cargoSurfaceDiff(n, f, t)) }),
+  );
+  const ruby = await run("RubyGems", on.rubygems, () =>
+    assessRubyRepo(dir, tree, { ...base, surfaceDiff: once(rubySurfaceDiff) }),
+  );
+  const jvm = await run("Maven/Gradle", on.maven, () =>
+    assessJvmRepo(dir, tree, { ...base, surfaceDiff: once(jvmSurfaceDiff) }),
+  );
   const groups = { npm: js, PyPI: py, Go: go, Cargo: rust, RubyGems: ruby, "Maven/Gradle": jvm };
   const projects = Object.values(groups).flatMap((g) => g.projects);
   const assessments = Object.values(groups).flatMap((g) => g.assessments);
+  // A package whose version the repo doesn't pin (no lockfile, a BOM sets it) is listed but not
+  // compared: say how many and why, so "nothing affected" is never read as "all checked".
+  for (const [name, g] of Object.entries(groups)) {
+    const direct = g.projects.flatMap((p) => p.instances).filter((i) => i.direct && i.source === "registry");
+    const open = direct.filter((i) => !i.version);
+    if (!open.length) continue;
+    const reasons = new Map<string, number>();
+    for (const i of open) {
+      const why = i.unresolvedReason?.replace(/ "[^"]*"/, "") ?? "unresolved";
+      reasons.set(why, (reasons.get(why) ?? 0) + 1);
+    }
+    const top = [...reasons].sort((a, b) => b[1] - a[1])[0]?.[0];
+    notes.push(
+      `${name}: ${open.length} of ${direct.length} direct packages were not compared; ${top}${top === "no Gemfile.lock" ? " (commit one to check them)" : ""}`,
+    );
+  }
   // A diff the machine could not compute (no Java, no Go toolchain…) says why, never guesses.
   for (const a of assessments)
     if (a.diff?.unanalyzable && a.decision?.kind === "upgrade")
@@ -126,7 +210,8 @@ export async function scanPath(
   let providers: string[] = [];
   let filesScanned = 0;
   if (on.apis) {
-    const origin = githubOrigin(dir);
+    options.progress?.("looking for API hosts and model IDs in the code");
+    const origin = options.origin ?? githubOrigin(dir);
     let triage: ApiSources["triage"];
     if (process.env.TOKENFACTORY_API_KEY)
       triage = { tf: createTokenFactory(tokenFactoryConfigFromEnv()), prices: await fetchModelPrices() };
@@ -148,7 +233,7 @@ export async function scanPath(
       filesScanned = api.scan.filesScanned;
       providers = api.providers.map((p) => p.provider.name);
       for (const r of api.records) records.set(r.id, r);
-      notes.push(...new Set(catalog.notes), ...api.discovery.notes.map((n) => `discovery: ${n}`));
+      notes.push(...catalog.notes(), ...api.discovery.notes.map((n) => `discovery: ${n}`));
       for (const n of api.openapiNotes) notes.push(`OpenAPI: ${n}`);
       const open = api.findings.filter(
         (f) =>
@@ -179,6 +264,8 @@ export async function scanPath(
   ].filter((f) => !config.ignore.some((t) => matchesTarget(t, f)));
   return {
     root: dir,
+    label: options.label ?? dir,
+    skipped,
     ecosystems: Object.entries(groups)
       .filter(([, g]) => g.projects.length)
       .map(([name, g]) => {
