@@ -1,11 +1,18 @@
-# teire
+# teire-cli
 
 Teire from the terminal. `teire scan` checks a repository for the dependency and API changes that affect it. It covers every package across npm, PyPI, Go, Cargo, RubyGems and Maven/Gradle, the API hosts and model IDs the code calls, and the Node.js and Python versions it runs on. It reports each change with the exact lines it reaches. `teire check` turns the result into a CI gate, and `teire mcp` gives coding agents the same tools.
 
 The scan uses the same engine calls as the Teire GitHub App, so the findings match the dashboard.
 
 ```bash
-npx teire scan
+npx teire-cli scan
+```
+
+Or install it once, and the command is `teire`:
+
+```bash
+npm install -g teire-cli
+teire scan
 ```
 
 ```
@@ -42,7 +49,7 @@ Affected (2)
 ```yaml
 - uses: actions/setup-node@v4
   with: { node-version: 22 }
-- run: npx -y teire check --fail-on deadline --within 60
+- run: npx -y teire-cli check --fail-on deadline --within 60
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -52,13 +59,13 @@ Affected (2)
 Claude Code:
 
 ```bash
-claude mcp add teire -- npx -y teire mcp
+claude mcp add teire -- npx -y teire-cli mcp
 ```
 
 Cursor, Windsurf and other clients take the same command in their MCP config:
 
 ```json
-{ "mcpServers": { "teire": { "command": "npx", "args": ["-y", "teire", "mcp"] } } }
+{ "mcpServers": { "teire": { "command": "npx", "args": ["-y", "teire-cli", "mcp"] } } }
 ```
 
 The agent can then scan the repository it is editing, ask why a finding matters (`explain_finding` returns the change with its quoted source and every call site), and look up a provider's deprecations before it writes code against them.

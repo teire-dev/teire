@@ -85,18 +85,14 @@ On any affected change, **Dry-run a fix** runs the whole fix: Nemotron and the s
 <Tab value="CLI">
 
 ```bash
-npx teire scan
+npx teire-cli scan
 ```
 
 The same engine runs on your machine. It reads registries and provider pages and prints what reaches your code. `teire check` fails CI when a deadline is close.
 
 ```bash
-npx teire check --fail-on deadline --within 60
+npx teire-cli check --fail-on deadline --within 60
 ```
-
-<Callout type="warn" title="Not on npm yet">
-  The `teire` package has not been published to npm, so `npx teire` fails for now. Build it from a clone instead: `pnpm install && pnpm --filter ./packages/cli build`, then `node packages/cli/dist/teire.mjs scan`.
-</Callout>
 
 All commands, toolchains and exit codes are on the [CLI page](/docs/build/cli). The [MCP page](/docs/build/mcp) covers coding agents.
 

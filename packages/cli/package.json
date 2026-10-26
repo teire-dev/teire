@@ -1,5 +1,5 @@
 {
-  "name": "teire",
+  "name": "teire-cli",
   "version": "0.1.0",
   "description": "Teire from the terminal: scan a repository for the dependency and API changes that affect it, gate CI on them, and serve the same tools to coding agents over MCP.",
   "license": "MIT",

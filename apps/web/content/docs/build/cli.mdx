@@ -4,12 +4,15 @@ description: teire scan runs Teire's own engine on a checkout and prints every c
 icon: SquareTerminal
 ---
 
-<Callout type="warn" title="Not on npm yet">
-  The `teire` package has not been published to npm, so `npx teire` fails for now. Until it is, build it from a clone of [teire-dev/teire](https://github.com/teire-dev/teire): run `pnpm install && pnpm --filter ./packages/cli build`, then `node packages/cli/dist/teire.mjs` in place of `npx teire`.
-</Callout>
+```bash
+npx teire-cli scan
+```
+
+The package is [`teire-cli`](https://www.npmjs.com/package/teire-cli) on npm. Installed globally, the command is `teire`:
 
 ```bash
-npx teire scan
+npm install -g teire-cli
+teire scan
 ```
 
 This is a real run on [teire-dev/demo-ai-web](https://github.com/teire-dev/demo-ai-web), with the path shortened:
@@ -74,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npx -y teire check --fail-on deadline --within 60
+      - run: npx -y teire-cli check --fail-on deadline --within 60
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```

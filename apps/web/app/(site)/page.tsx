@@ -101,12 +101,7 @@ export default function Home() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Or from a terminal: <code className="font-mono text-foreground">npx teire scan</code>, once the
-              CLI is on npm;{" "}
-              <Link href="/docs/build/cli" className="text-link hover:underline">
-                build it from the repository
-              </Link>{" "}
-              until then.
+              Or from a terminal: <code className="font-mono text-foreground">npx teire-cli scan</code>
             </p>
           </div>
           <div className="animate-enter [animation-delay:80ms]">
@@ -259,22 +254,18 @@ export default function Home() {
               </Link>
             </div>
             <pre className="overflow-x-auto px-4 py-3 font-mono text-xs leading-6">
-              <span className="text-muted-foreground">
-                # not on npm yet: build it from the repository (CLI docs)
-              </span>
-              {"\n"}
               <span className="text-muted-foreground"># the same scan, on your machine</span>
-              {"\n"}npx teire scan
+              {"\n"}npx teire-cli scan
               {"\n"}
               {"\n"}
               <span className="text-muted-foreground">
                 # fail CI when an affected change is due within 60 days
               </span>
-              {"\n"}npx teire check --fail-on deadline --within 60
+              {"\n"}npx teire-cli check --fail-on deadline --within 60
               {"\n"}
               {"\n"}
               <span className="text-muted-foreground"># give your coding agent the same tools</span>
-              {"\n"}claude mcp add teire -- npx -y teire mcp
+              {"\n"}claude mcp add teire -- npx -y teire-cli mcp
             </pre>
           </div>
         </div>

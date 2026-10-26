@@ -24,6 +24,7 @@ nebius-token-factory, nvidia-nemotron, nemotron-3-ultra, nemotron-3-super, tavil
 - https://teire.vercel.app/scan (public scan and dry run, sign in with GitHub)
 - https://teire.vercel.app/docs
 - https://github.com/teire-dev/teire
+- https://www.npmjs.com/package/teire-cli (`npx teire-cli scan`)
 
 ## Video
 

@@ -10,7 +10,7 @@ icon: Plug
 <Tab value="Claude Code">
 
 ```bash
-claude mcp add teire -- npx -y teire mcp
+claude mcp add teire -- npx -y teire-cli mcp
 ```
 
 </Tab>
@@ -19,15 +19,11 @@ claude mcp add teire -- npx -y teire mcp
 Cursor, Windsurf and other clients take the same command in their MCP config:
 
 ```json
-{ "mcpServers": { "teire": { "command": "npx", "args": ["-y", "teire", "mcp"] } } }
+{ "mcpServers": { "teire": { "command": "npx", "args": ["-y", "teire-cli", "mcp"] } } }
 ```
 
 </Tab>
 </Tabs>
-
-<Callout type="warn" title="Not on npm yet">
-  Until `teire` is published, point the command at a local build instead: `node /path/to/teire/packages/cli/dist/teire.mjs mcp`. See the [CLI page](/docs/build/cli).
-</Callout>
 
 ## Tools
 

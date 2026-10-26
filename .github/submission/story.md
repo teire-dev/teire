@@ -96,7 +96,6 @@ You meet Teire in five places:
 
 ## What's next
 
-- Publish the `teire` CLI on npm.
 - Move verification to Token Factory Sandboxes.
 - A type-level locator for Rust.
 - Android projects.
@@ -104,7 +103,6 @@ You meet Teire in five places:
 
 ## Honest limits
 
-- The CLI is not on npm yet.
 - Checks run on Cloudflare Containers, not Token Factory Sandboxes.
 - Only major upgrades get an API diff and a line search.
 - Rust, Ruby, and Java/Kotlin at scan time are searched by syntax.
