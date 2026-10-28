@@ -126,6 +126,11 @@ export const SCAN = {
   maxFileBytes: 50 * 1024 * 1024,
   /** Total bytes written when extracting one archive. */
   maxExtractedBytes: 1024 * 1024 * 1024,
+  /**
+   * GitHub's `size` (KB) above which a repository isn't sent to a sandbox: public scans refuse it and
+   * fix runs stop before any work (review R17); the tarball and its install would not fit.
+   */
+  maxRepoKb: 300 * 1024,
   /** Sources older than this make verdicts "inconclusive" instead of "not affected". */
   staleSourceAfterMs: 14 * 24 * 60 * 60 * 1000,
 } as const;
@@ -133,8 +138,8 @@ export const SCAN = {
 export const PUBLIC_LIMITS = {
   scansPerUserPerDay: 3,
   dryRunsPerUserPerDay: 1,
-  /** GitHub's `size` (KB) above which a public scan is refused: the tarball and its install would not fit. */
-  maxRepoKb: 300 * 1024,
+  /** GitHub's `size` (KB) above which a public scan is refused (the same rule as fix runs). */
+  maxRepoKb: SCAN.maxRepoKb,
 } as const;
 
 export const GITHUB = {
@@ -390,6 +395,8 @@ export const VERIFY = {
   checkTimeoutSec: 300,
   /** Output kept per command for the classifier and the PR body. */
   outputTailChars: 20_000,
+  /** Fetching a repository tarball and streaming it into a sandbox upload (up to `SCAN.maxTarballBytes`). */
+  uploadTimeoutMs: 5 * 60_000,
 } as const;
 
 /** Release notes read by Nemotron 3 Ultra (S02a task 8). */

@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { AFFECTED_RANGES_SEPARATOR, stillAffected } from "@teire/engine/advisories";
 import { matchesTarget, readTeireConfig, type TeireConfig, updateIgnores } from "@teire/engine/config";
-import { RUNS } from "@teire/engine/constants";
+import { RUNS, SCAN } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
 import {
   cargoFeatureOverlay,
@@ -295,14 +295,18 @@ function repoRuby(tree: RepoTree, root: string) {
  * client for installed repos, else as the person who asked (a dry run). A repository GitHub hides
  * from an anonymous read is not public. Null when GitHub didn't answer.
  */
-async function currentlyPrivate(
+async function githubRepoNow(
   owner: string,
   name: string,
   octokit: Awaited<ReturnType<WorkerContext["gh"]["installation"]>>["octokit"] | null,
   token: string | null,
-): Promise<boolean | null> {
+): Promise<{ isPrivate: boolean | null; sizeKb: number | null }> {
+  const unknown = { isPrivate: null, sizeKb: null };
   try {
-    if (octokit) return (await octokit.rest.repos.get({ owner, repo: name })).data.private;
+    if (octokit) {
+      const { data } = await octokit.rest.repos.get({ owner, repo: name });
+      return { isPrivate: data.private, sizeKb: data.size ?? null };
+    }
     const res = await fetch(`https://api.github.com/repos/${owner}/${name}`, {
       headers: {
         accept: "application/vnd.github+json",
@@ -311,11 +315,12 @@ async function currentlyPrivate(
       },
       signal: AbortSignal.timeout(15_000),
     });
-    if (res.status === 404) return true;
-    if (!res.ok) return null;
-    return ((await res.json()) as { private?: boolean }).private ?? null;
+    if (res.status === 404) return { isPrivate: true, sizeKb: null };
+    if (!res.ok) return unknown;
+    const data = (await res.json()) as { private?: boolean; size?: number };
+    return { isPrivate: data.private ?? null, sizeKb: data.size ?? null };
   } catch {
-    return null;
+    return unknown;
   }
 }
 
@@ -968,7 +973,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // before it is chosen, never the stored flag; an answer GitHub didn't give counts as private. A
   // dry run is for public repositories only, so one whose repository went private is refused.
   const requester = dry ? ((await requesterToken(db, run.requestedBy)) ?? null) : null;
-  const privateNow = await currentlyPrivate(owner, name, installation?.octokit ?? null, requester);
+  const now = await githubRepoNow(owner, name, installation?.octokit ?? null, requester);
+  const privateNow = now.isPrivate;
   if (privateNow !== null && privateNow !== repo.isPrivate)
     await setRepo(db, repo.id, { isPrivate: privateNow });
   if (dry && privateNow !== false) {
@@ -984,6 +990,18 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     });
     await event("queue", "refused", { reason });
     return { refused: "not public" };
+  }
+  // The same size rule as public scans (review R17): a repository this large isn't sent to a sandbox.
+  if (now.sizeKb !== null && now.sizeKb > SCAN.maxRepoKb) {
+    const reason = `${repo.fullName} is ${Math.round(now.sizeKb / 1024)} MB; Teire verifies repositories up to ${SCAN.maxRepoKb / 1024} MB`;
+    await updateRun(db, runId, {
+      status: "failed",
+      step: "too large",
+      error: reason,
+      finishedAt: new Date(),
+    });
+    await event("queue", "refused", { reason });
+    return { refused: "too large" };
   }
 
   // Noise controls before any work (D70): per-repo open PRs and new PRs per hour. They limit new

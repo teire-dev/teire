@@ -88,10 +88,11 @@ export class TokenFactorySandboxes {
   async #request(
     method: string,
     path: string,
-    body?: Uint8Array | string | object,
+    body?: Uint8Array | string | ReadableStream<Uint8Array> | object,
     contentType?: string,
   ): Promise<Response> {
-    const raw = body instanceof Uint8Array || typeof body === "string";
+    const stream = body instanceof ReadableStream;
+    const raw = stream || body instanceof Uint8Array || typeof body === "string";
     const response = await fetch(`${this.#config.baseUrl ?? BASE}${path}`, {
       method,
       headers: {
@@ -101,8 +102,14 @@ export class TokenFactorySandboxes {
           ? { "content-type": contentType ?? (raw ? "application/octet-stream" : "application/json") }
           : {}),
       },
-      ...(body !== undefined ? { body: raw ? (body as Uint8Array | string) : JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(120_000),
+      // A stream goes up chunked as it arrives (`duplex: "half"`); Token Factory accepts that (R17).
+      ...(body !== undefined
+        ? {
+            body: raw ? (body as RequestInit["body"]) : JSON.stringify(body),
+            ...(stream ? { duplex: "half" } : {}),
+          }
+        : {}),
+      signal: AbortSignal.timeout(stream ? VERIFY.uploadTimeoutMs : 120_000),
     });
     if (!response.ok)
       throw new Error(
@@ -111,7 +118,11 @@ export class TokenFactorySandboxes {
     return response;
   }
 
-  async #json<T>(method: string, path: string, body?: Uint8Array | string | object): Promise<T> {
+  async #json<T>(
+    method: string,
+    path: string,
+    body?: Uint8Array | string | ReadableStream<Uint8Array> | object,
+  ): Promise<T> {
     return (await (await this.#request(method, path, body)).json()) as T;
   }
 
@@ -148,8 +159,8 @@ export class TokenFactorySandboxes {
     await this.#request("PATCH", `/images/${imageUuid}/tag`, { tag });
   }
 
-  /** Upload bytes; returns the file's UUID for `files` mounts. */
-  async upload(bytes: Uint8Array): Promise<string> {
+  /** Upload bytes or a stream of them; returns the file's UUID for `files` mounts. */
+  async upload(bytes: Uint8Array | ReadableStream<Uint8Array>): Promise<string> {
     const { uuid } = await this.#json<{ uuid: string }>("POST", "/files", bytes);
     return uuid;
   }
@@ -378,7 +389,7 @@ async function buildImage(
 export function tokenFactoryBackend(
   config: TokenFactorySandboxConfig,
   images: { dir: string },
-  fetchTarball: (url: string, token?: string) => Promise<Uint8Array>,
+  fetchTarball: (url: string, token?: string) => Promise<ReadableStream<Uint8Array>>,
 ): VerifyBackend {
   const client = new TokenFactorySandboxes(config);
   return {

@@ -1,3 +1,4 @@
+import { SCAN, VERIFY } from "../constants";
 import {
   CloudflareSandbox,
   type EgressEvent,
@@ -94,15 +95,36 @@ export async function tokenFactorySandboxAccess(env: NodeJS.ProcessEnv = process
   }
 }
 
-/** A repository tarball, fetched by the worker (no code runs here), for an upload to the sandbox. */
-async function fetchTarball(url: string, token?: string) {
+/**
+ * A repository tarball, fetched by the worker (no code runs here) and streamed to the sandbox's
+ * upload without being held in memory (review R17). GitHub sends no length, so the bytes are
+ * counted on the way and the upload fails past `SCAN.maxTarballBytes`.
+ */
+async function fetchTarball(url: string, token?: string): Promise<ReadableStream<Uint8Array>> {
   const response = await fetch(url, {
     headers: { "user-agent": "teire", ...(token ? { authorization: `Bearer ${token}` } : {}) },
     redirect: "follow",
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(VERIFY.uploadTimeoutMs),
   });
-  if (!response.ok) throw new Error(`tarball ${response.status}`);
-  return new Uint8Array(await response.arrayBuffer());
+  if (!response.ok || !response.body) throw new Error(`tarball ${response.status}`);
+  return response.body.pipeThrough(byteCap(SCAN.maxTarballBytes));
+}
+
+/** Passes bytes through until `max`, then fails the stream with the reason. */
+export function byteCap(max: number) {
+  let seen = 0;
+  return new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      seen += chunk.byteLength;
+      if (seen > max)
+        controller.error(
+          new Error(
+            `the repository's tarball is over ${Math.round(max / 1024 / 1024)} MB, the most Teire sends to a sandbox`,
+          ),
+        );
+      else controller.enqueue(chunk);
+    },
+  });
 }
 
 /**
