@@ -23,6 +23,11 @@ export interface Installation {
   octokit: Octokit;
   /** Installation token for requests octokit does not make itself (repo tarballs into the sandbox). */
   token: () => Promise<string>;
+  /**
+   * A token that can only read one repository's contents (D106): what the resolver's CLI gets for
+   * release notes, Go module metadata and private tarballs. It expires in an hour.
+   */
+  readToken: (repositoryId: number) => Promise<string>;
 }
 
 export function createGitHubApp(config: GitHubAppConfig) {
@@ -37,6 +42,14 @@ export function createGitHubApp(config: GitHubAppConfig) {
       return {
         octokit,
         token: async () => ((await octokit.auth({ type: "installation" })) as { token: string }).token,
+        readToken: async (repositoryId: number) =>
+          (
+            await app.octokit.rest.apps.createInstallationAccessToken({
+              installation_id: id,
+              repository_ids: [repositoryId],
+              permissions: { contents: "read" },
+            })
+          ).data.token,
       };
     },
   };
