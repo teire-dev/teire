@@ -337,18 +337,24 @@ export async function startRun(
   const security = (await findingsWithChanges(ctx.db, repo.id)).some(
     (f) => f.groupKey === groupKey && f.kind === "security-advisory",
   );
-  const { run, created } = await claimRun(ctx.db, {
-    repoId: repo.id,
-    groupKey,
-    lineageKey: lineageKey(groupKey, security ? "security" : "version"),
-    kind: "fix",
-    status: "queued",
-    fromVersion,
-    targetVersion,
-    baseSha: sha,
-    requestedBy: `${reason}:${by}`,
-    idempotencyKey: `${reason}:${repo.id}:${groupKey}:${sha}${reason === "recreate" ? `:${Date.now()}` : ""}`,
-  });
+  const claim = (fresh: boolean) =>
+    claimRun(ctx.db, {
+      repoId: repo.id,
+      groupKey,
+      lineageKey: lineageKey(groupKey, security ? "security" : "version"),
+      kind: "fix",
+      status: "queued",
+      fromVersion,
+      targetVersion,
+      baseSha: sha,
+      requestedBy: `${reason}:${by}`,
+      idempotencyKey: `${reason}:${repo.id}:${groupKey}:${sha}${fresh ? `:${Date.now()}` : ""}`,
+    });
+  // Asking again after a run on this commit failed or was cancelled starts a new attempt; a queued,
+  // running or finished run is the answer already.
+  let { run, created } = await claim(reason === "recreate");
+  if (!created && (run.status === "failed" || run.status === "cancelled"))
+    ({ run, created } = await claim(true));
   if (created) {
     await beforeEnqueue?.(run.id);
     await ctx.enqueueFix(run.id, repo.id);
