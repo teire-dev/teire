@@ -32,8 +32,8 @@
     "height": 1080
   },
   "wide/dashboard": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/dryrun-ai-web-pr": {
     "width": 1280,
@@ -72,12 +72,8 @@
     "height": 1080
   },
   "wide/repo-findings": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/repo-inventory": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/report-clean": {
     "width": 1280,
@@ -100,16 +96,16 @@
     "height": 1080
   },
   "wide/repos": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/scan": {
     "width": 1280,
     "height": 1080
   },
   "wide/settings": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/trust": {
     "width": 1280,
@@ -138,5 +134,21 @@
   "wide/run-reverify": {
     "width": 1280,
     "height": 1080
+  },
+  "wide/repo-prs": {
+    "width": 1600,
+    "height": 1000
+  },
+  "wide/repo-config": {
+    "width": 1600,
+    "height": 1000
+  },
+  "wide/changes-for-you": {
+    "width": 1600,
+    "height": 1000
+  },
+  "wide/app-runs": {
+    "width": 1600,
+    "height": 1000
   }
 }

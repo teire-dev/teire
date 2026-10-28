@@ -9,6 +9,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ActionButton } from "@/components/app/action-button";
 import { ConfigPrForm } from "@/components/app/config-pr-form";
+import { IgnoreMenu } from "@/components/app/ignore-menu";
 import { InventoryTable } from "@/components/app/inventory-table";
 import { BrandLogo } from "@/components/brand-logo";
 import { FindingGroupCard } from "@/components/findings/finding-group";
@@ -67,7 +68,7 @@ async function TabBody({ params, searchParams }: PageProps<"/app/repos/[owner]/[
   const group = typeof query.group === "string" ? query.group : null;
   switch (tab as Tab) {
     case "findings":
-      return <Findings data={data} fullName={fullName} focus={group} />;
+      return <Findings data={data} fullName={fullName} focus={group} userId={session.user.id} />;
     case "prs":
       return <Prs data={data} fullName={fullName} userId={session.user.id} />;
     case "runs":
@@ -98,8 +99,31 @@ function upgradeName(u: ScanUpgrade) {
   return u.groupKey.endsWith(`/${u.to}`) ? u.groupKey.slice(eco.length + 1, -(u.to.length + 1)) : u.groupKey;
 }
 
-function Findings({ data, fullName, focus }: { data: Data; fullName: string; focus: string | null }) {
+async function Findings({
+  data,
+  fullName,
+  focus,
+  userId,
+}: {
+  data: Data;
+  fullName: string;
+  focus: string | null;
+  userId: string;
+}) {
   const { repo, scan, fixMode } = data;
+  // Each group's proof chain: its newest run (plan revision 3.3, "the proof chain on every finding").
+  const mine = await myScope(userId);
+  const latest = new Map<string, Awaited<ReturnType<typeof rowsOf>>[number]>();
+  if (mine && data.runs.length)
+    for (const r of await rowsOf(
+      mine.scope,
+      inArray(
+        runs.id,
+        data.runs.map((x) => x.id),
+      ),
+      data.runs.length,
+    ))
+      if (r.groupKey && !latest.has(r.groupKey)) latest.set(r.groupKey, r);
   const open = data.findings.filter((f) => f.state === "open");
   const ignored = groupFindings(data.findings.filter((f) => f.state === "ignored"));
   const b = bucketGroups(groupFindings(open));
@@ -180,6 +204,13 @@ function Findings({ data, fullName, focus }: { data: Data; fullName: string; foc
                   sha={repo.lastScannedSha}
                   action={
                     <>
+                      {latest.get(g.key) ? (
+                        <Link href={`/runs/${latest.get(g.key)?.id}`} title="Its latest run" className="mr-1">
+                          <ProofGlyphs
+                            proof={(latest.get(g.key) as NonNullable<ReturnType<typeof latest.get>>).proof}
+                          />
+                        </Link>
+                      ) : null}
                       {pr?.url && pr.state === "open" ? (
                         <a href={pr.url} className="text-sm text-link hover:underline">
                           Open PR #{pr.number}
@@ -202,9 +233,7 @@ function Findings({ data, fullName, focus }: { data: Data; fullName: string; foc
                           Fix now
                         </ActionButton>
                       )}
-                      <ActionButton kind="ignore" repo={fullName} params={{ target: g.key }} variant="ghost">
-                        Ignore
-                      </ActionButton>
+                      <IgnoreMenu repo={fullName} group={g.key} />
                     </>
                   }
                 />
