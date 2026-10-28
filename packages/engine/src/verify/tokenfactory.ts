@@ -9,9 +9,10 @@ import type { JobResult } from "./cloudflare";
  * Token Factory Sandboxes (Contree) as a verification backend (plan S17, D107): public repositories
  * and dry runs. Each command is a microVM spawned from an image; a non-disposable spawn saves its
  * result as a new image. So the session keeps a current image: the checkout and the install are
- * steps that each produce the next image (network on), and the checks run from the install's image
- * in disposable VMs with the network off, as the Cloudflare backend's phases do. Files Teire writes
- * between checks (the agent's edits) are uploaded and mounted into each later spawn.
+ * steps that each produce the next image (network on). The checks run with the network off and are
+ * chained the same way: each starts from the image the previous check left, so a build's output
+ * reaches the tests, as it does in the Cloudflare backend's single container. Files Teire writes
+ * between steps (the agent's edits) are uploaded and mounted into each later spawn.
  *
  * Limits are read from `whoami`, never assumed; spawns are not retried (no idempotency key).
  */
@@ -370,8 +371,6 @@ export function tokenFactoryBackend(
         throw new Error(`unpacking the repository failed: ${unpack.stderr.slice(-400)}`);
       image = unpack.op.result_image_uuid;
       let phase: "install" | "check" = "install";
-      // The last check's own image: its report (JUnit, JSON) is read from there, never started from.
-      let lastCheck: string | null = null;
       // Files Teire wrote since the last saved image, mounted into every later spawn.
       const written = new Map<string, { uuid: string; bytes: Uint8Array }>();
       const mounts = () =>
@@ -409,17 +408,17 @@ export function tokenFactoryBackend(
             command: shellCommand(argv, opts.cwd),
             env: { ...ENV, ...(opts.env ?? {}) },
             ...(install ? {} : { uid: CHECK_UID, gid: CHECK_UID }),
-            // The install's result is the image the checks start from. Checks are kept too, only so
-            // their reports can be read back; the next check still starts from the install's image.
+            // Every step's result is the image the next one starts from: the install's for the first
+            // check, each check's for the one after (generated files, build output, test reports).
             disposable: false,
             network: install,
             timeoutSec: Math.min(opts.timeoutSec ?? VERIFY.checkTimeoutSec, 3_600),
             files: mounts(),
           });
-          if (install && r.op.status === "SUCCESS" && r.op.result_image_uuid) {
+          if (r.op.result_image_uuid && (r.op.status === "SUCCESS" || !install)) {
             image = r.op.result_image_uuid;
             written.clear();
-          } else if (!install) lastCheck = r.op.result_image_uuid ?? null;
+          }
           return {
             state: "exited",
             exitCode: r.timedOut ? 124 : (r.exitCode ?? -1),
@@ -431,10 +430,6 @@ export function tokenFactoryBackend(
         async readFile(path) {
           const mine = written.get(path);
           if (mine) return mine.bytes;
-          if (lastCheck) {
-            const fromCheck = await client.download(lastCheck, path).catch(() => null);
-            if (fromCheck) return fromCheck;
-          }
           return client.download(image, path).catch(() => null);
         },
         async writeFile(path, content) {
