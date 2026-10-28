@@ -300,7 +300,7 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       const link = ctx.webUrl ? `: ${ctx.webUrl}/runs/${run.id}` : ".";
       const started = created
         ? `Started (${command.name}) on \`${sha.slice(0, 7)}\`${link}`
-        : `Already running for \`${sha.slice(0, 7)}\`${link}`;
+        : `${runState(run)}${link}`;
       const { data: comment } = await reply(started);
       // The run edits this comment with how it ended (S15.8, the progress comment).
       if (created)
@@ -416,6 +416,13 @@ export function fixesOffReply(mode: EffectiveFixMode) {
       ? `Change \`fixes:\` in ${mode.file} to turn them on.`
       : "`@teire fix-mode automatic` (or the dashboard) turns them on."
   }`;
+}
+
+/** What an existing run is doing, said as it is: "Already queued (waiting for the PR limit)". */
+export function runState(run: { status: string; step: string | null }) {
+  return run.status === "queued"
+    ? `Already queued${run.step ? ` (${run.step})` : ""}`
+    : `Already ${run.status}${run.step && run.status === "running" ? ` (${run.step})` : ""}`;
 }
 
 export async function startRun(

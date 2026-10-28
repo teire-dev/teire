@@ -19,7 +19,15 @@ import {
   upsertRepo,
 } from "../store";
 import { handleAction, handleRepoAction } from "./actions";
-import { canWrite, fixesOffReply, handleComment, matchesTarget, parseCommand, startRun } from "./commands";
+import {
+  canWrite,
+  fixesOffReply,
+  handleComment,
+  matchesTarget,
+  parseCommand,
+  runState,
+  startRun,
+} from "./commands";
 import { syncDashboard, tickedActions } from "./dashboard";
 import { requestDryRun } from "./public";
 import { ONBOARDING_BRANCH, type WorkerContext } from "./scan";
@@ -229,13 +237,13 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
         } else {
           const { run, created } = await startRun(ctx, repo, octokit, a.key, a.kind, login);
           done.push(
-            `${a.kind} \`${a.key}\`: ${created ? "started" : "already running"}${ctx.webUrl ? ` (${ctx.webUrl}/runs/${run.id})` : ""}`,
+            `${a.kind} \`${a.key}\`: ${created ? "started" : runState(run).toLowerCase()}${ctx.webUrl ? ` (${ctx.webUrl}/runs/${run.id})` : ""}`,
           );
           await record(
             a.kind,
             a.kind === "fix" ? { target: a.key } : { group: a.key },
             created ? "started" : "done",
-            created ? "Queued" : "Already running",
+            created ? "Queued" : runState(run),
             run.id,
           );
         }

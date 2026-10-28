@@ -25,7 +25,7 @@ import {
   setRepo,
   setRun,
 } from "../store";
-import { canWrite, FixesOffError, fixesOffReply, startRun } from "./commands";
+import { canWrite, FixesOffError, fixesOffReply, runState, startRun } from "./commands";
 import { syncDashboard } from "./dashboard";
 import type { EventContext } from "./events";
 import { requesterToken } from "./public";
@@ -363,7 +363,7 @@ async function started(
     ? { status: "started", result: "Queued", links: [runLink(run.id)] }
     : {
         status: "done",
-        result: run.status === "running" ? "Already running" : `Already ${run.status} on this commit`,
+        result: runState(run),
         links: [runLink(run.id)],
       };
 }
