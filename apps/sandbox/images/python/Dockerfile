@@ -12,6 +12,13 @@ ENV UV_TOOL_BIN_DIR=/usr/local/bin UV_TOOL_DIR=/opt/uv-tools UV_LINK_MODE=copy U
 RUN uv tool install poetry==2.5.1 \
   && uv tool install pipenv==2026.10.2 \
   && uv tool install pip-tools==7.6.2
+# Other CPython versions a repo can ask for (.python-version, requires-python): /opt/python/<v>/bin.
+RUN set -eux; UV_PYTHON_DOWNLOADS=automatic uv python install 3.10 3.11 3.13; \
+    for v in 3.10 3.11 3.13; do \
+      p="$(UV_PYTHON_DOWNLOADS=never uv python find "$v")"; mkdir -p "/opt/python/$v/bin"; \
+      for n in python python3 "python$v"; do ln -sf "$p" "/opt/python/$v/bin/$n"; done; \
+      "/opt/python/$v/bin/python3" --version; \
+    done
 COPY teire-job teire-job-status /usr/local/bin/
 WORKDIR /work
 CMD ["sleep", "infinity"]

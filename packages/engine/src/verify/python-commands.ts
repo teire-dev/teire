@@ -3,6 +3,7 @@ import YAML from "yaml";
 import type { PyProject } from "../inventory/python";
 import type { RepoTree } from "../inventory/tree";
 import type { CheckPlan, PlannedCheck } from "./commands";
+import { pythonEnv, pythonFor } from "./toolchains";
 
 /**
  * What to run for a Python project (research python.md §9): the repo's CI steps first (pytest,
@@ -167,6 +168,10 @@ export function detectPyChecks(tree: RepoTree, project: PyProject, sandboxRoot =
     notes.push(
       `${project.manager} installs are not yet proven in the sandbox; evidence is labelled accordingly`,
     );
+  // The Python the repo asks for (.python-version, requires-python), from the versions in the image.
+  const python = pythonFor(tree, project.root);
+  if (python?.note) notes.push(python.note);
+  const pyPath = pythonEnv(python);
   return {
     manager: project.manager,
     image: "python",
@@ -176,6 +181,7 @@ export function detectPyChecks(tree: RepoTree, project: PyProject, sandboxRoot =
       PIPENV_VENV_IN_PROJECT: "1",
       POETRY_VIRTUALENVS_IN_PROJECT: "true",
       UV_PYTHON_DOWNLOADS: "never",
+      ...pyPath,
     },
     env: {
       UV_OFFLINE: "1",
@@ -184,6 +190,7 @@ export function detectPyChecks(tree: RepoTree, project: PyProject, sandboxRoot =
       PIPENV_VENV_IN_PROJECT: "1",
       POETRY_VIRTUALENVS_IN_PROJECT: "true",
       PYTHONDONTWRITEBYTECODE: "1",
+      ...pyPath,
     },
     checks,
     provenOffline,

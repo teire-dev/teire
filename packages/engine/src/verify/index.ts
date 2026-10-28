@@ -8,3 +8,4 @@ export * from "./python-commands";
 export * from "./reports";
 export * from "./run";
 export * from "./rust-commands";
+export * from "./toolchains";

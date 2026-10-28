@@ -3,6 +3,7 @@ import YAML from "yaml";
 import type { RustProject } from "../inventory/rust";
 import type { RepoTree } from "../inventory/tree";
 import type { CheckPlan, PlannedCheck } from "./commands";
+import { rustFor, rustToolchainBin, SANDBOX_PATH } from "./toolchains";
 
 /**
  * What to run for a Cargo workspace (plan S06, research rust.md Job 8): `cargo fetch --locked`
@@ -54,14 +55,32 @@ export function detectRustChecks(tree: RepoTree, project: RustProject, sandboxRo
     },
   ];
   const root = dirname(project.manifest);
+  // A rust-toolchain pin is fetched with rustup during the install, then put first on PATH (D-47).
+  const toolchain = rustFor(tree, root);
+  const rustPath: Record<string, string> = toolchain
+    ? { PATH: `${rustToolchainBin(toolchain.version)}:${SANDBOX_PATH}` }
+    : {};
+  if (toolchain) notes.push(`Rust ${toolchain.version} from ${toolchain.source}`);
   return {
     manager: "cargo",
     image: "rust",
     instance: "standard-3",
     cwd: root === "." ? sandboxRoot : join(sandboxRoot, root),
-    install: ["cargo", "fetch", "--locked"],
-    installEnv: { CARGO_TERM_COLOR: "never", RUSTUP_AUTO_INSTALL: "0" },
-    env: OFFLINE_ENV,
+    install: toolchain
+      ? [
+          "sh",
+          "-c",
+          `rustup toolchain install ${toolchain.version} --profile minimal && cargo fetch --locked`,
+        ]
+      : ["cargo", "fetch", "--locked"],
+    installEnv: {
+      CARGO_TERM_COLOR: "never",
+      RUSTUP_AUTO_INSTALL: "0",
+      RUSTUP_HOME: "/usr/local/rustup",
+      CARGO_HOME: "/usr/local/cargo",
+      ...rustPath,
+    },
+    env: { ...OFFLINE_ENV, ...rustPath },
     checks,
     provenOffline: true,
     notes,

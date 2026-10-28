@@ -2,6 +2,7 @@ import YAML from "yaml";
 import type { JsManager, JsProject } from "../inventory/js";
 import type { RepoTree } from "../inventory/tree";
 import type { CheckName } from "./evidence";
+import { nodeEnv, nodeFor } from "./toolchains";
 
 /**
  * What to run for a JS project (research js-ts.md §8), in this order: the repo's CI steps, then
@@ -223,13 +224,18 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
   const provenOffline = manager === "npm" || manager === "pnpm";
   if (!provenOffline)
     notes.push(`${manager} installs are not yet proven in the sandbox; evidence is labelled accordingly`);
+  // The Node the repo asks for (.nvmrc, .node-version, volta, engines), as Dependabot reads it (D-46).
+  const node = nodeFor(tree, project.root);
+  if (node?.note) notes.push(node.note);
+  const nodePath = nodeEnv(node);
   return {
     manager,
     image: "node",
     ...(project.managerVersion ? { managerVersion: project.managerVersion } : {}),
     cwd,
     install: installCommand(manager, project.lockfileVersion),
-    env: manager === "pnpm" ? { npm_config_verify_deps_before_run: "false" } : {},
+    ...(node ? { installEnv: nodePath } : {}),
+    env: { ...(manager === "pnpm" ? { npm_config_verify_deps_before_run: "false" } : {}), ...nodePath },
     checks,
     provenOffline,
     notes,

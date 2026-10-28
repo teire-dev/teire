@@ -12,7 +12,9 @@ import type { CheckPlan, PlannedCheck } from "./commands";
  * kept; `-race` needs cgo and a C compiler in both sandboxes, so it is left out and said so.
  */
 const OFFLINE_ENV = {
-  GOTOOLCHAIN: "local",
+  // The repo's go/toolchain directive decides (D-47): a newer toolchain is fetched from the Go proxy
+  // during the install and read from the module cache afterwards.
+  GOTOOLCHAIN: "auto",
   GOPROXY: "off",
   GOFLAGS: "-mod=readonly -modcacherw",
   GOWORK: "off",
@@ -65,7 +67,7 @@ export function detectGoChecks(tree: RepoTree, project: GoProject, sandboxRoot =
     image: "go",
     cwd: project.root === "." ? sandboxRoot : join(sandboxRoot, project.root),
     install: project.vendored ? ["go", "mod", "verify"] : ["go", "mod", "download"],
-    installEnv: { GOTOOLCHAIN: "local", GOFLAGS: "-mod=mod -modcacherw", GOWORK: "off" },
+    installEnv: { GOTOOLCHAIN: "auto", GOFLAGS: "-mod=mod -modcacherw", GOWORK: "off" },
     env: project.vendored ? { ...OFFLINE_ENV, GOFLAGS: "-mod=vendor" } : OFFLINE_ENV,
     checks,
     provenOffline: true,

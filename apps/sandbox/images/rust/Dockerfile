@@ -13,6 +13,9 @@ COPY --from=shim /usr/local/bin/sandbox-shim /usr/local/bin/sandbox-shim
 RUN for b in cargo rustc rustdoc rustfmt cargo-clippy clippy-driver; do \
       p="$(ls -d /usr/local/rustup/toolchains/*/bin)/$b"; [ -x "$p" ] && ln -sf "$p" "/usr/local/bin/$b"; \
     done; rustc --version
+# rustup itself, so a repo's rust-toolchain pin is installed explicitly by the install step (D-47);
+# the proxies stay unlinked, so nothing else ever switches toolchains on its own.
+RUN ln -sf /usr/local/cargo/bin/rustup /usr/local/bin/rustup && rustup --version
 # API-surface diff (Route B: compiles both published versions), pinned by checksum.
 ARG CSC_SHA256=cacadafaa5cd27ae6d05a74a103266917ebab4c5e43c898360e177d4fbf06a65
 RUN curl -fsSL -o /tmp/csc.tar.gz \

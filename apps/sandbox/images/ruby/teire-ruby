@@ -68,6 +68,13 @@ case "${1:-}" in
     if [ -f "$LOCK" ] && ! platforms | grep -qE '^(ruby|x86_64-linux)'; then
       bundle lock --add-platform x86_64-linux || exit $?
     fi
+    # The Bundler the lockfile was written with (BUNDLED WITH), as Dependabot's helper follows it.
+    if [ -f "$LOCK" ]; then
+      bv="$(awk '/^BUNDLED WITH/ {getline; gsub(/[[:space:]]/, ""); print; exit}' "$LOCK")"
+      if [ -n "$bv" ] && ! gem list -i bundler -v "$bv" >/dev/null 2>&1; then
+        gem install bundler -v "$bv" --no-document || exit $?
+      fi
+    fi
     bundle install --jobs 4 || exit $?
     for s in ${TEIRE_SERVICES:+${TEIRE_SERVICES//,/ }}; do "start_$s" || exit $?; done
     if [ -n "${TEIRE_DB_SETUP:-}" ]; then
