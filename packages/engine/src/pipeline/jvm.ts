@@ -93,12 +93,20 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
   const projects = readJvmInventory(tree);
   const assessments: Assessment<JvmProject>[] = [];
   const diffOf = options.surfaceDiff ?? jvmSurfaceDiff;
-  // Maven's transitive tree comes from the build, which runs only in the sandbox: until the scan reads
-  // it, transitive Maven dependencies are not inventoried and their advisories are not checked.
-  if (projects.some((p) => p.manager === "maven"))
-    options.coverage?.notes.push(
-      "Maven: only dependencies declared in pom.xml are inventoried; transitive dependencies (and their advisories) are not yet checked.",
-    );
+  // A JVM build without a lockfile (Maven always, Gradle without gradle.lockfile) resolves its
+  // transitive tree only when it runs, which is in the sandbox: until the scan reads that tree,
+  // transitive dependencies and their advisories are not checked, so advisory coverage for the
+  // project is "partial", never "complete" (D-31).
+  for (const project of projects.filter((p) => !p.lockfile))
+    options.coverage?.advisories.push({
+      ecosystem: "maven",
+      root: project.root,
+      status: "partial",
+      structural: true,
+      notes: [
+        `${project.manager === "maven" ? "Maven" : "Gradle without gradle.lockfile"}: only declared dependencies are checked; transitive dependencies and their advisories are not.`,
+      ],
+    });
   for (const project of projects) {
     const seen = new Set<string>();
     for (const instance of project.instances) {

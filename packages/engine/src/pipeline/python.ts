@@ -20,6 +20,7 @@ import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectPyChecks } from "../verify/python-commands";
+import { pythonFor } from "../verify/toolchains";
 import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -29,7 +30,8 @@ import { securityAssessments } from "./security";
  * on wheels → jedi sites → verdicts, plus advisories) and fix (notes → uv/Poetry/Pipenv/pip-tools
  * transaction → agent → baseline vs after in the Python sandbox → PR body).
  */
-const SANDBOX_PYTHON = "3.12.0";
+/** The sandbox image's own Python, for a project that names none (toolchains.ts provides the rest). */
+const DEFAULT_PYTHON = "3.12";
 
 export interface PyAssessOptions extends RegistryOptions {
   cacheDir?: string;
@@ -43,8 +45,12 @@ export interface PyAssessOptions extends RegistryOptions {
   coverage?: ScanCoverage;
 }
 
-/** A version the sandbox's Python cannot install: every file for it requires a newer Python. */
-function requiresNewerPython(index: PypiIndex | null, version: string) {
+/**
+ * A version this project's Python cannot install: every file for it requires another Python (the
+ * one the repo asks for, as the sandbox runs it; D-38). devchat (`^3.8`, CI 3.8) never gets a
+ * pydantic that needs 3.10.
+ */
+function requiresNewerPython(index: PypiIndex | null, version: string, python: string) {
   if (!index) return null;
   const reqs = [
     ...new Set(
@@ -54,8 +60,8 @@ function requiresNewerPython(index: PypiIndex | null, version: string) {
     ),
   ];
   if (!reqs.length) return null;
-  return reqs.every((r) => pep440.validRange(r) && !pep440.satisfies(SANDBOX_PYTHON, r))
-    ? `requires Python ${reqs[0]}`
+  return reqs.every((r) => pep440.validRange(r) && !pep440.satisfies(`${python}.0`, r))
+    ? `requires Python ${reqs[0]}; this project runs ${python}`
     : null;
 }
 
@@ -63,6 +69,7 @@ function pyPolicy(
   instance: DependencyInstance,
   index: PypiIndex | null,
   options: PyAssessOptions,
+  python = DEFAULT_PYTHON,
 ): TargetPolicy {
   const minutes = (options.cooldownDays ?? REGISTRY.cooldownDays) * 1440;
   return {
@@ -71,15 +78,16 @@ function pyPolicy(
     pins: [],
     allowPrerelease: instance.version ? pypiScheme.isPrerelease(instance.version) : false,
     fallbackMajors: 0,
-    exclude: (v) => requiresNewerPython(index, v),
+    exclude: (v) => requiresNewerPython(index, v, python),
   };
 }
 
-export async function assessPyRepo(repoDir: string, _tree: RepoTree, options: PyAssessOptions) {
-  const projects = await readPythonInventory(repoDir);
+export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyAssessOptions) {
+  const projects = await readPythonInventory(repoDir, tree);
   const assessments: Assessment<PyProject>[] = [];
   const diffOf = options.surfaceDiff ?? ((name, from, to) => pypiSurfaceDiff(name, from, to, options));
   for (const project of projects) {
+    const python = pythonFor(tree, project.root)?.version ?? DEFAULT_PYTHON;
     for (const instance of project.instances) {
       if (!instance.direct || instance.source !== "registry") continue;
       if (options.onlyPackage && instance.name !== options.onlyPackage) continue;
@@ -110,7 +118,12 @@ export async function assessPyRepo(repoDir: string, _tree: RepoTree, options: Py
         continue;
       }
       const index = await getPypiIndex(instance.name, options).catch(() => null);
-      const decision = chooseTarget(info, instance.version, pyPolicy(instance, index, options), pypiScheme);
+      const decision = chooseTarget(
+        info,
+        instance.version,
+        pyPolicy(instance, index, options, python),
+        pypiScheme,
+      );
       const a: Assessment<PyProject> = {
         ...base,
         info,
@@ -157,7 +170,7 @@ export async function assessPyRepo(repoDir: string, _tree: RepoTree, options: Py
     if (options.advisories !== false)
       assessments.push(
         ...(await securityAssessments(project, "pypi", pypiScheme, options, (instance) =>
-          pyPolicy(instance, null, options),
+          pyPolicy(instance, null, options, python),
         )),
       );
   }

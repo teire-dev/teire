@@ -454,6 +454,8 @@ export async function removeInstallationData(db: Database, installationId: numbe
       "artifacts",
       "feedback",
       "sandbox_snapshots",
+      // Which providers the repo used: the fan-out must not rescan a repo that left (D95).
+      "repo_providers",
     ])
       await tx.execute(sql`delete from ${sql.identifier(table)} where repo_id in ${ids}`);
     await tx.execute(sql`

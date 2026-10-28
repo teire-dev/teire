@@ -82,8 +82,15 @@ async function Repo({
     filesScanned?: number;
     advisoryStatus?: "complete" | "partial" | "unavailable";
     gaps?: string[];
+    skipped?: "archived" | "empty";
   } | null;
   const gaps = coverage?.gaps ?? [];
+  const skipped =
+    coverage?.skipped === "archived"
+      ? "This repository is archived, so it's read-only: Teire scans nothing and opens nothing until it is unarchived."
+      : coverage?.skipped === "empty"
+        ? "This repository has no commits yet; Teire scans it once it has one."
+        : null;
   const ignoredGroups = groupFindings(ignored);
   const prFor = new Map(data.artifacts.filter((a) => a.kind === "pr").map((a) => [a.changeKey, a]));
   const byEcosystem = new Map<string, number>();
@@ -200,6 +207,7 @@ async function Repo({
               ))}
             </section>
           ) : null}
+          {skipped ? <p className="text-sm text-muted-foreground">{skipped}</p> : null}
           {gaps.length ? (
             <section className="flex flex-col gap-2 rounded-lg bg-card p-4 shadow-card">
               <h2 className="text-sm font-medium">

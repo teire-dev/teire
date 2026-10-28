@@ -1,5 +1,7 @@
 import { type DependencyInstance, dependencyInstance } from "../contract";
 import { runPythonHelper } from "../python/helper";
+import { pythonFor } from "../verify/toolchains";
+import { directoryTree, type RepoTree } from "./tree";
 
 /**
  * Python inventory (plan S03, research python.md §2) through the helper: uv.lock, poetry.lock,
@@ -22,8 +24,30 @@ interface HelperProject extends Omit<PyProject, "instances"> {
   instances: Record<string, unknown>[];
 }
 
-export async function readPythonInventory(repoDir: string): Promise<PyProject[]> {
-  const { projects } = await runPythonHelper<{ projects: HelperProject[] }>("inventory", [repoDir]);
+/** Folders the helper treats as Python projects, each with the Python the sandbox runs for it. */
+function pythonsByRoot(tree: RepoTree) {
+  const roots = new Set(
+    tree
+      .files()
+      .filter((f) => /(^|\/)(pyproject\.toml|Pipfile|requirements[^/]*\.(txt|in))$/.test(f))
+      .map((f) => (f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : ".")),
+  );
+  const out: Record<string, string> = {};
+  for (const root of roots) {
+    const pick = pythonFor(tree, root);
+    if (pick) out[root] = pick.version;
+  }
+  return out;
+}
+
+export async function readPythonInventory(repoDir: string, tree?: RepoTree): Promise<PyProject[]> {
+  // Environment markers (`python_version < "3.11"`) are evaluated for the Python each project runs
+  // on, the same pick the sandbox and the target filter use (D-38).
+  const pythons = pythonsByRoot(tree ?? directoryTree(repoDir));
+  const { projects } = await runPythonHelper<{ projects: HelperProject[] }>("inventory", [
+    repoDir,
+    JSON.stringify(pythons),
+  ]);
   return projects.map((p) => ({
     ...p,
     instances: p.instances.flatMap((raw) => {

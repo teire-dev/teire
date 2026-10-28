@@ -8,6 +8,8 @@ import {
   displayQuote,
   fitBody,
   joinBlocks,
+  link,
+  safeUrl,
   sanitizeUpstream,
   upgradeGroups,
 } from "../src/github/compose";
@@ -49,8 +51,11 @@ describe("pull request markdown", () => {
 describe("branch names", () => {
   it("are valid git refs for every ecosystem's package names", () => {
     expect(branchFor("maven/org.springframework.boot:spring-boot-starter-parent/4.1.0")).toBe(
-      "teire/maven/org.springframework.boot-spring-boot-starter-parent/4.1.0",
+      "teire/maven/org.springframework.boot/spring-boot-starter-parent/4.1.0",
     );
+    // Two coordinates Dependabot's naming would merge, and a component git refuses.
+    expect(branchFor("maven/a:b-c/1.0")).not.toBe(branchFor("maven/a-b:c/1.0"));
+    expect(branchFor("maven/com.example:a.lock/1.0.0")).toBe("teire/maven/com.example/a-lock/1.0.0");
     expect(branchFor("npm/@types/react/19.3.0")).toBe("teire/npm/types/react/19.3.0");
     expect(branchFor("go/github.com/golang-jwt/jwt/v5/5.3.0")).toBe(
       "teire/go/github.com/golang-jwt/jwt/v5/5.3.0",
@@ -80,12 +85,29 @@ describe("upstream text in PR bodies", () => {
     expect(sanitizeUpstream("see #7", null)).toBe("see #​7");
     expect(blockquote("a\nb")).toBe("> a\n> b");
   });
-  it("cuts a long body at a block boundary and says so", () => {
-    const body = `${"a".repeat(50)}\n\n${"b".repeat(50)}`;
-    const out = fitBody(body, 90, "https://teire.vercel.app/runs/1");
+  it("cuts a long body at whole blocks, closes an open <details>, and says so", () => {
+    const run = "https://teire.vercel.app/runs/1";
+    const body = `${"a".repeat(50)}\n\n${"b".repeat(200)}`;
+    const out = fitBody(body, 220, run);
     expect(out.startsWith("a".repeat(50))).toBe(true);
+    expect(out).not.toContain("bbbbb");
     expect(out).toContain("Description shortened");
-    expect(out.length).toBeLessThanOrEqual(90 + 120);
+    expect(out.length).toBeLessThanOrEqual(220);
+    const table = "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |";
+    const folded = fitBody(
+      `<details><summary>x</summary>\n\n${table}\n\n${"c".repeat(400)}\n\n</details>`,
+      300,
+      run,
+    );
+    expect(folded).toContain(table);
+    expect(folded.match(/<details>/g)?.length).toBe(folded.match(/<\/details>/g)?.length);
+    expect(folded.indexOf("</details>")).toBeLessThan(folded.indexOf("Description shortened"));
+  });
+  it("links only http(s) URLs", () => {
+    expect(safeUrl("javascript:alert(1)")).toBeNull();
+    expect(safeUrl("not a url")).toBeNull();
+    expect(safeUrl("https://example.com/a (b)")).toBe("https://example.com/a%20%28b%29");
+    expect(link("source", "data:text/html,x")).toBe("source");
   });
 });
 

@@ -25,11 +25,22 @@ export interface PreparedTransaction {
   side: SideRun;
   /** Read-back contents (path → text) of the transaction that landed. */
   files: Record<string, string>;
+  /** Read-backs that are not UTF-8 text (bun.lockb), as their bytes: decoding them would corrupt them. */
+  binary: Record<string, Uint8Array>;
   /** The transactions applied, the first one and any fallback that took over. */
   applied: Transaction[];
 }
 
-const decoder = new TextDecoder();
+const strict = new TextDecoder("utf-8", { fatal: true });
+
+/** The bytes as text, or null when they are not UTF-8 (a binary lockfile). */
+export function utf8(bytes: Uint8Array): string | null {
+  try {
+    return strict.decode(bytes);
+  } catch {
+    return null;
+  }
+}
 const encoder = new TextEncoder();
 
 export async function prepareTransaction(
@@ -44,10 +55,12 @@ export async function prepareTransaction(
   const failed = (output: string): PreparedTransaction => ({
     side: { side: "after", install: { ok: false, exitCode: 1, ms: 0, output }, checks: [], deniedHosts: [] },
     files: {},
+    binary: {},
     applied,
   });
   let current: Transaction | undefined = transaction;
   let files: Record<string, string> = {};
+  let binary: Record<string, Uint8Array> = {};
   let step = 0;
   if (plan.warmBeforeChange) {
     // The unchanged repo compiles and runs its tests here first, so what only a test run downloads
@@ -83,9 +96,13 @@ export async function prepareTransaction(
       }
     }
     files = {};
+    binary = {};
     for (const path of t.readBack) {
       const bytes = await session.readFile(`${VERIFY.workDir}/${path}`);
-      if (bytes) files[path] = decoder.decode(bytes);
+      if (!bytes) continue;
+      const text = utf8(bytes);
+      if (text === null) binary[path] = bytes;
+      else files[path] = text;
     }
     const problem = t.check?.(files) ?? null;
     if (problem) {
@@ -98,5 +115,5 @@ export async function prepareTransaction(
     break;
   }
   const side = await prepareSide(session, plan, "after", undefined, log);
-  return { side, files, applied };
+  return { side, files, binary, applied };
 }

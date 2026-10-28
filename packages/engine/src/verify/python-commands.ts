@@ -63,10 +63,12 @@ function installCommand(project: PyProject, tree: RepoTree): string[] {
           ]
         : files;
       const install = [...new Set(reqs)].map((f) => `-r ${f}`).join(" ");
+      // The project's own Python (D-38), as the toolchain pick puts first on PATH.
+      const python = pythonFor(tree, root)?.version ?? "3.12";
       return [
         "sh",
         "-c",
-        `uv venv .venv --python 3.12 && uv pip install --python .venv/bin/python ${install}`.trim(),
+        `uv venv .venv --python ${python} && uv pip install --python .venv/bin/python ${install}`.trim(),
       ];
     }
   }

@@ -32,7 +32,9 @@ import {
   assessRuntimes,
   assessRustRepo,
   coverageLines,
+  lookupsAnswered,
   newScanCoverage,
+  type ScanCoverage,
   runtimesOf,
 } from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
@@ -147,7 +149,8 @@ export function groupKeyOf(a: AnyAssessment) {
     : null;
 }
 
-function onboardingRows(assessments: AnyAssessment[]): OnboardingRow[] {
+function onboardingRows(assessments: AnyAssessment[], coverage: ScanCoverage): OnboardingRow[] {
+  const failed = new Set(coverage.lookupsFailed.map((l) => `${l.ecosystem}:${l.name}`));
   return assessments
     .filter((a) => a.purpose === "upgrade")
     .map((a) => {
@@ -160,6 +163,8 @@ function onboardingRows(assessments: AnyAssessment[]): OnboardingRow[] {
       const c = a.summary?.coverage;
       return {
         instance: a.instance,
+        // The scan recorded this package's registry lookup as failed (D-52).
+        lookupFailed: failed.has(`${a.instance.ecosystem}:${a.instance.name}`),
         target: a.decision?.kind === "upgrade" ? a.decision.to : null,
         majorsBehind: behind,
         deprecated: a.deprecation ? a.deprecation.summary : null,
@@ -357,8 +362,7 @@ export async function assessCheckout(
     await setFindingsState(db, repoId, (f) => config.ignore.some((t) => matchesTarget(t, f)), "ignored");
   // What this scan no longer reports is gone (a superseded target, a removed or upgraded package),
   // but only when every lookup answered: a failed one must not read as "fixed" (D96).
-  if (advisoryStatus(coverage) === "complete" && !coverage.lookupsFailed.length)
-    await retireUnreported(db, repoId, scanId);
+  if (lookupsAnswered(coverage)) await retireUnreported(db, repoId, scanId);
   // Rule 8: packages in ecosystems Teire can't upgrade (Packagist, NuGet, Pub…) are reported with
   // their advisories, never "clean". osv-scanner reads the lockfiles offline (D56).
   const others = (await osvExtract(dir).catch(() => null))?.others ?? [];
@@ -398,13 +402,32 @@ export async function scanRepo(
     await setRepo(db, repoId, { defaultBranch: meta.default_branch, isPrivate: meta.private });
     repo.defaultBranch = meta.default_branch;
   }
+  // Install journeys with nothing to scan get a named outcome on a stored scan (card C1), never a
+  // silent failure: an archived repository is read-only (no onboarding PR can be opened), and an
+  // empty one has no commit yet.
+  const outcome = async (skipped: "archived" | "empty", sha: string | null) => {
+    const scan = await startScan(db, repoId, trigger);
+    await finishScan(db, scan.id, { status: "done", sha, coverage: { skipped } });
+    await setRepo(db, repoId, { lastScannedAt: new Date(), ...(sha ? { lastScannedSha: sha } : {}) });
+    return { skipped };
+  };
   // `pullRequests.targetBranch` (C8), from the config the previous scan stored: scans, fixes and PRs use it.
-  const { data: branch } = await installation.octokit.rest.repos.getBranch({
-    owner,
-    repo: name,
-    branch: (repo.config as TeireConfig | null)?.pullRequests?.targetBranch || repo.defaultBranch,
-  });
+  const branch = await installation.octokit.rest.repos
+    .getBranch({
+      owner,
+      repo: name,
+      branch: (repo.config as TeireConfig | null)?.pullRequests?.targetBranch || repo.defaultBranch,
+    })
+    .then((r) => r.data)
+    .catch((error: { status?: number }) => {
+      // 409 "Git Repository is empty"; 404 when the default branch has no commit.
+      if ((error.status === 409 || error.status === 404) && (meta.size === 0 || error.status === 409))
+        return null;
+      throw error;
+    });
+  if (!branch) return outcome("empty", null);
   const sha = branch.commit.sha;
+  if (meta.archived) return outcome("archived", sha);
   const scan = await startScan(db, repoId, trigger);
   let dir: string | null = null;
   try {
@@ -451,7 +474,10 @@ export async function scanRepo(
       api.providers.map((p) => p.provider.slug),
     );
     // Nothing in the six ecosystems and no API or model in the code: no onboarding PR (card C1).
-    const nothingReadable = !projects.length && !api.findings.length && !runtimes.findings.length;
+    // Packages in ecosystems Teire can't upgrade (PHP, .NET…) still count: their inventory and
+    // advisories are reported, never "nothing here" (rule 8, S-M14).
+    const nothingReadable =
+      !projects.length && !api.findings.length && !runtimes.findings.length && !gaps.detectOnly.length;
     const coverage = {
       ...(assessments.find((a) => a.located)?.located?.coverage ?? {}),
       advisoryStatus: advisoryStatus(gaps),
@@ -483,7 +509,7 @@ export async function scanRepo(
     const onboarding = () =>
       composeOnboarding({
         repo: { owner, repo: name, baseSha: sha },
-        rows: onboardingRows(assessments),
+        rows: onboardingRows(assessments, gaps),
         apiFindings: [...api.findings, ...runtimes.findings],
         gaps: coverageLines(gaps),
         issuesEnabled: meta.has_issues,

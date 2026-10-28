@@ -6,7 +6,14 @@ import type { AdvisoryCoverage } from "../advisories";
  * inventory the reader does not cover. Each pipeline writes into the scan's one collector.
  */
 export interface ScanCoverage {
-  advisories: { ecosystem: string; root: string; status: AdvisoryCoverage["status"]; notes: string[] }[];
+  advisories: {
+    ecosystem: string;
+    root: string;
+    status: AdvisoryCoverage["status"];
+    notes: string[];
+    /** A limit of what Teire reads (Maven's transitive tree), the same on every scan, not a source that failed. */
+    structural?: true;
+  }[];
   lookupsFailed: { ecosystem: string; name: string }[];
   notes: string[];
   /**
@@ -35,6 +42,11 @@ export function advisoryStatus(c: ScanCoverage): AdvisoryCoverage["status"] {
 }
 
 /** Plain lines for the onboarding PR, the Dashboard issue and PRs; empty when everything was checked. */
+/** Every source answered this time: what is missing from the scan is gone, not unchecked. */
+export function lookupsAnswered(c: ScanCoverage) {
+  return !c.lookupsFailed.length && c.advisories.every((a) => a.status === "complete" || a.structural);
+}
+
 export function coverageLines(c: ScanCoverage): string[] {
   const out: string[] = [];
   for (const a of c.advisories.filter((x) => x.status !== "complete"))

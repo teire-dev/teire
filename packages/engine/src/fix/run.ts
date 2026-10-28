@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
@@ -14,7 +14,7 @@ import { runChecks, runSide, type SideRun } from "../verify/run";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
 import { type Review, reviewFix } from "./review";
-import { prepareTransaction, type Transaction } from "./transaction";
+import { prepareTransaction, type Transaction, utf8 } from "./transaction";
 import type { ManifestEdit } from "./upgrade-js";
 
 /**
@@ -77,8 +77,12 @@ export interface FixInput {
 export interface FileChange {
   path: string;
   before: string;
-  /** Null when the run deleted the file. */
+  /** Null when the run deleted the file. A symlink's target when `mode` is 120000. */
   after: string | null;
+  /** `base64` when `after` holds the bytes of a file that is not UTF-8 text (bun.lockb). */
+  encoding?: "base64";
+  /** Git file mode when it isn't a plain file: an executable (100755) or a symlink (120000). */
+  mode?: "100755" | "120000";
   patch: string;
 }
 
@@ -234,6 +238,29 @@ function refute(
   return { ...review, problems: kept, ...(refuted.length ? { refuted } : {}) };
 }
 
+/**
+ * A changed file as git will store it: its text, or its bytes (base64) when it isn't UTF-8, a
+ * symlink's target, and the mode when it isn't a plain file (D-50), so a commit keeps all three.
+ */
+function onDisk(full: string): { content: string | null; binary: boolean; mode?: "100755" | "120000" } {
+  if (!existsSync(full) && !isSymlink(full)) return { content: null, binary: false };
+  if (isSymlink(full)) return { content: readlinkSync(full), binary: false, mode: "120000" };
+  const bytes = readFileSync(full);
+  const text = utf8(bytes);
+  const executable = (statSync(full).mode & 0o111) !== 0;
+  return text === null
+    ? { content: bytes.toString("base64"), binary: true, ...(executable ? { mode: "100755" as const } : {}) }
+    : { content: text, binary: false, ...(executable ? { mode: "100755" as const } : {}) };
+}
+
+function isSymlink(full: string) {
+  try {
+    return lstatSync(full).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
 export async function runFix(input: FixInput): Promise<FixRun> {
   const started = Date.now();
   const acceptable = acceptableFor(input.requirePassing ?? false);
@@ -243,6 +270,8 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     input.onEvent?.(e);
   };
   const originals = new Map<string, string>();
+  /** Files the transaction wrote as bytes: listed as binary changes, never diffed as text. */
+  const binaryPaths = new Set<string>();
   const read = (path: string) => readFileSync(join(input.repoDir, path), "utf8");
   const remember = (path: string) => {
     if (!originals.has(path)) originals.set(path, read(path));
@@ -312,6 +341,15 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       writeFileSync(join(input.repoDir, path), content);
       transactionFiles.add(path);
     }
+    // Binary read-backs (bun.lockb) land byte for byte; decoding them as text would corrupt them.
+    for (const [path, bytes] of Object.entries(txn.binary)) {
+      const full = join(input.repoDir, path);
+      if (existsSync(full) && Buffer.from(readFileSync(full)).equals(Buffer.from(bytes))) continue;
+      if (!originals.has(path)) originals.set(path, "");
+      binaryPaths.add(path);
+      writeFileSync(full, bytes);
+      transactionFiles.add(path);
+    }
     // What each transaction file held when the transaction landed. A file edited after that (Go's
     // import rewrite is part of the transaction, and the agent then fixes the same file) is code again:
     // sent to the sandbox, reviewed, and listed as a change.
@@ -342,17 +380,29 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     ): FixRun => {
       const files: FileChange[] = [];
       for (const [path, before] of originals) {
-        const now = existsSync(join(input.repoDir, path)) ? read(path) : null;
-        if (now !== before)
+        const now = onDisk(join(input.repoDir, path));
+        if (now.binary || binaryPaths.has(path)) {
+          files.push({
+            path,
+            before: "",
+            after: now.content,
+            ...(now.content !== null ? { encoding: "base64" as const } : {}),
+            ...(now.mode ? { mode: now.mode } : {}),
+            patch: `Binary files a/${path} and ${now.content === null ? "/dev/null" : `b/${path}`} differ\n`,
+          });
+          continue;
+        }
+        if (now.content !== before)
           files.push({
             path,
             before,
-            after: now,
+            after: now.content,
+            ...(now.mode ? { mode: now.mode } : {}),
             patch: createTwoFilesPatch(
               `a/${path}`,
-              now === null ? "/dev/null" : `b/${path}`,
+              now.content === null ? "/dev/null" : `b/${path}`,
               before,
-              now ?? "",
+              now.content ?? "",
               "",
               "",
               { context: 3 },

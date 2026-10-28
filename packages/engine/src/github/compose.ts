@@ -120,20 +120,49 @@ export function blockquote(text: string) {
 
 /** The last path segment of a URL as a link label, or null when the URL doesn't parse. */
 function urlLabel(url: string) {
+  return safeUrl(url) ? (new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? "source") : null;
+}
+
+/**
+ * An upstream URL fit to link (D-17): http(s) only, with the characters that would end a Markdown
+ * link escaped. Anything else (`javascript:`, a relative path, text that doesn't parse) is null.
+ */
+export function safeUrl(url: string | null | undefined) {
+  if (!url) return null;
   try {
-    return new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? "source";
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return u.href.replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/ /g, "%20");
   } catch {
     return null;
   }
 }
 
-/** A body cut to GitHub's limit at a block boundary, saying so and where the rest is. */
+/** `[label](url)` for a safe URL, else the label as plain text. */
+export function link(label: string, url: string | null | undefined) {
+  const safe = safeUrl(url);
+  return safe ? `[${label}](${safe})` : label;
+}
+
+/**
+ * A body cut to GitHub's limit, saying so and where the rest is (D-15). Whole blocks only: a table
+ * is one block (joinBlocks keeps its rows together), so no row is cut, and a `<details>` the cut
+ * leaves open is closed so the note after it isn't folded away.
+ */
 export function fitBody(body: string, max: number, runUrl?: string) {
   if (body.length <= max) return body;
   const note = `\n\n_Description shortened to fit GitHub's limit${runUrl ? `; the full evidence is on the [run page](${runUrl})` : ""}._`;
-  const cut = body.slice(0, max - note.length);
-  const boundary = cut.lastIndexOf("\n\n");
-  return `${boundary > 0 ? cut.slice(0, boundary) : cut}${note}`;
+  const open = (text: string) =>
+    (text.match(/<details\b/g) ?? []).length - (text.match(/<\/details>/g) ?? []).length;
+  const closing = (text: string) => "\n\n</details>".repeat(Math.max(0, open(text)));
+  const kept: string[] = [];
+  for (const block of body.split("\n\n")) {
+    const next = [...kept, block].join("\n\n");
+    if (next.length + closing(next).length + note.length > max) break;
+    kept.push(block);
+  }
+  const text = kept.join("\n\n");
+  return `${text}${closing(text)}${note}`;
 }
 
 /** A quoted table row reads as text: `| Oct 23, 2026 | \`gpt-4.1-nano\` | …` → "Oct 23, 2026 · gpt-4.1-nano · …". */
@@ -294,7 +323,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       );
       for (const r of advisories)
         out.push(
-          `- [${r.id.split("/").at(-1)}](${r.sources[0]?.url ?? "#"}) ${sanitizeUpstream(escapeCell(r.summary).slice(0, 240), upstreamRepoOf(r.sources[0]?.url))}${r.applicability.fixedIn.length ? ` Fixed in ${r.applicability.fixedIn.join(", ")}.` : ""}`,
+          `- ${link(r.id.split("/").at(-1) ?? r.id, r.sources[0]?.url)} ${sanitizeUpstream(escapeCell(r.summary).slice(0, 240), upstreamRepoOf(r.sources[0]?.url))}${r.applicability.fixedIn.length ? ` Fixed in ${r.applicability.fixedIn.join(", ")}.` : ""}`,
         );
       if (!sites.length)
         out.push(
@@ -338,7 +367,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       out.push(`Comparing the public API of ${instance.version} and ${run.target}: ${counts.join("; ")}.`);
     for (const note of input.notes.slice(0, noteCap))
       out.push(
-        `${blockquote(sanitizeUpstream(`${note.quote.slice(0, 400)}${note.quote.length > 400 ? "…" : ""}`, upstreamRepoOf(note.url)))}\n>\n> — ${urlLabel(note.url) ? `[${urlLabel(note.url)}](${note.url})` : "release notes"}`,
+        `${blockquote(sanitizeUpstream(`${note.quote.slice(0, 400)}${note.quote.length > 400 ? "…" : ""}`, upstreamRepoOf(note.url)))}\n>\n> — ${link(urlLabel(note.url) ?? "release notes", note.url)}`,
       );
 
     // Changes
@@ -507,7 +536,7 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     out.push("### What changed upstream");
     for (const note of input.notes.slice(0, 8))
       out.push(
-        `${blockquote(sanitizeUpstream(escapeCell(displayQuote(note.quote)).slice(0, 400), upstreamRepoOf(note.url)))}\n>\n> — ${sanitizeUpstream(note.summary, upstreamRepoOf(note.url))} ([source](${note.url}))`,
+        `${blockquote(sanitizeUpstream(escapeCell(displayQuote(note.quote)).slice(0, 400), upstreamRepoOf(note.url)))}\n>\n> — ${sanitizeUpstream(note.summary, upstreamRepoOf(note.url))}${safeUrl(note.url) ? ` (${link("source", note.url)})` : ""}`,
       );
     out.push("### Changes");
     out.push("| File | Change |", "|---|---|");
@@ -565,6 +594,8 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
 
 export interface OnboardingRow {
   instance: DependencyInstance;
+  /** The registry lookup failed: newer versions are unknown, never "up to date" (D-52). */
+  lookupFailed?: boolean;
   target: string | null;
   majorsBehind: number;
   deprecated: string | null;
@@ -670,7 +701,9 @@ export function composeOnboarding(input: {
   );
   out.push("### What Teire found");
   out.push(
-    `${direct.length} direct dependencies (${rows.length - direct.length} transitive)${projects.size > 1 ? ` across ${projects.size} projects` : ""} in ${ecosystems.join(", ")}, at the exact versions your lockfiles pin. ${affected.length} upgrade${affected.length === 1 ? "" : "s"} would break this repo's code; Teire fixes and verifies those before opening a PR.`,
+    rows.length
+      ? `${direct.length} direct dependencies (${rows.length - direct.length} transitive)${projects.size > 1 ? ` across ${projects.size} projects` : ""} in ${ecosystems.join(", ")}, at the exact versions your lockfiles pin. ${affected.length} upgrade${affected.length === 1 ? "" : "s"} would break this repo's code; Teire fixes and verifies those before opening a PR.`
+      : "No packages in the ecosystems Teire upgrades (npm, PyPI, Go, Cargo, RubyGems, Maven/Gradle). What it found instead, and what it could not check, is below.",
   );
   if (upgrades.length) {
     out.push("### Upgrades Teire will open after you merge, in this order");
@@ -755,6 +788,7 @@ export function composeOnboarding(input: {
             ? `not installed on Linux (\`${r.instance.environment.markers}\`)`
             : `unresolved${r.instance.unresolvedReason ? `: ${r.instance.unresolvedReason}` : ""}`
           : null,
+        r.lookupFailed ? "registry lookup failed: newer versions unknown" : null,
         r.majorsBehind > 0 ? `${r.majorsBehind} major${r.majorsBehind === 1 ? "" : "s"} behind` : null,
         r.deprecated !== null ? "deprecated" : null,
       ].filter(Boolean);
@@ -826,7 +860,7 @@ export function composeHumanIssue(input: {
       out.push(`**${r.title}**. ${sanitizeUpstream(r.summary.slice(0, 400), upstreamRepoOf(source?.url))}`);
       if (source?.quote)
         out.push(
-          `${blockquote(sanitizeUpstream(displayQuote(source.quote).slice(0, 300), upstreamRepoOf(source.url)))}\n>\n> — [source](${source.url})`,
+          `${blockquote(sanitizeUpstream(displayQuote(source.quote).slice(0, 300), upstreamRepoOf(source.url)))}\n>\n> — ${link("source", source.url)}`,
         );
     }
   }

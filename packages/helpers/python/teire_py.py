@@ -32,7 +32,9 @@ MAX_FILE_BYTES = 20 * 1024 * 1024
 MAX_WHEEL_BYTES = 512 * 1024 * 1024
 MAX_WHEEL_FILES = 50_000
 
-# The sandbox and worker run Linux CPython 3.12; markers are evaluated for that, not for this machine.
+# Markers are evaluated for the Linux CPython the sandbox runs for each project (the version the
+# repo asks for, picked by the worker and passed to `inventory`; 3.12 when it names none), not for
+# this machine.
 MARKER_ENV = {
     "implementation_name": "cpython",
     "implementation_version": "3.12.0",
@@ -71,6 +73,12 @@ def read_toml(path: Path) -> dict | None:
         return tomllib.loads(text)
     except tomllib.TOMLDecodeError:
         return None
+
+
+def set_marker_python(version: str) -> None:
+    MARKER_ENV["python_version"] = version
+    MARKER_ENV["python_full_version"] = f"{version}.0"
+    MARKER_ENV["implementation_version"] = f"{version}.0"
 
 
 def marker_false(marker: str | None) -> bool:
@@ -282,8 +290,10 @@ def pinned(spec: str) -> str | None:
     return m.group(1) if m else None
 
 
-def cmd_inventory(root_arg: str) -> None:
+def cmd_inventory(root_arg: str, pythons_json: str = "{}") -> None:
     root = Path(root_arg).resolve()
+    # {"<project root>": "3.11"}: the Python each project runs on in the sandbox.
+    pythons = json.loads(pythons_json) if pythons_json else {}
     projects: list[dict] = []
     roots: set[Path] = set()
     for dirpath, dirnames, filenames in os.walk(root):
@@ -293,6 +303,7 @@ def cmd_inventory(root_arg: str) -> None:
             roots.add(Path(dirpath))
     for project_dir in sorted(roots):
         rel = str(project_dir.relative_to(root)) or "."
+        set_marker_python(str(pythons.get(rel, "3.12")))
         declared: list[Declared] = []
         constraints: list[Declared] = []
         hint = None
@@ -361,7 +372,7 @@ def cmd_inventory(root_arg: str) -> None:
                 entry["unresolvedReason"] = "not a registry dependency" if d.source != "registry" else ("not in the lockfile" if lockfile else "no lockfile")
             if marker_false(d.marker):
                 entry["environment"] = {"markers": d.marker}
-                entry["unresolvedReason"] = f"marker false on Linux CPython 3.12: {d.marker}"
+                entry["unresolvedReason"] = f"marker false on Linux CPython {MARKER_ENV['python_version']}: {d.marker}"
             instances.append(entry)
         for name, version in sorted(versions.items()):
             if name in direct_names or not version:

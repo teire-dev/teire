@@ -26,16 +26,19 @@ export class HumanCommitsError extends Error {}
  * The branch for a PR group (rule 9: `teire/<ecosystem>/<package>/<target>`, `teire/<source>/<id>`),
  * made a valid git ref. Maven's `group:artifact` and npm's `@scope/name` would otherwise produce refs
  * git refuses. The cleanup follows Dependabot's `sanitize_ref` (dependabot-core, MIT,
- * `common/lib/dependabot/pull_request_creator/branch_namer/base.rb`).
+ * `common/lib/dependabot/pull_request_creator/branch_namer/base.rb`), with two differences:
+ * Maven's `:` becomes `/`, which no coordinate contains, so `a:b-c` and `a-b:c` stay two branches
+ * (Dependabot's `-` merges them); and no component may end in `.lock`, which git refuses.
  */
 export function branchFor(groupKey: string) {
   return `${PULL_REQUESTS.branchPrefix}/${groupKey}`
-    .replace(/:/g, "-")
+    .replace(/:/g, "/")
     .replace(/@/g, "")
     .replace(/[^A-Za-z0-9/\-_.(){}]/g, "")
     .replace(/\/\./g, "/dot-")
     .replace(/\.{2,}/g, ".")
     .replace(/\/{2,}/g, "/")
+    .replace(/\.lock(?=\/|$)/g, "-lock")
     .replace(/\.$/, "");
 }
 

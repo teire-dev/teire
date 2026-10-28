@@ -530,7 +530,13 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
 
     const branch = branchFor(groupKey);
     // The lock and any manifest the package manager rewrote are among the run's files already.
-    const files = fix.files.map((f) => ({ path: f.path, content: f.after }));
+    // Bytes, symlinks and executable bits as the run left them (D-50).
+    const files = fix.files.map((f) => ({
+      path: f.path,
+      content: f.after,
+      ...(f.encoding ? { encoding: f.encoding } : {}),
+      ...(f.mode ? { mode: f.mode } : {}),
+    }));
     const commit = await commitToBranch({
       octokit: installation.octokit,
       owner,
