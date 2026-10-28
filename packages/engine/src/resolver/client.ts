@@ -84,7 +84,10 @@ export async function resolve(
       stderrTail?: string;
       error?: string;
     }>(config, "GET", `/jobs/${id}`);
-    if (job.state !== last) input.onState?.((last = job.state));
+    if (job.state !== last) {
+      last = job.state;
+      input.onState?.(last);
+    }
     // The host failing (download, images, cleanup) is an outage the worker retries, never a result.
     if (job.state === "failed")
       throw new ResolverUnavailableError(

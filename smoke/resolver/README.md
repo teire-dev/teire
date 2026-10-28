@@ -10,7 +10,6 @@ TEIRE_RESOLVER_URL=http://127.0.0.1:8788 TEIRE_RESOLVER_SECRET=… \
 ```
 
 What the batches found, and what Teire changed because of it:
-
 - **pnpm v5.4 lockfiles** stop inside dependabot-core's pnpm helper (`results-2`), so they keep Teire's transaction.
 - **A binary `bun.lockb`** comes back with only `package.json` changed (`results-2`), so it keeps Teire's transaction.
 - **Cargo** stopped below the target when the target removed a feature the repo enables (`results-1`, `results-cargo-rerun`); with the feature dropped from the input first, it reaches the target (`results-3`).

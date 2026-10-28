@@ -17,7 +17,8 @@
       "!**/pnpm-lock.yaml",
       "!apps/web/public/logos",
       "!**/worker-configuration.d.ts",
-      "!fixtures"
+      "!fixtures",
+      "!.github/submission"
     ]
   },
   "formatter": {

@@ -179,10 +179,9 @@ export function readDependabotConfig(tree: RepoTree): DependabotConfig {
 function globMatches(pattern: string, dir: string) {
   const re = pattern
     .replace(/\/+$/, "")
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*/g, "\u0000")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\u0000/g, ".*");
+    .split("**")
+    .map((part) => part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*"))
+    .join(".*");
   return new RegExp(`^${re || "/"}$`).test(dir);
 }
 

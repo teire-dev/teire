@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1280" viewBox="0 0 2560 1280">
+  <title>Teire: when a package, API or model changes, Teire fixes your code</title>
   <defs>
     <style>@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400&amp;display=block');
       .sans { font-family: Geist, sans-serif; } .mono { font-family: 'Geist Mono', monospace; }</style>

@@ -253,14 +253,14 @@ const DEPENDENCY_FILE = new RegExp(
     String.raw`(^|/)requirements/[^/]+\.(txt|in)$`,
     // Go
     String.raw`(^|/)(go\.mod|go\.sum|go\.work|go\.work\.sum)$`,
-    String.raw`(^|/)vendor/`,
+    "(^|/)vendor/",
     // Cargo
     String.raw`(^|/)(Cargo\.toml|Cargo\.lock)$`,
     // Bundler
     String.raw`(^|/)(Gemfile|Gemfile\.lock|gems\.rb|gems\.locked|[^/]+\.gemspec)$`,
     // Maven and Gradle
     String.raw`(^|/)(pom\.xml|extensions\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties|[^/]+\.versions\.toml|[^/]*\.lockfile|gradlew(\.bat)?)$`,
-    String.raw`(^|/)gradle/wrapper/`,
+    "(^|/)gradle/wrapper/",
   ].join("|"),
 );
 

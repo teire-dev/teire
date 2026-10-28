@@ -1,61 +1,53 @@
 [
- {
-  "name": "security npm (transitive)",
-  "repo": "teire-dev/ai-test-reporter",
-  "manager": "npm",
-  "ecosystem": "npm",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "security",
-   "dependency": "fast-uri",
-   "advisories": [
-    {
-     "dependencyName": "fast-uri",
-     "affectedVersions": [
-      "< 3.1.9"
-     ],
-     "patchedVersions": [],
-     "unaffectedVersions": []
+  {
+    "name": "security npm (transitive)",
+    "repo": "teire-dev/ai-test-reporter",
+    "manager": "npm",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": {
+      "kind": "security",
+      "dependency": "fast-uri",
+      "advisories": [
+        {
+          "dependencyName": "fast-uri",
+          "affectedVersions": ["< 3.1.9"],
+          "patchedVersions": [],
+          "unaffectedVersions": []
+        }
+      ]
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "3.1.9"
     }
-   ]
   },
-  "expect": {
-   "kind": "change",
-   "lead": "3.1.9"
-  }
- },
- {
-  "name": "negative: every fix ignored (security job)",
-  "repo": "teire-dev/serve-handler",
-  "manager": "yarn",
-  "ecosystem": "npm",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "security",
-   "dependency": "minimatch",
-   "advisories": [
-    {
-     "dependencyName": "minimatch",
-     "affectedVersions": [
-      "< 3.1.4"
-     ],
-     "patchedVersions": [],
-     "unaffectedVersions": []
+  {
+    "name": "negative: every fix ignored (security job)",
+    "repo": "teire-dev/serve-handler",
+    "manager": "yarn",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": {
+      "kind": "security",
+      "dependency": "minimatch",
+      "advisories": [
+        {
+          "dependencyName": "minimatch",
+          "affectedVersions": ["< 3.1.4"],
+          "patchedVersions": [],
+          "unaffectedVersions": []
+        }
+      ]
+    },
+    "ignore": [
+      {
+        "dependencyName": "minimatch"
+      }
+    ],
+    "expect": {
+      "kind": "stop",
+      "type": "all_versions_ignored"
     }
-   ]
-  },
-  "ignore": [
-   {
-    "dependencyName": "minimatch"
-   }
-  ],
-  "expect": {
-   "kind": "stop",
-   "type": "all_versions_ignored"
   }
- }
 ]

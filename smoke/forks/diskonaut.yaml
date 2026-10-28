@@ -4,7 +4,8 @@ ecosystem: cargo
 rust: no rust-toolchain file; edition 2018, Cargo.lock
 baseline:
   checks: cargo build and cargo test (UI tests with ~195 insta snapshots, temp dirs, offline)
-  observed_2026-10-28: build passes; 8 of 45 tests pass. The 37 snapshot failures differ only by
+  observed_2026-10-28: >-
+    build passes; 8 of 45 tests pass. The 37 snapshot failures differ only by
     "(CAUTION: running as root)" in diskonaut's header, because the sandbox runs checks as root.
   expected: pass once checks run as an unprivileged user, as on CI (plan item added from this walk)
 upgrades:

@@ -1,8 +1,56 @@
 [
-  {"name":"pnpm","repo":"skarab42/zoxy","manager":"pnpm","ecosystem":"npm","roots":["."],"shape":{"kind":"version","dependency":"zod","target":"4.6.7"},"expect":{"kind":"change","lead":"4.6.7"}},
-  {"name":"yarn berry","repo":"hozana/next-translate-routes","manager":"yarn","ecosystem":"npm","roots":["."],"shape":{"kind":"version","dependency":"path-to-regexp","target":"9.0.0"},"expect":{"kind":"change","lead":"9.0.0"}},
-  {"name":"bun (binary bun.lockb)","repo":"Gusb3ll/elysia-compression","manager":"bun","ecosystem":"npm","roots":["."],"shape":{"kind":"version","dependency":"elysia","target":"1.4.30"},"expect":{"kind":"change"}},
-  {"name":"pipenv","repo":"psf/requests-html","manager":"pipenv","ecosystem":"pypi","roots":["."],"shape":{"kind":"version","dependency":"lxml","target":"6.1.3"},"expect":{"kind":"change"}},
-  {"name":"pip-compile (two .in pairs)","repo":"Nekmo/dirhunt","manager":"pip-compile","ecosystem":"pypi","roots":["."],"shape":{"kind":"version","dependency":"click","target":"8.5.0"},"expect":{"kind":"change"}},
-  {"name":"requirements.txt","repo":"searx/searx","manager":"pip","ecosystem":"pypi","roots":["."],"shape":{"kind":"version","dependency":"flask-babel","target":"4.0.0"},"expect":{"kind":"change","lead":"4.0.0"}}
+  {
+    "name": "pnpm",
+    "repo": "skarab42/zoxy",
+    "manager": "pnpm",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": { "kind": "version", "dependency": "zod", "target": "4.6.7" },
+    "expect": { "kind": "change", "lead": "4.6.7" }
+  },
+  {
+    "name": "yarn berry",
+    "repo": "hozana/next-translate-routes",
+    "manager": "yarn",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": { "kind": "version", "dependency": "path-to-regexp", "target": "9.0.0" },
+    "expect": { "kind": "change", "lead": "9.0.0" }
+  },
+  {
+    "name": "bun (binary bun.lockb)",
+    "repo": "Gusb3ll/elysia-compression",
+    "manager": "bun",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": { "kind": "version", "dependency": "elysia", "target": "1.4.30" },
+    "expect": { "kind": "change" }
+  },
+  {
+    "name": "pipenv",
+    "repo": "psf/requests-html",
+    "manager": "pipenv",
+    "ecosystem": "pypi",
+    "roots": ["."],
+    "shape": { "kind": "version", "dependency": "lxml", "target": "6.1.3" },
+    "expect": { "kind": "change" }
+  },
+  {
+    "name": "pip-compile (two .in pairs)",
+    "repo": "Nekmo/dirhunt",
+    "manager": "pip-compile",
+    "ecosystem": "pypi",
+    "roots": ["."],
+    "shape": { "kind": "version", "dependency": "click", "target": "8.5.0" },
+    "expect": { "kind": "change" }
+  },
+  {
+    "name": "requirements.txt",
+    "repo": "searx/searx",
+    "manager": "pip",
+    "ecosystem": "pypi",
+    "roots": ["."],
+    "shape": { "kind": "version", "dependency": "flask-babel", "target": "4.0.0" },
+    "expect": { "kind": "change", "lead": "4.0.0" }
+  }
 ]

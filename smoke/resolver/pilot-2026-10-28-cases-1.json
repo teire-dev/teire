@@ -1,268 +1,232 @@
 [
- {
-  "name": "uv two roots",
-  "repo": "teire-dev/examples",
-  "manager": "uv",
-  "ecosystem": "pypi",
-  "roots": [
-   "py-major",
-   "py-live"
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "anthropic",
-   "target": "1.17.0"
-  },
-  "expect": {
-   "kind": "change",
-   "lead": "1.17.0"
-  }
- },
- {
-  "name": "go modules",
-  "repo": "teire-dev/examples",
-  "manager": "go",
-  "ecosystem": "go",
-  "roots": [
-   "go-major"
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "golang.org/x/text",
-   "target": "v0.43.0"
-  },
-  "expect": {
-   "kind": "change"
-  }
- },
- {
-  "name": "cargo",
-  "repo": "teire-dev/examples",
-  "manager": "cargo",
-  "ecosystem": "cargo",
-  "roots": [
-   "rust-major"
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "rand",
-   "target": "0.10.3"
-  },
-  "expect": {
-   "kind": "change",
-   "lead": "0.10.3"
-  }
- },
- {
-  "name": "bundler three roots",
-  "repo": "teire-dev/examples",
-  "manager": "bundler",
-  "ecosystem": "rubygems",
-  "roots": [
-   "ruby-major",
-   "ruby-clean",
-   "rails-db"
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "faraday",
-   "target": "2.15.0"
-  },
-  "expect": {
-   "kind": "change",
-   "lead": "2.15.0"
-  }
- },
- {
-  "name": "maven two roots",
-  "repo": "teire-dev/examples",
-  "manager": "maven",
-  "ecosystem": "maven",
-  "roots": [
-   "jvm-major",
-   "jvm-clean"
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "com.google.guava:guava",
-   "target": "33.7.2-jre"
-  },
-  "expect": {
-   "kind": "change",
-   "lead": "33.7.2-jre"
-  }
- },
- {
-  "name": "gradle catalog and locks",
-  "repo": "teire-dev/examples",
-  "manager": "gradle",
-  "ecosystem": "maven",
-  "roots": [
-   "kotlin-major"
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "com.squareup.okhttp3:okhttp",
-   "target": "5.5.0"
-  },
-  "expect": {
-   "kind": "change",
-   "lead": "5.5.0"
-  }
- },
- {
-  "name": "npm",
-  "repo": "teire-dev/examples",
-  "manager": "npm",
-  "ecosystem": "npm",
-  "roots": [
-   "npm-zod"
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "zod",
-   "target": "4.6.7"
-  },
-  "expect": {
-   "kind": "change",
-   "lead": "4.6.7"
-  }
- },
- {
-  "name": "poetry",
-  "repo": "teire-dev/devchat",
-  "manager": "poetry",
-  "ecosystem": "pypi",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "pydantic",
-   "target": "2.10.6"
-  },
-  "expect": {
-   "kind": "change"
-  }
- },
- {
-  "name": "bundler gemspec",
-  "repo": "teire-dev/coal",
-  "manager": "bundler",
-  "ecosystem": "rubygems",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "faraday",
-   "target": "2.15.0"
-  },
-  "expect": {
-   "kind": "change"
-  }
- },
- {
-  "name": "cargo app",
-  "repo": "teire-dev/diskonaut",
-  "manager": "cargo",
-  "ecosystem": "cargo",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "crossterm",
-   "target": "0.29.0"
-  },
-  "expect": {
-   "kind": "change"
-  }
- },
- {
-  "name": "gradle app",
-  "repo": "teire-dev/spring-boot-realworld-example-app",
-  "manager": "gradle",
-  "ecosystem": "maven",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "io.jsonwebtoken:jjwt-api",
-   "target": "0.13.0"
-  },
-  "expect": {
-   "kind": "change"
-  }
- },
- {
-  "name": "negative: target above the newest",
-  "repo": "teire-dev/serve-handler",
-  "manager": "yarn",
-  "ecosystem": "npm",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "path-to-regexp",
-   "target": "99.0.0"
-  },
-  "expect": {
-   "kind": "change",
-   "lead": "9.0.0"
-  }
- },
- {
-  "name": "negative: every version ignored (version job: nothing)",
-  "repo": "teire-dev/serve-handler",
-  "manager": "yarn",
-  "ecosystem": "npm",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "minimatch",
-   "target": "10.2.6"
-  },
-  "ignore": [
-   {
-    "dependencyName": "minimatch"
-   }
-  ],
-  "expect": {
-   "kind": "nothing"
-  }
- },
- {
-  "name": "negative: security update not needed",
-  "repo": "teire-dev/serve-handler",
-  "manager": "yarn",
-  "ecosystem": "npm",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "security",
-   "dependency": "minimatch",
-   "advisories": [
-    {
-     "dependencyName": "minimatch",
-     "affectedVersions": [
-      "< 3.0.0"
-     ],
-     "patchedVersions": [
-      ">= 3.0.0"
-     ],
-     "unaffectedVersions": []
+  {
+    "name": "uv two roots",
+    "repo": "teire-dev/examples",
+    "manager": "uv",
+    "ecosystem": "pypi",
+    "roots": ["py-major", "py-live"],
+    "shape": {
+      "kind": "version",
+      "dependency": "anthropic",
+      "target": "1.17.0"
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "1.17.0"
     }
-   ]
   },
-  "expect": {
-   "kind": "stop",
-   "type": "security_update_not_needed"
+  {
+    "name": "go modules",
+    "repo": "teire-dev/examples",
+    "manager": "go",
+    "ecosystem": "go",
+    "roots": ["go-major"],
+    "shape": {
+      "kind": "version",
+      "dependency": "golang.org/x/text",
+      "target": "v0.43.0"
+    },
+    "expect": {
+      "kind": "change"
+    }
+  },
+  {
+    "name": "cargo",
+    "repo": "teire-dev/examples",
+    "manager": "cargo",
+    "ecosystem": "cargo",
+    "roots": ["rust-major"],
+    "shape": {
+      "kind": "version",
+      "dependency": "rand",
+      "target": "0.10.3"
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "0.10.3"
+    }
+  },
+  {
+    "name": "bundler three roots",
+    "repo": "teire-dev/examples",
+    "manager": "bundler",
+    "ecosystem": "rubygems",
+    "roots": ["ruby-major", "ruby-clean", "rails-db"],
+    "shape": {
+      "kind": "version",
+      "dependency": "faraday",
+      "target": "2.15.0"
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "2.15.0"
+    }
+  },
+  {
+    "name": "maven two roots",
+    "repo": "teire-dev/examples",
+    "manager": "maven",
+    "ecosystem": "maven",
+    "roots": ["jvm-major", "jvm-clean"],
+    "shape": {
+      "kind": "version",
+      "dependency": "com.google.guava:guava",
+      "target": "33.7.2-jre"
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "33.7.2-jre"
+    }
+  },
+  {
+    "name": "gradle catalog and locks",
+    "repo": "teire-dev/examples",
+    "manager": "gradle",
+    "ecosystem": "maven",
+    "roots": ["kotlin-major"],
+    "shape": {
+      "kind": "version",
+      "dependency": "com.squareup.okhttp3:okhttp",
+      "target": "5.5.0"
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "5.5.0"
+    }
+  },
+  {
+    "name": "npm",
+    "repo": "teire-dev/examples",
+    "manager": "npm",
+    "ecosystem": "npm",
+    "roots": ["npm-zod"],
+    "shape": {
+      "kind": "version",
+      "dependency": "zod",
+      "target": "4.6.7"
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "4.6.7"
+    }
+  },
+  {
+    "name": "poetry",
+    "repo": "teire-dev/devchat",
+    "manager": "poetry",
+    "ecosystem": "pypi",
+    "roots": ["."],
+    "shape": {
+      "kind": "version",
+      "dependency": "pydantic",
+      "target": "2.10.6"
+    },
+    "expect": {
+      "kind": "change"
+    }
+  },
+  {
+    "name": "bundler gemspec",
+    "repo": "teire-dev/coal",
+    "manager": "bundler",
+    "ecosystem": "rubygems",
+    "roots": ["."],
+    "shape": {
+      "kind": "version",
+      "dependency": "faraday",
+      "target": "2.15.0"
+    },
+    "expect": {
+      "kind": "change"
+    }
+  },
+  {
+    "name": "cargo app",
+    "repo": "teire-dev/diskonaut",
+    "manager": "cargo",
+    "ecosystem": "cargo",
+    "roots": ["."],
+    "shape": {
+      "kind": "version",
+      "dependency": "crossterm",
+      "target": "0.29.0"
+    },
+    "expect": {
+      "kind": "change"
+    }
+  },
+  {
+    "name": "gradle app",
+    "repo": "teire-dev/spring-boot-realworld-example-app",
+    "manager": "gradle",
+    "ecosystem": "maven",
+    "roots": ["."],
+    "shape": {
+      "kind": "version",
+      "dependency": "io.jsonwebtoken:jjwt-api",
+      "target": "0.13.0"
+    },
+    "expect": {
+      "kind": "change"
+    }
+  },
+  {
+    "name": "negative: target above the newest",
+    "repo": "teire-dev/serve-handler",
+    "manager": "yarn",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": {
+      "kind": "version",
+      "dependency": "path-to-regexp",
+      "target": "99.0.0"
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "9.0.0"
+    }
+  },
+  {
+    "name": "negative: every version ignored (version job: nothing)",
+    "repo": "teire-dev/serve-handler",
+    "manager": "yarn",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": {
+      "kind": "version",
+      "dependency": "minimatch",
+      "target": "10.2.6"
+    },
+    "ignore": [
+      {
+        "dependencyName": "minimatch"
+      }
+    ],
+    "expect": {
+      "kind": "nothing"
+    }
+  },
+  {
+    "name": "negative: security update not needed",
+    "repo": "teire-dev/serve-handler",
+    "manager": "yarn",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": {
+      "kind": "security",
+      "dependency": "minimatch",
+      "advisories": [
+        {
+          "dependencyName": "minimatch",
+          "affectedVersions": ["< 3.0.0"],
+          "patchedVersions": [">= 3.0.0"],
+          "unaffectedVersions": []
+        }
+      ]
+    },
+    "expect": {
+      "kind": "stop",
+      "type": "security_update_not_needed"
+    }
   }
- }
 ]

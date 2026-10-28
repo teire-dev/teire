@@ -17,7 +17,10 @@
   "storage-driver": "overlay2",
   "default-runtime": "runsc",
   "runtimes": {
-    "runsc": { "path": "/usr/local/lib/teire-resolver/runsc-wrapper.sh", "runtimeArgs": ["--platform=systrap", "--overlay2=none"] }
+    "runsc": {
+      "path": "/usr/local/lib/teire-resolver/runsc-wrapper.sh",
+      "runtimeArgs": ["--platform=systrap", "--overlay2=none"]
+    }
   },
   "exec-opts": ["native.cgroupdriver=systemd"],
   "cgroup-parent": "teire-resolver.slice",

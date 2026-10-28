@@ -1,143 +1,121 @@
 [
- {
-  "name": "negative: every version ignored (security job)",
-  "repo": "teire-dev/serve-handler",
-  "manager": "yarn",
-  "ecosystem": "npm",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "security",
-   "dependency": "minimatch",
-   "advisories": [
-    {
-     "dependencyName": "minimatch",
-     "affectedVersions": [
-      "< 99.0.0"
-     ],
-     "patchedVersions": [
-      ">= 99.0.0"
-     ],
-     "unaffectedVersions": []
+  {
+    "name": "negative: every version ignored (security job)",
+    "repo": "teire-dev/serve-handler",
+    "manager": "yarn",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": {
+      "kind": "security",
+      "dependency": "minimatch",
+      "advisories": [
+        {
+          "dependencyName": "minimatch",
+          "affectedVersions": ["< 99.0.0"],
+          "patchedVersions": [">= 99.0.0"],
+          "unaffectedVersions": []
+        }
+      ]
+    },
+    "ignore": [
+      {
+        "dependencyName": "minimatch"
+      }
+    ],
+    "expect": {
+      "kind": "stop",
+      "type": "all_versions_ignored"
     }
-   ]
   },
-  "ignore": [
-   {
-    "dependencyName": "minimatch"
-   }
-  ],
-  "expect": {
-   "kind": "stop",
-   "type": "all_versions_ignored"
-  }
- },
- {
-  "name": "negative: security fix not published",
-  "repo": "teire-dev/serve-handler",
-  "manager": "yarn",
-  "ecosystem": "npm",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "security",
-   "dependency": "minimatch",
-   "advisories": [
-    {
-     "dependencyName": "minimatch",
-     "affectedVersions": [
-      "< 99.0.0"
-     ],
-     "patchedVersions": [
-      ">= 99.0.0"
-     ],
-     "unaffectedVersions": []
+  {
+    "name": "negative: security fix not published",
+    "repo": "teire-dev/serve-handler",
+    "manager": "yarn",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": {
+      "kind": "security",
+      "dependency": "minimatch",
+      "advisories": [
+        {
+          "dependencyName": "minimatch",
+          "affectedVersions": ["< 99.0.0"],
+          "patchedVersions": [">= 99.0.0"],
+          "unaffectedVersions": []
+        }
+      ]
+    },
+    "expect": {
+      "kind": "stop",
+      "type": "security_update_not_possible"
     }
-   ]
   },
-  "expect": {
-   "kind": "stop",
-   "type": "security_update_not_possible"
-  }
- },
- {
-  "name": "security npm (transitive)",
-  "repo": "teire-dev/ai-test-reporter",
-  "manager": "npm",
-  "ecosystem": "npm",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "security",
-   "dependency": "fast-uri",
-   "advisories": [
-    {
-     "dependencyName": "fast-uri",
-     "affectedVersions": [
-      "< 3.1.9"
-     ],
-     "patchedVersions": [],
-     "unaffectedVersions": []
+  {
+    "name": "security npm (transitive)",
+    "repo": "teire-dev/ai-test-reporter",
+    "manager": "npm",
+    "ecosystem": "npm",
+    "roots": ["."],
+    "shape": {
+      "kind": "security",
+      "dependency": "fast-uri",
+      "advisories": [
+        {
+          "dependencyName": "fast-uri",
+          "affectedVersions": ["< 3.1.9"],
+          "patchedVersions": [],
+          "unaffectedVersions": []
+        }
+      ]
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "3.1.9"
     }
-   ]
   },
-  "expect": {
-   "kind": "change",
-   "lead": "3.1.9"
-  }
- },
- {
-  "name": "security bundler",
-  "repo": "teire-dev/coal",
-  "manager": "bundler",
-  "ecosystem": "rubygems",
-  "roots": [
-   "."
-  ],
-  "shape": {
-   "kind": "security",
-   "dependency": "rexml",
-   "advisories": [
-    {
-     "dependencyName": "rexml",
-     "affectedVersions": [
-      "< 3.3.9"
-     ],
-     "patchedVersions": [],
-     "unaffectedVersions": []
+  {
+    "name": "security bundler",
+    "repo": "teire-dev/coal",
+    "manager": "bundler",
+    "ecosystem": "rubygems",
+    "roots": ["."],
+    "shape": {
+      "kind": "security",
+      "dependency": "rexml",
+      "advisories": [
+        {
+          "dependencyName": "rexml",
+          "affectedVersions": ["< 3.3.9"],
+          "patchedVersions": [],
+          "unaffectedVersions": []
+        }
+      ]
+    },
+    "expect": {
+      "kind": "change",
+      "lead": "3.3.9"
     }
-   ]
   },
-  "expect": {
-   "kind": "change",
-   "lead": "3.3.9"
+  {
+    "name": "cargo with the removed feature dropped (pre-step)",
+    "repo": "teire-dev/examples",
+    "manager": "cargo",
+    "ecosystem": "cargo",
+    "roots": ["rust-major"],
+    "shape": {
+      "kind": "version",
+      "dependency": "rand",
+      "target": "0.10.3"
+    },
+    "overlay": [
+      {
+        "path": "rust-major/Cargo.toml",
+        "content": "[package]\nname = \"desk-random\"\nversion = \"0.1.0\"\nedition = \"2021\"\nrust-version = \"1.85\"\ndescription = \"Ticket IDs, agent assignment and queue order for a support desk. Teire demo repository.\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nrand = { version = \"0.8\", features = [] }\n"
+      }
+    ],
+    "expect": {
+      "kind": "change",
+      "lead": "0.10.3"
+    }
   }
- },
- {
-  "name": "cargo with the removed feature dropped (pre-step)",
-  "repo": "teire-dev/examples",
-  "manager": "cargo",
-  "ecosystem": "cargo",
-  "roots": [
-   "rust-major"
-  ],
-  "shape": {
-   "kind": "version",
-   "dependency": "rand",
-   "target": "0.10.3"
-  },
-  "overlay": [
-   {
-    "path": "rust-major/Cargo.toml",
-    "content": "[package]\nname = \"desk-random\"\nversion = \"0.1.0\"\nedition = \"2021\"\nrust-version = \"1.85\"\ndescription = \"Ticket IDs, agent assignment and queue order for a support desk. Teire demo repository.\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nrand = { version = \"0.8\", features = [] }\n"
-   }
-  ],
-  "expect": {
-   "kind": "change",
-   "lead": "0.10.3"
-  }
- }
 ]
