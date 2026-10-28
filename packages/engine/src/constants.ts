@@ -103,6 +103,10 @@ export const PULL_REQUESTS = {
 export const RUNS = {
   /** Runs without a heartbeat for this long are failed by the reaper. */
   staleAfterMs: 10 * 60 * 1000,
+  /** Another worker may take a running run only once its heartbeat is this old (review R13). */
+  leaseMs: 2 * 60 * 1000,
+  /** How long a worker that found the run held waits before looking again. */
+  leaseRetrySeconds: 60,
   heartbeatEveryMs: 15 * 1000,
   /**
    * Fix runs the worker takes at once, each from a different repository (the queue keeps one per

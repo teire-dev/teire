@@ -301,6 +301,8 @@ export const runs = pgTable(
     requestedBy: text("requested_by"),
     error: text("error"),
     heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+    /** The worker holding the run (review R13): another worker takes it only once the heartbeat is stale. */
+    workerId: text("worker_id"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     createdAt: createdAt(),

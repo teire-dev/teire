@@ -1,3 +1,4 @@
+import { hostname } from "node:os";
 import {
   and,
   artifacts,
@@ -313,6 +314,25 @@ export async function claimRun(db: Database, values: typeof runs.$inferInsert) {
     .limit(1);
   if (!existing) throw new Error("run missing after conflict");
   return { run: existing, created: false };
+}
+
+/** This process, as the holder of the runs it works on (review R13). */
+export const WORKER_ID = `${hostname()}:${process.pid}:${Date.now().toString(36)}`;
+
+/**
+ * Takes the run for this worker unless another worker is working it now (a fresh heartbeat on a
+ * running run): during a deploy the old and new containers overlap, and the boot sweep retries jobs
+ * the old one still holds, so without this one run could open sandboxes and push twice.
+ */
+export async function claimRunLease(db: Database, runId: string, leaseMs: number) {
+  const { rows } = await db.execute<{ id: string }>(sql`
+    update runs set worker_id = ${WORKER_ID}, heartbeat_at = now()
+    where id = ${runId}
+      and (status <> 'running' or worker_id is null or worker_id = ${WORKER_ID}
+        or heartbeat_at is null or heartbeat_at < now() - make_interval(secs => ${leaseMs / 1000}))
+    returning id
+  `);
+  return rows.length > 0;
 }
 
 export async function getRun(db: Database, id: string) {

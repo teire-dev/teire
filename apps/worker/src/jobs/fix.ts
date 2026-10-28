@@ -61,6 +61,7 @@ import { resolveForRepo } from "../resolver";
 import {
   appendEvent,
   claimRun,
+  claimRunLease,
   getArtifact,
   getRepo,
   getRun,
@@ -886,6 +887,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // A run the reaper failed (its worker stopped) is retried by its queue: it starts over cleanly.
   // Any other failure stays failed until someone asks again (`@teire recreate`).
   if (run.status === "failed" && run.step !== "interrupted") return { skipped: true };
+  if (!(await claimRunLease(db, runId, RUNS.leaseMs))) {
+    await ctx.enqueueFix(runId, run.repoId, RUNS.leaseRetrySeconds);
+    return { deferred: "another worker holds this run" };
+  }
   if (run.status === "failed" || run.status === "running")
     await updateRun(db, runId, { status: "queued", attempt: run.attempt + 1, error: null });
   const repo = await getRepo(db, run.repoId);
