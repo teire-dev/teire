@@ -260,16 +260,18 @@ async function repoAction(
       return started(ctx, repo, octokit, group, "fix", login);
     }
     case "rebase":
+    case "refresh":
     case "recreate": {
       const group = String(params.group);
       const pr = await getArtifact(db, repo.id, "pr", group);
-      if (!pr || (kind === "rebase" && pr.state !== "open"))
+      if (!pr || (kind !== "recreate" && pr.state !== "open"))
         return refused(
-          kind === "rebase"
-            ? "Rebase works on an open Teire pull request"
+          kind !== "recreate"
+            ? `${kind === "rebase" ? "Rebase" : "Refresh"} works on an open Teire pull request`
             : "There is no Teire pull request for that",
         );
-      return started(ctx, repo, octokit, group, kind, login);
+      // A refresh is the base-move refresh asked now: the PR re-applied and checked on the current base.
+      return started(ctx, repo, octokit, group, kind === "refresh" ? "rebase" : kind, login);
     }
     case "ignore":
     case "unignore": {
@@ -320,7 +322,7 @@ async function repoAction(
           cancelledBy: login,
           finishedAt: new Date(),
         });
-        await settleRunActions(db, run.id, ["fix", "rebase", "recreate", "retry-run"], {
+        await settleRunActions(db, run.id, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
           status: "refused",
           result: `Cancelled by @${login} before it started`,
         });

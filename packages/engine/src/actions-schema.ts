@@ -20,6 +20,8 @@ export const ACTION_PARAMS: Record<ActionKind, z.ZodObject> = {
   /** A finding (change id, package, provider:name, group key) or an upgrade from "Upgrades available". */
   fix: z.object({ target }),
   rebase: z.object({ group: target }),
+  /** An open Teire PR re-verified on the current base (the daily refresh, asked now). */
+  refresh: z.object({ group: target }),
   recreate: z.object({ group: target }),
   ignore: z.object({ target, update: z.enum(["major", "minor", "patch"]).optional() }),
   unignore: z.object({ target, update: z.enum(["major", "minor", "patch"]).optional() }),

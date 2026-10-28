@@ -1058,7 +1058,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     await appendEvent(db, runId, "queue", "cancelled", {
       reason: "the repository is paused; resume it to fix",
     });
-    await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+    await settleRunActions(db, runId, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
       status: "refused",
       result: "The repository is paused; resume it first",
     });
@@ -1072,7 +1072,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     await appendEvent(db, runId, "queue", "cancelled", {
       reason: fixesOffReply(mode),
     });
-    await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+    await settleRunActions(db, runId, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
       status: "refused",
       result: fixesOffReply(mode),
     });
@@ -1141,7 +1141,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   if (counts.open >= limits.limit || counts.lastHour >= limits.perHour) {
     await update({ status: "queued", step: "waiting for the PR limit", workerId: null });
     await event("queue", "deferred", { open: counts.open, lastHour: counts.lastHour, limits });
-    await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+    await settleRunActions(db, runId, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
       status: "started",
       result: `Waiting for the PR limit (${counts.open} of ${limits.limit} open, ${counts.lastHour} of ${limits.perHour} this hour)`,
     });
@@ -1154,7 +1154,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   if (blocked) {
     await update({ status: "queued", step: "waiting for the model budget", workerId: null });
     await event("queue", "deferred", { reason: blocked });
-    await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+    await settleRunActions(db, runId, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
       status: "started",
       result: `Waiting: ${blocked}`,
     });
@@ -1165,7 +1165,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // A run resumed after a deferral (credits, the updater) starts clean: the old reason is history.
   await update({ status: "running", step: "assess", startedAt: new Date(), error: null });
   // A person's Fix now, Rebase, Recreate or Retry is done once its run has started.
-  await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+  await settleRunActions(db, runId, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
     status: "done",
     result: "Run started",
   });
@@ -1728,7 +1728,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         status: "done",
         result: `Stopped during ${lastStep}; its sandboxes were closed`,
       });
-      await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+      await settleRunActions(db, runId, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
         status: "refused",
         result: stopReason ?? `Cancelled by @${by} before it finished`,
       });

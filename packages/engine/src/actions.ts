@@ -12,6 +12,7 @@ export const ACTION_KINDS = [
   "set-installation-fix-mode",
   "fix",
   "rebase",
+  "refresh",
   "recreate",
   "ignore",
   "unignore",
@@ -80,6 +81,7 @@ export function describeAction(kind: ActionKind, params: Record<string, unknown>
     case "fix":
       return `Fix ${params.target}`;
     case "rebase":
+    case "refresh":
     case "recreate":
       return `${kind[0]?.toUpperCase()}${kind.slice(1)} ${params.group}`;
     case "ignore":

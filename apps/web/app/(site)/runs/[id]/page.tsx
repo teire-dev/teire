@@ -150,6 +150,13 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
           {run.fromVersion ? " → " : ""}
           <span className="font-mono">{run.targetVersion}</span>
         </h1>
+        {run.status === "stopping" ? (
+          // Plan "Cancel is honest": what a stopping run is doing until it has stopped.
+          <p className="text-sm text-running">
+            Stopping: {run.cancelledBy ? `@${run.cancelledBy} asked` : "asked"} during{" "}
+            {run.step ?? "its work"}; its model calls and updater stop and its sandboxes are being closed.
+          </p>
+        ) : null}
         {member ? (
           <div className="flex gap-2">
             {active ? (

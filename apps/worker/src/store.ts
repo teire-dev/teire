@@ -178,7 +178,7 @@ export async function cancelQueued(db: Database, repoIds: number[], reason: stri
     .where(and(inArray(runs.repoId, repoIds), eq(runs.status, "queued"), eq(runs.kind, "fix")))
     .returning({ id: runs.id });
   for (const r of rows)
-    await settleRunActions(db, r.id, ["fix", "rebase", "recreate", "retry-run"], {
+    await settleRunActions(db, r.id, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
       status: "refused",
       result: reason,
     });
