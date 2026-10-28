@@ -74,6 +74,21 @@ describe("agent workspace", () => {
     );
     expect([...named].sort()).toEqual(["src/client.ts", "src/runs.ts"]);
   });
+
+  it("names files from a subfolder project by their repo path, so the agent can edit them", () => {
+    const repo = new Set(["npm-zod/src/intake.ts", "npm-zod/src/schema.ts", "lib/util.ts"]);
+    const named = filesNamed(
+      "src/intake.ts(9,46): error TS2339\nsrc/schema.ts(15,15): error TS2554\n--> lib/util.ts:3:1\n/work/npm-zod/src/a.ts:2:1",
+      "npm-zod",
+      (rel) => repo.has(rel),
+    );
+    expect([...named].sort()).toEqual([
+      "lib/util.ts",
+      "npm-zod/src/a.ts",
+      "npm-zod/src/intake.ts",
+      "npm-zod/src/schema.ts",
+    ]);
+  });
 });
 
 describe("transitive bumps", () => {

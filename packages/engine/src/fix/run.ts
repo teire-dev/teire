@@ -584,7 +584,10 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     // 4. Agent attempts.
     const postCodemod = new Map([...originals.keys()].map((p) => [p, read(p)]));
     const allowed = new Set(
-      [...sites.map((s) => s.file), ...filesNamed(current.text)].filter((f) => !/node_modules/.test(f)),
+      [
+        ...sites.map((s) => s.file),
+        ...filesNamed(current.text, input.project.root, (rel) => existsSync(join(input.repoDir, rel))),
+      ].filter((f) => !/node_modules/.test(f)),
     );
     const attempts: FixAttempt[] = [];
     const agentSteps: AgentStep[] = [];
@@ -650,6 +653,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         prices: input.prices,
         workspace: {
           repoDir: input.repoDir,
+          root: input.project.root,
           allowed,
           changed,
           beforeEdit: remember,
