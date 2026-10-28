@@ -59,6 +59,15 @@ const STRING_NODES: [language: string, kind: string, lang: string][] = [
 ];
 
 const SOURCE_EXT = /\.(?:[cm]?[jt]sx?|py|go|rs|rb|java|kt|kts)$/;
+const LANG_BY_EXT: [RegExp, string][] = [
+  [/\.[cm]?tsx?$/, "ts"],
+  [/\.[cm]?jsx?$/, "js"],
+  [/\.py$/, "py"],
+  [/\.go$/, "go"],
+  [/\.rs$/, "rust"],
+  [/\.rb$/, "ruby"],
+  [/\.(?:java|kts?)$/, "jvm"],
+];
 const CONFIG_FILE = /(?:^|\/)(?:\.env(?:\.[\w-]+)?|[^/]+\.(?:ya?ml|toml|json|ini|cfg|properties))$/;
 const SKIP_DIR =
   /(?:^|\/)(?:node_modules|vendor|dist|build|target|\.venv|venv|__pycache__|\.git|coverage|\.next|\.turbo)\//;
@@ -91,8 +100,13 @@ export function sourceContext(before: string): LiteralContext {
     )
   )
     return "llm-call-arg";
-  // a model-named variable, constant or env default: `CHAT_MODEL = os.getenv("CHAT_MODEL", "…")`
-  if (/\b\w*model\w*\b[^=]*?(?::?=|=>)\s*(?:.*?(?:\?\?|\|\||\bor\b|,)\s*)?$/i.test(prefix))
+  // a model-named variable, constant or env default: `CHAT_MODEL = os.getenv("CHAT_MODEL", "…")`,
+  // Rust's `env::var("MODEL").unwrap_or_else(|_| "…"`, Java's `Optional….orElse("…"`
+  if (
+    /\b\w*model\w*\b[^=]*?(?::?=|=>)\s*(?:.*?(?:\?\?|\|\||\bor\b|,|\bunwrap_or(?:_else)?\(\s*(?:\|[^|]*\|)?|\.orElse(?:Get)?\(\s*(?:\(\)\s*->)?)\s*)?$/i.test(
+      prefix,
+    )
+  )
     return "model-variable";
   return "other";
 }
@@ -206,6 +220,44 @@ export async function locateLiterals(input: {
             kind: "model",
             lang: "config",
             context: configContext(line, match.index ?? 0),
+            snippet: line.trim().slice(0, 200),
+          });
+        }
+      });
+    }
+  }
+  // Config embedded in source: a default config written from a template (a Go raw string of TOML, a
+  // Python triple-quoted YAML) names the ID under a model key without it being a literal of its own.
+  if (ids.length) {
+    const keyed = new RegExp(
+      `model\\w*["']?\\s*[:=]\\s*["']?((?:${ids.map(escapeRegex).join("|")}))(?![\\w./-])`,
+      "gi",
+    );
+    const seen = new Set(hits.map((h) => `${h.file}:${h.line}:${h.value}`));
+    for (const file of files.filter((f) => SOURCE_EXT.test(f))) {
+      let text: string;
+      try {
+        text = readFileSync(join(input.repoDir, file), "utf8");
+      } catch {
+        continue;
+      }
+      if (text.length > LITERALS.maxConfigBytes) continue;
+      const lang = LANG_BY_EXT.find(([re]) => re.test(file))?.[1] ?? "source";
+      text.split("\n").forEach((line, i) => {
+        for (const match of line.matchAll(keyed)) {
+          const value = match[1] ?? "";
+          // The key is matched in any case (`MODEL=`, `Model:`); the ID only exactly.
+          if (!input.modelIds.has(value) || seen.has(`${file}:${i + 1}:${value}`)) continue;
+          seen.add(`${file}:${i + 1}:${value}`);
+          languages.add(lang);
+          hits.push({
+            file,
+            line: i + 1,
+            column: (match.index ?? 0) + match[0].length - value.length,
+            value,
+            kind: "model",
+            lang,
+            context: "config",
             snippet: line.trim().slice(0, 200),
           });
         }

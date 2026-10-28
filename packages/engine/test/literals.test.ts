@@ -26,8 +26,36 @@ describe("what the text before a literal says", () => {
     expect(sourceContext('const m = google.languageModel("')).toBe("llm-call-arg");
     expect(sourceContext('const CHAT_MODEL = process.env.CHAT_MODEL ?? "')).toBe("model-variable");
     expect(sourceContext('DEFAULT_MODEL_ID = os.environ.get("X", "')).toBe("model-variable");
+    expect(sourceContext('let model = env::var("RIZZLER_OPENAI_MODEL").unwrap_or_else(|_| "')).toBe(
+      "model-variable",
+    );
+    expect(sourceContext('String model = Optional.ofNullable(System.getenv("MODEL")).orElse("')).toBe(
+      "model-variable",
+    );
     expect(sourceContext('export const label = "')).toBe("other");
     expect(sourceContext('fmt.Println(req, url, "')).toBe("other");
+  });
+});
+
+describe("config embedded in source", () => {
+  it("finds an ID under a model key inside a template string, once", async () => {
+    const repoDir = mkdtempSync(join(tmpdir(), "teire-embedded-"));
+    mkdirSync(join(repoDir, "pkg"), { recursive: true });
+    writeFileSync(
+      join(repoDir, "pkg/config.go"),
+      'package config\n\nconst defaultConfig = `\n[gemini]\nmodel = "gemini-2.0-flash"\n`\n\nfunc d() string { return "gemini-2.0-flash" }\n',
+    );
+    const scan = await locateLiterals({
+      repoDir,
+      tree: directoryTree(repoDir),
+      modelIds: new Set(["gemini-2.0-flash"]),
+    });
+    const hits = scan.hits.filter((h) => h.kind === "model");
+    expect(hits.map((h) => [h.line, h.context])).toEqual([
+      [5, "config"],
+      [8, "other"],
+    ]);
+    expect(hits[0]?.column).toBe(9);
   });
 });
 
