@@ -63,7 +63,14 @@ export interface RunSheetData {
     createdAt: string;
   };
   repo: { fullName: string; isPrivate: boolean };
-  artifact: { kind: string; number: number | null; url: string | null; state: string } | null;
+  /** `runId`: the run whose evidence the PR carries now (a re-verify takes it over). */
+  artifact: {
+    kind: string;
+    number: number | null;
+    url: string | null;
+    state: string;
+    runId: string | null;
+  } | null;
   verification: {
     baseline?: SheetCheck[];
     after?: SheetCheck[];
@@ -191,7 +198,13 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
     },
     repo: { fullName: repo.fullName, isPrivate: repo.isPrivate },
     artifact: artifact
-      ? { kind: artifact.kind, number: artifact.number, url: artifact.url, state: artifact.state }
+      ? {
+          kind: artifact.kind,
+          number: artifact.number,
+          url: artifact.url,
+          state: artifact.state,
+          runId: artifact.runId,
+        }
       : null,
     verification: (run.verification as RunSheetData["verification"]) ?? null,
     events: events.map((e) => ({

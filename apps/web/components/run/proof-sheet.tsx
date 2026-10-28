@@ -107,6 +107,14 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const tokens = sheet.calls.reduce((n, c) => n + c.tokensIn + c.tokensOut, 0);
   const context = contextOf(sheet);
   const dry = run.kind === "dry_run";
+  // Under Off a base move leaves the PR as it was (D125): its evidence is from an older base until
+  // a re-verify (which then holds the PR) checks it again.
+  const stale =
+    artifact?.kind === "pr" && artifact.state === "open" && artifact.runId === run.id
+      ? (sheet.events.findLast((e) => e.step === "pr" && e.type === "stale-evidence")?.payload as
+          | { base?: string; reason?: string }
+          | undefined)
+      : undefined;
   const stopping = [...sheet.events].reverse().find((e) => e.step === "run" && e.type === "stopping")
     ?.payload as { during?: string; doing?: string | null } | undefined;
 
@@ -212,6 +220,19 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
           {stopping?.doing ? <span className="font-mono text-xs"> ({stopping.doing})</span> : null}. Its model
           calls, updater job and sandbox commands are being stopped; this takes up to 30 seconds.
         </p>
+      ) : stale ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-attention-soft px-4 py-3 text-sm text-attention">
+          <p>
+            Evidence is from an older base: the base branch moved
+            {stale.base ? <span className="font-mono text-xs"> ({stale.base})</span> : null} while fixes are
+            off. Re-verify checks this pull request again as it stands.
+          </p>
+          {sheet.member ? (
+            <ActionButton kind="reverify-run" params={{ runId: run.id }} repo={repo.fullName}>
+              Re-verify
+            </ActionButton>
+          ) : null}
+        </div>
       ) : run.error ? (
         <p className="rounded-lg bg-broke-soft px-4 py-3 font-mono text-xs text-broke">{run.error}</p>
       ) : null}

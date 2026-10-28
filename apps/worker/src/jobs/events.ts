@@ -188,9 +188,15 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
             owner,
             repo: name,
             issue_number: a.number,
-            body: `The base branch moved (\`${String(p.after ?? "").slice(0, 7)}\`), so this PR's evidence is from an older base. Teire doesn't refresh it while fixes are off: ${fixesOffReply(mode)}`,
+            body: `The base branch moved (\`${String(p.after ?? "").slice(0, 7)}\`), so this PR's evidence is from an older base. Teire doesn't refresh it while fixes are off: ${fixesOffReply(mode)} \`@teire reverify\` checks it again as it stands.`,
           })
           .catch(() => undefined);
+        // The run behind the PR says so on its page, until a newer run (a re-verify) holds the PR.
+        if (a.runId)
+          await appendEvent(db, a.runId, "pr", "stale-evidence", {
+            base: String(p.after ?? "").slice(0, 7),
+            reason: fixesOffReply(mode),
+          }).catch(() => undefined);
       }
       return;
     }
