@@ -4,11 +4,13 @@ description: Every installed repository in one place, in the web app and as a Te
 icon: LayoutDashboard
 ---
 
-There are two dashboards. The web one at [/app](/app) covers every repository you can see. The **Teire Dashboard** issue lives inside each repository on GitHub. Both show the same findings, and both can start most actions: the issue adds Rebase, and the web adds Pause, Resume and Ignore.
+There are two dashboards. The web one at [/app](/app) covers every repository you can see. The **Teire Dashboard** issue lives inside each repository on GitHub. Both show the same findings, and both can start most actions: the issue adds Rebase, and the web adds Pause, Resume, Ignore, the fix mode, Cancel and Retry.
 
 ## The web dashboard
 
 Sign in with GitHub. When you sign in, Teire asks GitHub which installations you can see and shows only those repositories. If you install Teire somewhere new, sign out and in again so it shows up.
+
+The sidebar holds the installation switcher (the account whose repositories you're looking at, and **Add an account on GitHub**), Overview, Repositories and Settings, and that installation's repositories. A blue dot marks a repository Teire is working on right now. Press <kbd>⌘K</kbd> (<kbd>Ctrl K</kbd>) to jump to a page or a repository, act on the repository you're on (each action asks once), or search these docs.
 
 <Tabs items={["Overview", "Repositories", "A repository", "Settings"]}>
 <Tab value="Overview">
@@ -64,12 +66,19 @@ A repository page has five tabs:
 | **Pull requests** | Teire's PRs, its "needs a human" issues and the onboarding PR, with their state |
 | **Runs** | The latest 25 runs with their evidence and cost |
 | **Config** | The resolved `teire.yml`: key, value, and whether it came from the repository, the organisation or the defaults |
+| **Activity** | Every action on the repository, from this page, a comment or the Dashboard issue: who, what Teire answered, and the run or PR it produced |
+
+Above the tabs, **Fixes** sets the repository's fix mode: **Automatic**, **Ask first** or **Off** (see [`fix-mode`](/docs/guide/commands)). It always shows the mode in force and where it was set. When `fixes:` in `.github/teire.yml` sets it, the control is locked and says so. Under Ask first and Off, the Findings tab lists **Upgrades available**: what Automatic would have started, each with **Upgrade** (Ask first) or none (Off).
 
 ### Buttons
 
-**Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore** and **Unignore** work like their [`@teire` commands](/docs/guide/commands). The page shows "Queued", then the result once the worker has done it.
+**Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore**, **Unignore** and the fix mode work like their [`@teire` commands](/docs/guide/commands). A message in the corner follows each one to what actually happened: "Rescan finished: 3 changes reach your code", "Refused: you need write access", or the run it started, with **Undo** where it can be undone (pause, ignore, a fix-mode change). A repository's **Activity** tab keeps every outcome.
 
-The same rule applies as for a comment: you must have write access to the repository on GitHub. **Ignore** also closes that change's open PR.
+The same rule applies as for a comment: Teire checks with GitHub, when it acts, that you have write access to the repository. **Ignore** also closes that change's open PR.
+
+**Repositories** has **Set fix mode…** for every repository the list shows, with each repository's own result. **Settings** has each installation's default fix mode and whether security fixes start on their own; only an admin of the organisation (or the account's owner) can change them, and Teire checks that on GitHub.
+
+A run page has **Cancel** while the run works: within seconds the model calls and the updater stop and its sandboxes are closed, and nothing is published after it. A cancel that arrives after the PR opened says it came too late. A failed or cancelled run has **Retry**.
 
 ## The Teire Dashboard issue
 
@@ -77,10 +86,11 @@ Once a repository is active, Teire keeps one issue named **Teire Dashboard** up 
 
 | Section | Content | Tick the box to |
 |---|---|---|
-| Header | The last scan's commit and time, whether the repo is paused, a link to Teire | **Rescan now** |
+| Header | The last scan's commit and time, whether the repo is paused, the fix mode in force and where it was set, a link to Teire | **Rescan now** |
 | Upcoming deadlines | Each dated change, with its PR or verdict | |
 | Affected | Each change with no PR yet: title, sites, priority | **Fix now** |
 | Decided in the sandbox | Upgrades where some references could not be resolved, so the code alone doesn't settle them; the upgrade's run checks the repo before and after | **Upgrade and check** |
+| Upgrades available | Under Ask first and Off: what Automatic would have started | **Upgrade** (Ask first) |
 | Open PRs | Each Teire PR | **Rebase** |
 | Needs a human | Links to Teire's issues | |
 | Not affected, Not applicable | Collapsed lists with the reason for each; "not affected" only when every reference was resolved | |
