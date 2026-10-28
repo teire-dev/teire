@@ -41,7 +41,7 @@ const args = process.argv.slice(2);
 const fixName = args.find((a) => a.startsWith("--fix="))?.slice("--fix=".length);
 const fixApi = args.find((a) => a.startsWith("--fix-api="))?.slice("--fix-api=".length);
 const api = args.includes("--api") || !!fixApi;
-const [slug = "teire-dev/demo-py-major"] = args.filter((a) => !a.startsWith("--"));
+const [slug = "teire-dev/examples"] = args.filter((a) => !a.startsWith("--"));
 const [owner, repo] = slug.split("/") as [string, string];
 const options = { cache: memoryCache(), githubToken: process.env.GITHUB_TOKEN };
 const log = (...parts: unknown[]) => console.log(...parts);

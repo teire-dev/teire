@@ -39,7 +39,7 @@ const args = process.argv.slice(2);
 const verify = args.includes("--verify");
 const fix = args.includes("--fix");
 const onlyPackage = args.find((a) => a.startsWith("--package="))?.slice("--package=".length);
-const [slug = "teire-dev/demo-npm-major", ref = "main"] = args.filter((a) => !a.startsWith("--"));
+const [slug = "teire-dev/examples", ref = "main"] = args.filter((a) => !a.startsWith("--"));
 const [owner, repo] = slug.split("/") as [string, string];
 const options = { cache: memoryCache() };
 const log = (...parts: unknown[]) => console.log(...parts);

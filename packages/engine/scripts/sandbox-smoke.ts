@@ -1,6 +1,6 @@
 /**
  * Proves the Cloudflare sandbox before anything depends on it (plan S02a task 1), on the real
- * demo repo `teire-dev/demo-npm-major`:
+ * example `teire-dev/examples/npm-major`:
  *   1. start (cold) + repo tarball through the egress intercept
  *   2. baseline install with registry-only egress; a POST is denied and logged
  *   3. check phase: a live API call is denied with the marker and logged
@@ -12,7 +12,9 @@
  */
 import { CloudflareSandbox, sandboxConfigFromEnv } from "../src/verify/cloudflare";
 
-const REPO_TARBALL = "https://api.github.com/repos/teire-dev/demo-npm-major/tarball/main";
+const REPO_TARBALL = "https://api.github.com/repos/teire-dev/examples/tarball/main";
+/** The example's folder inside the examples repository's checkout. */
+const WORK = "/work/npm-major";
 const UPGRADE_TO = "openai@7.43.0";
 
 const config = sandboxConfigFromEnv();
@@ -77,7 +79,7 @@ try {
     tail: install.stdout.trim().split("\n").slice(-1)[0],
   });
 
-  const audit = await sandbox.exec(["npm", "audit", "--json"], { cwd: "/work", timeoutSec: 60 });
+  const audit = await sandbox.exec(["npm", "audit", "--json"], { cwd: WORK, timeoutSec: 60 });
   report("install-phase-post-denied", { exitCode: audit.exitCode, ms: audit.ms });
 
   await sandbox.setPhase("check");
@@ -133,7 +135,7 @@ try {
   second = new CloudflareSandbox(config, `smoke-${run}-restore`);
   const t1 = Date.now();
   const restored = await second.start({ instance: "standard-2", snapshotId: snap.id });
-  const probe = await second.exec(["bash", "-c", "ls /work/node_modules | wc -l; node -v"], {
+  const probe = await second.exec(["bash", "-c", "ls /work/npm-major/node_modules | wc -l; node -v"], {
     timeoutSec: 30,
   });
   report("start-from-snapshot", {

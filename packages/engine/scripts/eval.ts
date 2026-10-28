@@ -7,7 +7,12 @@
  * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/eval.ts --out=<file> [--case=<slug>] [--models=ultra,super]
  */
 import { appendFileSync } from "node:fs";
-import { directoryTree, fetchRepoTarball } from "../src/inventory";
+import { directoryTree, fetchRepoTarball, scopedTree } from "../src/inventory";
+
+/** A case's tree: the whole checkout, narrowed to its folder when the slug names one (`owner/repo/folder`). */
+const treeOf = (dir: string, sub: string) =>
+  sub ? scopedTree(directoryTree(dir), { paths: [`${sub}/**`], ignorePaths: [] }) : directoryTree(dir);
+
 import type { JvmProject } from "../src/inventory/jvm";
 import type { PyProject } from "../src/inventory/python";
 import type { RubyProject } from "../src/inventory/ruby";
@@ -45,45 +50,45 @@ interface Case {
 
 /** S03's npm and PyPI cases, then S10's: one major per ecosystem plus a false-positive check each. */
 const CASES: Case[] = [
-  { slug: "teire-dev/demo-npm-major", ecosystem: "npm", name: "openai", expect: "affected" },
-  { slug: "teire-dev/demo-npm-zod", ecosystem: "npm", name: "zod", expect: "affected" },
-  { slug: "teire-dev/demo-py-major", ecosystem: "pypi", name: "anthropic", expect: "affected" },
-  { slug: "teire-dev/demo-py-openai", ecosystem: "pypi", name: "openai", expect: "affected" },
-  { slug: "teire-dev/demo-py-httpx", ecosystem: "pypi", name: "httpx", expect: "affected" },
-  { slug: "teire-dev/demo-py-pydantic", ecosystem: "pypi", name: "pydantic", expect: "affected" },
+  { slug: "teire-dev/examples/npm-major", ecosystem: "npm", name: "openai", expect: "affected" },
+  { slug: "teire-dev/examples/npm-zod", ecosystem: "npm", name: "zod", expect: "affected" },
+  { slug: "teire-dev/examples/py-major", ecosystem: "pypi", name: "anthropic", expect: "affected" },
+  { slug: "teire-dev/examples/py-openai", ecosystem: "pypi", name: "openai", expect: "affected" },
+  { slug: "teire-dev/examples/py-httpx", ecosystem: "pypi", name: "httpx", expect: "affected" },
+  { slug: "teire-dev/examples/py-pydantic", ecosystem: "pypi", name: "pydantic", expect: "affected" },
   {
-    slug: "teire-dev/demo-go-major",
+    slug: "teire-dev/examples/go-major",
     ecosystem: "go",
     name: "github.com/golang-jwt/jwt/v4",
     expect: "affected",
   },
-  { slug: "teire-dev/demo-rust-major", ecosystem: "cargo", name: "rand", expect: "affected" },
-  { slug: "teire-dev/demo-ruby-major", ecosystem: "rubygems", name: "faraday", expect: "affected" },
-  { slug: "teire-dev/demo-rails-db", ecosystem: "rubygems", name: "faraday", expect: "affected" },
+  { slug: "teire-dev/examples/rust-major", ecosystem: "cargo", name: "rand", expect: "affected" },
+  { slug: "teire-dev/examples/ruby-major", ecosystem: "rubygems", name: "faraday", expect: "affected" },
+  { slug: "teire-dev/examples/rails-db", ecosystem: "rubygems", name: "faraday", expect: "affected" },
   {
-    slug: "teire-dev/demo-jvm-major",
+    slug: "teire-dev/examples/jvm-major",
     ecosystem: "maven",
     name: "com.google.guava:guava",
     expect: "affected",
   },
   {
-    slug: "teire-dev/demo-kotlin-major",
+    slug: "teire-dev/examples/kotlin-major",
     ecosystem: "maven",
     name: "com.squareup.okhttp3:okhttp",
     expect: "affected",
   },
-  { slug: "teire-dev/demo-clean", ecosystem: "npm", name: "openai", expect: "not_affected" },
-  { slug: "teire-dev/demo-py-clean", ecosystem: "pypi", name: "httpx", expect: "not_affected" },
+  { slug: "teire-dev/examples/clean", ecosystem: "npm", name: "openai", expect: "not_affected" },
+  { slug: "teire-dev/examples/py-clean", ecosystem: "pypi", name: "httpx", expect: "not_affected" },
   {
-    slug: "teire-dev/demo-go-clean",
+    slug: "teire-dev/examples/go-clean",
     ecosystem: "go",
     name: "github.com/golang-jwt/jwt/v4",
     expect: "not_affected",
   },
-  { slug: "teire-dev/demo-rust-clean", ecosystem: "cargo", name: "thiserror", expect: "not_affected" },
-  { slug: "teire-dev/demo-ruby-clean", ecosystem: "rubygems", name: "faraday", expect: "not_affected" },
+  { slug: "teire-dev/examples/rust-clean", ecosystem: "cargo", name: "thiserror", expect: "not_affected" },
+  { slug: "teire-dev/examples/ruby-clean", ecosystem: "rubygems", name: "faraday", expect: "not_affected" },
   {
-    slug: "teire-dev/demo-jvm-clean",
+    slug: "teire-dev/examples/jvm-clean",
     ecosystem: "maven",
     name: "com.google.guava:guava",
     expect: "not_affected",
@@ -92,10 +97,10 @@ const CASES: Case[] = [
 
 /** Provider changes (retired models): no package moves; the agent adapts the code around the swap. */
 const API_CASES: { slug: string; group: string }[] = [
-  { slug: "teire-dev/demo-py-agent", group: "models/nebius-token-factory" },
-  { slug: "teire-dev/demo-ai-web", group: "models/openai" },
+  { slug: "teire-dev/examples/py-agent", group: "models/nebius-token-factory" },
+  { slug: "teire-dev/examples/ai-web", group: "models/openai" },
   // Groq has no hand-written reader: discovery names it after its domain (`groq-com`).
-  { slug: "teire-dev/demo-wrapped-models", group: "models/groq-com" },
+  { slug: "teire-dev/examples/wrapped-models", group: "models/groq-com" },
 ];
 
 const args = process.argv.slice(2);
@@ -117,7 +122,8 @@ const counts = (side: SideResult) =>
 
 const wanted = only?.split(",") ?? [];
 for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.endsWith(w)))) {
-  const [owner, repo] = c.slug.split("/") as [string, string];
+  const [owner = "", repo = "", ...rest] = c.slug.split("/");
+  const sub = rest.join("/");
   try {
     const options = {
       cache: memoryCache(),
@@ -131,7 +137,7 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
       "main",
       process.env.GITHUB_TOKEN ? { token: process.env.GITHUB_TOKEN } : {},
     );
-    const tree = directoryTree(checkout.dir);
+    const tree = treeOf(checkout.dir, sub);
     const t0 = Date.now();
     const assessed =
       c.ecosystem === "npm"
@@ -205,7 +211,7 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
           "main",
           process.env.GITHUB_TOKEN ? { token: process.env.GITHUB_TOKEN } : {},
         );
-        const input = { ...common, repoDir: fresh.dir, tree: directoryTree(fresh.dir) };
+        const input = { ...common, repoDir: fresh.dir, tree: treeOf(fresh.dir, sub) };
         const result =
           c.ecosystem === "pypi"
             ? await fixPyDependency({ ...input, assessment: a as unknown as Assessment<PyProject> })
@@ -281,12 +287,13 @@ for (const c of CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.
 const reader = { tf: createTokenFactory(tokenFactoryConfigFromEnv()), prices: await fetchModelPrices() };
 const providerChanges = liveProviderChanges({ reader });
 for (const c of API_CASES.filter((x) => !wanted.length || wanted.some((w) => x.slug.endsWith(w)))) {
-  const [owner, repo] = c.slug.split("/") as [string, string];
+  const [owner = "", repo = "", ...rest] = c.slug.split("/");
+  const sub = rest.join("/");
   try {
     const token = process.env.GITHUB_TOKEN ? { token: process.env.GITHUB_TOKEN } : {};
     const checkout = await fetchRepoTarball(owner, repo, "main", token);
     const t0 = Date.now();
-    const tree = directoryTree(checkout.dir);
+    const tree = treeOf(checkout.dir, sub);
     const {
       scan,
       findings,
@@ -326,9 +333,9 @@ for (const c of API_CASES.filter((x) => !wanted.length || wanted.some((w) => x.s
           prices,
           backend,
           backendNote: note,
-          runId: `eval-${repo}-${m}-${Date.now().toString(36)}`,
+          runId: `eval-${sub || repo}-${m}-${Date.now().toString(36)}`,
           repoDir: fresh.dir,
-          tree: directoryTree(fresh.dir),
+          tree: treeOf(fresh.dir, sub),
           repo: { owner, repo, baseSha: fresh.sha ?? "main" },
           tarball: { url: `https://api.github.com/repos/${owner}/${repo}/tarball/${fresh.sha ?? "main"}` },
           options: { cache: memoryCache() },

@@ -12,13 +12,13 @@ Teire watches every dependency and API your repository uses. That covers six pac
   name="model-retirement"
   width={1568}
   height={474}
-  alt="Sequence: Teire scans teire-dev/demo-wrapped-models, finds Groq's deprecations page, has Nemotron read it with verbatim quotes, traces the wrapped model IDs to the request, swaps the one with a single named replacement and has Nemotron choose between two for the other, verifies 0/4 → 4/4 tests in the sandbox, and composes the ready PR it would open."
+  alt="Sequence: Teire scans teire-dev/examples/wrapped-models, finds Groq's deprecations page, has Nemotron read it with verbatim quotes, traces the wrapped model IDs to the request, swaps the one with a single named replacement and has Nemotron choose between two for the other, verifies 0/4 → 4/4 tests in the sandbox, and composes the ready PR it would open."
   caption="A real evaluation run, numbered in order; installed, the last step opens the PR. Groq shut down two Llama models on 2026-08-16. The repository keeps both IDs in a tier registry, not in a model: argument."
 />
 
 ## One change, end to end
 
-The run above is from Teire's evaluation, on [teire-dev/demo-wrapped-models](https://github.com/teire-dev/demo-wrapped-models).
+The run above is from Teire's evaluation, on [teire-dev/examples/wrapped-models](https://github.com/teire-dev/examples/tree/main/wrapped-models).
 
 <Steps>
 <Step>
@@ -50,7 +50,7 @@ The run above is from Teire's evaluation, on [teire-dev/demo-wrapped-models](htt
 
 <Shot
   name="report-wrapped-models"
-  alt="Public report for teire-dev/demo-wrapped-models: 2 changes reaching this code, the Llama shutdown with its two lines in src/models.ts, a Dry-run a fix button, and a Node.js 20 end-of-life notice."
+  alt="Public report for teire-dev/examples/wrapped-models: 2 changes reaching this code, the Llama shutdown with its two lines in src/models.ts, a Dry-run a fix button, and a Node.js 20 end-of-life notice."
   caption="The same repository as a public scan: the two registry lines, the deadline, and a button to dry-run the fix."
 />
 

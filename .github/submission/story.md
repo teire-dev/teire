@@ -32,7 +32,7 @@ For each change that reaches the code, Teire:
 
 When Teire can't prove a fix, it says so: a draft with the reason, or an issue for a person.
 
-**A real run.** Groq shut down two Llama models on 2026-08-16, and `teire-dev/demo-wrapped-models` keeps both IDs in a tier registry, not in a `model:` argument.
+**A real run.** Groq shut down two Llama models on 2026-08-16, and `teire-dev/examples/wrapped-models` keeps both IDs in a tier registry, not in a `model:` argument.
 
 1. Teire found Groq through the installed `groq-sdk`. Groq's `llms.txt` and a Tavily search led to its deprecations page.
 2. Nemotron read the page. Code kept each record only because its quote appears word for word on the page.

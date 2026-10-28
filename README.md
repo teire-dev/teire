@@ -65,7 +65,7 @@ Your job becomes reviewing a pull request. When Teire can't prove the fix, it sa
 
 ### One change, end to end
 
-Groq shut down `llama-3.1-8b-instant` and `llama-3.3-70b-versatile` on 2026-08-16. [teire-dev/demo-wrapped-models](https://github.com/teire-dev/demo-wrapped-models) keeps both IDs in a tier registry, not in a `model:` argument, so a text search can't tell whether they reach a request.
+Groq shut down `llama-3.1-8b-instant` and `llama-3.3-70b-versatile` on 2026-08-16. [teire-dev/examples/wrapped-models](https://github.com/teire-dev/examples/tree/main/wrapped-models) keeps both IDs in a tier registry, not in a `model:` argument, so a text search can't tell whether they reach a request.
 
 <p align="center">
   <a href="https://teire.vercel.app/docs/guide">
@@ -85,7 +85,7 @@ Groq shut down `llama-3.1-8b-instant` and `llama-3.3-70b-versatile` on 2026-08-1
 5. **Pull request.** Evidence `verified` means a ready PR that opens with **Verified.** This run is from Teire's evaluation, through the same code path an installed repository takes; PRs on real installed repositories are linked under Proof as they open.
 
 <p align="center">
-  <img src=".github/assets/captures/report-wrapped-models-desktop.png" width="960" alt="Public report for teire-dev/demo-wrapped-models: 2 changes reaching this code, the Llama shutdown on 2026-08-16 at src/models.ts:7 and :9 with a Dry-run a fix button, and a Node.js 20 end-of-life notice." />
+  <img src=".github/assets/captures/report-wrapped-models-desktop.png" width="960" alt="Public report for teire-dev/examples/wrapped-models: 2 changes reaching this code, the Llama shutdown on 2026-08-16 at src/models.ts:7 and :9 with a Dry-run a fix button, and a Node.js 20 end-of-life notice." />
 </p>
 
 Every model fix and every package fix follows the same loop. The [Go major](https://teire.vercel.app/docs/guide/anatomy-of-a-pr) (`golang-jwt/jwt` v4 → v5) is a second worked example: the agent moved `StandardClaims` to `RegisteredClaims` and the expiry check to `errors.Is(err, jwt.ErrTokenExpired)`, then verified 4/4 for $0.181.
@@ -100,7 +100,7 @@ Every model fix and every package fix follows the same loop. The [Go major](http
 
 Follow the proof yourself on [teire.vercel.app](https://teire.vercel.app):
 
-1. **Scan.** On [/scan](https://teire.vercel.app/scan), sign in with GitHub and paste `teire-dev/demo-ai-web`. In a few minutes the report shows OpenAI's `gpt-4.1-nano` shutdown reaching `src/summarize.ts:13`.
+1. **Scan.** On [/scan](https://teire.vercel.app/scan), sign in with GitHub and paste `teire-dev/examples`. In a few minutes the report shows every example's findings; among them, OpenAI's `gpt-4.1-nano` shutdown reaching `ai-web/src/summarize.ts:13`.
 2. **Dry-run the fix.** Press **Dry-run a fix**. The run page shows each step live: the swap, then your checks in two sandboxes. Nothing is written to GitHub.
 3. **Read the PR.** The **The PR** tab is the pull request Teire would open. **Verification** and **Receipt** show the before/after results and every model call.
 4. **Watch it run.** [/trust](https://teire.vercel.app/trust) shows the worker's live heartbeat, Token Factory credits, which Nemotron model is answering, and the spend.

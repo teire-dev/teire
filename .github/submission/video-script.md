@@ -26,7 +26,7 @@ own tests run before and after, and you get a pull request with the proof.
 Let me show you, from the start.
 
 4 · SCAN A REPO · 0:52
-   [Scan a public repo → Sign in with GitHub → paste teire-dev/demo-go-major → the report]
+   [Scan a public repo → Sign in with GitHub → paste teire-dev/examples → the report → the golang-jwt v4 → v5 group]
 
 I sign in with GitHub — no access to my repos needed — and paste a Go service. Here's the report: golang-jwt
 version five removes thirty-four APIs, and four of my lines use them, found by type, not by guessing. Plus two
@@ -75,6 +75,6 @@ changes, Teire fixes your code.
 ---
 Have ready
 - Signed in on teire.vercel.app with your own GitHub account; one dry run per person per day, so record part 5 in one take, or scan and dry-run first and cut the waiting.
-- For part 6, install teire-bot on teire-dev/demo-ai-web beforehand and merge Configure Teire, so a real Teire PR, the Dashboard issue and an @teire reply exist on GitHub.
+- For part 6, install teire-bot on teire-dev/examples/ai-web beforehand and merge Configure Teire, so a real Teire PR, the Dashboard issue and an @teire reply exist on GitHub.
 - The Groq beat and the Nemotron trace are in the docs (Teire / Introduction) if you'd rather not scan a second repo live.
 - Fill in the X handle in part 8 (Teire has no X account yet); cut part 8's X line if you don't make one.

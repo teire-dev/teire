@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 
 /**
  * A real Teire pull request, drawn as product UI (signature move: the receipt). Content from the
- * verified run on teire-dev/demo-ai-web (context/11-build-notes/s04-status.md): OpenAI shut
+ * verified run on teire-dev/examples/ai-web (context/11-build-notes/s04-status.md): OpenAI shut
  * gpt-4.1-nano down on 2026-10-23; the swap to the provider's named replacement passed the repo's
  * own checks, tests 1/3 on the baseline and 3/3 after.
  */
@@ -23,7 +23,7 @@ export function ExamplePr() {
             Replace retired model gpt-4.1-nano with gpt-5.6-luna
           </p>
           <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-            teire-dev/demo-ai-web · teire/models/openai
+            teire-dev/examples/ai-web · teire/models/openai
           </p>
         </div>
         <Badge variant="clear" className="font-mono">
