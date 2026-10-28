@@ -6,14 +6,34 @@
 @import "fumadocs-ui/css/preset.css";
 
 /*
- * Teire tokens (context/11-build-notes/s11-design-ledger.md): the Vercel "schematic" direction,
- * Linear's dark surface ladder, and status colours that appear only on data (verdicts, step
- * states, diffs, pass/fail). `--link` is the one accent: links, focus, the active nav item and
- * the selected tab. shadcn's `accent` stays what shadcn means by it: a hover fill.
+ * Teire tokens (plan revision 3.3, "The revamp"; design note context/13-design/u0-design-note.md).
+ * The page is a desk (canvas) with flat sheets on it, held by 1px rules, never shadows; shadows are
+ * for floating layers only. Colour carries meaning only:
+ *   signal    Teire is acting: a live run, progress, the assistant, the focus ring. Never a CTA fill.
+ *   proven    verified evidence;   attention  a draft, a person needed, a deadline;
+ *   broke     a regression or failure.
+ * Primary actions are ink. shadcn's and the earlier status names alias onto these, so every page
+ * keeps working while it is rebuilt.
  */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-canvas: var(--canvas);
+  --color-sheet: var(--sheet);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-proven: var(--proven);
+  --color-proven-soft: var(--proven-soft);
+  --color-attention: var(--attention);
+  --color-attention-soft: var(--attention-soft);
+  --color-broke: var(--broke);
+  --color-broke-soft: var(--broke-soft);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -42,6 +62,14 @@
   --color-clear-soft: var(--clear-soft);
   --color-running: var(--running);
   --color-running-soft: var(--running-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);
@@ -54,7 +82,9 @@
   --radius-4xl: calc(var(--radius) * 4);
   --shadow-card: var(--card-shadow);
   --shadow-card-hover: var(--card-shadow-hover);
+  --shadow-float: var(--float-shadow);
   --animate-enter: enter 200ms ease-out both;
+  --animate-live: live 1.6s ease-out infinite;
 }
 
 @keyframes enter {
@@ -64,86 +94,113 @@
   }
 }
 
-:root {
+/* The live dot's ring: Teire is working right now. */
+@keyframes live {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--signal) 45%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--signal) 0%, transparent);
+  }
+}
+
+:root,
+.light {
+  /* 6px controls; sheets 8px (radius-lg); floating layers 12px (radius-xl). `.light` pins a region light. */
   --radius: 0.375rem;
-  --background: #fafafa;
-  --foreground: #171717;
-  --card: #ffffff;
-  --card-foreground: #171717;
-  --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #171717;
-  --primary-foreground: #ffffff;
-  --secondary: #f2f2f2;
-  --secondary-foreground: #171717;
-  --muted: #f2f2f2;
-  --muted-foreground: #666666;
-  --subtle: #4d4d4d;
-  --accent: #f2f2f2;
-  --accent-foreground: #171717;
-  --destructive: #ce2c31;
-  --border: #ebebeb;
-  --input: #e3e3e3;
-  --ring: #0070f3;
-  --link: #0068d6;
-  --affected: #ce2c31;
-  --affected-soft: #feebec;
-  --human: #ab6400;
-  --human-soft: #fff7c2;
-  --clear: #218358;
-  --clear-soft: #e6f6eb;
-  --running: #0d74ce;
-  --running-soft: #e6f4fe;
-  --sidebar: var(--background);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-border: var(--border);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--accent-foreground);
-  --sidebar-ring: var(--ring);
-  --sidebar-primary-foreground: var(--primary-foreground);
-  --card-shadow: 0 0 0 1px rgb(0 0 0 / 0.08), 0 2px 2px 0 rgb(0 0 0 / 0.04);
-  --card-shadow-hover:
-    0 0 0 1px rgb(0 0 0 / 0.08), 0 2px 2px 0 rgb(0 0 0 / 0.04), 0 8px 8px -8px rgb(0 0 0 / 0.04);
+  --canvas: #f4f4f5;
+  --sheet: #ffffff;
+  --sunken: #fafafa;
+  --ink: #0a0a0b;
+  --ink-2: #52525b;
+  --ink-3: #67676f;
+  --rule: #e4e4e7;
+  --rule-strong: #d4d4d8;
+  --signal: #2b50e6;
+  --signal-soft: #eef1fd;
+  --proven: #15803d;
+  --proven-soft: #ecf7ef;
+  --attention: #b45309;
+  --attention-soft: #fdf4e6;
+  --broke: #c2332b;
+  --broke-soft: #fcedec;
+  --hover: #f1f1f2;
+  --float-shadow:
+    0 0 0 1px rgb(10 10 11 / 0.06), 0 8px 24px -6px rgb(10 10 11 / 0.16), 0 2px 6px rgb(10 10 11 / 0.06);
 }
 
 .dark {
-  --background: #08090a;
-  --foreground: #ededed;
-  --card: #0f1011;
-  --card-foreground: #ededed;
-  --popover: #161718;
-  --popover-foreground: #ededed;
-  --primary: #ffffff;
-  --primary-foreground: #0a0a0a;
-  --secondary: #161718;
-  --secondary-foreground: #ededed;
-  --muted: #161718;
-  --muted-foreground: #a1a1a1;
-  --subtle: #c7c7c7;
-  --accent: #1c1d1f;
-  --accent-foreground: #ededed;
-  --destructive: #ff9592;
-  --border: #23252a;
-  --input: #2a2c31;
-  --ring: #52a8ff;
-  --link: #52a8ff;
-  --affected: #ff9592;
-  --affected-soft: #3b1219;
-  --human: #ffca16;
-  --human-soft: #302008;
-  --clear: #3dd68c;
-  --clear-soft: #132d21;
-  --running: #70b8ff;
-  --running-soft: #0d2847;
-  --card-shadow: 0 0 0 1px #23252a;
-  --card-shadow-hover: 0 0 0 1px #2e3036;
+  --canvas: #0b0b0c;
+  --sheet: #131315;
+  --sunken: #0f0f10;
+  --ink: #ededef;
+  --ink-2: #a1a1aa;
+  --ink-3: #8e8e96;
+  --rule: #26262b;
+  --rule-strong: #34343a;
+  --signal: #7c93ff;
+  --signal-soft: #161b33;
+  --proven: #4ade80;
+  --proven-soft: #0f2418;
+  --attention: #fbbf24;
+  --attention-soft: #2a1e08;
+  --broke: #f87171;
+  --broke-soft: #2c1110;
+  --hover: #1a1a1d;
+  --float-shadow: 0 0 0 1px #34343a, 0 12px 32px -8px rgb(0 0 0 / 0.6);
 }
 
-/* In the docs the active page and links take the one accent, as everywhere else. */
+/* shadcn's roles and the earlier status names, on the tokens above (light and dark alike). */
+:root,
+.light,
+.dark {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--sheet);
+  --card-foreground: var(--ink);
+  --popover: var(--sheet);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--sheet);
+  --secondary: var(--sunken);
+  --secondary-foreground: var(--ink);
+  --muted: var(--sunken);
+  --muted-foreground: var(--ink-3);
+  --subtle: var(--ink-2);
+  --accent: var(--hover);
+  --accent-foreground: var(--ink);
+  --destructive: var(--broke);
+  --border: var(--rule);
+  --input: var(--rule-strong);
+  --ring: var(--signal);
+  --link: var(--signal);
+  --affected: var(--broke);
+  --affected-soft: var(--broke-soft);
+  --human: var(--attention);
+  --human-soft: var(--attention-soft);
+  --clear: var(--proven);
+  --clear-soft: var(--proven-soft);
+  --running: var(--signal);
+  --running-soft: var(--signal-soft);
+  --sidebar: var(--canvas);
+  --sidebar-foreground: var(--ink-2);
+  --sidebar-primary: var(--ink);
+  --sidebar-primary-foreground: var(--sheet);
+  --sidebar-accent: var(--hover);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--rule);
+  --sidebar-ring: var(--signal);
+  /* Sheets are flat: a 1px rule, no blur. */
+  --card-shadow: 0 0 0 1px var(--rule);
+  --card-shadow-hover: 0 0 0 1px var(--rule-strong);
+}
+
+/* In the docs the active page and links take the signal colour; the rest follows the aliases above. */
 :root,
 .dark {
-  --color-fd-primary: var(--link);
-  --color-fd-primary-foreground: #ffffff;
+  --color-fd-primary: var(--signal);
+  --color-fd-primary-foreground: var(--sheet);
   --fd-layout-width: 1400px;
 }
 
@@ -186,6 +243,29 @@
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E")
       center / contain no-repeat;
   }
+}
+
+/* A section label: tracked mono uppercase, the one place type is set in capitals. */
+@utility eyebrow {
+  font-family: var(--font-geist-mono);
+  font-size: 11px;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Headings: tight tracking at weight 560–600, never black-bold. */
+@utility heading {
+  font-weight: 580;
+  letter-spacing: -0.02em;
+}
+
+@utility display {
+  font-weight: 580;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
 }
 
 @layer base {
