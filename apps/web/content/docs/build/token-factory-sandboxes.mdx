@@ -35,6 +35,17 @@ Token Factory Sandboxes runs one command per microVM. A microVM that is kept sav
 </Step>
 </Steps>
 
+Measured on `teire-dev/examples` (2026-10-28), each baseline on its own image built inside Token Factory:
+
+| Folder | Ecosystem | Install | Checks |
+|---|---|---|---|
+| `npm-zod` | npm | 4.9 s | typecheck, 4/4 tests |
+| `py-major` | Python (uv) | 4.9 s | 2/2 tests |
+| `go-major` | Go | 2.6 s | build, `go vet`, 4/4 tests |
+| `rust-major` | Cargo | 4.9 s | build, 5/5 tests |
+| `ruby-major` | Bundler | 4.9 s | 6/6 tests |
+| `jvm-major` | Maven, JDK 17 | 51.9 s | compile, 4/4 tests |
+
 Limits come from Token Factory's own `whoami` call, never assumed: an hour per microVM, 50 at a time, 12 GB per image layer. A failed spawn is not retried, because spawns carry no idempotency key.
 
 ## What differs from Cloudflare Containers
