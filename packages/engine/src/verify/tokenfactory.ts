@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cancelSignal } from "../cancel";
+import { cancelSignal, RunCancelledError, throwIfCancelled } from "../cancel";
 import { VERIFY } from "../constants";
 import type { VerifyBackend, VerifySession } from "./backend";
 import type { JobResult } from "./cloudflare";
@@ -303,11 +303,14 @@ export class TokenFactorySandboxes {
   }> {
     const limits = await this.limits();
     const timeoutSec = Math.min(request.timeoutSec, limits.maxTimeoutSec);
+    const signal = cancelSignal();
     await limits.spawns.take();
     // Timed from the spawn itself, not the wait for a slot: "137 at the limit" compares with it.
     const started = Date.now();
     let op: Operation;
     try {
+      // A run cancelled while it waited for a slot starts nothing (U1 review).
+      throwIfCancelled();
       const { uuid } = await this.#json<{ uuid: string }>("POST", "/instances", {
         image: request.image,
         command: request.command,
@@ -324,6 +327,12 @@ export class TokenFactorySandboxes {
         ...(request.preserveEnv ? { preserve_env: true } : {}),
       });
       request.onStart?.(uuid);
+      // Cancelled while the request was on the wire: the session already closed, so this operation
+      // is cancelled here, or nothing would (U1 review).
+      if (signal?.aborted) {
+        await this.cancel(uuid).catch(() => undefined);
+        throw new RunCancelledError();
+      }
       // One deadline for the whole wait: following the events and the polling that confirms the end.
       const maxMs = (timeoutSec + 300) * 1000;
       const deadline = Date.now() + maxMs;
@@ -376,10 +385,12 @@ export class TokenFactorySandboxes {
       let pending: ReturnType<typeof reader.read> | null = null;
       // A cancelled run stops following at once (U1: within 30 s); `close` cancels the operation.
       const signal = cancelSignal();
+      let onAbort: (() => void) | null = null;
       const aborted = signal
         ? new Promise<"aborted">((r) => {
+            onAbort = () => r("aborted");
             if (signal.aborted) r("aborted");
-            else signal.addEventListener("abort", () => r("aborted"), { once: true });
+            else signal.addEventListener("abort", onAbort, { once: true });
           })
         : null;
       try {
@@ -436,6 +447,9 @@ export class TokenFactorySandboxes {
         }
       } catch {
         // A broken stream resumes from `since` on the next attempt.
+      } finally {
+        // One listener per attempt, removed when the attempt ends.
+        if (signal && onAbort) signal.removeEventListener("abort", onAbort);
       }
     }
   }
@@ -458,6 +472,11 @@ export class TokenFactorySandboxes {
       }
       if (op.status === "SUCCESS" || op.status === "FAILED" || op.status === "CANCELLED") return op;
       if (Date.now() > deadline) throw new Error(`operation ${operation} still ${op.status}`);
+      // A cancelled run stops waiting and stops the operation itself (U1 review).
+      if (cancelSignal()?.aborted) {
+        await this.cancel(operation).catch(() => undefined);
+        throw new RunCancelledError();
+      }
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
   }

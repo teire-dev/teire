@@ -11,6 +11,7 @@ import {
 import { forGitHub } from "@teire/engine/github";
 import {
   type ActionRow,
+  cancelQueued,
   findingsWithChanges,
   fixModeOf,
   getAction,
@@ -24,6 +25,8 @@ import {
   setIgnore,
   setRepo,
   setRun,
+  settleRunActions,
+  upgradeMatches,
 } from "../store";
 import { canWrite, FixesOffError, fixesOffReply, runState, startRun } from "./commands";
 import { syncDashboard } from "./dashboard";
@@ -226,7 +229,9 @@ async function repoAction(
         return refused(`Fixes are set in ${after.file} (${describeFixMode(after)}); change \`fixes:\` there`);
       await setRepo(db, repo.id, { fixMode: mode });
       const cancelled =
-        after.mode === "off" && before.mode !== "off" ? await cancelQueued(db, [repo.id], after) : 0;
+        after.mode === "off" && before.mode !== "off"
+          ? await cancelQueued(db, [repo.id], fixesOffReply(after), login)
+          : 0;
       return {
         status: "done",
         result: `Fix mode: ${describeFixMode(after)}${cancelled ? `; ${cancelled} queued run${cancelled === 1 ? "" : "s"} cancelled` : ""}`,
@@ -314,6 +319,10 @@ async function repoAction(
           cancelledBy: login,
           finishedAt: new Date(),
         });
+        await settleRunActions(db, run.id, ["fix", "rebase", "recreate", "retry-run"], {
+          status: "refused",
+          result: `Cancelled by @${login} before it started`,
+        });
         return { status: "done", result: "Cancelled before it started", links: [runLink(run.id)] };
       }
       if (run.status !== "running" && run.status !== "stopping")
@@ -366,25 +375,6 @@ async function started(
         result: runState(run),
         links: [runLink(run.id)],
       };
-}
-
-/** `@teire fix zod` or Fix now on an upgrade with no finding: matches `npm/zod/4.6.6` by name. */
-function upgradeMatches(target: string, groupKey: string, to: string) {
-  const t = target.trim();
-  const eco = groupKey.split("/")[0] ?? "";
-  const pkg = groupKey.endsWith(`/${to}`) ? groupKey.slice(eco.length + 1, -(to.length + 1)) : null;
-  return t === groupKey || t === `${eco}/${pkg}` || (!!pkg && (t === pkg || t === `${eco}:${pkg}`));
-}
-
-/** Queued fix runs of these repositories stop with the reason, when fixes turn Off (D125). */
-async function cancelQueued(db: EventContext["db"], repoIds: number[], mode: EffectiveFixMode) {
-  if (!repoIds.length) return 0;
-  const rows = await db
-    .update(runs)
-    .set({ status: "cancelled", step: "fixes off", error: fixesOffReply(mode), finishedAt: new Date() })
-    .where(and(inArray(runs.repoId, repoIds), eq(runs.status, "queued"), eq(runs.kind, "fix")))
-    .returning({ id: runs.id });
-  return rows.length;
 }
 
 /**
@@ -440,7 +430,10 @@ async function installationAction(
     file: null,
     security: { mode: security, origin: "installation" },
   };
-  const cancelled = mode === "off" && previous.mode !== "off" ? await cancelQueued(db, nowOff, reason) : 0;
+  const cancelled =
+    mode === "off" && previous.mode !== "off"
+      ? await cancelQueued(db, nowOff, fixesOffReply(reason), login)
+      : 0;
   for (const r of repoRows) await syncDashboard(ctx, r.id).catch(() => undefined);
   const names = { auto: "Automatic", ask: "Ask first", off: "Off" } as const;
   return {

@@ -125,6 +125,24 @@ export async function reap(db: Database) {
     where (status = 'requested' and created_at < now() - interval '2 minutes')
        or (status = 'accepted' and updated_at < now() - interval '10 minutes')
   `);
+  // An action still open whose run has ended takes the run's outcome (U1 review: a run cancelled by
+  // the reaper, a person or Off left its Fix now or Cancel at "Queued" or "Stopping").
+  await db.execute(sql`
+    update actions a set updated_at = now(),
+      status = case
+        when a.kind = 'cancel-run' then (case when r.status = 'cancelled' then 'done' else 'refused' end)
+        when r.status = 'failed' then 'failed'
+        when r.status = 'cancelled' then 'refused'
+        else 'done' end,
+      result = case
+        when a.kind = 'cancel-run' and r.status = 'cancelled' then 'Stopped'
+        when a.kind = 'cancel-run' then 'The run had already ' || r.status
+        else 'The run ' || r.status || coalesce(': ' || left(coalesce(r.error, r.step), 200), '') end
+    from runs r
+    where a.status in ('started', 'stopping', 'unknown')
+      and a.links @> jsonb_build_array(jsonb_build_object('href', '/runs/' || r.id::text))
+      and r.status in ('succeeded', 'failed', 'cancelled')
+  `);
   const staleScans = await db
     .update(scans)
     .set({ status: "failed", error: "the worker stopped during this scan", finishedAt: new Date() })

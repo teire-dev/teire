@@ -12,17 +12,20 @@ import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import {
   appendEvent,
   artifactByNumber,
+  cancelQueued,
   claimRun,
   findingsWithChanges,
   fixInFlight,
   fixModeOf,
   getArtifact,
   getRepo,
+  latestUpgrades,
   recordAction,
   recordFeedback,
   setFindingsState,
   setIgnore,
   setRepo,
+  upgradeMatches,
 } from "../store";
 import type { EventContext } from "./events";
 
@@ -194,11 +197,21 @@ export async function handleComment(ctx: EventContext, p: Payload) {
               ];
       if (command.name === "fix-mode" && next === undefined)
         return void (await reply("Usage: `@teire fix-mode automatic|ask|off|default`"));
-      await setRepo(db, repo.id, { fixMode: next ?? null });
+      const before = await fixModeOf(db, repo);
       const mode = await fixModeOf(db, { ...repo, fixMode: next ?? null });
-      const held = mode.origin === "repo-file" || mode.origin === "org-file";
+      // The repository's file wins (D118): as on the dashboard, nothing is stored under it (U1 review).
+      if (mode.origin === "repo-file" && next !== null && mode.mode !== next)
+        return void (await reply(
+          `Fixes here are set in ${mode.file} (**${describeFixMode(mode)}**); change \`fixes:\` there.`,
+        ));
+      await setRepo(db, repo.id, { fixMode: next ?? null });
+      const cancelled =
+        mode.mode === "off" && before.mode !== "off"
+          ? await cancelQueued(db, [repo.id], fixesOffReply(mode), comment.user.login)
+          : 0;
+      const held = mode.origin === "org-file";
       await reply(
-        `Fixes here: **${describeFixMode(mode)}**.${held ? ` The file decides; change \`fixes:\` in ${mode.file} to change it.` : ""}${mode.mode === "ask" ? " Teire lists what it finds and starts a fix when someone asks (Fix now, `@teire fix`)." : mode.mode === "off" ? " Teire keeps scanning and reporting, and starts no fix runs." : ""}`,
+        `Fixes here: **${describeFixMode(mode)}**.${held ? ` The file decides; change \`fixes:\` in ${mode.file} to change it.` : ""}${mode.mode === "ask" ? " Teire lists what it finds and starts a fix when someone asks (Fix now, `@teire fix`)." : mode.mode === "off" ? " Teire keeps scanning and reporting, and starts no fix runs." : ""}${cancelled ? ` ${cancelled} queued run${cancelled === 1 ? " was" : "s were"} cancelled.` : ""}`,
       );
       if (mode.mode !== "off" && command.name !== "pause-fixes") await ctx.enqueueScan(repo.id, "command");
       return;
@@ -277,14 +290,18 @@ export async function handleComment(ctx: EventContext, p: Payload) {
     case "recreate": {
       const target = command.args.split(/\s+/)[0] ?? "";
       const all = await findingsWithChanges(db, repo.id);
+      // A finding, or an upgrade the latest scan listed ("Upgrades available" under Ask first and Off).
       const groupKey =
         command.name === "fix"
-          ? (all.find((f) => matchesTarget(target, f) && f.groupKey)?.groupKey ?? null)
+          ? (all.find((f) => matchesTarget(target, f) && f.groupKey)?.groupKey ??
+            (await latestUpgrades(db, repo.id)).find((u) => upgradeMatches(target, u.groupKey, u.to))
+              ?.groupKey ??
+            null)
           : artifact?.changeKey || null;
       if (!groupKey)
         return void (await reply(
           command.name === "fix"
-            ? `No finding matches \`${target || "(nothing)"}\`; the Dashboard issue lists what can be fixed.`
+            ? `Nothing to fix matches \`${target || "(nothing)"}\`; the Dashboard issue lists what can be fixed.`
             : `\`@teire ${command.name}\` works on a Teire PR.`,
         ));
       if (command.name === "fix") {
@@ -460,6 +477,9 @@ export async function startRun(
     fromVersion = join(positions.map((p) => p?.version));
     targetVersion = join(positions.map((p) => p?.target)) ?? "the named replacements";
   }
+  // A package's installed version, from the scan's upgrade list (U1 review: titles read "null →").
+  else
+    fromVersion = (await latestUpgrades(ctx.db, repo.id)).find((u) => u.groupKey === groupKey)?.from ?? null;
   // A security update and a version update of one package are separate PR lines (D111).
   const security = (await findingsWithChanges(ctx.db, repo.id)).some(
     (f) => f.groupKey === groupKey && f.kind === "security-advisory",

@@ -150,6 +150,41 @@ export async function latestUpgrades(db: Database, repoId: number) {
   return row?.upgrades ?? [];
 }
 
+/** `@teire fix zod` or Fix now on an upgrade with no finding: matches `npm/zod/4.6.6` by name. */
+export function upgradeMatches(target: string, groupKey: string, to: string) {
+  const t = target.trim();
+  const eco = groupKey.split("/")[0] ?? "";
+  const pkg = groupKey.endsWith(`/${to}`) ? groupKey.slice(eco.length + 1, -(to.length + 1)) : null;
+  return t === groupKey || t === `${eco}/${pkg}` || (!!pkg && (t === pkg || t === `${eco}:${pkg}`));
+}
+
+/**
+ * Queued fix runs of these repositories stop with the reason when fixes turn Off (D125): marked
+ * as asked to stop too, so a worker that already took one stops it at once, and the actions that
+ * started them say why (U1 review).
+ */
+export async function cancelQueued(db: Database, repoIds: number[], reason: string, by: string) {
+  if (!repoIds.length) return 0;
+  const rows = await db
+    .update(runs)
+    .set({
+      status: "cancelled",
+      step: "fixes off",
+      error: reason,
+      cancelRequestedAt: new Date(),
+      cancelledBy: by,
+      finishedAt: new Date(),
+    })
+    .where(and(inArray(runs.repoId, repoIds), eq(runs.status, "queued"), eq(runs.kind, "fix")))
+    .returning({ id: runs.id });
+  for (const r of rows)
+    await settleRunActions(db, r.id, ["fix", "rebase", "recreate", "retry-run"], {
+      status: "refused",
+      result: reason,
+    });
+  return rows.length;
+}
+
 /** A run's fields set by someone other than its worker (a cancel): the heartbeat is left alone. */
 export async function setRun(db: Database, id: string, fields: Partial<typeof runs.$inferInsert>) {
   await db.update(runs).set(fields).where(eq(runs.id, id));
@@ -489,7 +524,8 @@ export async function updateHeldRun(db: Database, id: string, fields: Partial<ty
   const rows = await db
     .update(runs)
     .set({ ...fields, heartbeatAt: new Date() })
-    .where(and(eq(runs.id, id), eq(runs.workerId, WORKER_ID)))
+    // A run someone cancelled stays cancelled: its worker can't move it back to running.
+    .where(and(eq(runs.id, id), eq(runs.workerId, WORKER_ID), ne(runs.status, "cancelled")))
     .returning({ id: runs.id });
   return rows.length > 0;
 }
