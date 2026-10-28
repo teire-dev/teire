@@ -15,6 +15,7 @@ import {
   readPythonInventory,
   readRubyInventory,
   readRustInventory,
+  scopedTree,
 } from "../src/inventory";
 import {
   type CheckPlan,
@@ -37,7 +38,12 @@ const [owner, repo] = slug.split("/") as [string, string];
 const token = process.env.GITHUB_TOKEN;
 
 const checkout = await fetchRepoTarball(owner, repo, flag("ref") ?? "HEAD", token ? { token } : {});
-const tree = directoryTree(checkout.dir);
+// --root reads only that root's files, so other roots' toolchains (go for go.mod) aren't needed here.
+const only = flag("root");
+const tree = scopedTree(directoryTree(checkout.dir), {
+  paths: only && only !== "." ? [`${only}/**`] : [],
+  ignorePaths: [],
+});
 const sha = checkout.sha ?? flag("ref") ?? "HEAD";
 console.log(`# ${slug}@${sha.slice(0, 12)}`);
 

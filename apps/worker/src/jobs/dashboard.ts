@@ -1,6 +1,6 @@
 import { sql } from "@teire/db";
 import { PULL_REQUESTS } from "@teire/engine/constants";
-import type { ChangeV2 } from "@teire/engine/contract";
+import { type ChangeV2, lineageKey } from "@teire/engine/contract";
 import { composeHumanIssue } from "@teire/engine/github";
 import { findingsWithChanges, getArtifact, getRepo, openArtifacts, upsertArtifact } from "../store";
 import { HELP } from "./commands";
@@ -75,8 +75,11 @@ export function composeDashboard(d: DashboardInput) {
     .filter((f) => f.deadline && f.state === "open" && f.verdict !== "not_applicable")
     .sort((a, b) => (a.deadline as Date).getTime() - (b.deadline as Date).getTime());
   const open = [...groups].filter(([, list]) => list.some((f) => f.state === "open"));
+  // A group the updater refused has its stop issue (keyed by lineage) instead of a "Fix now" box.
+  const stopped = (k: string) => issueFor.has(`stop/${lineageKey(k)}`);
   const affected = open.filter(
-    ([k, list]) => list.some((f) => f.verdict === "affected") && !prFor.has(k) && !issueFor.has(k),
+    ([k, list]) =>
+      list.some((f) => f.verdict === "affected") && !prFor.has(k) && !issueFor.has(k) && !stopped(k),
   );
   // Inconclusive is never "not affected" (rule 12): references Teire could not resolve leave the
   // answer to the upgrade's own run, which checks the repo before and after in the sandbox.
@@ -267,8 +270,9 @@ export async function syncHumanIssues(ctx: WorkerContext, repoId: number) {
     groups.set(key, [...(groups.get(key) ?? []), f]);
   }
   const [owner = "", name = ""] = repo.fullName.split("/");
+  // Stop issues (a fix run the updater refused) are the fix run's to close, not the scan's.
   const stale = (await openArtifacts(db, repoId)).filter(
-    (a) => a.kind === "issue" && a.number && !groups.has(a.changeKey),
+    (a) => a.kind === "issue" && a.number && !groups.has(a.changeKey) && !a.changeKey.startsWith("stop/"),
   );
   if (!groups.size && !stale.length) return 0;
   const { octokit } = await gh.installation(repo.installationId);

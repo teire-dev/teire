@@ -8,6 +8,7 @@ import type { FixRun, Transaction } from "@teire/engine/fix";
 import {
   branchFor,
   commitToBranch,
+  composeHumanIssue,
   HumanCommitsError,
   modelName,
   openOrUpdatePullRequest,
@@ -43,6 +44,7 @@ import {
 } from "@teire/engine/pipeline";
 import {
   jobSettings,
+  ResolverUnavailableError,
   readDependabotConfig,
   resolverTransaction,
   type TeireManager,
@@ -75,6 +77,46 @@ import type { WorkerContext } from "./scan";
 /** A run deferred for credits or the daily budget tries again after this long. */
 const BUDGET_RETRY_SECONDS = 30 * 60;
 const DEFER_SECONDS = 3600;
+/** An unreachable resolver queues the run this many times, this far apart, then it is a named stop. */
+const RESOLVER_RETRIES = 3;
+const RESOLVER_RETRY_SECONDS = 15 * 60;
+
+/**
+ * Ecosystems whose dependency-file change dependabot-core's updater decides (S15 rollout): each joins
+ * `TEIRE_RESOLVER_ECOSYSTEMS` once its upgrade passes on a real fork. There is no fallback for them:
+ * a refusal is a named stop and an outage queues (D104). Others keep Teire's own transaction.
+ */
+function resolverDecides(ecosystem: Ecosystem) {
+  return (process.env.TEIRE_RESOLVER_ECOSYSTEMS ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .includes(ecosystem);
+}
+
+/**
+ * Lockfiles dependabot-core's updater stops on although the package manager reads them, so Teire's
+ * own transaction keeps them (D104): pnpm lockfiles before v6 (pnpm 7), whose importers its pnpm
+ * helper reads `specifiers` from and fails ("pnpm-lock.yaml not parseable", pilot 2026-10-28).
+ */
+function dependabotCannotParse(tree: RepoTree, project: { manager: string; root: string }) {
+  if (project.manager !== "pnpm") return false;
+  const lock = tree.read(project.root === "." ? "pnpm-lock.yaml" : `${project.root}/pnpm-lock.yaml`);
+  const version = lock?.match(/^lockfileVersion: ['"]?(\d+)/m)?.[1];
+  return !!version && Number(version) < 6;
+}
+
+/** The updater refused the upgrade, with its typed reason, quoted on the run and in an issue. */
+class ResolverStopError extends Error {
+  constructor(
+    readonly type: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** The updater found nothing to change for this target (every newer version ignored, say). */
+class ResolverNothingError extends Error {}
 
 /** What a fix produced, whatever was fixed (a package upgrade or a provider's API change). */
 interface Outcome {
@@ -148,9 +190,10 @@ async function resolverTransactionFor(
   const keep =
     !manager ||
     !!assessment.instance.aliasName ||
+    dependabotCannotParse(tree, assessment.project) ||
     assessment.purpose === "security" ||
     (ecosystem === "go" && assessment.decision?.kind === "upgrade" && assessment.decision.isMajor);
-  if (keep || !manager) return null;
+  if (keep || !manager || !resolverDecides(ecosystem)) return null;
   const roots = [
     ...new Set(
       matching.filter((m) => m.project.manager === assessment.project.manager).map((m) => m.project.root),
@@ -176,22 +219,15 @@ async function resolverTransactionFor(
     },
     { ecosystem, name: packageName },
     common.runId,
-  ).catch((error: unknown) => {
-    common.onEvent?.({
-      step: "transaction",
-      detail: `resolver unavailable (${(error as Error).message}); Teire's own transaction is used`,
-    });
-    return null;
-  });
-  if (!resolved) return null;
+  );
+  if (!resolved) throw new ResolverUnavailableError("the worker has no resolver configured");
   const r = resolved.result;
-  if (r.kind !== "change") {
-    common.onEvent?.({
-      step: "transaction",
-      detail: `dependabot-core's updater: ${r.kind === "stop" ? r.message : r.kind === "close" ? `nothing to change (${r.reason})` : "no change"}; Teire's own transaction is used`,
-    });
-    return null;
-  }
+  if (r.kind === "stop") throw new ResolverStopError(r.type, r.message);
+  if (r.kind === "close") throw new ResolverNothingError(`nothing to change: ${r.reason}`);
+  if (r.kind === "nothing")
+    throw new ResolverNothingError(
+      [`no update to ${target} (the updater's log has the details)`, ...r.warnings].join("; "),
+    );
   const bare = (v: string | null) => v?.replace(/^v(?=\d)/, "") ?? null;
   if (bare(r.leadVersion) !== bare(target)) {
     // D103: below T becomes the target, diffed again; the reason goes on the run and the PR.
@@ -295,8 +331,8 @@ async function packageOutcome(
     common,
   );
   if (resolved && "cap" in resolved) {
-    // Once only: the capped run's own resolver job lands on the cap or falls back.
-    if (cap) return null;
+    // Once only: the capped run's own job must land on the cap.
+    if (cap) throw new ResolverStopError("below_target", resolved.cap.reason);
     const capped = `${run.groupKey.split("/").slice(0, -1).join("/")}/${resolved.cap.version}`;
     const outcome = await packageOutcome(
       ctx,
@@ -408,6 +444,61 @@ async function apiOutcome(
       .filter((f) => f.verdict === "affected")
       .flatMap((f) => f.callSites.map((s) => ({ ...s, message: f.reason }))),
   };
+}
+
+/**
+ * A named stop reaches the repo as an issue (D104): what was asked, the updater's own words and what
+ * to do. It is keyed by lineage, so the next run in the lineage that opens a PR closes it, and a
+ * person's close is never undone (C6).
+ */
+async function openStopIssue(
+  ctx: WorkerContext,
+  octokit: Awaited<ReturnType<WorkerContext["gh"]["installation"]>>["octokit"],
+  repo: NonNullable<Awaited<ReturnType<typeof getRepo>>>,
+  run: NonNullable<Awaited<ReturnType<typeof getRun>>>,
+  groupKey: string,
+  reason: string,
+) {
+  const key = `stop/${run.lineageKey ?? lineageKey(groupKey)}`;
+  const [owner = "", name = ""] = repo.fullName.split("/");
+  const existing = await getArtifact(ctx.db, repo.id, "issue", key);
+  if (existing?.state === "open" && existing.number) {
+    await octokit.rest.issues
+      .createComment({ owner, repo: name, issue_number: existing.number, body: `Still stopped: ${reason}` })
+      .catch(() => undefined);
+    return;
+  }
+  if (existing) return;
+  const parts = groupKey.split("/");
+  const { title, body } = composeHumanIssue({
+    repo: { owner, repo: name, baseSha: run.baseSha ?? "" },
+    key: groupKey,
+    rows: [
+      {
+        changeId: groupKey,
+        title: `${parts.slice(1, -1).join("/")} ${run.fromVersion ?? "?"} → ${parts.at(-1)}`,
+        verdict: "needs_human",
+        reason,
+        callSites: [],
+      },
+    ],
+    records: [],
+    webUrl: ctx.webUrl ? `${ctx.webUrl}/runs/${run.id}` : null,
+  });
+  const created = await octokit.rest.issues
+    .create({ owner, repo: name, title, body, labels: ["teire"] })
+    .catch(() => null);
+  if (created)
+    await upsertArtifact(ctx.db, {
+      repoId: repo.id,
+      kind: "issue",
+      changeKey: key,
+      lineageKey: run.lineageKey ?? lineageKey(groupKey),
+      number: created.data.number,
+      state: "open",
+      url: created.data.html_url,
+      runId: run.id,
+    });
 }
 
 export async function fixRun(ctx: WorkerContext, runId: string) {
@@ -789,6 +880,27 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         await event("pr", "supersede-failed", { number: old.number, error: String(error) });
       }
     }
+    // A named stop in this lineage (an earlier run the updater refused) is settled by this PR.
+    const stop = await getArtifact(db, repo.id, "issue", `stop/${lineage}`);
+    if (stop?.state === "open" && stop.number)
+      try {
+        await installation.octokit.rest.issues.createComment({
+          owner,
+          repo: name,
+          issue_number: stop.number,
+          body: `Resolved: #${pr.number} upgrades to \`${groupKey.split("/").at(-1)}\`.`,
+        });
+        await installation.octokit.rest.issues.update({
+          owner,
+          repo: name,
+          issue_number: stop.number,
+          state: "closed",
+          state_reason: "completed",
+        });
+        await upsertArtifact(db, { ...stop, state: "closed" });
+      } catch (error) {
+        await event("pr", "stop-close-failed", { number: stop.number, error: String(error) });
+      }
     await updateRun(db, runId, {
       ...runFields,
       status: "succeeded",
@@ -817,6 +929,40 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       await event("queue", "deferred", { reason: error.message });
       await ctx.enqueueFix(runId, repo.id, BUDGET_RETRY_SECONDS);
       return { deferred: error.message };
+    }
+    if (error instanceof ResolverUnavailableError) {
+      const tries = (await runEventsOf(db, runId, "resolver")).filter((e) => e.type === "deferred").length;
+      if (tries < RESOLVER_RETRIES) {
+        await updateRun(db, runId, {
+          status: "queued",
+          step: "waiting for the dependency-file updater",
+          error: error.message,
+        });
+        await event("resolver", "deferred", { reason: error.message, retry: tries + 1 });
+        await ctx.enqueueFix(runId, repo.id, RESOLVER_RETRY_SECONDS);
+        return { deferred: error.message };
+      }
+    }
+    if (error instanceof ResolverNothingError) {
+      const reason = `dependabot-core's updater: ${error.message}`;
+      await updateRun(db, runId, {
+        status: "cancelled",
+        step: "nothing to change",
+        error: reason,
+        finishedAt: new Date(),
+      });
+      await event("resolver", "nothing", { reason });
+      return { cancelled: true };
+    }
+    if (error instanceof ResolverStopError || error instanceof ResolverUnavailableError) {
+      const reason =
+        error instanceof ResolverStopError
+          ? `dependabot-core's updater stopped (${error.type}): ${error.message}`
+          : `the dependency-file updater was unavailable ${RESOLVER_RETRIES + 1} times: ${error.message}`;
+      await updateRun(db, runId, { status: "failed", error: `stopped: ${reason}`, finishedAt: new Date() });
+      await event("resolver", "stopped", { reason });
+      if (!dry && installation) await openStopIssue(ctx, installation.octokit, repo, run, groupKey, reason);
+      return { stopped: reason };
     }
     const message =
       error instanceof HumanCommitsError
