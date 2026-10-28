@@ -8,10 +8,12 @@ import { PgBoss } from "pg-boss";
 import { handleDelivery } from "./jobs/events";
 import { fixRun } from "./jobs/fix";
 import { publicScan } from "./jobs/public";
+import { reverifyRun } from "./jobs/reverify";
 import { scanRepo } from "./jobs/scan";
 import { startOutbox } from "./outbox";
 import { ensureQueues, QUEUES } from "./queues";
 import { markCreditsExhausted, startTicker } from "./reliability";
+import { getRun } from "./store";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const databaseUrl = process.env.DATABASE_URL;
@@ -169,7 +171,14 @@ async function main() {
       async (jobs) => {
         for (const job of jobs) {
           try {
-            console.log("[fix]", job.data.runId, JSON.stringify(await fixRun(ctx, job.data.runId)));
+            // A re-verify (U2) shares the fix queue: one job per repository at a time, and the reaper
+            // and boot sweep bring it back the same way.
+            const kind = (await getRun(db, job.data.runId))?.kind;
+            const result =
+              kind === "reverify"
+                ? await reverifyRun(ctx, job.data.runId)
+                : await fixRun(ctx, job.data.runId);
+            console.log(kind === "reverify" ? "[reverify]" : "[fix]", job.data.runId, JSON.stringify(result));
           } catch (error) {
             console.error("[fix] failed", job.data.runId, error);
           }

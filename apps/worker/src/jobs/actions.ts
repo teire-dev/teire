@@ -12,7 +12,9 @@ import { forGitHub } from "@teire/engine/github";
 import {
   type ActionRow,
   cancelQueued,
+  claimRun,
   findingsWithChanges,
+  fixInFlight,
   fixModeOf,
   getAction,
   getArtifact,
@@ -32,6 +34,7 @@ import { canWrite, FixesOffError, fixesOffReply, runState, startRun } from "./co
 import { syncDashboard } from "./dashboard";
 import type { EventContext } from "./events";
 import { requesterToken } from "./public";
+import { openDraftAnyway } from "./reverify";
 
 /**
  * Dashboard actions (S11, the web's repo pages): the `@teire` commands a signed-in person can start
@@ -339,10 +342,40 @@ async function repoAction(
     case "retry-run": {
       const run = await getRun(db, String(params.runId));
       if (!run?.groupKey || run.repoId !== repo.id) return refused("That run isn't in this repository");
+      if (run.kind === "reverify") return refused("A re-verify is retried with Re-verify");
       if (run.status !== "failed" && run.status !== "cancelled")
         return refused(`The run is ${run.status}; nothing to retry`);
       return started(ctx, repo, octokit, run.groupKey, "recreate", login);
     }
+    case "reverify-run": {
+      const run = await getRun(db, String(params.runId));
+      if (!run?.groupKey || run.repoId !== repo.id) return refused("That run isn't in this repository");
+      if (repo.status === "paused") return refused("This repository is paused; resume it first");
+      const pr = await getArtifact(db, repo.id, "pr", run.groupKey);
+      if (pr?.state !== "open" || !pr.number) return refused("Re-verify works on an open Teire pull request");
+      // It changes no code, so every fix mode allows it: Off's stale evidence is how it gets current.
+      const active = await fixInFlight(db, repo.id, run.groupKey, "reverify");
+      if (active) return { status: "done", result: "Already re-verifying", links: [runLink(active.id)] };
+      const { run: next } = await claimRun(db, {
+        repoId: repo.id,
+        groupKey: run.groupKey,
+        lineageKey: run.lineageKey,
+        kind: "reverify",
+        status: "queued",
+        fromVersion: run.fromVersion,
+        targetVersion: run.targetVersion,
+        requestedBy: `reverify:${login}`,
+        idempotencyKey: `reverify:${repo.id}:${run.groupKey}:${Date.now()}`,
+      });
+      await ctx.enqueueFix(next.id, repo.id);
+      return {
+        status: "started",
+        result: `Queued: #${pr.number} is checked again as it stands`,
+        links: [runLink(next.id)],
+      };
+    }
+    case "open-draft-anyway":
+      return openDraftAnyway(ctx, repo, octokit, String(params.runId), login);
     case "feedback":
       await recordFeedback(db, {
         repoId: repo.id,

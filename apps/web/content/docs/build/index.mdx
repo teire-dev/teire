@@ -63,7 +63,7 @@ The [trust page](/trust) shows all of it live.
 | `GET /api/catalog/changes` | Every public, confirmed change, filterable by `provider`, `ecosystem`, `kind` and `subject` |
 | `GET /api/catalog/changes/<id>` | One change record |
 | `GET /api/catalog/providers` | Every provider Teire can read, with its pages and SDKs |
-| `GET /api/runs/<id>/events` | A run's events, the feed behind the live timeline |
+| `GET /api/runs/<id>/sheet?after=<seq>` | A run as its page shows it (status, evidence, checks, receipts) with the events after `seq`: the feed behind the live run page. Public repositories' runs are open to anyone; private ones to people with access to the installation |
 | `GET /schema.json` | The JSON Schema of `teire.yml` |
 | `GET /llms.txt`, `/llms-full.txt` | These docs as plain text for language models |
 

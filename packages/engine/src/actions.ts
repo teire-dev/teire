@@ -18,6 +18,8 @@ export const ACTION_KINDS = [
   "unignore",
   "cancel-run",
   "retry-run",
+  "reverify-run",
+  "open-draft-anyway",
   "feedback",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
@@ -91,6 +93,10 @@ export function describeAction(kind: ActionKind, params: Record<string, unknown>
       return "Cancel the run";
     case "retry-run":
       return "Retry the run";
+    case "reverify-run":
+      return "Re-verify the pull request";
+    case "open-draft-anyway":
+      return "Open a draft anyway";
     case "feedback":
       return "Report a wrong finding";
     default:

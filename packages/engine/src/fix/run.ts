@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { createTwoFilesPatch } from "diff";
+import { RunCancelledError } from "../cancel";
 import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import { forGitHub } from "../github/redact";
@@ -394,13 +395,43 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     else if (f.mode) writes.push({ path: f.path, bytes: Buffer.from(f.after, "utf8"), mode: f.mode });
     else files[f.path] = f.after;
   }
-  const queue = [...touched.values()].map((project, i) => ({ project, i }));
+  const others = await verifyProjects({
+    backend: input.backend,
+    runId: input.runId,
+    tarball: input.tarball,
+    after: { change: { files, writes } },
+    projects: [...touched.values()],
+    ...(input.verify ? { verify: input.verify } : {}),
+    ...(input.onEvent ? { onEvent: input.onEvent } : {}),
+    why: "which this change also touches",
+  });
+  return withWeakest(run, [...others, ...orphans]);
+}
+
+/**
+ * Each project checked with its own commands before and after (D94), at most three at once since
+ * each holds two sandboxes. The after side is a change written over the base (a fix run's other
+ * projects) or another commit's own files (Re-verify, U2: the pull request's head). A sandbox that
+ * didn't open is tried once more; a second failure is a result, never an omission.
+ */
+export async function verifyProjects(input: {
+  backend: VerifyBackend;
+  runId: string;
+  tarball: { url: string; token?: string };
+  after: { change: Change } | { tarball: { url: string; token?: string } };
+  projects: CheckableProject[];
+  verify?: FixInput["verify"];
+  onEvent?: (event: FixEvent) => void;
+  /** Why each one is checked, said on its event line. */
+  why?: string;
+}): Promise<OtherProject[]> {
+  const queue = input.projects.map((project, i) => ({ project, i }));
   const results: OtherProject[] = [];
   const check = async ({ project, i }: (typeof queue)[number]) => {
     const name = project.root === "." ? "/" : project.root;
     input.onEvent?.({
       step: "verify",
-      detail: `checking ${name} (${project.ecosystem}), which this change also touches`,
+      detail: `checking ${name} (${project.ecosystem})${input.why ? `, ${input.why}` : ""}`,
     });
     const attempt = () =>
       verifyChange({
@@ -408,21 +439,23 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         runId: sandboxId(input.runId, randomBytes(3).toString("hex"), `p${i + 1}`),
         tarball: input.tarball,
         plan: planFor(project, input.verify),
-        change: { files, writes },
+        ...("change" in input.after ? { change: input.after.change } : { afterTarball: input.after.tarball }),
       });
-    // One retry for a sandbox that didn't open; a second failure is a result, not an omission. A
-    // tarball over the cap or a repository no longer public is the answer already (review round 2).
+    // A tarball over the cap or a repository no longer public is the answer already (review round 2);
+    // a person's cancel stops the run, it isn't a project that couldn't be checked.
     let v: VerifyRun | null = null;
     let failure = "";
     try {
       v = await attempt();
     } catch (first) {
+      if (first instanceof RunCancelledError) throw first;
       if (first instanceof TarballTooLargeError || first instanceof RepositoryNotPublicError)
         failure = String(first);
       else
         try {
           v = await attempt();
         } catch (error) {
+          if (error instanceof RunCancelledError) throw error;
           failure = String(error);
         }
     }
@@ -444,13 +477,12 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       after: v.after,
     };
   };
-  // At most three projects at once: each holds two sandboxes.
   await Promise.all(
     Array.from({ length: Math.min(3, queue.length) }, async () => {
       for (let next = queue.shift(); next; next = queue.shift()) await check(next);
     }),
   );
-  return withWeakest(run, [...results.filter((r): r is OtherProject => !!r), ...orphans]);
+  return results.filter((r): r is OtherProject => !!r);
 }
 
 const emptySide = (side: "baseline" | "after"): SideResult => ({
@@ -483,20 +515,23 @@ export function unchecked(root: string, ecosystem: OtherProject["ecosystem"], re
 
 /** The weakest evidence across the lead and the other projects decides; its reasons name the project. */
 export function withWeakest(run: FixRun, others: OtherProject[]): FixRun {
+  return { ...run, evidence: weakestEvidence(run.evidence, others), others };
+}
+
+/** The lead's evidence, unless another project's is weaker: then that decides, its reasons first. */
+export function weakestEvidence(lead: Evidence, others: OtherProject[]): Evidence {
   const weakest = [...others].sort((a, b) => MODE_RANK[b.evidence.prMode] - MODE_RANK[a.evidence.prMode])[0];
-  const evidence =
-    weakest && MODE_RANK[weakest.evidence.prMode] > MODE_RANK[run.evidence.prMode]
-      ? {
-          ...run.evidence,
-          kind: weakest.evidence.kind,
-          prMode: weakest.evidence.prMode,
-          reasons: [
-            `in \`${weakest.root === "." ? "/" : weakest.root}\`: ${weakest.evidence.reasons.join("; ")}`,
-            ...run.evidence.reasons,
-          ],
-        }
-      : run.evidence;
-  return { ...run, evidence, others };
+  return weakest && MODE_RANK[weakest.evidence.prMode] > MODE_RANK[lead.prMode]
+    ? {
+        ...lead,
+        kind: weakest.evidence.kind,
+        prMode: weakest.evidence.prMode,
+        reasons: [
+          `in \`${weakest.root === "." ? "/" : weakest.root}\`: ${weakest.evidence.reasons.join("; ")}`,
+          ...lead.reasons,
+        ],
+      }
+    : lead;
 }
 
 async function runLead(input: FixInput): Promise<FixRun> {

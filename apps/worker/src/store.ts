@@ -371,14 +371,19 @@ export async function recentlySettled(db: Database, repoId: number, groupKey: st
  * A fix run for this group is queued or running. A scan of a newer commit leaves it be: without
  * this, every push would queue the group a second time (the run key carries the commit).
  */
-export async function fixInFlight(db: Database, repoId: number, groupKey: string) {
+export async function fixInFlight(
+  db: Database,
+  repoId: number,
+  groupKey: string,
+  kind: "fix" | "reverify" = "fix",
+) {
   const [run] = await db
     .select()
     .from(runs)
     .where(
       and(
         eq(runs.repoId, repoId),
-        eq(runs.kind, "fix"),
+        eq(runs.kind, kind),
         eq(runs.groupKey, groupKey),
         inArray(runs.status, ["queued", "running"]),
       ),

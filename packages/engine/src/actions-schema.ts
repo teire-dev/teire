@@ -27,6 +27,10 @@ export const ACTION_PARAMS: Record<ActionKind, z.ZodObject> = {
   unignore: z.object({ target, update: z.enum(["major", "minor", "patch"]).optional() }),
   "cancel-run": z.object({ runId }),
   "retry-run": z.object({ runId }),
+  /** Both sides checked again on the PR's final files (U2). */
+  "reverify-run": z.object({ runId }),
+  /** A draft PR from a run that ended in an issue, titled unconfirmed (U2). */
+  "open-draft-anyway": z.object({ runId }),
   feedback: z.object({
     reason: z.string().trim().min(1).max(2000),
     groupKey: z.string().max(300).optional(),

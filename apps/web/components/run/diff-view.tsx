@@ -12,10 +12,17 @@ interface FileDiff {
 export function parseDiff(patch: string): FileDiff[] {
   const files: FileDiff[] = [];
   let current: FileDiff | null = null;
+  // A deleted file's `+++` is /dev/null: its path is the `---` line's.
+  let from = "";
   for (const line of patch.split("\n")) {
-    if (line.startsWith("Index: ") || /^=+$/.test(line) || line.startsWith("--- ")) continue;
+    if (line.startsWith("Index: ") || /^=+$/.test(line)) continue;
+    if (line.startsWith("--- ")) {
+      from = line.slice(4).replace(/^a\//, "").trim();
+      continue;
+    }
     if (line.startsWith("+++ ")) {
-      current = { path: line.slice(4).replace(/^b\//, "").trim(), lines: [], added: 0, removed: 0 };
+      const to = line.slice(4).trim();
+      current = { path: to === "/dev/null" ? from : to.replace(/^b\//, ""), lines: [], added: 0, removed: 0 };
       files.push(current);
       continue;
     }

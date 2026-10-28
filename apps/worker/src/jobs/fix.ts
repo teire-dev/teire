@@ -211,7 +211,7 @@ function withRoots(
 
 /** The updater refused the upgrade, with its typed reason, quoted on the run and in an issue. */
 /** This worker no longer holds the run's lease: another worker has it and writes its results. */
-class LeaseLostError extends Error {
+export class LeaseLostError extends Error {
   constructor() {
     super("another worker took this run over");
   }
@@ -333,7 +333,7 @@ function repoRuby(tree: RepoTree, root: string) {
  * client for installed repos, else as the person who asked (a dry run). A repository GitHub hides
  * from an anonymous read is not public. Null when GitHub didn't answer.
  */
-async function githubRepoNow(
+export async function githubRepoNow(
   owner: string,
   name: string,
   octokit: Awaited<ReturnType<WorkerContext["gh"]["installation"]>>["octokit"] | null,
@@ -890,7 +890,7 @@ async function apiOutcome(
 }
 
 /** Evidence reasons as GitHub shows them: each redacted and shortened (review R18). */
-const saidOnGitHub = (reasons: string[]) => reasons.map((r) => forGitHub(r, 400)).join("; ");
+export const saidOnGitHub = (reasons: string[]) => reasons.map((r) => forGitHub(r, 400)).join("; ");
 
 /** A stop issue quotes more of the updater than a progress line does. */
 const STOP_REASON_CHARS = 1500;
@@ -1458,7 +1458,21 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const runFields = {
       evidenceKind: fix.evidence.kind,
       prMode,
-      verification: { baseline: fix.baseline.checks, after: fix.after.checks, reasons: fix.evidence.reasons },
+      verification: {
+        baseline: fix.baseline.checks,
+        after: fix.after.checks,
+        reasons: fix.evidence.reasons,
+        // Every other project the change touched, each with its own checks (D94): the run page's
+        // proof panel lists them with their own ledger rows.
+        others: (fix.others ?? []).map((o) => ({
+          root: o.root,
+          ecosystem: o.ecosystem,
+          evidence: o.evidence.kind,
+          reasons: o.evidence.reasons,
+          baseline: o.baseline.checks,
+          after: o.after.checks,
+        })),
+      },
       testCounts: { baseline: fix.evidence.baseline, after: fix.evidence.after },
       egressDenied: fix.after.deniedHosts,
       diff: fix.files.map((f) => f.patch).join("\n"),

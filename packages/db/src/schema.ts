@@ -254,7 +254,8 @@ export const findings = pgTable(
   ],
 );
 
-export type RunKind = "fix" | "dry_run";
+/** `reverify`: both sides checked again on an open PR's own files (U2), its code unchanged. */
+export type RunKind = "fix" | "dry_run" | "reverify";
 /** `stopping`: a person asked to cancel and the run is closing its sandboxes (U1). */
 export type RunStatus = "queued" | "running" | "stopping" | "succeeded" | "failed" | "cancelled";
 /** Mirrors PR_MODE_BY_EVIDENCE in the engine: evidence, not a score, decides the PR (rule 13). */

@@ -66,23 +66,62 @@ export async function openOrUpdatePullRequest(input: {
   if (!pr) throw new Error("pull request missing after create");
   // An updated PR's evidence may have changed (a draft that now verifies): Teire's own evidence
   // labels that no longer apply come off; labels people added stay.
-  if (!created) {
-    // A refreshed PR's evidence is current again: `stale-evidence` (Off, base moved) comes off too.
-    const stale = [
-      ...Object.keys(PR_MODE_BY_EVIDENCE).map((kind) => kind.replace(/_/g, "-")),
-      STALE_EVIDENCE_LABEL,
-    ].filter((label) => !input.labels.includes(label));
-    const current = new Set(((pr as { labels?: { name?: string }[] }).labels ?? []).map((l) => l.name));
-    for (const label of stale.filter((l) => current.has(l)))
-      await octokit.rest.issues
-        .removeLabel({ owner, repo, issue_number: pr.number, name: label })
-        .catch(() => undefined);
-  }
+  if (!created) await dropStaleLabels(octokit, owner, repo, pr, input.labels);
   if (input.labels.length)
     await octokit.rest.issues
       .addLabels({ owner, repo, issue_number: pr.number, labels: input.labels })
       .catch(() => undefined);
   return { number: pr.number, url: pr.html_url, nodeId: pr.node_id, draft: input.draft, created };
+}
+
+/** Teire's evidence labels that no longer apply, and `stale-evidence` once the evidence is current again. */
+async function dropStaleLabels(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pr: { number: number; labels?: { name?: string }[] },
+  keep: string[],
+) {
+  const stale = [
+    ...Object.keys(PR_MODE_BY_EVIDENCE).map((kind) => kind.replace(/_/g, "-")),
+    STALE_EVIDENCE_LABEL,
+  ].filter((label) => !keep.includes(label));
+  const current = new Set((pr.labels ?? []).map((l) => l.name));
+  for (const label of stale.filter((l) => current.has(l)))
+    await octokit.rest.issues
+      .removeLabel({ owner, repo, issue_number: pr.number, name: label })
+      .catch(() => undefined);
+}
+
+/**
+ * An open PR set to new evidence without touching its code (Re-verify, U2): a draft that now
+ * verifies is marked ready, a ready PR its checks no longer prove becomes a draft, and Teire's
+ * evidence label follows. Labels people added stay.
+ */
+export async function setPullRequestEvidence(input: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  number: number;
+  evidence: keyof typeof PR_MODE_BY_EVIDENCE;
+}): Promise<{ draft: boolean; was: boolean }> {
+  const { octokit, owner, repo } = input;
+  const { data: pr } = await octokit.rest.pulls.get({ owner, repo, pull_number: input.number });
+  const draft = PR_MODE_BY_EVIDENCE[input.evidence] !== "ready";
+  if (!!pr.draft !== draft)
+    await octokit.graphql(
+      draft
+        ? "mutation($id: ID!) { convertPullRequestToDraft(input: {pullRequestId: $id}) { pullRequest { id } } }"
+        : "mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { pullRequest { id } } }",
+      { id: pr.node_id },
+    );
+  const labels = draft ? [input.evidence.replace(/_/g, "-")] : [];
+  await dropStaleLabels(octokit, owner, repo, pr, labels);
+  if (labels.length)
+    await octokit.rest.issues
+      .addLabels({ owner, repo, issue_number: pr.number, labels })
+      .catch(() => undefined);
+  return { draft, was: !!pr.draft };
 }
 
 /** "Teire" check run on the PR head with one annotation per located site. */

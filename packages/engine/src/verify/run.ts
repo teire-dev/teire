@@ -199,19 +199,25 @@ export async function verifyChange(input: {
   runId: string;
   tarball: { url: string; token?: string };
   plan: CheckPlan;
-  change: Change;
+  /** Written over the base on the after side. */
+  change?: Change;
+  /** The after side's own commit instead of a change (Re-verify, U2: a pull request's head as it is). */
+  afterTarball?: { url: string; token?: string };
   onLog?: (line: string) => void;
 }): Promise<VerifyRun> {
   const started = Date.now();
   // The project's own image and size: a JVM or Rust project can't build in the default Node image.
-  const open = (suffix: string) =>
+  const open = (suffix: string, tarball: { url: string; token?: string }) =>
     input.backend.open(`${input.runId}-${suffix}`, {
-      tarball: input.tarball,
+      tarball,
       image: input.plan.image,
       ...(input.plan.instance ? { instance: input.plan.instance } : {}),
     });
   // Both sides open at once; if one fails, the other is closed rather than left running (stage R review).
-  const [baseOpen, afterOpen] = await Promise.allSettled([open("base"), open("after")]);
+  const [baseOpen, afterOpen] = await Promise.allSettled([
+    open("base", input.tarball),
+    open("after", input.afterTarball ?? input.tarball),
+  ]);
   if (baseOpen.status === "rejected" || afterOpen.status === "rejected") {
     await Promise.all(
       [baseOpen, afterOpen].map((s) =>
