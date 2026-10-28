@@ -1,4 +1,4 @@
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, MessageCircleQuestion } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -137,7 +137,7 @@ async function Kit() {
             Rescan
           </Button>
           <Button size="sm" variant="ghost">
-            <Sparkles data-icon="inline-start" />
+            <MessageCircleQuestion data-icon="inline-start" />
             Explain
           </Button>
           <ToggleGroup type="single" defaultValue="auto" variant="outline" size="sm" aria-label="Fix mode">

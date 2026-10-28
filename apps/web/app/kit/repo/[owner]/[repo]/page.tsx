@@ -1,4 +1,11 @@
-import { ChevronDown, ExternalLink, GitPullRequest, RefreshCw, Sparkles, Wrench } from "lucide-react";
+import {
+  ChevronDown,
+  ExternalLink,
+  GitPullRequest,
+  MessageCircleQuestion,
+  RefreshCw,
+  Wrench,
+} from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -316,7 +323,7 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
                       <ChevronDown data-icon="inline-end" />
                     </Button>
                     <Button size="sm" variant="ghost">
-                      <Sparkles data-icon="inline-start" />
+                      <MessageCircleQuestion data-icon="inline-start" />
                       Explain
                     </Button>
                   </div>

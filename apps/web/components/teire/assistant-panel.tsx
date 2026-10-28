@@ -6,12 +6,12 @@ import {
   PanelRightClose,
   Plus,
   RotateCcw,
-  Sparkles,
   ThumbsDown,
   ThumbsUp,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { LogoMark } from "@/components/logo";
 import { ProofGlyphs } from "@/components/teire/proof-chain";
 import { EvidenceChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
@@ -38,9 +38,7 @@ export function AssistantPanel({ context, turn }: { context: string; turn: Assis
       className="sticky top-12 hidden h-[calc(100svh-3rem)] w-[380px] shrink-0 flex-col border-l border-rule bg-sheet xl:flex"
     >
       <header className="flex items-center gap-2 border-b border-rule px-3 py-2.5">
-        <span className="flex size-6 items-center justify-center rounded-md bg-ink text-sheet">
-          <Sparkles className="size-3.5" aria-hidden />
-        </span>
+        <LogoMark className="size-6" />
         <span className="text-sm font-medium text-ink">Ask Teire</span>
         <span className="ml-1 flex min-w-0 items-center gap-1 rounded-full bg-signal-soft px-2 py-0.5 font-mono text-[11px] text-signal">
           <span className="truncate">{context}</span>
