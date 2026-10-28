@@ -25,7 +25,7 @@
 
 Teire finds the lines that break, and a Nemotron coding agent on Nebius Token Factory fixes what a plain swap can't. Your own tests run before and after, and a pull request shows the proof.
 
-Teire watches every dependency and API a repository uses. That covers six package ecosystems (npm, PyPI, Go, Cargo, RubyGems, Maven/Gradle), the AI and payment APIs the code calls, and the runtimes it is pinned to. Every model call goes to **NVIDIA Nemotron 3 Ultra on Nebius Token Factory**: it reads the change pages Teire has no parser for, traces model IDs hidden in registries, and edits the code a swap can't fix. You meet Teire in five places:
+Teire watches the dependencies and APIs a repository uses: six package ecosystems (npm, PyPI, Go, Cargo, RubyGems, Maven/Gradle), the AI and payment APIs the code calls, and the runtimes it is pinned to. What it can't check on a scan (an advisory source that was down, a registry that didn't answer, Maven's transitive tree) is listed, never read as "nothing found". Model calls go to **NVIDIA Nemotron 3 Ultra on Nebius Token Factory** (Nemotron 3 Super takes over while Ultra fails): it reads the change pages Teire has no parser for, traces model IDs hidden in registries, and edits the code a swap can't fix. You meet Teire in five places:
 
 - a **GitHub App** that opens one pull request per change and keeps a Dashboard issue;
 - **`@teire` commands** in issues and PRs;
@@ -119,7 +119,7 @@ Follow the proof yourself on [teire.vercel.app](https://teire.vercel.app):
 </p>
 <p align="center"><a href="https://teire.vercel.app/docs/build">Open the architecture</a> · <a href=".github/diagrams/readme-system.mmd">Edit the Mermaid source</a></p>
 
-**Notice.** Every active repository is rescanned daily and on each push, like Dependabot's per-repo schedule. Nothing is read for a provider or package no connected repository uses: a provider's pages are read only when a scanned repository calls it, at most once every 6 hours, shared by every repository, and a new record there rescans the other repositories that use it. Advisories come from OSV and GitHub's advisory database. ([Providers](https://teire.vercel.app/docs/ecosystems/providers))
+**Notice.** Every active repository is rescanned daily (or weekly, or never, as `teire.yml` says) and on each push that changes its dependency files or code, like Dependabot's per-repo schedule. Nothing is read for a provider or package no connected repository uses: a provider's pages are read only when a scanned repository calls it, at most once every 6 hours, shared by every repository, and a new record there rescans the other repositories that use it. Advisories come from OSV and GitHub's advisory database. ([Providers](https://teire.vercel.app/docs/ecosystems/providers))
 
 **Impact.** For a major upgrade, Teire diffs the public API of your version against the target with each ecosystem's own tool, then finds the lines that use what changed:
 
@@ -270,7 +270,7 @@ pnpm typecheck && pnpm lint && pnpm test   # engine, worker and web
 - **Android projects are not supported.**
 - **PyPI packages** get no version-pinned docs lookup for the agent.
 - **Provider parameter and API-version records** don't become findings on their own.
-- **Each sandbox has one runtime per language** (Node 24, Python 3.12, Go 1.27.2, Rust 1.99.1); Ruby and the JDK can switch.
+- **Runtimes come from the repository** (`.nvmrc`/`engines`, `.python-version`/CI/`requires-python`, `rust-toolchain`, Go's `toolchain`, Ruby pins and lockfiles, the JDK from CI), within what the sandbox provides: Node 18–24, Python 3.10–3.13, any Rust channel, Go via `GOTOOLCHAIN`, Ruby 3.2–4.0. A version outside that runs on the nearest one, and the PR says so.
 - **No real users yet.** The evaluation repositories are Teire's own demos, built to reproduce real breakages.
 
 The full list, per ecosystem, is in the [docs](https://teire.vercel.app/docs/ecosystems).

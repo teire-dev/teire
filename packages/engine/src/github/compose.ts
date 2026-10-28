@@ -612,7 +612,7 @@ upgrades:
   majors: true          # open upgrade PRs across major versions
   plainBumps: true      # open verified upgrades with no code change (last in the queue)
   cooldownDays: 7       # wait this long after a release before proposing it
-schedule: daily         # scanned daily and on every push; weekly, push (pushes only) or off
+schedule: daily         # daily and on pushes that change dependencies or code; weekly, push (pushes only) or off
 pullRequests:
   limit: 5              # open Teire PRs at most
   perHour: 2            # new Teire PRs per hour at most

@@ -48,7 +48,7 @@ Reads `teire.yml` from the default branch and from the organisation's `teire-con
 **pause** stops scans and pull requests for the repository. A fix run that starts while the repository is paused is cancelled with "repository paused". **resume** restores the previous state and rescans.
 </Accordion>
 <Accordion title="pause-fixes / resume-fixes">
-**pause-fixes** keeps the scans, the Dashboard issue and "needs a human" issues going, but starts no fix run: one that starts anyway is cancelled with "fixes paused". `@teire fix`, `rebase` and `recreate` answer "`@teire resume-fixes` first." **resume-fixes** rescans, and fix runs start from that scan.
+**pause-fixes** keeps the scans, the Dashboard issue and "needs a human" issues going, but starts no fix run: one that starts anyway is cancelled with "fixes paused". `@teire fix`, `rebase` and `recreate` answer "`@teire resume-fixes` first." **resume-fixes** rescans, and fix runs start from that scan. While fixes are paused, the Dashboard's **Fix now** and its ticks answer the same, and Teire's open PRs are left as they are (no rebase, no CI repair). A public dry run still works: it writes nothing to the repository.
 </Accordion>
 <Accordion title="wrong <reason>">
 Records the feedback (up to 2,000 characters) against the repository. The reply is "Thanks; recorded."
