@@ -1,0 +1,52 @@
+---
+title: Token Factory Sandboxes
+description: Public repositories and dry runs are verified on Nebius Token Factory Sandboxes, microVMs Teire builds its own images in. Private repositories stay on Cloudflare Containers.
+icon: Box
+---
+
+Teire verifies a public repository's upgrade, and every dry run, on **Nebius Token Factory Sandboxes**: each command runs in its own microVM, a virtual machine with its own kernel. The same install, typecheck and tests run as on [Cloudflare Containers](/docs/build/security), with the same evidence rules ([Verification](/docs/build/verification)).
+
+## Which runs go where
+
+| Repository | Backend | Why |
+|---|---|---|
+| Public | Token Factory Sandboxes | A saved sandbox image keeps the repository's files for 180 days, and Token Factory has no call to delete it. For public code that is no exposure. |
+| Dry run of a public repository | Token Factory Sandboxes | The same reason |
+| Private | Cloudflare Containers | A private repository's files never land in an image that outlives the run |
+
+The run page and its receipt name the backend each run used.
+
+## How a run works there
+
+Token Factory Sandboxes runs one command per microVM. A microVM that is kept saves what it changed as a new image, and the next command starts from that image. Teire chains them:
+
+<Steps>
+<Step>
+**The image.** Teire builds its sandbox images inside Token Factory, from the same Dockerfiles as the Cloudflare images: it imports the public base image, runs the build steps in one microVM, and tags the result by the recipe's hash, so each image is built once.
+</Step>
+<Step>
+**The checkout.** The worker fetches the commit's tarball (no repository code runs on the worker), uploads it, and unpacks it into `/work` in a kept microVM.
+</Step>
+<Step>
+**The install, with the network on.** Your package manager installs from its registries. The result is the image the checks start from.
+</Step>
+<Step>
+**The checks, with the network off.** Each check runs in a fresh microVM from the install's image, with **no network interface at all**, as the unprivileged user `teire` (uid 10001), as CI runs them. A check's own image is kept only so its test report can be read back; the next check starts from the install's image again. The agent's edits between attempts are uploaded and placed into each check's microVM.
+</Step>
+</Steps>
+
+Limits come from Token Factory's own `whoami` call, never assumed: an hour per microVM, 50 at a time, 12 GB per image layer. A failed spawn is not retried, because spawns carry no idempotency key.
+
+## What differs from Cloudflare Containers
+
+| | Token Factory Sandboxes | Cloudflare Containers |
+|---|---|---|
+| Isolation | A microVM per command | A container per side, driven by a Durable Object |
+| Install network | Open (no allowlist exists) | Package registries only, GET only |
+| Check network | None: no network interface | Off; any request is denied and recorded |
+| Egress record | None kept by Token Factory | Every request the sandbox refused |
+| After the run | Images kept 180 days, no delete call | The container is destroyed |
+
+<Callout title="Gaps that shape how Teire uses it">
+Token Factory Sandboxes has no call to delete an image, no idempotency key on spawns, no egress log and no allowlist for the install's network. Each shapes how Teire uses it: public repositories only, spawns never retried, and checks with no network interface.
+</Callout>

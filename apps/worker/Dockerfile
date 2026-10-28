@@ -76,6 +76,8 @@ RUN uv python install 3.12 \
 COPY --from=gohelper /usr/local/go /usr/local/go
 WORKDIR /app
 COPY packages/helpers/python/teire_py.py /app/helpers/teire_py.py
+# The sandbox Dockerfiles: Token Factory Sandboxes builds its verification images from them (S17).
+COPY apps/sandbox/images /app/sandbox-images
 COPY --from=gohelper /out/teire-go /out/govulncheck /app/helpers/
 RUN mkdir -p /var/cache/teire-go && chown node:node /var/cache/teire-go
 ENV NODE_ENV=production \
@@ -91,7 +93,8 @@ ENV NODE_ENV=production \
     TEIRE_GO_CACHE=/var/cache/teire-go \
     TEIRE_JAVA=/opt/java/openjdk/bin/java \
     TEIRE_JAPICMP_JAR=/app/helpers/japicmp.jar \
-    UV_PYTHON_DOWNLOADS=never
+    UV_PYTHON_DOWNLOADS=never \
+    TEIRE_SANDBOX_IMAGES=/app/sandbox-images
 COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist

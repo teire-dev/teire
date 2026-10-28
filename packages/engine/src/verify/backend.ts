@@ -5,6 +5,7 @@ import {
   type JobResult,
   sandboxConfigFromEnv,
 } from "./cloudflare";
+import { tokenFactoryBackend, tokenFactorySandboxConfigFromEnv } from "./tokenfactory";
 
 /**
  * Where checks run (card C5, D41/D49). Cloudflare Containers by default; Token Factory Sandboxes
@@ -93,12 +94,44 @@ export async function tokenFactorySandboxAccess(env: NodeJS.ProcessEnv = process
   }
 }
 
-/** The backend this run uses, and why. */
-export async function selectBackend(env: NodeJS.ProcessEnv = process.env) {
-  const access = await tokenFactorySandboxAccess(env);
-  // A Token Factory backend is added when access is granted; until then every run says so.
+/** A repository tarball, fetched by the worker (no code runs here), for an upload to the sandbox. */
+async function fetchTarball(url: string, token?: string) {
+  const response = await fetch(url, {
+    headers: { "user-agent": "teire", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    redirect: "follow",
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!response.ok) throw new Error(`tarball ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/**
+ * The backend this run uses, and why (D107): Token Factory Sandboxes for public repositories and
+ * dry runs, since its saved images keep code for 180 days with no delete; Cloudflare Containers for
+ * private repositories, and whenever Token Factory access isn't granted.
+ */
+export async function selectBackend(
+  env: NodeJS.ProcessEnv = process.env,
+  repo?: { isPrivate: boolean | null },
+) {
+  const tf = tokenFactorySandboxConfigFromEnv(env);
+  const images = env.TEIRE_SANDBOX_IMAGES;
+  if (repo && repo.isPrivate === false && tf && images) {
+    const access = await tokenFactorySandboxAccess(env);
+    if (access.available)
+      return {
+        backend: tokenFactoryBackend(tf, { dir: images }, fetchTarball),
+        note: "Token Factory Sandboxes (a public repository)",
+      };
+    return {
+      backend: cloudflareBackend(sandboxConfigFromEnv(env)),
+      note: `Cloudflare Containers (Token Factory Sandboxes: ${access.reason})`,
+    };
+  }
   return {
     backend: cloudflareBackend(sandboxConfigFromEnv(env)),
-    note: `Cloudflare Containers (Token Factory Sandboxes: ${access.reason})`,
+    note: repo?.isPrivate
+      ? "Cloudflare Containers (a private repository)"
+      : `Cloudflare Containers (Token Factory Sandboxes: ${!tf ? "not configured" : !images ? "no image recipes" : "not chosen"})`,
   };
 }

@@ -17,6 +17,7 @@ import { visibleRun } from "@/lib/access";
 import { database } from "@/lib/db";
 import { groupHref } from "@/lib/links";
 import { INSTALL_URL } from "@/lib/site";
+import { backendName } from "@/lib/utils";
 import { Timeline } from "./timeline";
 
 export const metadata: Metadata = { title: "Run", robots: { index: false } };
@@ -155,7 +156,7 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
               #{pr.number} <ExternalLink className="size-3" aria-hidden />
             </a>
           ) : (
-            <span className="font-mono">{run.backend ?? "—"}</span>
+            <span>{backendName(run.backend)}</span>
           )}
         </Fact>
       </dl>

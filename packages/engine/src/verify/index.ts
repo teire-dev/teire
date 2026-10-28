@@ -10,4 +10,5 @@ export * from "./reports";
 export * from "./ruby-commands";
 export * from "./run";
 export * from "./rust-commands";
+export * from "./tokenfactory";
 export * from "./toolchains";

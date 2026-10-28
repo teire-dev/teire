@@ -12,7 +12,9 @@ icon: Lock
 
 ## The sandbox
 
-Every install and check runs on **Cloudflare Containers**. One Durable Object drives one container, and each side of a run gets its own.
+A private repository's installs and checks run on **Cloudflare Containers**: one Durable Object drives one container, and each side of a run gets its own. A public repository's, and every dry run's, run on [Token Factory Sandboxes](/docs/build/token-factory-sandboxes), a microVM per command, with no network interface during the checks.
+
+On Cloudflare Containers:
 
 | Rule | How |
 |---|---|

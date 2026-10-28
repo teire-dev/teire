@@ -1,3 +1,5 @@
+import { backendName } from "@/lib/utils";
+
 /**
  * The run receipt (design ledger, signature move #1): one dot-leader row per model and per sandbox
  * phase, closed by the total. Every number is from the run's own records (llm_calls, sandbox_execs).
@@ -66,7 +68,7 @@ export function Receipt({
         <Row left="no model call" right="deterministic fix · $0.0000" />
       )}
       <p className="mt-3 mb-1 text-muted-foreground">
-        sandbox · {execs.find((e) => e.phase !== "resolve")?.backend ?? "—"}
+        sandbox · {backendName(execs.find((e) => e.phase !== "resolve")?.backend)}
       </p>
       {execs.map((e, i) => (
         <Row

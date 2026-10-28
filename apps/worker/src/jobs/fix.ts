@@ -835,7 +835,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const tree = scopedTree(directoryTree(checkout.dir), runConfig);
     const tf = createTokenFactory(tokenFactoryConfigFromEnv());
     const prices = await fetchModelPrices().catch(() => undefined);
-    const { backend, note } = await selectBackend();
+    // D107: public repositories and dry runs verify on Token Factory Sandboxes; private ones on Cloudflare.
+    const { backend, note } = await selectBackend(process.env, { isPrivate: dry ? false : repo.isPrivate });
     // A CI repair starts from what the repo's own CI said about the PR (C6: one repair attempt).
     const ci = run.requestedBy?.startsWith("ci-repair:")
       ? ((await runEventsOf(db, runId, "ci"))[0]?.payload as

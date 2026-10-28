@@ -76,7 +76,17 @@ const plans: { ecosystem: string; root: string; plan: CheckPlan }[] = [
   })),
 ].filter((p) => !flag("root") || p.root === flag("root"));
 
-const { backend, note } = await selectBackend();
+// --backend=tokenfactory verifies on Token Factory Sandboxes (as a public repository's run does).
+const { backend, note } = await selectBackend(
+  flag("backend") === "tokenfactory"
+    ? {
+        ...process.env,
+        TEIRE_SANDBOX_IMAGES:
+          process.env.TEIRE_SANDBOX_IMAGES ?? `${import.meta.dirname}/../../../apps/sandbox/images`,
+      }
+    : process.env,
+  flag("backend") === "tokenfactory" ? { isPrivate: false } : undefined,
+);
 console.log(`backend: ${note}`);
 const tarball = {
   url: `https://api.github.com/repos/${owner}/${repo}/tarball/${sha}`,
