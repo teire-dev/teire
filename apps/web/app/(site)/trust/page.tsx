@@ -241,7 +241,7 @@ function Rules() {
     ],
     [
       "Your code runs only in a sandbox",
-      "Installs, builds and tests run in an isolated container per side (before and after the change). For the ecosystems moved to it so far (npm first), dependency files are updated by Dependabot's updater under gVisor, on a network with no route out except its proxy. The worker never runs repository code.",
+      "Installs, builds and tests run in an isolated container per side (before and after the change). In all six ecosystems, dependency files are updated by Dependabot's updater under gVisor, on a network with no route out except its proxy. The worker never runs repository code.",
     ],
     [
       "Registries only, then offline",

@@ -239,7 +239,7 @@ cd apps/sandbox && npx wrangler deploy && npx wrangler secret put TEIRE_SANDBOX_
 # apps/resolver/THREAT-MODEL.md first.
 #   sudo apps/resolver/host/install.sh install
 # .env.local: TEIRE_RESOLVER_URL=http://<the host's address>:8787, TEIRE_RESOLVER_SECRET from /etc/teire-resolver/env,
-#   TEIRE_RESOLVER_ECOSYSTEMS=npm (the ecosystems whose dependency files the updater decides; for
+#   TEIRE_RESOLVER_ECOSYSTEMS=npm,pypi,go,cargo,rubygems,maven (the ecosystems whose dependency files the updater decides; for
 #   them a stop is final and an unreachable updater queues). Ecosystems not listed, or no updater at
 #   all, use Teire's own manifest and lockfile edits.
 
