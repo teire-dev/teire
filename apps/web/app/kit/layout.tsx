@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { ThemeFromUrl } from "@/components/teire/theme-from-url";
 
 export const metadata: Metadata = {
   title: { default: "Kit", template: "%s · Kit · Teire" },
@@ -10,5 +12,12 @@ export const metadata: Metadata = {
  * people building Teire. Every page checks access inside its own Suspense boundary (`requireKit`).
  */
 export default function KitLayout({ children }: LayoutProps<"/kit">) {
-  return <div className="flex min-h-svh flex-1 flex-col bg-canvas text-ink">{children}</div>;
+  return (
+    <div className="flex min-h-svh flex-1 flex-col bg-canvas text-ink">
+      <Suspense>
+        <ThemeFromUrl />
+      </Suspense>
+      {children}
+    </div>
+  );
 }

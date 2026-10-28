@@ -102,7 +102,7 @@ async function Overview() {
           <Kpi label="Changes reaching code" value={data.counts.reaching} />
         </section>
 
-        <div className="grid animate-enter gap-6 [animation-delay:80ms] lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid animate-enter grid-cols-1 gap-6 [animation-delay:80ms] *:min-w-0 lg:grid-cols-[minmax(0,1fr)_340px]">
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="eyebrow">Needs you</h2>

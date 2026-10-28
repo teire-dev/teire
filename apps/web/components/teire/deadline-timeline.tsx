@@ -49,76 +49,102 @@ export function DeadlineTimeline({ deadlines }: { deadlines: Deadline[] }) {
     taken.push({ t: p.date.getTime(), lane });
     lanes.set(p.id, lane);
   }
+  const pinList = [...pins.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
   return (
-    <div className="relative h-36 w-full select-none">
-      <div className="absolute inset-x-0 bottom-7 h-px bg-rule-strong" />
-      {months.map((m) => (
-        <span
-          key={m.toISOString()}
-          className="absolute bottom-0 font-mono text-[10px] text-ink-3 uppercase"
-          style={{ left: x(m.getTime()) }}
-        >
-          <span className="absolute bottom-6 left-0 h-2 w-px bg-rule-strong" />
-          <span className="pl-1">{MONTH.format(m)}</span>
-        </span>
-      ))}
-      <span className="absolute top-2 bottom-7 w-px bg-signal" style={{ left: x(now) }} aria-hidden />
-      <span
-        className="absolute top-0 -translate-x-1/2 rounded-full bg-signal px-1.5 font-mono text-[10px] text-sheet"
-        style={{ left: x(now) }}
-      >
-        today
-      </span>
-      {[...pins.values()].map((p, i) => {
-        const days = Math.round((p.date.getTime() - now) / DAY);
-        const passed = days < 0;
-        const lane = lanes.get(p.id) ?? 0;
-        const repos = Math.max(...p.items.map((d) => d.repos));
-        return (
-          <div
-            key={p.id}
-            className="group absolute -translate-x-1/2 animate-enter"
-            style={{
-              left: x(p.date.getTime()),
-              bottom: `${40 + lane * 64}px`,
-              animationDelay: `${i * 60}ms`,
-            }}
-          >
-            <span
-              className={cn(
-                "absolute top-full left-1/2 h-2 w-px -translate-x-1/2",
-                passed ? "bg-broke" : days <= 90 ? "bg-attention" : "bg-rule-strong",
-              )}
-            />
-            <span
-              className={cn(
-                "relative block rounded-lg ring-2",
-                passed ? "ring-broke/50" : days <= 90 ? "ring-attention/50" : "ring-transparent",
-              )}
-            >
-              <Mark brand={p.brand} size="lg" />
-              {p.items.length > 1 ? (
-                <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-ink font-mono text-[9px] text-sheet">
-                  {p.items.length}
-                </span>
-              ) : null}
-            </span>
-            <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 font-mono text-[10px] whitespace-nowrap text-ink-2">
-              {SHORT.format(p.date)}
-            </span>
-            <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-60 -translate-x-1/2 rounded-lg bg-ink p-2.5 text-xs text-sheet shadow-float group-hover:block">
-              {p.items.map((d) => (
-                <span key={d.id} className="block truncate font-medium">
-                  {d.title}
-                </span>
-              ))}
-              <span className="mt-1 block font-mono text-[11px] opacity-70">
-                {passed ? `${-days} days ago` : `in ${days} days`} · {repos} repo{repos === 1 ? "" : "s"}
+    <>
+      {/* Phones: the same pins as a list; a rail this narrow can't keep close dates apart. */}
+      <ul className="flex flex-col divide-y divide-rule sm:hidden">
+        {pinList.map((p) => {
+          const days = Math.round((p.date.getTime() - now) / DAY);
+          return (
+            <li key={p.id} className="flex items-center gap-3 py-2.5">
+              <Mark brand={p.brand} />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-sm text-ink">{p.items.map((d) => d.title).join(", ")}</span>
+                <span className="font-mono text-[11px] text-ink-3">{SHORT.format(p.date)}</span>
               </span>
-            </span>
-          </div>
-        );
-      })}
-    </div>
+              <span
+                className={cn(
+                  "font-mono text-xs",
+                  days < 0 ? "text-broke" : days <= 90 ? "text-attention" : "text-ink-2",
+                )}
+              >
+                {days < 0 ? `${-days}d ago` : `in ${days}d`}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="relative hidden h-36 w-full select-none sm:block">
+        <div className="absolute inset-x-0 bottom-7 h-px bg-rule-strong" />
+        {months.map((m) => (
+          <span
+            key={m.toISOString()}
+            className="absolute bottom-0 font-mono text-[10px] text-ink-3 uppercase"
+            style={{ left: x(m.getTime()) }}
+          >
+            <span className="absolute bottom-6 left-0 h-2 w-px bg-rule-strong" />
+            <span className="pl-1">{MONTH.format(m)}</span>
+          </span>
+        ))}
+        <span className="absolute top-2 bottom-7 w-px bg-signal" style={{ left: x(now) }} aria-hidden />
+        <span
+          className="absolute top-0 -translate-x-1/2 rounded-full bg-signal px-1.5 font-mono text-[10px] text-sheet"
+          style={{ left: x(now) }}
+        >
+          today
+        </span>
+        {[...pins.values()].map((p, i) => {
+          const days = Math.round((p.date.getTime() - now) / DAY);
+          const passed = days < 0;
+          const lane = lanes.get(p.id) ?? 0;
+          const repos = Math.max(...p.items.map((d) => d.repos));
+          return (
+            <div
+              key={p.id}
+              className="group absolute -translate-x-1/2 animate-enter"
+              style={{
+                left: x(p.date.getTime()),
+                bottom: `${40 + lane * 64}px`,
+                animationDelay: `${i * 60}ms`,
+              }}
+            >
+              <span
+                className={cn(
+                  "absolute top-full left-1/2 h-2 w-px -translate-x-1/2",
+                  passed ? "bg-broke" : days <= 90 ? "bg-attention" : "bg-rule-strong",
+                )}
+              />
+              <span
+                className={cn(
+                  "relative block rounded-lg ring-2",
+                  passed ? "ring-broke/50" : days <= 90 ? "ring-attention/50" : "ring-transparent",
+                )}
+              >
+                <Mark brand={p.brand} size="lg" />
+                {p.items.length > 1 ? (
+                  <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-ink font-mono text-[9px] text-sheet">
+                    {p.items.length}
+                  </span>
+                ) : null}
+              </span>
+              <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 font-mono text-[10px] whitespace-nowrap text-ink-2">
+                {SHORT.format(p.date)}
+              </span>
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-60 -translate-x-1/2 rounded-lg bg-ink p-2.5 text-xs text-sheet shadow-float group-hover:block">
+                {p.items.map((d) => (
+                  <span key={d.id} className="block truncate font-medium">
+                    {d.title}
+                  </span>
+                ))}
+                <span className="mt-1 block font-mono text-[11px] opacity-70">
+                  {passed ? `${-days} days ago` : `in ${days} days`} · {repos} repo{repos === 1 ? "" : "s"}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }

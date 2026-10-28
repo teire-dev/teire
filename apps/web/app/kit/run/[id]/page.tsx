@@ -199,7 +199,7 @@ async function RunSheet({ params }: { params: PageProps<"/kit/run/[id]">["params
           <p className="rounded-lg bg-broke-soft px-4 py-3 font-mono text-xs text-broke">{run.error}</p>
         ) : null}
 
-        <div className="grid animate-enter items-start gap-6 [animation-delay:120ms] lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
+        <div className="grid animate-enter grid-cols-1 items-start gap-6 [animation-delay:120ms] *:min-w-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
           <div className="flex min-w-0 flex-col gap-6">
             <section className="flex flex-col gap-3">
               <h2 className="eyebrow">Trace</h2>
