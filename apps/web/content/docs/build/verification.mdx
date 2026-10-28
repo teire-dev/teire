@@ -56,6 +56,10 @@ Rule 8 sorts out why both sides failed:
 
 `verified` opens a ready PR. The middle kinds open a draft that names the reason. `regression`, `unverified` and `timeout` open an issue for a person. The model's review never changes this.
 
+## When a change touches several projects
+
+One pull request can change several projects: a package locked in two folders of a monorepo, or a retired model swapped in a TypeScript service and a Go one. The project the change breaks runs the fix and its checks first. Then every other project the final files touch installs and runs its own checks, before and after, in its own sandboxes with its own toolchain. The weakest result decides the pull request, and the Verification section lists each project with its before and after.
+
 ## When the newest major won't pass
 
 If a major upgrade still fails its checks after the agent's attempts, Teire opens nothing for it. It tries once more with the newest version of the previous major, and that pull request opens with **Why X, not Y** and the checks that failed on the newer one. The newer major is tried again when a scan sees a newer commit.
