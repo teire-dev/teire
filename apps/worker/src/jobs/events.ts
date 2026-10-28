@@ -130,7 +130,8 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
           await setRepo(db, repo.id, { status: "paused", pausedFrom: "detected", pausedReason: "opted_out" });
         return;
       }
-      if (artifact.kind === "pr")
+      // A person's close dismisses that target (D112); Teire's own closes (superseded, stale) don't.
+      if (artifact.kind === "pr" && (merged || p.sender?.type !== "Bot"))
         await markFindings(db, repo.id, artifact.changeKey, merged ? "fixed" : "dismissed");
       return;
     }

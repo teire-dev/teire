@@ -240,6 +240,15 @@ export async function retireUnreported(db: Database, repoId: number, scanId: str
   return rows.length;
 }
 
+/** Lineages with an open finding: what an open Teire PR in that lineage still answers (C6). */
+export async function openLineages(db: Database, repoId: number) {
+  const rows = await db
+    .select({ lineageKey: findings.lineageKey, groupKey: findings.groupKey, changeId: findings.changeId })
+    .from(findings)
+    .where(and(eq(findings.repoId, repoId), eq(findings.state, "open")));
+  return new Set(rows.map((r) => r.lineageKey ?? lineageKey(r.groupKey ?? r.changeId)));
+}
+
 export async function markFindings(
   db: Database,
   repoId: number,

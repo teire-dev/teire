@@ -2,7 +2,7 @@ import { rm } from "node:fs/promises";
 import { type Database, sql } from "@teire/db";
 import { osvAdvisoryIds } from "@teire/engine/advisories";
 import { readTeireConfig, type TeireConfig } from "@teire/engine/config";
-import { lineageKey } from "@teire/engine/contract";
+import { ECOSYSTEMS, lineageKey } from "@teire/engine/contract";
 import {
   commitToBranch,
   composeOnboarding,
@@ -49,6 +49,8 @@ import {
   finishScan,
   getArtifact,
   getRepo,
+  openArtifacts,
+  openLineages,
   recordLlmCall,
   retireUnreported,
   saveInstances,
@@ -584,6 +586,11 @@ export async function scanRepo(
       console.error(`[scan] ${repo.fullName}: human issues: ${error}`),
     );
     // Fixes paused (D110): the scan and the Dashboard issue are kept current; no run is queued.
+    // Paused fixes also keep their PRs as they are.
+    if (!repo.fixesPaused && lookupsAnswered(gaps))
+      await closeStalePullRequests(ctx, installation.octokit, repo, sha, assessments).catch((error) =>
+        console.error(`[scan] ${repo.fullName}: stale PRs: ${error}`),
+      );
     if (repo.fixesPaused) {
       await syncDashboard(ctx, repoId).catch((error) =>
         console.error(`[scan] ${repo.fullName}: dashboard: ${error}`),
@@ -666,4 +673,50 @@ async function fanOutProviderChanges(ctx: WorkerContext, fromRepoId: number, slu
   `);
   for (const r of rows) await ctx.enqueueScan?.(Number(r.id), "catalog");
   if (rows.length) console.log(`[scan] ${slugs.join(", ")}: new records; rescanning ${rows.length} repo(s)`);
+}
+
+/**
+ * A Teire PR whose lineage this scan no longer reports closes with the reason (C6, S15.8): the
+ * package was removed or upgraded on the base branch, or the change no longer applies. Called only
+ * when every lookup answered (D96), so a registry outage never closes a PR.
+ */
+async function closeStalePullRequests(
+  ctx: WorkerContext,
+  octokit: Awaited<ReturnType<WorkerContext["gh"]["installation"]>>["octokit"],
+  repo: NonNullable<Awaited<ReturnType<typeof getRepo>>>,
+  sha: string,
+  assessments: { instance: { ecosystem: string; name: string; version: string | null } }[],
+) {
+  const live = await openLineages(ctx.db, repo.id);
+  const [owner = "", name = ""] = repo.fullName.split("/");
+  for (const a of await openArtifacts(ctx.db, repo.id)) {
+    if (a.kind !== "pr" || !a.number || live.has(a.lineageKey ?? lineageKey(a.changeKey))) continue;
+    const parts = a.changeKey.split("/");
+    const pkg = parts.slice(1, -1).join("/");
+    const installed = [
+      ...new Set(
+        assessments
+          .filter((x) => x.instance.ecosystem === parts[0] && x.instance.name === pkg && x.instance.version)
+          .map((x) => x.instance.version),
+      ),
+    ];
+    const at = `\`${repo.defaultBranch}\` (\`${sha.slice(0, 7)}\`)`;
+    const why = !(ECOSYSTEMS as readonly string[]).includes(parts[0] ?? "")
+      ? `The latest scan of ${at} no longer finds code this change affects.`
+      : installed.length
+        ? `\`${pkg}\` is at ${installed.join(", ")} on ${at} now, so this upgrade to ${parts.at(-1)} no longer applies.`
+        : `\`${pkg}\` is no longer a dependency on ${at}.`;
+    try {
+      await octokit.rest.issues.createComment({
+        owner,
+        repo: name,
+        issue_number: a.number,
+        body: `Closing: ${why}`,
+      });
+      await octokit.rest.pulls.update({ owner, repo: name, pull_number: a.number, state: "closed" });
+      await upsertArtifact(ctx.db, { ...a, state: "closed" });
+    } catch (error) {
+      console.error(`[scan] ${repo.fullName}#${a.number}: close: ${error}`);
+    }
+  }
 }
