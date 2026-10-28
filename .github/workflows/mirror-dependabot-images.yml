@@ -1,0 +1,42 @@
+# Mirrors the Dependabot updater and proxy images the resolver pins (apps/resolver/host/images.json)
+# to ghcr.io/teire-dev, by digest and with their Sigstore attestation bundles (OCI referrers), so a
+# digest deleted upstream can't stop resolver jobs (plan R-P27). The mirror keeps the same digests,
+# and the dependabot CLI verifies the same attestations against Dependabot's own workflow identity.
+# Teire's own infrastructure: no repository code runs here.
+name: Mirror Dependabot images
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [apps/resolver/host/images.json]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install regctl
+        run: |
+          curl -fsSL -o /tmp/regctl https://github.com/regclient/regclient/releases/download/v0.11.6/regctl-linux-amd64
+          echo "8e0e62a497fcdb8048d18aa927a139613176ba0531f412bc541044e28f9856bd  /tmp/regctl" | sha256sum -c -
+          sudo install -m 0755 /tmp/regctl /usr/local/bin/regctl
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | regctl registry login ghcr.io -u "${{ github.actor }}" --pass-stdin
+      - name: Copy each pinned digest with its referrers
+        run: |
+          jq -r '[.proxy] + [.updaters[]] | .[]' apps/resolver/host/images.json | while read -r ref; do
+            repo="${ref%@*}"; digest="${ref#*@}"
+            name="${repo##*/}"
+            dest="ghcr.io/teire-dev/${name}:${digest#sha256:}"
+            echo "::group::${ref} -> ${dest}"
+            regctl image copy --referrers --digest-tags "${ref}" "${dest}"
+            # The copy must be byte-identical, or the attestations would not match it.
+            test "$(regctl image digest "${dest}")" = "${digest}"
+            regctl artifact list "${dest%:*}@${digest}" || true
+            echo "::endgroup::"
+          done
