@@ -138,12 +138,21 @@ export class CloudflareSandbox {
     return this.#json<ExecResult>("POST", "/exec", { argv, ...options });
   }
 
-  startJob(
+  async startJob(
     jobId: string,
     argv: string[],
     options: { cwd?: string; env?: Record<string, string>; timeoutSec?: number } = {},
-  ) {
-    return this.#json<JobStatus>("POST", "/jobs", { jobId, argv, ...options });
+  ): Promise<JobStatus> {
+    try {
+      return await this.#json<JobStatus>("POST", "/jobs", { jobId, argv, ...options });
+    } catch (error) {
+      // A POST retried after a dropped connection can find the job its first attempt started (job
+      // ids are unique per execution, so it is this one): adopt it rather than fail the run.
+      if (!/→ 409: .*job id already used/.test(String(error))) throw error;
+      const status = await this.jobStatus(jobId);
+      if (status.state === "missing") throw error;
+      return status;
+    }
   }
 
   jobStatus(jobId: string) {
