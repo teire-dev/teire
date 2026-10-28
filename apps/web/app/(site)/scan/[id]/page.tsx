@@ -1,3 +1,4 @@
+import { PUBLIC_LIMITS } from "@teire/engine/constants";
 import { FlaskConical, GitPullRequest, Loader } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -10,7 +11,7 @@ import { GithubMark } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
 import { bucketGroups, type FindingGroup, groupFindings } from "@/lib/findings";
-import { dryRunsFor, publicReport } from "@/lib/reports";
+import { dryRunsFor, publicReport, usageToday } from "@/lib/reports";
 import { getSession } from "@/lib/session";
 import { INSTALL_URL } from "@/lib/site";
 import { startDryRun } from "../actions";
@@ -338,18 +339,24 @@ async function DryRun({
       </Button>
     );
   const session = await getSession();
+  // The same daily limit the action and the worker apply (review R23).
+  const spent = session
+    ? (await usageToday(session.user.id)).dryRuns >= PUBLIC_LIMITS.dryRunsPerUserPerDay
+    : false;
   return (
     <form action={startDryRun} className="flex flex-wrap items-center gap-3">
       <input type="hidden" name="publicScanId" value={publicScanId} />
       <input type="hidden" name="groupKey" value={group.key} />
-      <Button type="submit" size="sm" disabled={!session}>
+      <Button type="submit" size="sm" disabled={!session || spent}>
         <FlaskConical data-icon="inline-start" />
         Dry-run a fix
       </Button>
       <span className="text-xs text-muted-foreground">
-        {session
-          ? "Fix and verify in a sandbox, no PR opened."
-          : "Sign in with GitHub to dry-run a fix (one a day)."}
+        {!session
+          ? "Sign in with GitHub to dry-run a fix (one a day)."
+          : spent
+            ? `You've used today's ${PUBLIC_LIMITS.dryRunsPerUserPerDay} dry run. Install Teire for fixes as pull requests.`
+            : "Fix and verify in a sandbox, no PR opened."}
       </span>
     </form>
   );

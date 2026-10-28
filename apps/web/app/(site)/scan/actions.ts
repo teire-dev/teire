@@ -55,6 +55,9 @@ export async function startDryRun(form: FormData) {
   const session = await getSession();
   if (!session) redirect(`/scan/${publicScanId}?signin=1`);
   if (!/^[0-9a-f-]{36}$/.test(publicScanId) || !groupKey) redirect("/scan");
+  // The worker's rule, checked before queueing (review R23): the report then shows the limit.
+  if ((await usageToday(session.user.id)).dryRuns >= PUBLIC_LIMITS.dryRunsPerUserPerDay)
+    redirect(`/scan/${publicScanId}`);
   const runId = randomUUID();
   await enqueue(`teire-dry-run-${runId}`, "teire.dry_run", {
     runId,
