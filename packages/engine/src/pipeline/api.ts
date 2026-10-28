@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import type { PageReader } from "../catalog/adapters/vendor-page";
 import { type IngestOptions, ingestProvider } from "../catalog/ingest";
 import { PROVIDERS } from "../catalog/providers";
@@ -369,6 +369,119 @@ export function planModelSwaps(
         noteUrl: swaps[0]?.record.sources[0]?.url ?? "",
       });
   }
+  return [...edits, ...expectationSwaps(repoDir, edits)];
+}
+
+/** An equality assertion just before a quoted value: `eq("`, `toBe("`, `assertEquals("`, `Equal(t, "`, `== "`. */
+const EXPECTATION =
+  /(?:\beql?|\bequal|toBe|toEqual|toStrictEqual|toHaveBeenCalledWith|assertEquals?|assert_eq!?|assertEqual|isEqualTo|Equalf?\(\s*t\s*,|==|!=)\s*\(?\s*["'`]$/;
+const TEST_PATH =
+  /(?:^|\/)(?:spec|specs|test|tests|__tests__)\/|(?:_spec|_test|\.test|\.spec|Test|Tests)\.[a-z]+$|(?:^|\/)test_[^/]+\.py$/;
+const SKIP_DIRS = new Set([
+  ".git",
+  "node_modules",
+  "vendor",
+  "dist",
+  "build",
+  "target",
+  ".venv",
+  "venv",
+  "__pycache__",
+]);
+
+/** Every file under a directory (bounded), relative paths. */
+function filesUnder(root: string, cap = 20_000) {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(join(root, dir), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (out.length >= cap) return;
+      const rel = dir ? `${dir}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        if (!SKIP_DIRS.has(e.name)) walk(rel);
+      } else out.push(rel);
+    }
+  };
+  walk("");
+  return out;
+}
+
+/**
+ * The tests that pin a swapped value move with it: once the code's model changes, an equality
+ * assertion on the exact retired ID (`expect(provider.default_model).to eq("claude-3-5-…")`) in the
+ * swapped files or the tests paired with them expects the replacement. Without this a spec held the
+ * old ID while the code moved, and the agent edited back and forth for 96 steps (live walk,
+ * teire-dev/bristow). A test that only mentions an ID (a list of retired names) is left alone.
+ */
+export function expectationSwaps(repoDir: string, swaps: CodemodEdit[]): CodemodEdit[] {
+  const pairs = [
+    ...new Map(
+      swaps
+        .flatMap((e) => e.reason.replace(/^model swap /, "").split(", "))
+        .map((p) => p.split(" → ") as [string, string])
+        .filter(([from, to]) => from && to)
+        .map(([from, to]) => [from, to] as const),
+    ),
+  ];
+  if (!pairs.length) return [];
+  const stems = new Set(
+    swaps.map((e) =>
+      basename(e.file)
+        .replace(/\.[^.]+$/, "")
+        .toLowerCase(),
+    ),
+  );
+  const touched = new Set(swaps.map((e) => `${e.file}:${e.line}`));
+  const candidates = filesUnder(repoDir).filter((f) => {
+    if (swaps.some((e) => e.file === f)) return true;
+    if (!TEST_PATH.test(f)) return false;
+    const stem = basename(f)
+      .replace(/\.[^.]+$/, "")
+      .replace(/^test_|_spec$|_test$|\.test$|\.spec$|Tests?$/g, "")
+      .toLowerCase();
+    return stems.has(stem);
+  });
+  const edits: CodemodEdit[] = [];
+  for (const file of candidates) {
+    let lines: string[];
+    try {
+      lines = readFileSync(join(repoDir, file), "utf8").split("\n");
+    } catch {
+      continue;
+    }
+    lines.forEach((text, i) => {
+      if (touched.has(`${file}:${i + 1}`)) return;
+      let after = text;
+      const applied: string[] = [];
+      for (const [from, to] of pairs) {
+        for (const q of ['"', "'", "`"]) {
+          const needle = `${q}${from}${q}`;
+          let at = after.indexOf(needle);
+          while (at >= 0) {
+            if (EXPECTATION.test(after.slice(0, at + 1))) {
+              after = `${after.slice(0, at + 1)}${to}${after.slice(at + 1 + from.length)}`;
+              applied.push(`${from} → ${to}`);
+            }
+            at = after.indexOf(needle, at + 1);
+          }
+        }
+      }
+      if (after !== text)
+        edits.push({
+          file,
+          line: i + 1,
+          before: text,
+          after,
+          reason: `model swap ${[...new Set(applied)].join(", ")} (a test's expected value)`,
+          noteUrl: swaps[0]?.noteUrl ?? "",
+        });
+    });
+  }
   return edits;
 }
 
@@ -520,7 +633,12 @@ export async function fixApiChanges(
   const edits = planModelSwaps(input.repoDir, affected, records, related);
   const files = [...new Set(affected.flatMap((f) => f.callSites.map((s) => s.file)))];
   const { plan, project } = await checksFor(input.repoDir, input.tree, files, input.verify);
-  const swapped = edits.flatMap((e) => e.reason.replace(/^model swap /, "").split(", "));
+  const swapped = edits.flatMap((e) =>
+    e.reason
+      .replace(/^model swap /, "")
+      .replace(/ \(a test's expected value\)$/, "")
+      .split(", "),
+  );
   // Changes Teire could not swap on its own: several replacements, or a chain that forks.
   const choices = affected
     .filter((f) => !swapped.some((s) => s.startsWith(`${f.position.version} → `)))

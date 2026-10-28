@@ -19,6 +19,13 @@ describe("what the text before a literal says", () => {
   it("tells LLM arguments, model variables and everything else apart", () => {
     expect(sourceContext('client.messages.create(model: "')).toBe("llm-call-arg");
     expect(sourceContext('{ "model": "')).toBe("llm-call-arg");
+    // A literal a model-named definition returns (live walk, teire-dev/bristow).
+    expect(sourceContext('        "', ["      def default_model"])).toBe("model-variable");
+    expect(sourceContext('    return "', ["func DefaultModel() string {"])).toBe("model-variable");
+    expect(sourceContext('    return "', ["  public String modelName() {"])).toBe("model-variable");
+    expect(sourceContext('  def default_model; "')).toBe("model-variable");
+    expect(sourceContext('        "', ["      def greeting"])).toBe("other");
+    expect(sourceContext('    return "', ["def label():"])).toBe("other");
     expect(sourceContext('Request{Model: "')).toBe("llm-call-arg");
     expect(sourceContext('builder().model("')).toBe("llm-call-arg");
     expect(sourceContext('generateText({ model: openai("')).toBe("llm-call-arg");

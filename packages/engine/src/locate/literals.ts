@@ -86,9 +86,29 @@ export function astGrepBinary() {
 
 const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** What the text before a source literal (up to its opening quote) says about it. */
-export function sourceContext(before: string): LiteralContext {
+/** A definition named after the model: `def default_model`, `func DefaultModel()`, `String modelName() {`. */
+const MODEL_DEFINITION =
+  /\b(?:def|func|fn|function|fun)\s+(?:\([^)]*\)\s*)?(?:self\.)?\w*model\w*|\b\w*model\w*\s*\([^)]*\)\s*(?::\s*[\w<>?.]+\s*)?(?:->\s*[\w<>&'.]+\s*)?\{?\s*$|\b(?:get|val|var|let|const)\s+\w*model\w*\b[^=]*$/i;
+
+/**
+ * What the text before a source literal (up to its opening quote) says about it. `preceding` holds
+ * the lines just above it: a literal alone on its line, or returned, is the value of the definition
+ * it sits in, so `def default_model\n  "claude-…"\n end` names a model (live walk, teire-dev/bristow,
+ * where the swap otherwise changed the spec and left the code).
+ */
+export function sourceContext(before: string, preceding: string[] = []): LiteralContext {
   const prefix = before.replace(/["'`]$/, "").trimEnd();
+  // On the same line: `def default_model; "…"`, `def model() -> str: return "…"`.
+  if (/\b(?:def|func|fn|function|fun)\s+\w*model\w*\b[^"'`]*$/i.test(prefix) && !/=$/.test(prefix))
+    return "model-variable";
+  // Alone on its line, or returned: the definition above decides.
+  if (/^(?:return|=>|->)?\s*$/.test(prefix.trim())) {
+    const above = preceding
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(-3);
+    if (above.some((l) => MODEL_DEFINITION.test(l))) return "model-variable";
+  }
   // `model: "…"`, `model="…"`, `"model": "…"`, `Model: "…"` (Go), `model => "…"`, `:model => "…"` (Ruby)
   if (/(?:^|[\s{(,:."'])model(?:_?(?:name|id))?["'`]?\s*(?::|=>|=)$/i.test(prefix)) return "llm-call-arg";
   // builders and provider factories: `.model("…")`, `openai("…")`, `GenerativeModel("…")`
@@ -109,6 +129,23 @@ export function sourceContext(before: string): LiteralContext {
   )
     return "model-variable";
   return "other";
+}
+
+/** Up to `count` lines above a 0-based line, read once per file. */
+const fileLines = new Map<string, string[]>();
+function linesAbove(repoDir: string, file: string, line: number, count: number) {
+  const key = join(repoDir, file);
+  let lines = fileLines.get(key);
+  if (!lines) {
+    try {
+      lines = readFileSync(key, "utf8").split("\n");
+    } catch {
+      lines = [];
+    }
+    if (fileLines.size > 2_000) fileLines.clear();
+    fileLines.set(key, lines);
+  }
+  return lines.slice(Math.max(0, line - count), line);
 }
 
 /** A config line holding an ID: under a model-named key (`model: …`, `CHAT_MODEL=…`) or not. */
@@ -140,6 +177,7 @@ export async function locateLiterals(input: {
   /** Exact model IDs to look for (every catalog model ID, or the ones a change names). */
   modelIds: ReadonlySet<string>;
 }): Promise<LiteralScan> {
+  fileLines.clear();
   const started = Date.now();
   const ids = [...input.modelIds].filter(Boolean).sort((a, b) => b.length - a.length);
   const pattern = `${ids.length ? `^(?:${ids.map(escapeRegex).join("|")})$|` : ""}^https?://`;
@@ -180,6 +218,7 @@ export async function locateLiterals(input: {
       const lang = STRING_NODES[Number(m.ruleId.slice(4))]?.[2] ?? m.language.toLowerCase();
       const kind = /^https?:\/\//.test(m.text) ? "url" : "model";
       const lineText = m.lines.split("\n")[0] ?? "";
+      const preceding = kind === "model" ? linesAbove(input.repoDir, m.file, m.range.start.line, 4) : [];
       languages.add(lang);
       hits.push({
         file: m.file,
@@ -188,7 +227,7 @@ export async function locateLiterals(input: {
         value: m.text,
         kind,
         lang,
-        context: kind === "url" ? "other" : sourceContext(lineText.slice(0, m.range.start.column)),
+        context: kind === "url" ? "other" : sourceContext(lineText.slice(0, m.range.start.column), preceding),
         snippet: lineText.trim().slice(0, 200),
         ...(kind === "url" ? urlParts(m.text) : {}),
       });
