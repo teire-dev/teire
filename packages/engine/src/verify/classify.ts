@@ -23,8 +23,14 @@ const LOCAL_SERVICE_PORTS: Record<string, string> = {
   "11211": "Memcached",
 };
 
+/**
+ * A request that couldn't leave the sandbox. Cloudflare denies it at its egress proxy; Token Factory
+ * runs checks with no network at all, so name lookups fail. Those strings were read from its VMs with
+ * the network off (review R24): Python and Rust "Temporary failure in name resolution", curl "Could
+ * not resolve host", Go "dial tcp: lookup <host> on [::1]:53", Java `UnknownHostException`.
+ */
 const NETWORK =
-  /\b(EAI_AGAIN|ENOTFOUND|getaddrinfo|ETIMEDOUT|ECONNRESET|fetch failed|x-teire-egress|403 Forbidden.*denied)\b/;
+  /\b(EAI_AGAIN|ENOTFOUND|ENETUNREACH|getaddrinfo|ETIMEDOUT|ECONNRESET|fetch failed|x-teire-egress|403 Forbidden.*denied|Temporary failure in name resolution|Could not resolve host|dial tcp: lookup \S+|UnknownHostException|Network is unreachable|failed to lookup address information|Name or service not known)\b/;
 /** A test reading a credential the sandbox never has (`KeyError: 'OPENAI_API_KEY'`): live access. */
 const CREDENTIAL =
   /KeyError: '[A-Z0-9_]*(?:API_KEY|_TOKEN|_SECRET)[A-Z0-9_]*'|\b[A-Z0-9_]*(?:API_KEY|_TOKEN)\b[^\n]{0,40}\b(?:is not set|not set|missing|must be set|environment variable)|api_key client option must be set/;

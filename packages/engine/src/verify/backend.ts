@@ -18,7 +18,13 @@ export interface VerifySession {
   run(
     jobId: string,
     argv: string[],
-    options: { cwd?: string; env?: Record<string, string>; timeoutSec?: number },
+    options: {
+      cwd?: string;
+      env?: Record<string, string>;
+      timeoutSec?: number;
+      /** The command's output as it is written, where the backend streams it. */
+      onLog?: (chunk: string) => void;
+    },
   ): Promise<JobResult>;
   readFile(path: string): Promise<Uint8Array | null>;
   writeFile(path: string, content: Uint8Array): Promise<void>;

@@ -14,7 +14,11 @@ import type { JobResult } from "./cloudflare";
  * reaches the tests, as it does in the Cloudflare backend's single container. Files Teire writes
  * between steps (the agent's edits) are uploaded and mounted into each later spawn.
  *
- * Limits are read from `whoami`, never assumed; spawns are not retried (no idempotency key).
+ * Limits are read from `whoami`, never assumed, and shared by every session in the process (review
+ * R24): spawns and imports wait for a slot under the project's concurrency, and timeouts stay under
+ * its maximum. Each command runs under GNU `timeout`, so a hung check ends with 124 inside the VM.
+ * Output streams from the operation's server-sent events while it runs; state polling is the
+ * fallback. Spawns are not retried (no idempotency key); `close` cancels what is still running.
  */
 
 const BASE = "https://api.tokenfactory.nebius.com/sandboxes/v1";
@@ -33,6 +37,36 @@ const ENV: Record<string, string> = {
 };
 /** The unprivileged user every image creates (uid 10001), as the checks run on CI. */
 const CHECK_UID = 10001;
+/** GNU `timeout`'s grace before KILL, and the margin the platform's own timeout keeps above it. */
+const KILL_AFTER_SEC = 10;
+const PLATFORM_MARGIN_SEC = 30;
+
+/** A counting semaphore: callers wait for a free slot. */
+class Slots {
+  #free: number;
+  readonly #waiting: (() => void)[] = [];
+  constructor(size: number) {
+    this.#free = Math.max(1, size);
+  }
+  async take() {
+    if (this.#free > 0) this.#free--;
+    else await new Promise<void>((resolve) => this.#waiting.push(resolve));
+  }
+  give() {
+    const next = this.#waiting.shift();
+    if (next) next();
+    else this.#free++;
+  }
+}
+
+interface Limits {
+  maxTimeoutSec: number;
+  spawns: Slots;
+  imports: Slots;
+}
+
+/** Per project, read once from `whoami`; a failed read is not kept, so the next call asks again. */
+const limitsByProject = new Map<string, Promise<Limits>>();
 
 export interface TokenFactorySandboxConfig {
   apiKey: string;
@@ -72,10 +106,16 @@ interface Operation {
 const text = (s?: Stream) =>
   !s ? "" : s.encoding === "base64" ? Buffer.from(s.value, "base64").toString("utf8") : s.value;
 
+const quote = (a: string) => (/^[\w@%+=:,./-]+$/.test(a) ? a : `'${a.replace(/'/g, `'\\''`)}'`);
+
 /** Shell-quoted argv, run in `cwd` (the API takes one command string when `shell` is on). */
 function shellCommand(argv: string[], cwd?: string) {
-  const q = (a: string) => (/^[\w@%+=:,./-]+$/.test(a) ? a : `'${a.replace(/'/g, `'\\''`)}'`);
-  return `${cwd ? `cd ${q(cwd)} && ` : ""}exec ${argv.map(q).join(" ")}`;
+  return `${cwd ? `cd ${quote(cwd)} && ` : ""}exec ${argv.map(quote).join(" ")}`;
+}
+
+/** The command under GNU `timeout` (review R24): TERM at `seconds`, KILL a little later, exit 124. */
+export function underTimeout(command: string, seconds: number) {
+  return `timeout -k ${KILL_AFTER_SEC} ${seconds} sh -c ${quote(command)}`;
 }
 
 export class TokenFactorySandboxes {
@@ -134,6 +174,34 @@ export class TokenFactorySandboxes {
     );
   }
 
+  /** The project's limits from `whoami` (`instance_max_concurrency`, `instance_max_timeout`, …). */
+  limits(): Promise<Limits> {
+    const key = `${this.#config.baseUrl ?? BASE}|${this.#config.project}`;
+    let pending = limitsByProject.get(key);
+    if (!pending) {
+      pending = this.whoami().then(({ limits }) => {
+        const need = (name: string) => {
+          const value = limits[name];
+          if (typeof value !== "number" || value <= 0) throw new Error(`whoami has no ${name}`);
+          return value;
+        };
+        return {
+          maxTimeoutSec: need("instance_max_timeout"),
+          spawns: new Slots(need("instance_max_concurrency")),
+          imports: new Slots(need("images_import_max_concurrency")),
+        };
+      });
+      pending.catch(() => limitsByProject.delete(key));
+      limitsByProject.set(key, pending);
+    }
+    return pending;
+  }
+
+  /** Asks Token Factory to stop an operation; one already finished or gone is fine. */
+  async cancel(operation: string) {
+    await this.#request("DELETE", `/operations/${operation}`).catch(() => undefined);
+  }
+
   /** An image by tag, if this project or the public catalog has it. */
   async imageByTag(tag: string): Promise<string | null> {
     const { images } = await this.#json<{ images: { uuid: string; tag?: string | null }[] }>(
@@ -145,11 +213,18 @@ export class TokenFactorySandboxes {
 
   /** Import a public registry image; the same unchanged image returns the same UUID. */
   async importImage(url: string, tag?: string): Promise<string> {
-    const { uuid } = await this.#json<{ uuid: string }>("POST", "/images/import", {
-      registry: { url },
-      ...(tag ? { tag } : {}),
-    });
-    const op = await this.wait(uuid, 3_600_000);
+    const limits = await this.limits();
+    await limits.imports.take();
+    let op: Operation;
+    try {
+      const { uuid } = await this.#json<{ uuid: string }>("POST", "/images/import", {
+        registry: { url },
+        ...(tag ? { tag } : {}),
+      });
+      op = await this.wait(uuid, 3_600_000);
+    } finally {
+      limits.imports.give();
+    }
     if (op.status !== "SUCCESS" || !op.result_image_uuid)
       throw new Error(`import ${url}: ${op.status}${op.error ? `: ${op.error}` : ""}`);
     return op.result_image_uuid;
@@ -192,6 +267,10 @@ export class TokenFactorySandboxes {
     timeoutSec: number;
     files?: Record<string, { uuid: string; mode?: string; uid?: number; gid?: number }>;
     preserveEnv?: boolean;
+    /** Output as the command writes it (the operation's server-sent events). */
+    onLog?: (chunk: string) => void;
+    /** The operation's id once it exists, so a session can cancel it. */
+    onStart?: (operation: string) => void;
   }): Promise<{
     op: Operation;
     exitCode: number | null;
@@ -201,22 +280,33 @@ export class TokenFactorySandboxes {
     ms: number;
   }> {
     const started = Date.now();
-    const { uuid } = await this.#json<{ uuid: string }>("POST", "/instances", {
-      image: request.image,
-      command: request.command,
-      shell: true,
-      env: request.env ?? {},
-      ...(request.cwd ? { cwd: request.cwd } : {}),
-      uid: request.uid ?? 0,
-      gid: request.gid ?? 0,
-      disposable: request.disposable,
-      networking: { enabled: request.network },
-      timeout: request.timeoutSec,
-      truncate_output_at: 4 * 1024 * 1024,
-      ...(request.files ? { files: request.files } : {}),
-      ...(request.preserveEnv ? { preserve_env: true } : {}),
-    });
-    const op = await this.wait(uuid, (request.timeoutSec + 300) * 1000);
+    const limits = await this.limits();
+    const timeoutSec = Math.min(request.timeoutSec, limits.maxTimeoutSec);
+    await limits.spawns.take();
+    let op: Operation;
+    try {
+      const { uuid } = await this.#json<{ uuid: string }>("POST", "/instances", {
+        image: request.image,
+        command: request.command,
+        shell: true,
+        env: request.env ?? {},
+        ...(request.cwd ? { cwd: request.cwd } : {}),
+        uid: request.uid ?? 0,
+        gid: request.gid ?? 0,
+        disposable: request.disposable,
+        networking: { enabled: request.network },
+        timeout: timeoutSec,
+        truncate_output_at: 4 * 1024 * 1024,
+        ...(request.files ? { files: request.files } : {}),
+        ...(request.preserveEnv ? { preserve_env: true } : {}),
+      });
+      request.onStart?.(uuid);
+      const maxMs = (timeoutSec + 300) * 1000;
+      await this.follow(uuid, maxMs, request.onLog);
+      op = await this.wait(uuid, maxMs);
+    } finally {
+      limits.spawns.give();
+    }
     const result = op.metadata?.result;
     return {
       op,
@@ -226,6 +316,62 @@ export class TokenFactorySandboxes {
       stderr: text(result?.stderr) + (op.status === "FAILED" && op.error ? `\n${op.error}` : ""),
       ms: Date.now() - started,
     };
+  }
+
+  /**
+   * Follows an operation's server-sent events until its `completion` event, passing `stdout` and
+   * `stderr` chunks to `onLog`. A dropped stream resumes from the last event id; when the stream
+   * can't be had at all it returns, and `wait`'s state polling decides (review R24).
+   */
+  async follow(operation: string, maxMs: number, onLog?: (chunk: string) => void): Promise<void> {
+    const deadline = Date.now() + maxMs;
+    let since = 0;
+    for (let attempt = 0; attempt <= TOKEN_FACTORY_POLL_RETRIES && Date.now() < deadline; attempt++) {
+      const response = await fetch(
+        `${this.#config.baseUrl ?? BASE}/operations/${operation}/events?follow=1${since ? `&since=${since}` : ""}`,
+        {
+          headers: {
+            authorization: `Bearer ${this.#config.apiKey}`,
+            project: this.#config.project,
+            accept: "text/event-stream",
+          },
+          signal: AbortSignal.timeout(Math.max(1_000, deadline - Date.now())),
+        },
+      ).catch(() => null);
+      if (!response || response.status === 410 || response.status === 425 || response.status >= 500) {
+        const after = Number(response?.headers.get("retry-after"));
+        await new Promise((r) => setTimeout(r, Number.isFinite(after) && after > 0 ? after * 1000 : POLL_MS));
+        continue;
+      }
+      if (!response.ok || !response.body) return;
+      let buffer = "";
+      try {
+        for await (const chunk of response.body.pipeThrough(new TextDecoderStream())) {
+          buffer += chunk.replace(/\r\n/g, "\n");
+          for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) {
+            const frame = buffer.slice(0, end);
+            buffer = buffer.slice(end + 2);
+            const field = (name: string) =>
+              frame
+                .split("\n")
+                .filter((l) => l.startsWith(`${name}:`))
+                .map((l) => l.slice(name.length + 1).replace(/^ /, ""))
+                .join("\n");
+            const id = Number(field("id"));
+            if (Number.isFinite(id) && id > since) since = id;
+            const type = field("event");
+            if (type === "completion") return;
+            if (onLog && (type === "stdout" || type === "stderr")) {
+              const event = JSON.parse(field("data") || "{}") as { data?: Stream };
+              const out = text(event.data);
+              if (out) onLog(out);
+            }
+          }
+        }
+      } catch {
+        // A broken stream resumes from `since` on the next attempt.
+      }
+    }
   }
 
   async wait(operation: string, maxMs: number): Promise<Operation> {
@@ -411,6 +557,9 @@ export function tokenFactoryBackend(
         throw new Error(`unpacking the repository failed: ${unpack.stderr.slice(-400)}`);
       image = unpack.op.result_image_uuid;
       let phase: "install" | "check" = "install";
+      // Operations this session started that may still run, cancelled on close.
+      const live = new Set<string>();
+      const { maxTimeoutSec } = await client.limits();
       // Files Teire wrote since the last saved image, mounted into every later spawn.
       const written = new Map<string, { uuid: string; bytes: Uint8Array }>();
       const mounts = () =>
@@ -443,18 +592,33 @@ export function tokenFactoryBackend(
         },
         async run(_jobId, argv, opts): Promise<JobResult> {
           const install = phase === "install";
-          const r = await client.spawn({
-            image,
-            command: shellCommand(argv, opts.cwd),
-            env: { ...ENV, ...(opts.env ?? {}) },
-            ...(install ? {} : { uid: CHECK_UID, gid: CHECK_UID }),
-            // Every step's result is the image the next one starts from: the install's for the first
-            // check, each check's for the one after (generated files, build output, test reports).
-            disposable: false,
-            network: install,
-            timeoutSec: Math.min(opts.timeoutSec ?? VERIFY.checkTimeoutSec, 3_600),
-            files: mounts(),
-          });
+          // GNU `timeout` ends the command inside the VM; the platform's timeout stays above it.
+          const seconds = Math.min(
+            opts.timeoutSec ?? VERIFY.checkTimeoutSec,
+            maxTimeoutSec - KILL_AFTER_SEC - PLATFORM_MARGIN_SEC,
+          );
+          let operation: string | null = null;
+          const r = await client
+            .spawn({
+              image,
+              command: underTimeout(shellCommand(argv, opts.cwd), seconds),
+              env: { ...ENV, ...(opts.env ?? {}) },
+              ...(install ? {} : { uid: CHECK_UID, gid: CHECK_UID }),
+              // Every step's result is the image the next one starts from: the install's for the first
+              // check, each check's for the one after (generated files, build output, test reports).
+              disposable: false,
+              network: install,
+              timeoutSec: seconds + KILL_AFTER_SEC + PLATFORM_MARGIN_SEC,
+              files: mounts(),
+              ...(opts.onLog ? { onLog: opts.onLog } : {}),
+              onStart: (uuid) => {
+                operation = uuid;
+                live.add(uuid);
+              },
+            })
+            .finally(() => {
+              if (operation) live.delete(operation);
+            });
           if (r.op.result_image_uuid && (r.op.status === "SUCCESS" || !install)) {
             image = r.op.result_image_uuid;
             written.clear();
@@ -477,7 +641,12 @@ export function tokenFactoryBackend(
         },
         // Token Factory keeps no egress log; checks run with no network at all.
         egress: async () => [],
-        close: async () => undefined,
+        // What can be released is released: operations still running are cancelled. Saved images and
+        // uploaded files have no delete in the API; images keep code 180 days, hence public repos only.
+        close: async () => {
+          await Promise.all([...live].map((uuid) => client.cancel(uuid)));
+          live.clear();
+        },
       };
       return session;
     },

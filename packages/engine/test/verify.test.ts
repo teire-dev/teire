@@ -132,6 +132,17 @@ describe("evidence", () => {
     });
     expect(classifyFailure("KeyError: 'name'", []).cause).toBeNull();
   });
+
+  // Read from Token Factory VMs with the network off (review R24).
+  it.each([
+    "urllib.error.URLError: <urlopen error [Errno -3] Temporary failure in name resolution>",
+    "curl: (6) Could not resolve host: api.openai.com",
+    'Get "https://api.openai.com": dial tcp: lookup api.openai.com on [::1]:53: read udp [::1]:55240->[::1]:53: read: connection refused',
+    "java.net.UnknownHostException: api.openai.com",
+    "Socket::ResolutionError: Failed to open TCP connection to api.openai.com:443 (getaddrinfo(3): Temporary failure in name resolution)",
+  ])("reads Token Factory's offline failure as live access: %s", (output) => {
+    expect(classifyFailure(output, []).cause).toBe("needs_live_access");
+  });
 });
 
 describe("check commands", () => {
