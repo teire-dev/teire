@@ -8,9 +8,10 @@ check() { /usr/local/sbin/teire-coolify-check; }
 
 case "${1:-install}" in
   install)
-    check
+    sh ./coolify-check.sh
     install -d /etc/teire-resolver /usr/local/lib/teire-resolver
-    install -m 0644 daemon.json /etc/teire-resolver/daemon.json
+    install -m 0755 coolify-check.sh /usr/local/sbin/teire-coolify-check
+    install -m 0644 daemon.json resolv.conf /etc/teire-resolver/
     install -m 0755 firewall.sh runsc-wrapper.sh /usr/local/lib/teire-resolver/
     install -m 0644 teire-resolver.slice docker-resolver.service /etc/systemd/system/
     systemctl daemon-reload

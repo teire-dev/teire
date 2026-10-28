@@ -23,5 +23,5 @@
   "cgroup-parent": "teire-resolver.slice",
   "log-driver": "json-file",
   "log-opts": { "max-size": "10m", "max-file": "2" },
-  "live-restore": false
+  "live-restore": true
 }
