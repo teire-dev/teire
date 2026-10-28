@@ -84,7 +84,7 @@ You meet Teire in five places:
 ## Accomplishments that we're proud of
 
 - **Evaluation.** 12 package majors across all six ecosystems and 3 model retirements, each verified end to end with Nemotron 3 Ultra as the agent. No false positive across 6 clean repositories.
-- **Every PR carries its own proof:** quotes, call sites, a before/after table, and a receipt down to the cent.
+- **Every PR carries its own evidence:** quotes, call sites, a before/after table, and a receipt down to the cent. A PR opens ready only when that evidence verifies it; otherwise it's a draft or an issue that says why.
 - **Discovery.** Teire finds providers with no hand-written reader from the code itself, and reads their notices with Nemotron under a quote gate.
 - **A complete product.** GitHub App, dashboard, public scan, dry run, catalog, CLI, MCP, a live trust page, and docs with real captures of every screen.
 

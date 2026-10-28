@@ -82,7 +82,7 @@ Groq shut down `llama-3.1-8b-instant` and `llama-3.3-70b-versatile` on 2026-08-1
 2. **Impact.** Nemotron traced `TIERS.quick.id` to the request: *"src/llm.ts:12 `model: t.id,`"*. Code checked that the cited line exists and names a model, and only then called the finding affected.
 3. **Fix.** Teire swapped `llama-3.1-8b-instant` for the one replacement Groq names. For `llama-3.3-70b-versatile` Groq names two, so Nemotron 3 Ultra chose `openai/gpt-oss-120b` and raised a token limit so the new model has room to answer: 1 attempt, 12 steps, $0.095.
 4. **Verify.** Tests passed 0/4 on the baseline, because the models are gone, and 4/4 after.
-5. **Pull request.** Evidence `verified` means a ready PR that opens with **Verified.** This run is from Teire's evaluation; installed, the same PR opens on GitHub.
+5. **Pull request.** Evidence `verified` means a ready PR that opens with **Verified.** This run is from Teire's evaluation, through the same code path an installed repository takes; PRs on real installed repositories are linked under Proof as they open.
 
 <p align="center">
   <img src=".github/assets/captures/report-wrapped-models-desktop.png" width="960" alt="Public report for teire-dev/demo-wrapped-models: 2 changes reaching this code, the Llama shutdown on 2026-08-16 at src/models.ts:7 and :9 with a Dry-run a fix button, and a Node.js 20 end-of-life notice." />
@@ -119,7 +119,7 @@ Follow the proof yourself on [teire.vercel.app](https://teire.vercel.app):
 </p>
 <p align="center"><a href="https://teire.vercel.app/docs/build">Open the architecture</a> · <a href=".github/diagrams/readme-system.mmd">Edit the Mermaid source</a></p>
 
-**Notice.** Nothing is read on a schedule. A provider's pages are read only when a scanned repository calls it, at most once every 6 hours, shared by every repository. Advisories come from OSV and GitHub's advisory database. ([Providers](https://teire.vercel.app/docs/ecosystems/providers))
+**Notice.** Every active repository is rescanned daily and on each push, like Dependabot's per-repo schedule. Nothing is read for a provider or package no connected repository uses: a provider's pages are read only when a scanned repository calls it, at most once every 6 hours, shared by every repository, and a new record there rescans the other repositories that use it. Advisories come from OSV and GitHub's advisory database. ([Providers](https://teire.vercel.app/docs/ecosystems/providers))
 
 **Impact.** For a major upgrade, Teire diffs the public API of your version against the target with each ecosystem's own tool, then finds the lines that use what changed:
 

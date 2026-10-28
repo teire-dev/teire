@@ -22,7 +22,7 @@ The target version is the newest stable one that:
 
 Security fixes skip the cooldown and take the smallest version that fixes every advisory.
 
-For APIs, Teire looks at the URL literals and the SDKs in your code. A provider's change pages are read only when your repository talks to it, and at most once every 6 hours, shared by every repository. Nothing is read on a schedule. See [Providers](/docs/ecosystems/providers).
+For APIs, Teire looks at the URL literals and the SDKs in your code. A provider's change pages are read only when your repository talks to it, and at most once every 6 hours, shared by every repository. Active repositories are rescanned daily, and a new record on a provider's page rescans every repository that uses it, so an idle repository still hears about a retirement. See [Providers](/docs/ecosystems/providers).
 
 ## 2. Impact
 
@@ -99,7 +99,8 @@ There is one PR per package and target version, and one per provider for model a
 | Onboarding | Merging **Configure Teire** |
 | Command | `@teire rescan`, `@teire resume`, or ticking **Rescan now** in the Dashboard issue |
 | Web | **Rescan** or **Resume** on the dashboard |
-| Schedule | `schedule: daily` or `weekly` in `teire.yml`, for active repositories whose last scan is older than that |
+| Schedule | Daily by default (`schedule` in `teire.yml`: `daily`, `weekly`, `push` for pushes only, or `off`), counted from the last scan |
+| Provider fan-out | A provider read that finds a new change rescans the other active repositories whose code uses that provider |
 
 Changes are fixed most urgent first:
 

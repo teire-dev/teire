@@ -63,7 +63,9 @@ export const teireConfigSchema = z
       .strict(),
     schedule: z
       .enum(["push", "daily", "weekly", "off"])
-      .describe("When to rescan besides pushes that touch dependencies."),
+      .describe(
+        "When to rescan: daily (the default) or weekly, plus every push that touches dependencies or code; push = pushes only; off = no automatic scans.",
+      ),
     verify: z
       .array(
         z

@@ -233,7 +233,7 @@ function Rules() {
   const rules: [string, string][] = [
     [
       "Reads only what you use",
-      "A package's notes and an API's change pages are read only when a watched repository depends on it, then shared and cached. Nothing is read on a schedule.",
+      "A package's notes and an API's change pages are read only when a watched repository depends on it, then shared and cached. Watched repositories are rescanned daily; nothing is read for a package or provider no watched repository uses.",
     ],
     [
       "Quotes or it did not happen",

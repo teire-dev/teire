@@ -23,7 +23,7 @@ Teire downloads each repository at one commit and reads every manifest and lockf
 
 If the repository has no `teire.yml`, Teire opens a pull request named **Configure Teire**. It adds only `.github/teire.yml` with the defaults. Its body lists what Teire found and the upgrades it will open once you merge.
 
-A repository that already has a `teire.yml` skips this and goes straight to work.
+A repository that already has a `teire.yml` skips this and goes straight to work. One where Teire can read nothing (no manifest in its six ecosystems, no API or model in the code) gets no pull request; the dashboard says what was searched. Closing **Configure Teire** without merging means "no thanks": the repository is paused until `@teire resume`. Teire works the same on an organisation or a personal account.
 
 </Step>
 <Step>

@@ -19,6 +19,7 @@ Start a line of a comment with the command, on any issue or pull request in the 
 | `@teire explain` | On a Teire PR or issue: the evidence behind it |
 | `@teire config` | The resolved config, with where each value came from |
 | `@teire pause` / `@teire resume` | Stop or restart scans and PRs for this repo |
+| `@teire pause-fixes` / `@teire resume-fixes` | Keep scanning and reporting, but start no fix runs (or start them again) |
 | `@teire wrong <reason>` | Tell us a finding is a false positive or negative |
 | `@teire help` | This list |
 
@@ -45,6 +46,9 @@ Reads `teire.yml` from the default branch and from the organisation's `teire-con
 </Accordion>
 <Accordion title="pause / resume">
 **pause** stops scans and pull requests for the repository. A fix run that starts while the repository is paused is cancelled with "repository paused". **resume** restores the previous state and rescans.
+</Accordion>
+<Accordion title="pause-fixes / resume-fixes">
+**pause-fixes** keeps the scans, the Dashboard issue and "needs a human" issues going, but starts no fix run: one that starts anyway is cancelled with "fixes paused". `@teire fix`, `rebase` and `recreate` answer "`@teire resume-fixes` first." **resume-fixes** rescans, and fix runs start from that scan.
 </Accordion>
 <Accordion title="wrong <reason>">
 Records the feedback (up to 2,000 characters) against the repository. The reply is "Thanks; recorded."

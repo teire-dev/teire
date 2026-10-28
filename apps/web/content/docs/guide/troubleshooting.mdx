@@ -37,7 +37,7 @@ When the fix breaks a check, no checks can be found, or a check times out, Teire
 Without a lockfile or an exact pin, a finding reads **needs a human**. Teire won't guess which version you run.
 </Accordion>
 <Accordion title="The push did not trigger a scan">
-Only pushes to the default branch rescan, and only when they touch a manifest, a lockfile, `teire.yml` or a source file. A new upstream release is noticed on the next scan. Set `schedule: daily` or `weekly` to rescan without pushes.
+Active repositories are rescanned daily by default, and on every push to the default branch that touches a manifest, a lockfile, `teire.yml` or a source file. A new upstream release is noticed on the next scan, and a new provider notice rescans every repository that uses that provider. `schedule: weekly`, `push` (pushes only) or `off` changes this.
 </Accordion>
 <Accordion title="The scan failed">
 Common causes:
