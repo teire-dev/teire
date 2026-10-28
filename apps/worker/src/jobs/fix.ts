@@ -679,7 +679,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     return { deferred: blocked };
   }
 
-  await updateRun(db, runId, { status: "running", step: "assess", startedAt: new Date() });
+  // A run resumed after a deferral (credits, the updater) starts clean: the old reason is history.
+  await updateRun(db, runId, { status: "running", step: "assess", startedAt: new Date(), error: null });
   // A heartbeat while the run works, so the reaper can tell a long sandbox step from a dead worker.
   const heartbeat = setInterval(
     () => void updateRun(db, runId, {}).catch(() => undefined),
