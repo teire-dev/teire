@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { Suspense } from "react";
 import { InstallationFixMode } from "@/components/app/installation-fix-mode";
+import { RefreshInstallations } from "@/components/app/refresh-installations";
 import { GithubMark } from "@/components/icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -83,13 +84,16 @@ async function Settings() {
             </Button>
           </div>
         )}
-        <p className="text-xs text-muted-foreground">
-          The list comes from GitHub when you sign in. Installed somewhere new? Sign out and in again.{" "}
-          <a href={`https://github.com/apps/${APP_SLUG}`} className="text-link hover:underline">
-            The app on GitHub
-          </a>
-          .
-        </p>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <RefreshInstallations />
+          <span>
+            The list comes from GitHub. Installed somewhere new? Refresh.{" "}
+            <a href={`https://github.com/apps/${APP_SLUG}`} className="text-link hover:underline">
+              The app on GitHub
+            </a>
+            .
+          </span>
+        </div>
       </section>
 
       <section className="flex flex-col gap-3">

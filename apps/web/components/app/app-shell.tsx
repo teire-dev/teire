@@ -8,13 +8,14 @@ import {
   FolderGit2,
   LayoutGrid,
   Plus,
+  RefreshCw,
   Search,
   Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { switchInstallation } from "@/app/(app)/app/actions";
+import { refreshMyInstallations, switchInstallation } from "@/app/(app)/app/actions";
 import { LogoMark } from "@/components/logo";
 import { LiveDot } from "@/components/teire/live-dot";
 import { Mark } from "@/components/teire/mark";
@@ -169,6 +170,17 @@ export function AppShell({ data, children }: { data: AppShellData; children: Rea
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() =>
+                  startSwitch(async () => {
+                    await refreshMyInstallations();
+                    router.refresh();
+                  })
+                }
+              >
+                <RefreshCw className="size-4" aria-hidden />
+                Refresh from GitHub
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a href={INSTALL_URL}>
                   <Plus className="size-4" aria-hidden />

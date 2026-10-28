@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { requestAction } from "@/lib/actions";
 import { INSTALLATION_COOKIE } from "@/lib/app-shell";
+import { refreshInstallations } from "@/lib/auth";
 import { myInstallations } from "@/lib/dashboard";
 import { getSession } from "@/lib/session";
 
@@ -61,4 +62,12 @@ export async function switchInstallation(id: number) {
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 365,
   });
+}
+
+/** Reads the installations this person's GitHub account can see again (no more signing out and in). */
+export async function refreshMyInstallations(): Promise<{ count: number } | { error: string }> {
+  const session = await getSession();
+  if (!session) return { error: "Sign in first" };
+  await refreshInstallations(session.user.id);
+  return { count: (await myInstallations(session.user.id)).length };
 }
