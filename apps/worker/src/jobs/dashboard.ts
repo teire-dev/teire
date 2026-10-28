@@ -240,9 +240,38 @@ export async function syncHumanIssues(ctx: WorkerContext, repoId: number) {
     const key = f.groupKey ?? f.changeId;
     groups.set(key, [...(groups.get(key) ?? []), f]);
   }
-  if (!groups.size) return 0;
   const [owner = "", name = ""] = repo.fullName.split("/");
+  const stale = (await openArtifacts(db, repoId)).filter(
+    (a) => a.kind === "issue" && a.number && !groups.has(a.changeKey),
+  );
+  if (!groups.size && !stale.length) return 0;
   const { octokit } = await gh.installation(repo.installationId);
+  // Issues Teire opened that no longer need a person close with the reason, so a stale "needs a
+  // human" never waits on someone (C6: Teire closes what it opened when it stops applying).
+  for (const a of stale) {
+    const handled = rows.some((f) => (f.groupKey ?? f.changeId) === a.changeKey);
+    const why = handled
+      ? "Teire handles this itself now: its upgrade pull request runs this repository's checks before and after in a sandbox and says what they show."
+      : `The latest scan (\`${repo.lastScannedSha.slice(0, 7)}\`) no longer finds it.`;
+    try {
+      await octokit.rest.issues.createComment({
+        owner,
+        repo: name,
+        issue_number: a.number as number,
+        body: why,
+      });
+      await octokit.rest.issues.update({
+        owner,
+        repo: name,
+        issue_number: a.number as number,
+        state: "closed",
+        state_reason: "not_planned",
+      });
+      await upsertArtifact(db, { ...a, state: "closed" });
+    } catch (error) {
+      console.error(`[issues] ${repo.fullName}#${a.number}: close: ${error}`);
+    }
+  }
   let opened = 0;
   for (const [key, list] of [...groups].sort((a, b) => (a[1][0]?.priority ?? 9) - (b[1][0]?.priority ?? 9))) {
     if (opened >= PULL_REQUESTS.maxHumanIssuesPerScan) break;
