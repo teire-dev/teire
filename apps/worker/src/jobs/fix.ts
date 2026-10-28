@@ -5,7 +5,13 @@ import { AFFECTED_RANGES_SEPARATOR, stillAffected } from "@teire/engine/advisori
 import { matchesTarget, readTeireConfig, type TeireConfig, updateIgnores } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
-import { cargoFeatureOverlay, type FixRun, type Transaction, withGradleLocks } from "@teire/engine/fix";
+import {
+  cargoFeatureOverlay,
+  type FixRun,
+  type Transaction,
+  withGradleLocks,
+  withToolchainFloors,
+} from "@teire/engine/fix";
 import {
   branchFor,
   commitToBranch,
@@ -502,10 +508,27 @@ async function resolverTransactionFor(
     },
     { name: packageName, from: assessment.instance.version },
   );
+  // The toolchain the target needs (Java, requires-python, rust-version) is raised in the same
+  // change, on the lead root, as Teire's own transactions do (S15.10, review R3).
+  const floors = await withToolchainFloors({
+    ecosystem,
+    tree,
+    project: assessment.project,
+    name: packageName,
+    target,
+    edits: tx.manifest,
+    options: common.options,
+  });
+  for (const note of floors.notes) common.onEvent?.({ step: "transaction", detail: note });
+  const raised: Transaction = {
+    ...tx,
+    manifest: floors.edits,
+    readBack: [...new Set([...tx.readBack, ...floors.edits.map((e) => e.path)])],
+  };
   // Gradle locks are re-locked by Teire for this coordinate only, in every root the job covered.
   return matching
     .filter((m) => m.project.manager === "gradle")
-    .reduce((t, m) => withGradleLocks(t, m.project as JvmProject, packageName, target), tx);
+    .reduce((t, m) => withGradleLocks(t, m.project as JvmProject, packageName, target), raised);
 }
 
 /** A package group (`npm/openai/7.38.0`): re-assess that package, then upgrade and fix it. */
