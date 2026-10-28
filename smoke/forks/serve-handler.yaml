@@ -3,16 +3,16 @@ upstream: vercel/serve-handler
 ecosystem: npm
 manager: yarn classic (yarn.lock v1)
 baseline:
-  checks: "yarn test (zeit-eslint, then jest --forceExit test/integration.test.js); CI runs yarn run build-views first"
+  checks: "build: yarn run build-views (CI); test: yarn run jest --forceExit test/integration.test.js (the runner inside `yarn test`, whose other half is lint)"
   network: tests start a server on localhost only
   expected: pass
 upgrades:
   - package: path-to-regexp
     from: 3.3.0
-    to: 9.0.0
+    to: newest release past the 7-day cooldown (8.4.2 on 2026-10-28; 9.0.0, published 2026-10-22, from 2026-10-29)
     resolver: "create_pull_request: package.json and yarn.lock, path-to-regexp 9.0.0, no other package moved"
     bump_alone: tests fail; src/index.js calls the module as a function and uses pathToRegExp.compile, while 9.x is ESM with named pathToRegexp and compile exports
-    teire: affected; sites in src/index.js; fixed by the agent; ready PR when the after side passes, else a draft that says which check failed
+    teire: undecided on the Dashboard today (references through require() don't resolve by type), so the upgrade's run decides; bump alone fails the tests, the agent fixes src/index.js; ready PR when the after side passes, else a draft that says which check failed
   - package: minimatch
     from: 3.1.5
     to: latest major at walk time (research saw 10.2.6; 11.0.2 on 2026-10-28)

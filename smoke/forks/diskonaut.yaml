@@ -1,0 +1,24 @@
+repo: teire-dev/diskonaut
+upstream: imsnif/diskonaut
+ecosystem: cargo
+rust: no rust-toolchain file; edition 2018, Cargo.lock
+baseline:
+  checks: cargo build and cargo test (UI tests with ~195 insta snapshots, temp dirs, offline)
+  observed_2026-10-28: build passes; 8 of 45 tests pass. The 37 snapshot failures differ only by
+    "(CAUTION: running as root)" in diskonaut's header, because the sandbox runs checks as root.
+  expected: pass once checks run as an unprivileged user, as on CI (plan item added from this walk)
+upgrades:
+  - package: crossterm
+    from: 0.17.7
+    to: 0.29.x
+    bump_alone: compile fails in src/input/controls.rs and src/main.rs (event and terminal APIs changed)
+    teire: affected; agent fix; snapshots decide whether the UI still renders the same
+  - package: tui
+    from: 0.11.0
+    to: 0.19.0 (the crate is deprecated in favour of ratatui)
+    teire: deprecation notice with the successor named; the upgrade within tui decided by the surface diff
+  - package: nix
+    from: 0.17.0
+    to: 0.31.x
+    bump_alone: compile fails in src/os/unix.rs
+    teire: affected; agent fix
