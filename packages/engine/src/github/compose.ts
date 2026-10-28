@@ -281,6 +281,8 @@ export interface FixPullRequestInput {
   notesReceipt?: { model: string; tokensIn: number; tokensOut: number; costUsd: number };
   /** The updater resolved the package only this far (D103): the target was capped, and why. */
   targetMax?: { name: string; version: string; reason: string };
+  /** Supply-chain changes between the installed version and the target (D-14). */
+  supplyChain?: string[];
   /** The newer major tried first (D71): its checks still failed after the agent's attempts. */
   fallbackFrom?: { version: string; reason: string };
 }
@@ -397,6 +399,11 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
         out.push(
           `${more ? `and ${more} more; ` : ""}${compare ? link("compare the versions", compare) : ""}`.trim(),
         );
+    }
+
+    if (input.supplyChain?.length) {
+      out.push("### Supply chain");
+      out.push(input.supplyChain.map((s) => `- ${s}`).join("\n"));
     }
 
     // Changes

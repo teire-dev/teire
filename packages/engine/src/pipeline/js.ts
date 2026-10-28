@@ -19,7 +19,7 @@ import type { ModelPrice, TokenFactory } from "../llm";
 import { type LocateResult, locateTs } from "../locate/ts";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { gatherNpmNotes, githubRepoOf } from "../notes/sources";
-import { getNpmVersion, getPackageInfo } from "../registry/clients";
+import { getNpmVersion, getPackageInfo, supplyChainSignals } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { chooseTarget, type TargetDecision, withTargetMax } from "../registry/target";
 import type { PackageInfo } from "../registry/types";
@@ -256,6 +256,10 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     });
 
   const detail = await getNpmVersion(a.instance.name, target, options);
+  const installed = a.instance.version
+    ? await getNpmVersion(a.instance.name, a.instance.version, options).catch(() => null)
+    : null;
+  const supplyChain = supplyChainSignals(installed, detail);
   const sourceRepo = githubRepoOf(detail?.repository?.url);
   const targetSurface = await npmSurface(a.instance.name, target, options);
   const targetLayout = await npmTypesLayout(a.instance.name, target, options);
@@ -299,6 +303,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
+    ...(supplyChain.length ? { supplyChain } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

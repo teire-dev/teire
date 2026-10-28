@@ -4,6 +4,7 @@ export {
   type NpmVersionDetail,
   parseDepsDevPackage,
   type RegistryOptions,
+  supplyChainSignals,
 } from "./clients";
 export { deprecationChange } from "./deprecation";
 export * from "./eol";

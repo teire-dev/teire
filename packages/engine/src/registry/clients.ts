@@ -52,7 +52,37 @@ export interface NpmVersionDetail {
   optionalDependencies: Record<string, string>;
   engines: Record<string, string>;
   deprecated: string | null;
+  /** The npm account that published this version (`_npmUser`); absent in entries cached before S15. */
+  publisher?: string | null;
+  /** Lifecycle scripts that run on install (preinstall, install, postinstall). */
+  installScripts?: string[];
+  /** Whether the version carries a provenance attestation (`dist.attestations.provenance`). */
+  provenance?: boolean;
   source: { url: string; contentHash: string; checkedAt: string };
+}
+
+/**
+ * What changed about who and how a version was published (D-14), installed version → target:
+ * a new install script, a different publishing account, provenance the installed version had and
+ * the target lacks. Unknown fields (older cache entries) never produce a signal.
+ */
+export function supplyChainSignals(from: NpmVersionDetail | null, to: NpmVersionDetail | null): string[] {
+  if (!from || !to) return [];
+  const out: string[] = [];
+  const added = (to.installScripts ?? []).filter(
+    (s) => from.installScripts && !from.installScripts.includes(s),
+  );
+  if (from.installScripts && added.length)
+    out.push(
+      `${to.version} adds an install script (\`${added.join("`, `")}\`) that runs when the package is installed`,
+    );
+  if (from.publisher && to.publisher && from.publisher !== to.publisher)
+    out.push(
+      `${to.version} was published by the npm account \`${to.publisher}\`; ${from.version} by \`${from.publisher}\``,
+    );
+  if (from.provenance === true && to.provenance === false)
+    out.push(`${to.version} has no provenance attestation, though ${from.version} had one`);
+  return out;
 }
 
 function npmUrl(name: string, version?: string) {
@@ -251,6 +281,11 @@ export async function getNpmVersion(
     optionalDependencies: doc.optionalDependencies ?? {},
     engines: doc.engines ?? {},
     deprecated: typeof doc.deprecated === "string" ? doc.deprecated : null,
+    publisher: typeof doc._npmUser?.name === "string" ? doc._npmUser.name : null,
+    installScripts: ["preinstall", "install", "postinstall"].filter(
+      (s) => typeof doc.scripts?.[s] === "string",
+    ),
+    provenance: !!doc.dist?.attestations?.provenance,
     source: { url, contentHash: sha256(body), checkedAt: now.toISOString() },
   };
   await cache.put("npm", key, {
