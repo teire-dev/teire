@@ -164,6 +164,8 @@ describe("Maven dependencyManagement pin", () => {
     expect(after).toContain("<scope>runtime</scope>\n          <version>2.9.10.8</version>");
     const command = tx.commands[0]?.join(" ") ?? "";
     expect(command).toContain("dependency:tree -Dincludes=com.fasterxml.jackson.core:jackson-databind");
-    expect(command).toContain("com\\.fasterxml\\.jackson\\.core:jackson-databind:[^:]+:2\\.9\\.10\\.8(:|$)");
+    expect(command).toContain(
+      "com\\.fasterxml\\.jackson\\.core:jackson-databind:[^:]+:([^:]+:)?2\\.9\\.10\\.8(:|$)",
+    );
   });
 });

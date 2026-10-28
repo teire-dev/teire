@@ -3,7 +3,17 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ActionKind } from "@teire/engine/actions";
 import { describeAction } from "@teire/engine/actions";
-import { BookOpen, FolderGit2, LayoutGrid, RefreshCw, Settings, ShieldCheck, Wrench } from "lucide-react";
+import {
+  BookOpen,
+  FolderGit2,
+  GitPullRequestArrow,
+  LayoutGrid,
+  PlayCircle,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  Wrench,
+} from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -66,10 +76,14 @@ export function CommandPalette({
   open,
   onOpenChange,
   repos,
+  runs = [],
+  changes = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   repos: { fullName: string; fixMode: string }[];
+  runs?: { id: string; repo: string; groupKey: string | null; status: string }[];
+  changes?: { id: string; title: string; repos: number }[];
 }) {
   const router = useRouter();
   const path = usePathname();
@@ -186,6 +200,40 @@ export function CommandPalette({
                 >
                   <FolderGit2 />
                   <span className="truncate">{r.fullName}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+          {changes.length ? (
+            <CommandGroup heading="Changes reaching your code">
+              {changes.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={`change ${c.title} ${c.id}`}
+                  onSelect={() => go(`/changes/${c.id}`)}
+                >
+                  <GitPullRequestArrow />
+                  <span className="truncate">{c.title}</span>
+                  <CommandShortcut>
+                    {c.repos} repo{c.repos === 1 ? "" : "s"}
+                  </CommandShortcut>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+          {runs.length ? (
+            <CommandGroup heading="Recent runs">
+              {runs.map((r) => (
+                <CommandItem
+                  key={r.id}
+                  value={`run ${r.repo} ${r.groupKey ?? ""}`}
+                  onSelect={() => go(`/runs/${r.id}`)}
+                >
+                  <PlayCircle />
+                  <span className="truncate">{r.groupKey ?? r.repo}</span>
+                  <CommandShortcut>
+                    {r.repo.split("/")[1]} · {r.status}
+                  </CommandShortcut>
                 </CommandItem>
               ))}
             </CommandGroup>

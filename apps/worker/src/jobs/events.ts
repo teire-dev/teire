@@ -1,3 +1,4 @@
+import { STALE_EVIDENCE_LABEL } from "@teire/engine/github";
 import type { Delivery } from "../outbox";
 import {
   appendEvent,
@@ -164,14 +165,32 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       const { octokit } = await ctx.gh.installation(repo.installationId);
       // Automatic and Ask first refresh a PR a person has (they asked for it); Off leaves it as it is,
       // and the run page and dashboard say its evidence is stale (D125).
-      const refreshes = (await fixModeOf(db, repo)).mode !== "off";
+      const mode = await fixModeOf(db, repo);
+      const refreshes = mode.mode !== "off";
       for (const a of await openArtifacts(db, repo.id)) {
         if (a.kind !== "pr" || !a.number) continue;
-        const conflict = deps
-          ? true
-          : (await octokit.rest.pulls.get({ owner, repo: name, pull_number: a.number }).catch(() => null))
-              ?.data.mergeable === false;
-        if (conflict && refreshes) await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
+        const pr = (
+          await octokit.rest.pulls.get({ owner, repo: name, pull_number: a.number }).catch(() => null)
+        )?.data;
+        const conflict = deps || pr?.mergeable === false;
+        if (!conflict) continue;
+        if (refreshes) {
+          await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
+          continue;
+        }
+        // Off: the PR stays as it is, marked once, with why it isn't refreshed (D125).
+        if (pr?.labels.some((l) => l.name === STALE_EVIDENCE_LABEL)) continue;
+        await octokit.rest.issues
+          .addLabels({ owner, repo: name, issue_number: a.number, labels: [STALE_EVIDENCE_LABEL] })
+          .catch(() => undefined);
+        await octokit.rest.issues
+          .createComment({
+            owner,
+            repo: name,
+            issue_number: a.number,
+            body: `The base branch moved (\`${String(p.after ?? "").slice(0, 7)}\`), so this PR's evidence is from an older base. Teire doesn't refresh it while fixes are off: ${fixesOffReply(mode)}`,
+          })
+          .catch(() => undefined);
       }
       return;
     }
@@ -211,6 +230,7 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       ) =>
         recordAction(db, {
           requester: `github:${login}`,
+          actor: login,
           installationId: repo.installationId,
           repoId: repo.id,
           kind,

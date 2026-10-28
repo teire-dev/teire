@@ -201,7 +201,7 @@ export async function getAction(db: Database, id: string) {
 export async function setAction(
   db: Database,
   id: string,
-  fields: Partial<Pick<ActionRow, "status" | "result" | "links" | "params">>,
+  fields: Partial<Pick<ActionRow, "status" | "result" | "links" | "params" | "actor">>,
 ) {
   await db
     .update(actions)
@@ -213,7 +213,7 @@ export async function setAction(
 export async function recordAction(
   db: Database,
   row: Pick<ActionRow, "requester" | "installationId" | "repoId" | "kind" | "params" | "source" | "status"> &
-    Partial<Pick<ActionRow, "result" | "links">>,
+    Partial<Pick<ActionRow, "result" | "links" | "actor">>,
 ) {
   await db.insert(actions).values({ ...row, idempotencyKey: `${row.source}:${crypto.randomUUID()}` });
 }

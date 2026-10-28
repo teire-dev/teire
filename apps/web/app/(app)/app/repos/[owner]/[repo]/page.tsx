@@ -1,5 +1,6 @@
 import type { ScanUpgrade } from "@teire/db";
 import { type ActionKind, describeAction } from "@teire/engine/actions";
+import { lineageKey } from "@teire/engine/contract";
 import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -73,7 +74,7 @@ async function Repo({
   params: Params;
   searchParams: PageProps<"/app/repos/[owner]/[repo]">["searchParams"];
 }) {
-  const [{ owner, repo: name }, query, session] = await Promise.all([params, searchParams, getSession()]);
+  const [{ owner, repo: name }, , session] = await Promise.all([params, searchParams, getSession()]);
   const fullName = `${owner}/${name}`;
   if (!session) return <SignInCard next={`/app/repos/${fullName}`} />;
   const data = await repoDetail(session.user.id, fullName);
@@ -106,6 +107,12 @@ async function Repo({
   const { fixMode } = data;
   const off = fixMode.mode === "off";
   const shown = new Set([...b.affected, ...b.human, ...b.undecided].map((g) => g.key));
+  // An upgrade in a lineage with an open PR at an older target is "newer than #n", as the PR says.
+  const lineagePr = new Map(
+    data.artifacts
+      .filter((a) => a.kind === "pr" && a.state === "open" && a.lineageKey)
+      .map((a) => [a.lineageKey as string, a]),
+  );
   const upgrades =
     fixMode.mode === "auto"
       ? []
@@ -186,6 +193,12 @@ async function Repo({
                       {upgradeName(u)} {u.from ? `${u.from} → ` : "→ "}
                       {u.to}
                       {u.security ? <span className="ml-2 text-attention">security</span> : null}
+                      {lineagePr.get(lineageKey(u.groupKey, u.security ? "security" : "version")) ? (
+                        <span className="ml-2 text-muted-foreground">
+                          newer than #
+                          {lineagePr.get(lineageKey(u.groupKey, u.security ? "security" : "version"))?.number}
+                        </span>
+                      ) : null}
                     </span>
                     {off ? null : (
                       <ActionButton
@@ -476,7 +489,12 @@ async function Repo({
                   <div className="min-w-0">
                     <span className="font-medium">{describeAction(a.kind as ActionKind, a.params)}</span>{" "}
                     <span className="text-muted-foreground">
-                      · {a.requester.startsWith("github:") ? `@${a.requester.slice(7)}` : "you or a teammate"}{" "}
+                      ·{" "}
+                      {a.actor
+                        ? `@${a.actor}`
+                        : a.requester.startsWith("github:")
+                          ? `@${a.requester.slice(7)}`
+                          : "someone signed in"}{" "}
                       ·{" "}
                       {a.source === "web"
                         ? "dashboard"

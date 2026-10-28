@@ -42,7 +42,7 @@ export const INSTALLATION_ACTIONS: ReadonlySet<ActionKind> = new Set(["set-insta
 export function undoOf(
   kind: ActionKind,
   params: Record<string, unknown>,
-  previous?: { mode?: string | null },
+  previous?: { mode?: string | null; security?: string },
 ): { kind: ActionKind; params: Record<string, unknown> } | null {
   switch (kind) {
     case "pause":
@@ -56,6 +56,13 @@ export function undoOf(
     case "set-fix-mode":
       return previous && "mode" in previous
         ? { kind: "set-fix-mode", params: { mode: previous.mode ?? null } }
+        : null;
+    case "set-installation-fix-mode":
+      return previous?.mode
+        ? {
+            kind: "set-installation-fix-mode",
+            params: { mode: previous.mode, ...(previous.security ? { security: previous.security } : {}) },
+          }
         : null;
     default:
       return null;

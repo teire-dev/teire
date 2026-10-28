@@ -20,6 +20,25 @@ export interface ActionRequest {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * The request's key: the same action asked again within ten seconds (a double click, a second tab, a
+ * retry) is one action on the server (U1 review); a later click is a new one.
+ */
+async function keyOf(request: ActionRequest) {
+  const text = JSON.stringify([
+    request.kind,
+    request.params,
+    request.repo ?? null,
+    request.installationId ?? null,
+    Math.floor(Date.now() / 10_000),
+  ]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return `web:${[...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 40)}`;
+}
+
 /** The toast's line while an action is open: what it is doing now, in the worker's words. */
 function openLine(label: string, s: ActionState) {
   if (s.status === "unknown") return `${label}: checking…`;
@@ -40,7 +59,7 @@ export async function runAction(
 ): Promise<ActionState | null> {
   const label = describeAction(request.kind, request.params);
   const toastId = toast.loading(`${label}…`);
-  const first = await act({ ...request, key: options.key ?? crypto.randomUUID() }).catch(
+  const first = await act({ ...request, key: options.key ?? (await keyOf(request)) }).catch(
     (error: unknown) => ({ error: error instanceof Error ? error.message : "Teire couldn't be reached" }),
   );
   if ("error" in first) {
@@ -58,6 +77,8 @@ export async function runAction(
   while (!TERMINAL.has(state.status as ActionStatus) && Date.now() - began < FOLLOW_MS) {
     toast.loading(openLine(label, state), { id: toastId, action: linkAction(state) });
     await sleep(Date.now() - began > SLOW_AFTER_MS ? SLOW_MS : FAST_MS);
+    // Not while the tab is hidden: the poll resumes when the person looks again.
+    while (document.hidden) await sleep(SLOW_MS);
     const res = await fetch(`/api/actions/${state.id}`, { cache: "no-store" }).catch(() => null);
     if (res?.ok) state = (await res.json()) as ActionState;
     // Offline for a moment: say so and keep the last word.
@@ -68,7 +89,7 @@ export async function runAction(
     const undo = undoOf(
       request.kind,
       request.params,
-      state.params.previous as { mode?: string | null } | undefined,
+      state.params.previous as { mode?: string | null; security?: string } | undefined,
     );
     toast.success(result, {
       id: toastId,
@@ -101,7 +122,7 @@ export async function runActions(requests: ActionRequest[], label: string): Prom
   const toastId = toast.loading(`${label}: ${requests.length} repositories…`);
   const states = await Promise.all(
     requests.map(async (r) => {
-      const first = await act({ ...r, key: crypto.randomUUID() }).catch(() => ({
+      const first = await act({ ...r, key: await keyOf(r) }).catch(() => ({
         error: "Teire couldn't be reached",
       }));
       if ("error" in first) return { repo: r.repo, state: null as ActionState | null, error: first.error };

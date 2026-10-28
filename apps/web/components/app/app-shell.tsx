@@ -17,6 +17,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { refreshMyInstallations, switchInstallation } from "@/app/(app)/app/actions";
 import { LogoMark } from "@/components/logo";
+import { SignOutButton } from "@/components/sign-in-button";
 import { LiveDot } from "@/components/teire/live-dot";
 import { Mark } from "@/components/teire/mark";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -57,6 +58,7 @@ const NAV = [
 
 /** Live poll: every 3 s while Teire is working somewhere, every 30 s otherwise; never while hidden. */
 const LIVE_MS = 3000;
+const SLOW_LIVE_MS = 5000;
 const IDLE_MS = 30_000;
 
 /** The breadcrumb, from the route: Overview, Repositories › owner/name, Settings. */
@@ -78,17 +80,32 @@ function crumbsOf(path: string, account: string | null) {
  * docs, the worker's status and the theme at the foot; a top bar with the breadcrumb and ⌘K. On a
  * phone the sidebar is a sheet.
  */
-export function AppShell({ data, children }: { data: AppShellData; children: React.ReactNode }) {
+export function AppShell({
+  data,
+  user,
+  children,
+}: {
+  data: AppShellData;
+  user?: { name: string; image: string | null };
+  children: React.ReactNode;
+}) {
   const path = usePathname();
   const router = useRouter();
   const [switching, startSwitch] = useTransition();
   const [palette, setPalette] = useState(false);
+  // After ten minutes on a page the live poll slows to 5 s (plan "Live islands": budgeted).
+  const [opened] = useState(() => Date.now());
   const live = useQuery({
     queryKey: ["app-live", data.current?.id ?? null],
     queryFn: async () =>
       (await (await fetch("/api/app/live", { cache: "no-store" })).json()) as { live: string[] },
     initialData: { live: data.repos.filter((r) => r.live).map((r) => r.fullName) },
-    refetchInterval: (q) => ((q.state.data?.live.length ?? 0) > 0 ? LIVE_MS : IDLE_MS),
+    refetchInterval: (q) =>
+      (q.state.data?.live.length ?? 0) > 0
+        ? Date.now() - opened > 10 * 60_000
+          ? SLOW_LIVE_MS
+          : LIVE_MS
+        : IDLE_MS,
   });
   const liveSet = new Set(live.data.live);
 
@@ -263,6 +280,34 @@ export function AppShell({ data, children }: { data: AppShellData; children: Rea
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
+          {user ? (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton size="sm" aria-label={`Signed in as ${user.name}`}>
+                      {user.image ? (
+                        // biome-ignore lint/performance/noImgElement: a GitHub avatar, 20px
+                        <img src={user.image} alt="" className="size-5 rounded-full" />
+                      ) : (
+                        <span className="size-5 rounded-full bg-ink" />
+                      )}
+                      <span className="truncate">{user.name}</span>
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="top" align="start" className="w-52">
+                    <DropdownMenuItem asChild>
+                      <Link href="/app/settings">Settings</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <SignOutButton />
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          ) : null}
           <div className="flex items-center justify-between px-2 text-[11px] text-ink-3 group-data-[collapsible=icon]:hidden">
             <Link href="/trust" className="flex items-center gap-1.5 hover:text-ink">
               <span
@@ -309,7 +354,13 @@ export function AppShell({ data, children }: { data: AppShellData; children: Rea
         </header>
         <div className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</div>
       </SidebarInset>
-      <CommandPalette open={palette} onOpenChange={setPalette} repos={data.repos} />
+      <CommandPalette
+        open={palette}
+        onOpenChange={setPalette}
+        repos={data.repos}
+        runs={data.runs}
+        changes={data.changes}
+      />
     </SidebarProvider>
   );
 }

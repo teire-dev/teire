@@ -1,4 +1,4 @@
-import { and, eq, inArray, installations, repos, runs, userInstallations } from "@teire/db";
+import { and, eq, installations, repos, userInstallations } from "@teire/db";
 import { type ActionKind, INSTALLATION_ACTIONS } from "@teire/engine/actions";
 import { parseAction } from "@teire/engine/actions-schema";
 import {
@@ -161,6 +161,7 @@ export async function handleAction(ctx: EventContext, payload: { actionId?: stri
     await setAction(db, action.id, { status: "accepted" });
     const login = await githubLogin(await requesterToken(db, action.requester));
     if (!login) return refused("Teire couldn't read your GitHub account; sign in again");
+    await setAction(db, action.id, { actor: login });
     if (INSTALLATION_ACTIONS.has(parsed.kind)) return installationAction(ctx, action, parsed, login);
     const repo = action.repoId ? await getRepo(db, action.repoId) : null;
     if (!repo?.installationId) return refused("Teire is no longer installed on this repository");
@@ -377,6 +378,29 @@ async function started(
       };
 }
 
+/** Whether `login` is an admin of every repository Teire knows in the installation (org owners are). */
+async function adminOfEveryRepo(
+  db: EventContext["db"],
+  octokit: Octokit,
+  installationId: number,
+  org: string,
+  login: string,
+) {
+  const rows = await db
+    .select({ fullName: repos.fullName })
+    .from(repos)
+    .where(eq(repos.installationId, installationId));
+  if (!rows.length) return false;
+  for (const r of rows) {
+    const name = r.fullName.split("/")[1] ?? "";
+    const { data } = await octokit.rest.repos
+      .getCollaboratorPermissionLevel({ owner: org, repo: name, username: login })
+      .catch(() => ({ data: { permission: "none" } }));
+    if (data.permission !== "admin") return false;
+  }
+  return true;
+}
+
 /**
  * The installation's default fix mode (D126): an org admin, or the account owner for a user
  * installation. Membership is read from GitHub now; an answer GitHub didn't give is a refusal.
@@ -401,12 +425,17 @@ async function installationAction(
       return refused(`Only ${inst.accountLogin} can change this installation's default`);
   } else {
     const { octokit } = await ctx.gh.installation(inst.id);
+    // The org role, when the App may read members; otherwise (the App asks for no members
+    // permission) an admin of every repository in the installation, which an org owner always is.
+    // Anything GitHub doesn't answer is a refusal.
     const role = await octokit.rest.orgs
       .getMembershipForUser({ org: inst.accountLogin, username: login })
-      .then((r) => (r.data.state === "active" ? r.data.role : null))
-      .catch(() => null);
-    if (role !== "admin")
-      return refused(`Only an admin of ${inst.accountLogin} can change the installation's default`);
+      .then((r) => (r.data.state === "active" ? r.data.role : "none"))
+      .catch((error: { status?: number }) => (error.status === 403 ? "unknown" : "none"));
+    const admin =
+      role === "admin" ||
+      (role === "unknown" && (await adminOfEveryRepo(db, octokit, inst.id, inst.accountLogin, login)));
+    if (!admin) return refused(`Only an admin of ${inst.accountLogin} can change the installation's default`);
   }
   const mode = parsed.params.mode as FixMode;
   const security = (parsed.params.security as "auto" | "ask" | undefined) ?? inst.securityFixMode;

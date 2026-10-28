@@ -355,7 +355,7 @@ function mask(text: string, patterns: RegExp[]) {
 /**
  * The version Maven resolves for a managed transitive pin, checked in the sandbox (review R14,
  * round 2): the edit being in the POM is not proof the build uses it. `dependency:tree` names
- * `group:artifact:type:version:scope`; the transaction fails unless it shows the target.
+ * `group:artifact:type[:classifier]:version:scope`; the transaction fails unless it shows the target.
  */
 export function mavenResolvedCheck(name: string, target: string): string[] | null {
   const [group = "", artifact = ""] = name.split(":");
@@ -365,7 +365,7 @@ export function mavenResolvedCheck(name: string, target: string): string[] | nul
   return [
     "sh",
     "-c",
-    `rm -f /tmp/teire-tree.txt && teire-jvm maven -q dependency:tree -Dincludes=${group}:${artifact} -DoutputFile=/tmp/teire-tree.txt -DappendOutput=true && grep -Eq '${esc(group)}:${esc(artifact)}:[^:]+:${esc(target)}(:|$)' /tmp/teire-tree.txt || { echo "Maven resolves ${group}:${artifact} to:"; grep -Eh '${esc(group)}:${esc(artifact)}:' /tmp/teire-tree.txt; exit 1; }`,
+    `rm -f /tmp/teire-tree.txt && teire-jvm maven -q dependency:tree -Dincludes=${group}:${artifact} -DoutputFile=/tmp/teire-tree.txt -DappendOutput=true && grep -Eq '${esc(group)}:${esc(artifact)}:[^:]+:([^:]+:)?${esc(target)}(:|$)' /tmp/teire-tree.txt || { echo "Maven resolves ${group}:${artifact} to:"; grep -Eh '${esc(group)}:${esc(artifact)}:' /tmp/teire-tree.txt; exit 1; }`,
   ];
 }
 

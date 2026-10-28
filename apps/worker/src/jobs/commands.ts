@@ -128,6 +128,7 @@ export async function handleComment(ctx: EventContext, p: Payload) {
         );
       await recordAction(db, {
         requester: `github:${comment.user.login}`,
+        actor: comment.user.login,
         installationId: repo.installationId,
         repoId: repo.id,
         kind: command.name,

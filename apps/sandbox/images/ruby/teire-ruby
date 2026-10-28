@@ -67,8 +67,13 @@ bundle_install() {
     bundle install "$@"; return $?
   fi
   rm -rf "$shm" && mkdir -p "$dir" "$shm" && cp -a "$dir/." "$shm/" && rm -rf "$dir" && ln -s "$shm" "$dir" || return $?
+  # The gems go back to the bundle path even when the install is stopped (its time limit sends TERM
+  # ten seconds before KILL): a later step must not find a link into a tmpfs that isn't saved.
+  restore() { [ -L "$dir" ] || return 0; rm "$dir" && mkdir -p "$dir" && cp -a "$shm/." "$dir/" && rm -rf "$shm"; }
+  trap 'restore; exit 143' TERM INT
   bundle install "$@"; status=$?
-  rm "$dir" && mkdir -p "$dir" && cp -a "$shm/." "$dir/" && rm -rf "$shm" || return $?
+  trap - TERM INT
+  restore || return $?
   return "$status"
 }
 

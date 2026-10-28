@@ -74,8 +74,6 @@ export const repos = pgTable(
     pausedFrom: text("paused_from").$type<RepoStatus>(),
     /** Why the repo is paused when Teire paused it (`opted_out`, `installation_suspended`), not a person. */
     pausedReason: text("paused_reason"),
-    /** Retired by `fix_mode` (D124); kept, unread, until the column is dropped. */
-    fixesPaused: boolean("fixes_paused").notNull().default(false),
     /** The dashboard's fix mode for this repository; null inherits (D124). A `teire.yml` `fixes:` wins. */
     fixMode: text("fix_mode").$type<"auto" | "ask" | "off">(),
     createdAt: createdAt(),
@@ -483,6 +481,8 @@ export const actions = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     /** The signed-in user (better-auth id), or `github:<login>` for a comment or checkbox. */
     requester: text("requester").notNull(),
+    /** The GitHub login the worker checked when it acted (Activity names the person). */
+    actor: text("actor"),
     installationId: githubId("installation_id"),
     repoId: githubId("repo_id"),
     kind: text("kind").notNull(),

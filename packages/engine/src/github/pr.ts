@@ -2,6 +2,8 @@ import type { Octokit } from "octokit";
 import { PR_MODE_BY_EVIDENCE, PULL_REQUESTS } from "../constants";
 import type { CallSite } from "../contract";
 
+/** The label on a Teire PR whose base moved while fixes were Off: its evidence is from an older base (D125). */
+export const STALE_EVIDENCE_LABEL = "stale-evidence";
 /**
  * The pull request for one branch (card C6): opened once, updated in place on later runs (title,
  * body, draft state), labelled, and paired with a "Teire" check run that annotates every call site.
@@ -65,9 +67,11 @@ export async function openOrUpdatePullRequest(input: {
   // An updated PR's evidence may have changed (a draft that now verifies): Teire's own evidence
   // labels that no longer apply come off; labels people added stay.
   if (!created) {
-    const stale = Object.keys(PR_MODE_BY_EVIDENCE)
-      .map((kind) => kind.replace(/_/g, "-"))
-      .filter((label) => !input.labels.includes(label));
+    // A refreshed PR's evidence is current again: `stale-evidence` (Off, base moved) comes off too.
+    const stale = [
+      ...Object.keys(PR_MODE_BY_EVIDENCE).map((kind) => kind.replace(/_/g, "-")),
+      STALE_EVIDENCE_LABEL,
+    ].filter((label) => !input.labels.includes(label));
     const current = new Set(((pr as { labels?: { name?: string }[] }).labels ?? []).map((l) => l.name));
     for (const label of stale.filter((l) => current.has(l)))
       await octokit.rest.issues

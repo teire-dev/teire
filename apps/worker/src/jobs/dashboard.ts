@@ -168,13 +168,14 @@ export function composeDashboard(d: DashboardInput) {
   }
   // Ask first and Off: what Automatic would have started, so a person can start it (or knows it's waiting).
   const listed = new Set([...affected, ...undecided].map(([k]) => k));
+  // An upgrade whose lineage already has a PR at an older target is listed too, as newer than it
+  // (the same as the note on that PR), so the issue and the web agree.
+  const lineagePr = new Map(
+    d.artifacts.filter((a) => a.kind === "pr" && a.lineageKey).map((a) => [a.lineageKey as string, a]),
+  );
   const upgrades = (d.fixMode?.mode === "auto" ? [] : (d.upgrades ?? [])).filter(
     (u) =>
-      !listed.has(u.groupKey) &&
-      !prFor.has(u.groupKey) &&
-      !prLineages.has(lineageKey(u.groupKey, u.security ? "security" : "version")) &&
-      !issueFor.has(u.groupKey) &&
-      !stopped(u.groupKey),
+      !listed.has(u.groupKey) && !prFor.has(u.groupKey) && !issueFor.has(u.groupKey) && !stopped(u.groupKey),
   );
   if (upgrades.length) {
     lines.push(
@@ -185,8 +186,15 @@ export function composeDashboard(d: DashboardInput) {
         : "Teire won't start these until you ask: tick one to start it.",
       "",
     );
-    for (const u of upgrades.slice(0, 40))
-      lines.push(fixRow(u.groupKey, `Upgrade: ${upgradeLabel(u)}${u.security ? " · security" : ""}`));
+    for (const u of upgrades.slice(0, 40)) {
+      const open = lineagePr.get(lineageKey(u.groupKey, u.security ? "security" : "version"));
+      lines.push(
+        fixRow(
+          u.groupKey,
+          `Upgrade: ${upgradeLabel(u)}${u.security ? " · security" : ""}${open ? ` · newer than [#${open.number}](${open.url})` : ""}`,
+        ),
+      );
+    }
     lines.push("");
   }
   const prs = d.artifacts.filter((a) => a.kind === "pr");

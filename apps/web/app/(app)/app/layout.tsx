@@ -33,7 +33,11 @@ async function Shell({ children }: { children: React.ReactNode }) {
         <SiteFooter />
       </>
     );
-  return <AppShell data={data}>{children}</AppShell>;
+  return (
+    <AppShell data={data} user={{ name: session?.user.name ?? "", image: session?.user.image ?? null }}>
+      {children}
+    </AppShell>
+  );
 }
 
 /** The shell's shape while it loads: sidebar, top bar, a page of rows. */

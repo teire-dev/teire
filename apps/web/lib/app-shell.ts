@@ -46,7 +46,15 @@ export async function systemLine() {
  */
 export async function appShell(userId: string) {
   const { all, current } = await currentInstallation(userId);
-  if (!current) return { installations: all, current: null, repos: [], system: await systemLine() };
+  if (!current)
+    return {
+      installations: all,
+      current: null,
+      repos: [],
+      system: await systemLine(),
+      runs: [],
+      changes: [],
+    };
   const db = database();
   const [inst] = await db
     .select({ defaultFixMode: installations.defaultFixMode, securityFixMode: installations.securityFixMode })
@@ -70,7 +78,19 @@ export async function appShell(userId: string) {
       ),
     )
     .orderBy(asc(repos.fullName));
-  const [live, system] = await Promise.all([liveRepos(current.id), systemLine()]);
+  const [live, system, recent, reaching] = await Promise.all([
+    liveRepos(current.id),
+    systemLine(),
+    // For ⌘K: the installation's latest runs and the changes that reach its code.
+    database().execute<{ id: string; full_name: string; group_key: string | null; status: string }>(sql`
+      select x.id, r.full_name, x.group_key, x.status from runs x join repos r on r.id = x.repo_id
+      where r.installation_id = ${current.id} and x.kind = 'fix' order by x.created_at desc limit 12`),
+    database().execute<{ change_id: string; title: string | null; repos: number }>(sql`
+      select f.change_id, c.title, count(distinct f.repo_id)::int as repos
+      from findings f join repos r on r.id = f.repo_id left join changes c on c.id = f.change_id
+      where r.installation_id = ${current.id} and f.verdict = 'affected' and f.state = 'open'
+      group by f.change_id, c.title order by repos desc limit 12`),
+  ]);
   return {
     installations: all,
     current,
@@ -82,6 +102,8 @@ export async function appShell(userId: string) {
       fixMode: repoFixMode(r, inst ?? null).mode,
     })),
     system,
+    runs: recent.rows.map((r) => ({ id: r.id, repo: r.full_name, groupKey: r.group_key, status: r.status })),
+    changes: reaching.rows.map((c) => ({ id: c.change_id, title: c.title ?? c.change_id, repos: c.repos })),
   };
 }
 

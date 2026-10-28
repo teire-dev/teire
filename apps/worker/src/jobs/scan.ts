@@ -146,6 +146,34 @@ export function apiCandidates(findings: FindingDraft[], config: TeireConfig) {
   }));
 }
 
+/**
+ * "Newer version available" on a Teire PR under Ask first (plan's fix-mode table): one comment per
+ * newer target, found again by its marker, saying how to ask for it.
+ */
+async function newerVersionNote(
+  octokit: Awaited<ReturnType<WorkerContext["gh"]["installation"]>>["octokit"],
+  owner: string,
+  repo: string,
+  pr: number,
+  groupKey: string,
+  to: string,
+) {
+  const marker = `<!-- teire:newer=${groupKey} -->`;
+  const { data: comments } = await octokit.rest.issues.listComments({
+    owner,
+    repo,
+    issue_number: pr,
+    per_page: 100,
+  });
+  if (comments.some((c) => c.body?.includes(marker))) return;
+  await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: pr,
+    body: `${marker}\n**Newer version available:** \`${to}\`. Fixes here ask first, so Teire won't move this PR until someone asks: comment \`@teire fix ${groupKey}\`, or tick it under Upgrades available in the Dashboard issue.`,
+  });
+}
+
 /** The ecosystems a scan found projects in, as stored on the repo. */
 export function languagesOf(
   groups: Record<"js" | "py" | "go" | "rust" | "ruby" | "jvm", { projects: unknown[] }>,
@@ -670,9 +698,19 @@ export async function scanRepo(
       return { status, fixes: describeFixMode(mode) };
     }
     let enqueued = 0;
+    const prs = (await openArtifacts(db, repoId)).filter((a) => a.kind === "pr" && a.number);
     for (const c of queue) {
-      // Ask first: the Dashboard issue and the dashboard offer it; a person starts it (D125).
-      if (!startsOnItsOwn(mode, "security" in c && c.security === true)) continue;
+      // Ask first: the Dashboard issue and the dashboard offer it; a person starts it (D125). A newer
+      // version in a lineage with an open PR says so on that PR, once, with how to ask for it.
+      if (!startsOnItsOwn(mode, "security" in c && c.security === true)) {
+        const lineage = "lineage" in c ? c.lineage : lineageKey(c.groupKey);
+        const older = prs.find((a) => a.lineageKey === lineage && a.changeKey !== c.groupKey);
+        if (older?.number)
+          await newerVersionNote(installation.octokit, owner, name, older.number, c.groupKey, c.to).catch(
+            (error) => console.error(`[scan] ${repo.fullName}: newer-version note: ${error}`),
+          );
+        continue;
+      }
       // One PR per group, and nothing a person closed comes back (C6). A merged PR whose group is
       // still a candidate left a root behind (one it didn't change): that root gets its own run.
       const pr = await getArtifact(db, repoId, "pr", c.groupKey);
