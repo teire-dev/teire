@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { cancelSignal } from "../cancel";
 import { VERIFY } from "../constants";
 import type { VerifyBackend, VerifySession } from "./backend";
 import type { JobResult } from "./cloudflare";
@@ -373,6 +374,14 @@ export class TokenFactorySandboxes {
       // One read is pending at a time: a quiet spell keeps waiting on the same read, so no frame is
       // taken by a read whose answer was abandoned (review round 2).
       let pending: ReturnType<typeof reader.read> | null = null;
+      // A cancelled run stops following at once (U1: within 30 s); `close` cancels the operation.
+      const signal = cancelSignal();
+      const aborted = signal
+        ? new Promise<"aborted">((r) => {
+            if (signal.aborted) r("aborted");
+            else signal.addEventListener("abort", () => r("aborted"), { once: true });
+          })
+        : null;
       try {
         for (;;) {
           // A stream that goes quiet is checked against the operation's state, so one that never
@@ -382,8 +391,12 @@ export class TokenFactorySandboxes {
           const idle = new Promise<"idle">((r) => {
             timer = setTimeout(() => r("idle"), FOLLOW_IDLE_MS);
           });
-          const next = await Promise.race([pending, idle]);
+          const next = await Promise.race(aborted ? [pending, idle, aborted] : [pending, idle]);
           clearTimeout(timer);
+          if (next === "aborted") {
+            void reader.cancel().catch(() => undefined);
+            return;
+          }
           if (next === "idle") {
             const op = await this.#json<Operation>("GET", `/operations/${operation}`).catch(() => null);
             if (op && (op.status === "SUCCESS" || op.status === "FAILED" || op.status === "CANCELLED")) {
