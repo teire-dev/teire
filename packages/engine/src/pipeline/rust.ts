@@ -181,6 +181,7 @@ export async function fixRustDependency(
     .map((c) => c.path.slice("feature:".length));
   const plan = withVerifyOverrides(detectRustChecks(input.tree, a.project), a.project.root, input.verify);
   const run = await runFix({
+    verify: input.verify,
     tf: input.tf,
     prices: input.prices,
     backend: input.backend,

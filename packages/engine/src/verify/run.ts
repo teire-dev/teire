@@ -180,7 +180,13 @@ export async function verifyChange(input: {
   onLog?: (line: string) => void;
 }): Promise<VerifyRun> {
   const started = Date.now();
-  const open = (suffix: string) => input.backend.open(`${input.runId}-${suffix}`, { tarball: input.tarball });
+  // The project's own image and size: a JVM or Rust project can't build in the default Node image.
+  const open = (suffix: string) =>
+    input.backend.open(`${input.runId}-${suffix}`, {
+      tarball: input.tarball,
+      image: input.plan.image,
+      ...(input.plan.instance ? { instance: input.plan.instance } : {}),
+    });
   const [base, after] = await Promise.all([open("base"), open("after")]);
   try {
     const [baseline, afterRun] = await Promise.all([

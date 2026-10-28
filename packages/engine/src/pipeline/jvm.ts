@@ -249,6 +249,7 @@ export async function fixJvmDependency(
     ...(prefixes.length ? { probe: ["teire-jvm", "refs", prefixes.join(",")] } : {}),
   };
   const run = await runFix({
+    verify: input.verify,
     tf: input.tf,
     prices: input.prices,
     backend: input.backend,

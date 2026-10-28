@@ -223,6 +223,7 @@ export async function fixRubyDependency(
     ? Math.max(0, Math.floor((Date.now() - Date.parse(decision.publishedAt)) / 86_400_000))
     : REGISTRY.cooldownDays;
   const run = await runFix({
+    verify: input.verify,
     tf: input.tf,
     prices: input.prices,
     backend: input.backend,

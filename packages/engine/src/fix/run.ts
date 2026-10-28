@@ -21,7 +21,8 @@ import type { ModelPrice, TokenFactory } from "../llm";
 import type { VerifyBackend } from "../verify/backend";
 import type { CheckPlan } from "../verify/commands";
 import { decideEvidence, type Evidence, type SideResult } from "../verify/evidence";
-import { runChecks, runSide, type SideRun } from "../verify/run";
+import { type CheckableProject, checkableProjects, planFor, projectOf } from "../verify/projects";
+import { runChecks, runSide, type SideRun, verifyChange } from "../verify/run";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
 import { type InstallTriage, type Review, reviewFix, triageInstall } from "./review";
@@ -83,6 +84,17 @@ export interface FixInput {
   targetPaths: ReadonlySet<string>;
   docs: (query: string) => Promise<string>;
   onEvent?: (event: FixEvent) => void;
+  /** `teire.yml` `verify` overrides, for the other projects the change touches. */
+  verify?: { workspace: string; install?: string; typecheck?: string; test?: string }[];
+}
+
+/** Another project the change touched, verified with its own checks before and after. */
+export interface OtherProject {
+  root: string;
+  ecosystem: CheckableProject["ecosystem"];
+  evidence: Evidence;
+  baseline: SideResult;
+  after: SideResult;
 }
 
 export interface FileChange {
@@ -136,6 +148,8 @@ export interface FixRun {
   review: Review | null;
   /** Output of the plan's probe on the baseline after its checks (JVM: references in the compiled classes). */
   baselineProbe: string | null;
+  /** The other projects the final change touched, each verified with its own checks (D94). */
+  others?: OtherProject[];
 }
 
 /**
@@ -278,7 +292,82 @@ function isSymlink(full: string) {
   }
 }
 
+const MODE_RANK = { ready: 0, draft: 1, issue: 2 } as const;
+
+/**
+ * The fix for the lead project, then every other project its final files touch, each checked with
+ * its own install, typecheck and tests before and after (D94, "every root verified"): a PR that
+ * changes several projects claims only what ran in all of them. The weakest evidence decides the
+ * PR, and its reasons say which project.
+ */
 export async function runFix(input: FixInput): Promise<FixRun> {
+  const run = await runLead(input);
+  if (run.evidence.prMode === "issue") return run;
+  const text = run.files.filter((f) => f.after !== null && !f.encoding);
+  if (!text.length) return run;
+  const projects = await checkableProjects(input.repoDir, input.tree).catch(() => []);
+  const touched = new Map<string, (typeof projects)[number]>();
+  for (const f of run.files) {
+    const project = projectOf(projects, f.path);
+    if (project && project.root !== input.project.root) touched.set(project.root, project);
+  }
+  if (!touched.size) return run;
+  const files = Object.fromEntries(text.map((f) => [f.path, f.after as string]));
+  const queue = [...touched.values()].map((project, i) => ({ project, i }));
+  const results: (OtherProject | null)[] = [];
+  const check = async ({ project, i }: (typeof queue)[number]) => {
+    const name = project.root === "." ? "/" : project.root;
+    input.onEvent?.({
+      step: "verify",
+      detail: `checking ${name} (${project.ecosystem}), which this change also touches`,
+    });
+    const v = await verifyChange({
+      backend: input.backend,
+      runId: sandboxId(input.runId, randomBytes(3).toString("hex"), `p${i + 1}`),
+      tarball: input.tarball,
+      plan: planFor(project, input.verify),
+      change: { files },
+    }).catch((error: unknown) => {
+      input.onEvent?.({ step: "verify", detail: `${name}: not checked (${String(error).slice(0, 200)})` });
+      return null;
+    });
+    if (!v) return;
+    input.onEvent?.({
+      step: "verify",
+      detail: `${name}: ${v.evidence.kind.replace(/_/g, " ")} — ${v.evidence.reasons.join("; ")}`,
+    });
+    results[i] = {
+      root: project.root,
+      ecosystem: project.ecosystem,
+      evidence: v.evidence,
+      baseline: v.baseline,
+      after: v.after,
+    };
+  };
+  // At most three projects at once: each holds two sandboxes.
+  await Promise.all(
+    Array.from({ length: Math.min(3, queue.length) }, async () => {
+      for (let next = queue.shift(); next; next = queue.shift()) await check(next);
+    }),
+  );
+  const others = results.filter((r): r is OtherProject => !!r);
+  const weakest = [...others].sort((a, b) => MODE_RANK[b.evidence.prMode] - MODE_RANK[a.evidence.prMode])[0];
+  const evidence =
+    weakest && MODE_RANK[weakest.evidence.prMode] > MODE_RANK[run.evidence.prMode]
+      ? {
+          ...run.evidence,
+          kind: weakest.evidence.kind,
+          prMode: weakest.evidence.prMode,
+          reasons: [
+            `in \`${weakest.root === "." ? "/" : weakest.root}\`: ${weakest.evidence.reasons.join("; ")}`,
+            ...run.evidence.reasons,
+          ],
+        }
+      : run.evidence;
+  return { ...run, evidence, others };
+}
+
+async function runLead(input: FixInput): Promise<FixRun> {
   const started = Date.now();
   const acceptable = acceptableFor(input.requirePassing ?? false);
   const events: FixEvent[] = [];

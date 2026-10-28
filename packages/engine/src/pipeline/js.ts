@@ -266,6 +266,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
   const targetLayout = await npmTypesLayout(a.instance.name, target, options);
   const plan = withVerifyOverrides(detectJsChecks(input.tree, a.project), a.project.root, input.verify);
   const run = await runFix({
+    verify: input.verify,
     tf: input.tf,
     prices: input.prices,
     backend: input.backend,

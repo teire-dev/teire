@@ -210,6 +210,22 @@ function verificationLines(
       `| ${c.name} \`${escapeCell(c.argv.join(" ")).slice(0, 80)}\` | ${cell(run.baseline, c.name)} | ${cell(run.after, c.name)} |`,
     );
   out.push(`Evidence: **${run.evidence.kind.replace(/_/g, " ")}**. ${run.evidence.reasons.join("; ")}.`);
+  // The other projects the change touches, each with its own checks (D94).
+  if (run.others?.length) {
+    const side = (s: FixRun["baseline"]) =>
+      s.install.ok
+        ? s.checks.map((c) => `${c.name} ${cell(s, c.name)}`).join(" · ") || "no checks"
+        : `install ✗ exit ${s.install.exitCode}`;
+    out.push(
+      "The change also touches these projects; each installed and ran its own checks before and after:",
+      "| Project | Before | After | Evidence |",
+      "|---|---|---|---|",
+    );
+    for (const o of run.others)
+      out.push(
+        `| \`${o.root === "." ? "/" : o.root}\` (${ECOSYSTEM_LABEL[o.ecosystem] ?? o.ecosystem}) | ${side(o.baseline as FixRun["baseline"])} | ${side(o.after as FixRun["baseline"])} | ${o.evidence.kind.replace(/_/g, " ")} |`,
+      );
+  }
   return out;
 }
 

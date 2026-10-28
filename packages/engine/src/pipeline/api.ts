@@ -38,12 +38,7 @@ import { findBaseUrlOverrides } from "../locate/base-url";
 import { type LiteralScan, locateLiterals } from "../locate/literals";
 import { assessOpenApi, type OpenApiOptions } from "../openapi";
 import type { RegistryOptions } from "../registry/clients";
-import { detectJsChecks, withVerifyOverrides } from "../verify/commands";
-import { detectGoChecks } from "../verify/go-commands";
-import { detectJvmChecks } from "../verify/jvm-commands";
-import { detectPyChecks } from "../verify/python-commands";
-import { detectRubyChecks } from "../verify/ruby-commands";
-import { detectRustChecks } from "../verify/rust-commands";
+import { checkableProjects, planFor } from "../verify/projects";
 import type { FixDependencyInput } from "./js";
 
 /**
@@ -497,26 +492,11 @@ async function checksFor(
   verify?: FixDependencyInput["verify"],
 ) {
   const within = (root: string) => files.filter((f) => root === "." || f.startsWith(`${root}/`)).length;
-  const candidates = [
-    ...readJsInventory(tree).map((p) => ({ project: p, plan: () => detectJsChecks(tree, p) })),
-    ...(await readPythonInventory(repoDir, tree)).map((p) => ({
-      project: p,
-      plan: () => detectPyChecks(tree, p),
-    })),
-    ...(await readGoInventory(repoDir, tree)).map((p) => ({
-      project: p,
-      plan: () => detectGoChecks(tree, p),
-    })),
-    ...readRustInventory(tree).map((p) => ({ project: p, plan: () => detectRustChecks(tree, p) })),
-    ...readRubyInventory(tree).map((p) => ({ project: p, plan: () => detectRubyChecks(tree, p) })),
-    ...readJvmInventory(tree).map((p) => ({ project: p, plan: () => detectJvmChecks(tree, p) })),
-  ];
-  const best = candidates.sort(
-    (a, b) =>
-      within(b.project.root) - within(a.project.root) || b.project.root.length - a.project.root.length,
+  const best = (await checkableProjects(repoDir, tree)).sort(
+    (a, b) => within(b.root) - within(a.root) || b.root.length - a.root.length,
   )[0];
   if (!best) throw new Error("no project in a supported ecosystem to verify the change in");
-  return { plan: withVerifyOverrides(best.plan(), best.project.root, verify), project: best.project };
+  return { plan: planFor(best, verify), project: { root: best.root, manager: best.plan().manager } };
 }
 
 export interface FixApiInput extends Omit<FixDependencyInput, "assessment"> {
@@ -564,6 +544,7 @@ export async function fixApiChanges(
   };
   const notes = providerNotes(records, input.related, wordsIn(input.repoDir, input.tree));
   const run = await runFix({
+    verify: input.verify,
     tf: input.tf,
     prices: input.prices,
     backend: input.backend,

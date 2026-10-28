@@ -165,6 +165,8 @@ function withRoots(
   lead: string,
   transaction: Transaction | null | undefined,
   matching: Assessment<AssessedProject>[],
+  /** Roots the run checked besides the lead (every other project the change touched). */
+  checked: string[] = [],
 ) {
   const changed = new Set(
     (transaction?.readBack ?? [])
@@ -175,12 +177,12 @@ function withRoots(
       )
       .filter((root) => matching.some((m) => m.project.root === root)),
   );
-  const unverified = [...changed].filter((r) => r !== lead);
+  const unverified = [...changed].filter((r) => r !== lead && !checked.includes(r));
   const left = [...new Set(matching.map((m) => m.project.root))].filter((r) => r !== lead && !changed.has(r));
   if (!unverified.length && !left.length) return body;
   const name = (r: string) => `\`${r === "." ? "/" : r}\``;
   const lines = [
-    `The sandbox installed and checked ${name(lead)}.${unverified.length ? ` The same upgrade in ${unverified.map(name).join(", ")} was not run in the sandbox.` : ""}${left.length ? ` ${left.map(name).join(", ")} also declare${left.length === 1 ? "s" : ""} it${transaction ? " under another package manager" : ""}; this pull request doesn't change ${left.length === 1 ? "it" : "them"}.` : ""}`,
+    `The sandbox installed and checked ${[lead, ...checked.filter((r) => r !== lead)].map(name).join(", ")}.${unverified.length ? ` The same upgrade in ${unverified.map(name).join(", ")} was not run in the sandbox.` : ""}${left.length ? ` ${left.map(name).join(", ")} also declare${left.length === 1 ? "s" : ""} it${transaction ? " under another package manager" : ""}; this pull request doesn't change ${left.length === 1 ? "it" : "them"}.` : ""}`,
   ];
   const at = body.indexOf("\n\n### Why this repo");
   return at < 0
@@ -256,6 +258,16 @@ function resolverManager(manager: string): TeireManager | null {
 
 /** Which of several roots leads a run: one whose code breaks before one that is unclear or clean. */
 const LEAD_RANK: Record<string, number> = { affected: 3, needs_human: 2, inconclusive: 1, not_affected: 0 };
+
+/** The Ruby a repo pins for a root: `.ruby-version`, else the Gemfile's `ruby "…"`. */
+function repoRuby(tree: RepoTree, root: string) {
+  const at = (file: string) => tree.read(root === "." ? file : `${root}/${file}`);
+  const version = at(".ruby-version")
+    ?.trim()
+    .replace(/^ruby-/, "");
+  if (version && /^\d+\.\d+(\.\d+)?$/.test(version)) return version;
+  return /^\s*ruby\s+["']([\d.]+)["']/m.exec(at("Gemfile") ?? "")?.[1] ?? null;
+}
 
 /** How Teire raises a transitive package past its parents' ranges, per package manager (S15.7). */
 function transitiveRung(ecosystem: Ecosystem, manager: string): string | null {
@@ -375,6 +387,20 @@ async function resolverTransactionFor(
       detail: `dependabot-core's updater can't move ${packageName} within its parents' ranges (${r.message}); Teire raises it with ${rung}`,
     });
     return null;
+  }
+  // Dependabot resolves a gem against the lowest Ruby its gemspec allows; a repo that pins a newer
+  // Ruby (`.ruby-version`, the Gemfile's `ruby`) resolves with that one, so Teire's own transaction
+  // (Bundler in the sandbox, on the repo's Ruby) decides instead (D104).
+  if (r.kind === "stop" && r.type === "dependency_file_not_resolvable" && ecosystem === "rubygems") {
+    const assumed = /current Ruby version is = ([\d.]+)/.exec(r.message)?.[1];
+    const pinned = repoRuby(tree, assessment.project.root);
+    if (assumed && pinned && pinned !== assumed) {
+      common.onEvent?.({
+        step: "transaction",
+        detail: `dependabot-core's updater resolved with Ruby ${assumed}, the floor of the gemspec's required_ruby_version, and stopped (${r.message.split("\n")[0]}); this repo runs Ruby ${pinned}, so Bundler resolves with it in the sandbox`,
+      });
+      return null;
+    }
   }
   if (r.kind === "stop")
     throw new ResolverStopError(
@@ -664,7 +690,16 @@ async function packageOutcome(
   return {
     ...(fallback ? { fallback } : {}),
     fix: result.run,
-    pr: { ...result.pr, body: withRoots(result.pr.body, assessment.project.root, transaction, matching) },
+    pr: {
+      ...result.pr,
+      body: withRoots(
+        result.pr.body,
+        assessment.project.root,
+        transaction,
+        matching,
+        (result.run.others ?? []).map((o) => o.root),
+      ),
+    },
     notesReceipt: result.notesReceipt,
     labels: [
       ecosystem,

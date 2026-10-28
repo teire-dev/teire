@@ -226,6 +226,7 @@ export async function fixPyDependency(
     : [];
   const plan = withVerifyOverrides(detectPyChecks(input.tree, a.project), a.project.root, input.verify);
   const run = await runFix({
+    verify: input.verify,
     tf: input.tf,
     prices: input.prices,
     backend: input.backend,

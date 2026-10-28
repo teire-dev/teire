@@ -275,6 +275,7 @@ export async function fixGoDependency(
   const plan = withVerifyOverrides(detectGoChecks(input.tree, a.project), a.project.root, input.verify);
   const targetDir = moduleCacheDir(targetPath, target) ?? "";
   const run = await runFix({
+    verify: input.verify,
     tf: input.tf,
     prices: input.prices,
     backend: input.backend,
