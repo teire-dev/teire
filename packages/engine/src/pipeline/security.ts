@@ -24,14 +24,16 @@ export async function securityAssessments<P extends AssessedProject>(
   },
   policyFor: (instance: DependencyInstance) => TargetPolicy,
 ): Promise<Assessment<P>[]> {
-  const instances = [
-    ...new Map(
-      project.instances
-        .filter((i) => i.version && i.source === "registry")
-        .filter((i) => !options.onlyPackage || i.name === options.onlyPackage)
-        .map((i) => [`${i.name}@${i.version}@${i.direct ? i.workspace : "."}`, i] as const),
-    ).values(),
-  ];
+  // One per locked version and workspace. A root project's direct dependency and its lockfile entry
+  // share a key: the direct one is kept, so the advisory says "a direct dependency" where it is.
+  const byKey = new Map<string, DependencyInstance>();
+  for (const i of project.instances) {
+    if (!i.version || i.source !== "registry" || (options.onlyPackage && i.name !== options.onlyPackage))
+      continue;
+    const key = `${i.name}@${i.version}@${i.direct ? i.workspace : "."}`;
+    if (!byKey.get(key)?.direct) byKey.set(key, i);
+  }
+  const instances = [...byKey.values()];
   if (!instances.length) return [];
   options.onProgress?.(`advisories for ${instances.length} locked versions`);
   // How complete the lookup was is recorded, never assumed: a failure is "unavailable", not "none" (D96).
