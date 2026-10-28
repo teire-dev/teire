@@ -1,0 +1,16 @@
+{
+  "_comment": "Pinned by digest (plan D93, S14.1); the CLI verifies each image's attestation before use. Resolved from ghcr.io/dependabot/*:latest on 2026-10-28, CLI v1.97.0. Bump weekly through the smoke suite.",
+  "cli": "v1.97.0",
+  "proxy": "ghcr.io/dependabot/proxy@sha256:28df67a345e3d3fea99a053fc5cc37a6bfa39a330e35861fe560ccf1d992ba7c",
+  "updaters": {
+    "npm_and_yarn": "ghcr.io/dependabot/dependabot-updater-npm@sha256:9b1dace40874286bc77ee8728b0f1f3b3d6cf19dfe36bc1f5a18e046dfaf4075",
+    "bun": "ghcr.io/dependabot/dependabot-updater-bun@sha256:66a96198c94b974622b2413430fd9c4086c7d0c07d0555f8ee6cdf3bb6842457",
+    "bundler": "ghcr.io/dependabot/dependabot-updater-bundler@sha256:0350a3c2d0e3ac43dadfe0b9a3d904cd83faf08b323f2d86ba18045e54e191bb",
+    "cargo": "ghcr.io/dependabot/dependabot-updater-cargo@sha256:a890835ec09e456c8b9dafdb97e77a2fe09b544ca4e4cbaaa55111a41686b3ea",
+    "go_modules": "ghcr.io/dependabot/dependabot-updater-gomod@sha256:f96686df356c8c237195f635c71cc753059a51c82f1fd0b675b27d4f367cdbdb",
+    "gradle": "ghcr.io/dependabot/dependabot-updater-gradle@sha256:c26730608cd922facaf3a71270097ad9a6226f5a9fcdc3af1f72ffd2b32a22e6",
+    "maven": "ghcr.io/dependabot/dependabot-updater-maven@sha256:ce1f960f52a81de867c8f4feac08adb8e24e95d8120786225ebeac80d2a339be",
+    "pip": "ghcr.io/dependabot/dependabot-updater-pip@sha256:352a1c9a58dbe842023556339f0b9219b397919146ab4172026dfe93a87d3773",
+    "uv": "ghcr.io/dependabot/dependabot-updater-uv@sha256:044d50e9c8650e532d203fc33e3421cf3980a11fc94743b615eb9269a80c48e2"
+  }
+}

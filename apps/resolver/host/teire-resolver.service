@@ -1,0 +1,18 @@
+[Unit]
+Description=Teire resolver service (dependabot update on the gVisor daemon, one job at a time)
+Documentation=https://github.com/teire-dev/teire/tree/main/apps/resolver
+After=docker-resolver.service network-online.target
+Requires=docker-resolver.service
+
+[Service]
+Type=simple
+Slice=teire-resolver.slice
+EnvironmentFile=/etc/teire-resolver/env
+ExecStart=/usr/bin/python3 -I /usr/local/lib/teire-resolver/teire-resolver.py
+Restart=on-failure
+RestartSec=5
+# The CLI and its children stop with the service.
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target

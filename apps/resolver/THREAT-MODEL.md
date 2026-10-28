@@ -1,0 +1,41 @@
+# Resolver threat model
+
+The resolver runs dependabot-core's updater on Teire's Coolify host. The updater reads, and for some ecosystems runs, a stranger's build files: `setup.py`, gemspecs, Gradle scripts and package lifecycle code. This document lists what such code must not reach, what stops it, and the probe that shows it is stopped. Run the probes after any change to `host/`.
+
+## What runs where
+
+| Piece | Where | Trust |
+|---|---|---|
+| Teire worker | Coolify container, network `coolify` (10.0.1.0/24) | Holds the GitHub App key, database URL and model keys |
+| `teire-resolver` service | Host process (systemd), listens on 10.0.1.1:8787 | Shared secret; no GitHub App key |
+| `dependabot` CLI | Host process started by the service | Holds the per-run token for one repository (contents:read) |
+| Fake API | Inside the CLI, 192.168.240.1:47000 | Receives the updater's events |
+| Proxy container | Daemon #2 (gVisor), job egress network | Holds the per-run token, injects credentials |
+| Updater container | Daemon #2 (gVisor), internal job network only | Runs the repository's build files; holds no secret |
+
+Daemon #2 is separate from Coolify's daemon. It has its own socket (`/run/docker-resolver.sock`), data root, bridge (`br-resolver`) and containerd namespace, runs with `iptables: false`, and uses `live-restore: true`; without that, a restart deletes Coolify's `docker0`. gVisor (`runsc`, systrap) is its default runtime: container system calls are served by gVisor's own kernel, not the host's.
+
+## Threats and controls
+
+| # | Threat | Control | Probe |
+|---|---|---|---|
+| 1 | Repository code escapes to the host kernel | gVisor; capabilities dropped by the CLI; `no-new-privileges`; seccomp | `docker -H unix:///run/docker-resolver.sock run --rm alpine uname -r` prints `4.19.0-gvisor` |
+| 2 | Repository code reaches Coolify's apps, Postgres or the worker | Updater on an internal network (no route); `TEIRE-RESOLVER` drops 10/8, 172.16/12, 192.168/16, 100.64/10, 169.254/16 | From a job container: `wget 10.0.0.1`, `10.0.1.x:5432`, `169.254.169.254` all blocked |
+| 3 | Repository code reaches host services (SSH, Coolify's API, this service) | `TEIRE-RESOLVER-IN` drops every host port from the resolver range except the fake API's | From a job container: `192.168.240.1:22`, `:8000`, `84.46.247.92:8000`, `10.0.1.1:8787` blocked |
+| 4 | Repository code changes another job's DNS | `resolv.conf` mounted read-only by `runsc-wrapper.sh` | `echo x >> /etc/resolv.conf` → "Read-only file system" |
+| 5 | One job's updater posts events to another job's fake API (through its proxy) | One job at a time (`teire-resolver.py` has one worker thread). Per-job rules follow in S14 before concurrency rises | `GET /health` shows the queue; two submitted jobs run one after the other |
+| 6 | Anything outside the resolver reaches the fake API | `TEIRE-RESOLVER-IN` drops the fake-API ports from non-resolver sources | From a Coolify container: `192.168.240.1:47000` refused |
+| 7 | Another Coolify app calls the resolver service | Bearer secret (`/etc/teire-resolver/env`, mode 600, compared in constant time) | `curl 10.0.1.1:8787/health` without the secret → 401 |
+| 8 | A job writes outside the checkout | Tarball extracted with Python's `data` filter (no absolute paths, `..` or escaping links). Every returned file passes `guardedPath`: no `..`, no `.git/`, no NUL | `packages/engine/test/resolver.test.ts` ("refuses paths that leave the checkout") |
+| 9 | A job's result is applied to the wrong commit | Service checks that the job names the repo and commit it was sent with; returns the tarball sha256 (D102) | `POST /jobs` with a mismatched `source.commit` → 400 |
+| 10 | A tampered or replaced image runs | Images pinned by digest (`host/images.json`); the CLI verifies their build attestations before pulling | Service log: "verified updater image … (producer commit …)" |
+| 11 | A token with more than read access leaks into a job | The worker mints a token for one repository with `contents: read` (D106). The updater container never holds it; only the proxy does | The proxy log shows the git_source credential; `env` inside the updater has no token |
+| 12 | A runaway job starves Coolify | `teire-resolver.slice`: MemoryMax 8G, CPUQuota 400%; the CLI's 20-minute timeout, then the process group is killed | `systemctl show teire-resolver.slice -p MemoryPeak` |
+| 13 | A resolver change breaks Coolify | `teire-coolify-check` (worker DNS, internet, Postgres, Coolify → host SSH, docker0, Coolify API) before and after every change; `install.sh` removes the resolver if it fails | `teire-coolify-check` prints six "ok" lines |
+| 14 | Leftovers from one job affect the next | After every job the service removes every container and network on daemon #2 and the job folder | `docker -H unix:///run/docker-resolver.sock ps -a` is empty between jobs |
+
+## Not covered yet
+
+- **Private registries.** Credentials will go only to the proxy, injected at egress; external code is refused when they are present (D105). S18.
+- **Image mirror.** Digests and attestation bundles mirrored to teire-dev's GHCR, so a deleted upstream digest can't stop jobs (R-P27). S14.
+- **Concurrency above one.** Needs per-job fake-API rules (threat 5).
