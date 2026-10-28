@@ -51,7 +51,7 @@ function jvmPolicy(instance: DependencyInstance, options: JvmAssessOptions): Tar
     minAgeMinutes: () => minutes,
     pins: [],
     allowPrerelease: instance.version ? mavenScheme.isPrerelease(instance.version) : false,
-    fallbackMajors: 0,
+    fallbackMajors: options.fallbackMajors ?? 0,
     // A line published in flavors (`-jre`, `-android`) stays in its own; an unflavored version
     // may move to one (Guava 19.0 → 33.x-jre), never to the Android line.
     exclude: (v) => {
@@ -299,6 +299,7 @@ export async function fixJvmDependency(
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
+    ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

@@ -57,7 +57,7 @@ function goPolicy(instance: DependencyInstance, options: GoAssessOptions): Targe
     minAgeMinutes: () => minutes,
     pins: [],
     allowPrerelease: instance.version ? goScheme.isPrerelease(instance.version) : false,
-    fallbackMajors: 0,
+    fallbackMajors: options.fallbackMajors ?? 0,
   };
 }
 
@@ -300,6 +300,7 @@ export async function fixGoDependency(
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
+    ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

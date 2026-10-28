@@ -56,7 +56,7 @@ function rubyPolicy(
     minAgeMinutes: () => minutes,
     pins: [],
     allowPrerelease: instance.version ? rubygemsScheme.isPrerelease(instance.version) : false,
-    fallbackMajors: 0,
+    fallbackMajors: options.fallbackMajors ?? 0,
     exclude: (v) => requiresOtherRuby(versions, v, ruby),
   };
 }
@@ -254,6 +254,7 @@ export async function fixRubyDependency(
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
+    ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

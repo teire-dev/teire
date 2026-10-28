@@ -281,6 +281,8 @@ export interface FixPullRequestInput {
   notesReceipt?: { model: string; tokensIn: number; tokensOut: number; costUsd: number };
   /** The updater resolved the package only this far (D103): the target was capped, and why. */
   targetMax?: { name: string; version: string; reason: string };
+  /** The newer major tried first (D71): its checks still failed after the agent's attempts. */
+  fallbackFrom?: { version: string; reason: string };
 }
 
 function verdictLine(input: FixPullRequestInput) {
@@ -315,6 +317,10 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     : `Upgrade ${instance.name} from ${instance.version} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
   const sections = (withDiff: boolean, siteCap: number, noteCap: number) => {
     const out: string[] = [`<!-- teire:group=${input.groupKey} run=${input.runId} -->`, verdictLine(input)];
+    if (input.fallbackFrom)
+      out.push(
+        `**Why ${run.target}, not ${input.fallbackFrom.version}.** Teire tried ${input.fallbackFrom.version} first; the repo's checks still failed after the agent's attempts (${sanitizeUpstream(input.fallbackFrom.reason, null)}), so this PR moves to the newest version of the previous major.`,
+      );
     if (input.targetMax?.name === instance.name)
       out.push(`**Why ${run.target}, not newer.** ${sanitizeUpstream(input.targetMax.reason, null)}.`);
 

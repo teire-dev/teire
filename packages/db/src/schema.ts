@@ -276,6 +276,8 @@ export const runs = pgTable(
     fromVersion: text("from_version"),
     targetVersion: text("target_version"),
     attempt: integer("attempt").notNull().default(1),
+    /** Majors below the newest this run's target is (D71: one major lower after two failed verifications). */
+    fallbackMajors: integer("fallback_majors").notNull().default(0),
     replannedAt: timestamp("replanned_at", { withTimezone: true }),
     evidenceKind: text("evidence_kind").$type<EvidenceKind>(),
     /** Unused since rule 13 (evidence decides the PR); kept until a later migration drops them. */

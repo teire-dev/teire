@@ -75,11 +75,19 @@ export function composeDashboard(d: DashboardInput) {
     .filter((f) => f.deadline && f.state === "open" && f.verdict !== "not_applicable")
     .sort((a, b) => (a.deadline as Date).getTime() - (b.deadline as Date).getTime());
   const open = [...groups].filter(([, list]) => list.some((f) => f.state === "open"));
-  // A group the updater refused has its stop issue (keyed by lineage) instead of a "Fix now" box.
+  // A group the updater refused has its stop issue (keyed by lineage) instead of a "Fix now" box,
+  // and a group whose lineage already has a PR (at a capped or fallback target, D103/D71) has that PR.
   const stopped = (k: string) => issueFor.has(`stop/${lineageKey(k)}`);
+  const prLineages = new Set(
+    d.artifacts.filter((a) => a.kind === "pr" && a.lineageKey).map((a) => a.lineageKey),
+  );
   const affected = open.filter(
     ([k, list]) =>
-      list.some((f) => f.verdict === "affected") && !prFor.has(k) && !issueFor.has(k) && !stopped(k),
+      list.some((f) => f.verdict === "affected") &&
+      !prFor.has(k) &&
+      !prLineages.has(lineageKey(k)) &&
+      !issueFor.has(k) &&
+      !stopped(k),
   );
   // Inconclusive is never "not affected" (rule 12): references Teire could not resolve leave the
   // answer to the upgrade's own run, which checks the repo before and after in the sandbox.

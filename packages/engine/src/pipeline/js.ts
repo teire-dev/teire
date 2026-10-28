@@ -115,7 +115,10 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
         info,
         instance.version,
         withTargetMax(
-          jsTargetPolicy(policy, instance.name, instance.version, { cooldownDays: options.cooldownDays }),
+          jsTargetPolicy(policy, instance.name, instance.version, {
+            cooldownDays: options.cooldownDays,
+            fallbackMajors: options.fallbackMajors,
+          }),
           instance.name,
           options,
         ),
@@ -203,6 +206,8 @@ export interface FixDependencyInput {
    * this ecosystem's own transaction.
    */
   transaction?: Transaction;
+  /** The newer major this run fell back from (D71), and why: the PR says so. */
+  fallbackFrom?: { version: string; reason: string };
 }
 
 export interface FixDependencyResult {
@@ -293,6 +298,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
+    ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

@@ -77,7 +77,7 @@ function pyPolicy(
     minAgeMinutes: () => minutes,
     pins: [],
     allowPrerelease: instance.version ? pypiScheme.isPrerelease(instance.version) : false,
-    fallbackMajors: 0,
+    fallbackMajors: options.fallbackMajors ?? 0,
     exclude: (v) => requiresNewerPython(index, v, python),
   };
 }
@@ -252,6 +252,7 @@ export async function fixPyDependency(
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
+    ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

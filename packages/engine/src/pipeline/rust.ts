@@ -47,7 +47,7 @@ function rustPolicy(instance: DependencyInstance, options: RustAssessOptions): T
     minAgeMinutes: () => minutes,
     pins: [],
     allowPrerelease: instance.version ? cargoScheme.isPrerelease(instance.version) : false,
-    fallbackMajors: 0,
+    fallbackMajors: options.fallbackMajors ?? 0,
   };
 }
 
@@ -207,6 +207,7 @@ export async function fixRustDependency(
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
+    ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

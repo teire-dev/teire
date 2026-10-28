@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "fallback_majors" integer DEFAULT 0 NOT NULL;

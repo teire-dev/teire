@@ -57,6 +57,7 @@ import { markCreditsExhausted, modelWorkBlocked } from "../reliability";
 import { resolveForRepo } from "../resolver";
 import {
   appendEvent,
+  claimRun,
   getArtifact,
   getRepo,
   getRun,
@@ -164,6 +165,8 @@ interface Outcome {
   /** Set when the target moved during the run (D103: the updater resolved only up to it). */
   groupKey?: string;
   targetVersion?: string;
+  /** D71: the major failed its checks after the agent's attempts; the next run targets this one. */
+  fallback?: { version: string; reason: string };
   fix: FixRun;
   pr: { title: string; body: string };
   notesReceipt: { model: string; tokensIn: number; tokensOut: number; costUsd: number; ms: number } | null;
@@ -336,7 +339,13 @@ async function resolverTransactionFor(
 async function packageOutcome(
   ctx: WorkerContext,
   repo: { id: number; installationId: number | null; isPrivate: boolean | null },
-  run: { groupKey: string; targetVersion: string; fromVersion: string | null },
+  run: {
+    groupKey: string;
+    targetVersion: string;
+    fromVersion: string | null;
+    fallbackMajors?: number;
+    fallbackFrom?: { version: string; reason: string };
+  },
   repoDir: string,
   tree: RepoTree,
   config: TeireConfig,
@@ -355,37 +364,43 @@ async function packageOutcome(
     cooldownDays: config.upgrades.cooldownDays,
     onlyPackage: packageName,
     ...(cap ? { targetMax: { name: packageName, ...cap } } : {}),
+    ...(run.fallbackMajors ? { fallbackMajors: run.fallbackMajors } : {}),
     ...(token ? { githubToken: token } : {}),
     surfaceDiff: (n: string, f: string, t: string) =>
       cachedSurfaceDiff(ctx.db, ecosystem, n, f, t, { cache }),
   };
-  const { assessments } =
-    ecosystem === "pypi"
-      ? await assessPyRepo(repoDir, tree, assessOptions)
-      : ecosystem === "go"
-        ? await assessGoRepo(repoDir, tree, {
-            ...assessOptions,
-            surfaceDiff: (oldPath, f, newPath, t) =>
-              cachedSurfaceDiff(ctx.db, "go", oldPath, f, t, { cache }, () =>
-                goSurfaceDiff(oldPath, f, newPath, t),
-              ),
-          })
-        : ecosystem === "cargo"
-          ? await assessRustRepo(repoDir, tree, {
-              ...assessOptions,
-              surfaceDiff: (n: string, f: string, t: string) =>
-                cachedSurfaceDiff(ctx.db, "cargo", n, f, t, { cache }, async () =>
-                  cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
+  const assess = async (extra: { fallbackMajors?: number } = {}) => {
+    const options = { ...assessOptions, ...extra };
+    return (
+      ecosystem === "pypi"
+        ? await assessPyRepo(repoDir, tree, options)
+        : ecosystem === "go"
+          ? await assessGoRepo(repoDir, tree, {
+              ...options,
+              surfaceDiff: (oldPath, f, newPath, t) =>
+                cachedSurfaceDiff(ctx.db, "go", oldPath, f, t, { cache }, () =>
+                  goSurfaceDiff(oldPath, f, newPath, t),
                 ),
             })
-          : ecosystem === "rubygems"
-            ? await assessRubyRepo(repoDir, tree, assessOptions)
-            : ecosystem === "maven"
-              ? await assessJvmRepo(repoDir, tree, assessOptions)
-              : await assessJsRepo(repoDir, tree, assessOptions);
+          : ecosystem === "cargo"
+            ? await assessRustRepo(repoDir, tree, {
+                ...options,
+                surfaceDiff: (n: string, f: string, t: string) =>
+                  cachedSurfaceDiff(ctx.db, "cargo", n, f, t, { cache }, async () =>
+                    cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
+                  ),
+              })
+            : ecosystem === "rubygems"
+              ? await assessRubyRepo(repoDir, tree, options)
+              : ecosystem === "maven"
+                ? await assessJvmRepo(repoDir, tree, options)
+                : await assessJsRepo(repoDir, tree, options)
+    ).assessments as Assessment<AssessedProject>[];
+  };
+  const assessments = await assess();
   // Every lockfile root that declares the package at this target. The most urgent leads; the run
   // names the others (one PR per package per repo, D94; the resolver edits them all from S15).
-  const matching = (assessments as Assessment<AssessedProject>[])
+  const matching = assessments
     .filter((a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion)
     // `@teire ignore` and teire.yml `ignore` apply to the run as they do to the scan (C8).
     .filter(
@@ -430,7 +445,11 @@ async function packageOutcome(
       step: "transaction",
       detail: `${roots.length} lockfile roots declare ${packageName} at ${run.targetVersion} (${roots.join(", ")}); this run edits ${assessment.project.root}`,
     });
-  const input = { ...common, ...(transaction ? { transaction } : {}) };
+  const input = {
+    ...common,
+    ...(transaction ? { transaction } : {}),
+    ...(run.fallbackFrom ? { fallbackFrom: run.fallbackFrom } : {}),
+  };
   const result =
     ecosystem === "pypi"
       ? await fixPyDependency({ ...input, assessment: assessment as unknown as Assessment<PyProject> })
@@ -452,7 +471,25 @@ async function packageOutcome(
                   assessment: assessment as unknown as Assessment<JvmProject>,
                 })
               : await fixJsDependency({ ...input, assessment: assessment as unknown as Assessment });
+  // D71: a major whose checks still fail after the agent's attempts falls back one major, once.
+  let fallback: Outcome["fallback"];
+  if (
+    result.run.exhausted &&
+    assessment.decision?.kind === "upgrade" &&
+    assessment.decision.isMajor &&
+    !run.fallbackMajors
+  ) {
+    const lower = (await assess({ fallbackMajors: 1 })).find(
+      (a) => a.decision?.kind === "upgrade" && a.project.root === assessment.project.root,
+    );
+    if (lower?.decision?.kind === "upgrade" && lower.decision.to !== run.targetVersion)
+      fallback = {
+        version: lower.decision.to,
+        reason: `${result.run.attempts.length} attempt${result.run.attempts.length === 1 ? "" : "s"}; ${result.run.evidence.reasons.join("; ")}`,
+      };
+  }
   return {
+    ...(fallback ? { fallback } : {}),
     fix: result.run,
     pr: result.pr,
     notesReceipt: result.notesReceipt,
@@ -707,12 +744,22 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       },
     };
     await updateRun(db, runId, { step: "fix", backend: backend.name });
+    // A fallback run (D71) carries the newer major it replaces, written when it was queued.
+    const fallbackFrom = (await runEventsOf(db, runId, "fallback")).find((e) => e.type === "from")?.payload as
+      | { version: string; reason: string }
+      | undefined;
     const outcome = isApi
       ? await apiOutcome(ctx, { groupKey }, checkout.dir, tree, runConfig, common)
       : await packageOutcome(
           ctx,
           { id: repo.id, installationId: repo.installationId, isPrivate: repo.isPrivate },
-          { groupKey, targetVersion: run.targetVersion, fromVersion: run.fromVersion },
+          {
+            groupKey,
+            targetVersion: run.targetVersion,
+            fromVersion: run.fromVersion,
+            fallbackMajors: run.fallbackMajors,
+            ...(fallbackFrom ? { fallbackFrom } : {}),
+          },
           checkout.dir,
           tree,
           runConfig,
@@ -810,6 +857,41 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       attempt: Math.max(1, fix.attempts.length),
     };
 
+    if (outcome.fallback && !dry) {
+      const fallbackKey = `${groupKey.split("/").slice(0, -1).join("/")}/${outcome.fallback.version}`;
+      const { run: next, created } = await claimRun(db, {
+        repoId: repo.id,
+        groupKey: fallbackKey,
+        lineageKey: run.lineageKey ?? lineageKey(groupKey),
+        kind: "fix",
+        status: "queued",
+        fromVersion: run.fromVersion,
+        targetVersion: outcome.fallback.version,
+        baseSha: run.baseSha,
+        fallbackMajors: run.fallbackMajors + 1,
+        idempotencyKey: `fix:${repo.id}:${fallbackKey}:${run.baseSha}`,
+      });
+      if (created) {
+        await appendEvent(db, next.id, "fallback", "from", {
+          version: run.targetVersion,
+          reason: outcome.fallback.reason,
+          runId,
+        });
+        await ctx.enqueueFix(next.id, repo.id);
+      }
+      await updateRun(db, runId, {
+        ...runFields,
+        status: "cancelled",
+        step: `fell back to ${outcome.fallback.version}`,
+        finishedAt: new Date(),
+      });
+      await event("fallback", "queued", {
+        to: outcome.fallback.version,
+        runId: next.id,
+        reason: outcome.fallback.reason,
+      });
+      return { fellBack: outcome.fallback.version };
+    }
     if (dry) {
       // The PR Teire would open, kept on the run for the report page; nothing is written to GitHub.
       await updateRun(db, runId, {
