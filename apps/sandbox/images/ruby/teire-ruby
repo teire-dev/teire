@@ -23,11 +23,29 @@ use_ruby() {
   local bin
   bin="$(find / -path /proc -prune -o -type f -path "*ruby-${want}*/bin/ruby" -print 2>/dev/null | head -1)"
   [ -n "$bin" ] || { echo "teire-ruby: rv installed nothing for $want"; return 3; }
-  # Later commands get a fixed PATH: put this Ruby's executables first in it.
-  for f in "$(dirname "$bin")"/*; do ln -sf "$f" "/usr/local/sbin/$(basename "$f")"; done
+  RUBY_BIN="$(dirname "$bin")"
+  link_ruby
+  ruby -v
+}
+
+# Later commands get a fixed PATH: put the switched Ruby's executables first in it. Run again after
+# each install, since gems add executables (rspec, rake) that `bundle exec` looks up on PATH.
+RUBY_BIN=""
+link_ruby() {
+  [ -n "$RUBY_BIN" ] || return 0
+  for f in "$RUBY_BIN"/*; do ln -sf "$f" "/usr/local/sbin/$(basename "$f")"; done
   # bash remembers where it found ruby, gem and bundle before the switch.
   hash -r
-  ruby -v
+}
+
+bundled_with() { awk '/^BUNDLED WITH/ {getline; gsub(/[[:space:]]/, ""); print; exit}' "$LOCK" 2>/dev/null; }
+
+# Put the lockfile's own BUNDLED WITH back: the image's Bundler rewrites it whenever it touches the
+# lock, and that change would otherwise reach an upgrade's lockfile diff.
+restore_bundled_with() {
+  local want="$1"
+  [ -n "$want" ] && [ -f "$LOCK" ] || return 0
+  [ "$(bundled_with)" = "$want" ] || sed -i "/^BUNDLED WITH\$/{n;s/.*/   $want/}" "$LOCK"
 }
 
 # Rubies tried when a repo pins none and the lockfile refuses the image's (newest first; rv builds).
@@ -37,7 +55,7 @@ FALLBACK_RUBIES="3.4.12 3.3.13 3.2.11"
 bundler_from_lock() {
   [ -f "$LOCK" ] || return 0
   local bv
-  bv="$(awk '/^BUNDLED WITH/ {getline; gsub(/[[:space:]]/, ""); print; exit}' "$LOCK")"
+  bv="$(bundled_with)"
   if [ -n "$bv" ] && ! gem list -i bundler -v "$bv" >/dev/null 2>&1; then
     # --force: a Ruby rv installed ships its own `bundle` binstub, which a plain install refuses to replace.
     gem install bundler -v "$bv" --no-document --force || return $?
@@ -80,9 +98,11 @@ start_mysql() {
 case "${1:-}" in
   install)
     if [ -n "${TEIRE_RUBY_VERSION:-}" ]; then use_ruby "$TEIRE_RUBY_VERSION" || exit $?; fi
+    locked_bundler="$(bundled_with)"
     # A frozen install fails when the lockfile has neither `ruby` nor this platform (research gotcha 2).
     if [ -f "$LOCK" ] && ! platforms | grep -qE '^(ruby|x86_64-linux)'; then
       bundle lock --add-platform x86_64-linux || exit $?
+      restore_bundled_with "$locked_bundler"
     fi
     bundler_from_lock || exit $?
     # With no pin, the image's Ruby is a guess. When a locked gem refuses it ("minitest-5.20.0
@@ -90,6 +110,7 @@ case "${1:-}" in
     # lockfile has said which Rubies it was resolved for: retry on the newest provided one it accepts.
     out="$(bundle install --jobs 4 2>&1)"; status=$?
     echo "$out"
+    link_ruby
     if [ "$status" -ne 0 ]; then
       req="$(tr '\n' ' ' <<<"$out" | grep -oE 'requires ruby version [<>=~!]+ ?[0-9][0-9.]*(, [<>=~!]+ ?[0-9][0-9.]*)*' | head -1 | sed 's/^requires ruby version //')"
       [ -z "${TEIRE_RUBY_VERSION:-}" ] && [ -n "$req" ] || exit "$status"
@@ -104,6 +125,7 @@ case "${1:-}" in
       use_ruby "$pick" || exit $?
       bundler_from_lock || exit $?
       bundle install --jobs 4 || exit $?
+      link_ruby
     fi
     for s in ${TEIRE_SERVICES:+${TEIRE_SERVICES//,/ }}; do "start_$s" || exit $?; done
     if [ -n "${TEIRE_DB_SETUP:-}" ]; then
@@ -115,12 +137,15 @@ case "${1:-}" in
     gem="${2:?gem}"
     [[ "$gem" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "teire-ruby: bad gem name"; exit 2; }
     before="$(platforms)"
+    locked_bundler="$(bundled_with)"
     args=(lock --update "$gem" --conservative)
     [ -n "${3:-}" ] && args+=(--cooldown "$3")
     bundle "${args[@]}" || exit $?
     for p in $(platforms); do
       grep -qxF "$p" <<<"$before" || bundle lock --remove-platform "$p" || exit $?
     done
+    # The upgrade moves one gem, not Bundler (unless Bundler is the gem being upgraded).
+    [ "$gem" = bundler ] || restore_bundled_with "$locked_bundler"
     ;;
   *)
     echo "usage: teire-ruby install | lock GEM [COOLDOWN_DAYS]"; exit 2 ;;
