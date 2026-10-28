@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import type { Database } from "@teire/db";
+import { type Database, sql } from "@teire/db";
 import { osvAdvisoryIds } from "@teire/engine/advisories";
 import { readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import {
@@ -50,6 +50,7 @@ import {
   saveInstances,
   setFindingsState,
   setRepo,
+  setRepoProviders,
   startScan,
   upsertArtifact,
   upsertChange,
@@ -65,6 +66,11 @@ export interface WorkerContext {
   gh: GitHubApp;
   /** Enqueues a fix run on the per-repo FIFO queue. */
   enqueueFix: (runId: string, repoId: number, startAfterSeconds?: number) => Promise<void>;
+  /** Enqueues a scan (provider fan-out, D95); absent in contexts that never scan other repos. */
+  enqueueScan?: (
+    repoId: number,
+    trigger: "install" | "push" | "command" | "manual" | "catalog",
+  ) => Promise<void>;
   webUrl: string | null;
 }
 
@@ -183,6 +189,8 @@ export async function assessCheckout(
     token?: string;
     /** Why model work is paused, when it is (S10): page reading and triage are skipped. */
     blocked: string | null;
+    /** Providers whose pages just yielded new records: other repos using them rescan (D95). */
+    onProviderChanges?: (slugs: string[]) => Promise<void>;
   },
 ) {
   const { repoId, scanId, fullName, dir, tree, config, sha, blocked } = input;
@@ -270,7 +278,14 @@ export async function assessCheckout(
         tree,
         projects.flatMap((p) => p.instances),
         {
-          changes: storedProviderChanges(db, () => revalidateWeb(["catalog"]), !blocked),
+          changes: storedProviderChanges(
+            db,
+            async (slugs) => {
+              await revalidateWeb(["catalog"]);
+              await input.onProviderChanges?.(slugs);
+            },
+            !blocked,
+          ),
           discover: { cache },
           ...(blocked ? {} : { triage: await pageReader(db) }),
           openapi: { cache, ...auth, repo: { owner, name, sha } },
@@ -363,7 +378,7 @@ export async function assessCheckout(
 export async function scanRepo(
   ctx: WorkerContext,
   repoId: number,
-  trigger: "install" | "push" | "command" | "manual",
+  trigger: "install" | "push" | "command" | "manual" | "catalog",
 ) {
   const { db, gh } = ctx;
   const repo = await getRepo(db, repoId);
@@ -423,7 +438,13 @@ export async function scanRepo(
       sha,
       token,
       blocked,
+      onProviderChanges: (slugs) => fanOutProviderChanges(ctx, repoId, slugs),
     });
+    await setRepoProviders(
+      db,
+      repoId,
+      api.providers.map((p) => p.provider.slug),
+    );
     // Nothing in the six ecosystems and no API or model in the code: no onboarding PR (card C1).
     const nothingReadable = !projects.length && !api.findings.length && !runtimes.findings.length;
     const coverage = {
@@ -554,4 +575,25 @@ export async function scanRepo(
   } finally {
     if (dir) await rm(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * Provider fan-out (D95): a scan read a provider's pages and found new or changed records, so every
+ * other active repo whose last scan used that provider is rescanned, and learns of the change
+ * without waiting for its own push or schedule. Repos scanned in the last hour, or with
+ * `schedule: off`, are left alone.
+ */
+async function fanOutProviderChanges(ctx: WorkerContext, fromRepoId: number, slugs: string[]) {
+  const { rows } = await ctx.db.execute<{ id: number }>(sql`
+    select distinct r.id from repo_providers rp join repos r on r.id = rp.repo_id
+    where rp.provider_slug in (${sql.join(
+      slugs.map((s) => sql`${s}`),
+      sql`, `,
+    )})
+      and r.id <> ${fromRepoId} and r.status = 'active'
+      and coalesce(r.config->>'schedule', 'daily') <> 'off'
+      and (r.last_scanned_at is null or r.last_scanned_at < now() - interval '1 hour')
+  `);
+  for (const r of rows) await ctx.enqueueScan?.(Number(r.id), "catalog");
+  if (rows.length) console.log(`[scan] ${slugs.join(", ")}: new records; rescanning ${rows.length} repo(s)`);
 }

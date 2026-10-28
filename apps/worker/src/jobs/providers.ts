@@ -135,14 +135,16 @@ async function refresh(db: Database, provider: ProviderRecord): Promise<number> 
 /** The worker's reader: refresh what is stale, then return the stored confirmed records. */
 export function storedProviderChanges(
   db: Database,
-  onWritten?: () => Promise<void>,
+  /** Called with the providers whose pages yielded new or changed records (D95 fan-out). */
+  onWritten?: (slugs: string[]) => Promise<void>,
   /** False while model work is blocked (credits, budget): stored records only, no page reading. */
   readPages = true,
 ): ProviderChanges {
   return async (list) => {
-    let written = 0;
-    if (readPages) for (const provider of list) written += await refresh(db, provider);
-    if (written && onWritten) await onWritten();
+    const changed: string[] = [];
+    if (readPages)
+      for (const provider of list) if ((await refresh(db, provider)) > 0) changed.push(provider.slug);
+    if (changed.length && onWritten) await onWritten(changed);
     if (!list.length) return [];
     const rows = await db
       .select({ record: changes.record })

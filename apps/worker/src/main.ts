@@ -84,7 +84,7 @@ async function main() {
           { singletonKey: String(repoId), ...(startAfterSeconds ? { startAfter: startAfterSeconds } : {}) },
         );
       },
-      enqueueScan: async (repoId: number, trigger: "install" | "push" | "command" | "manual") => {
+      enqueueScan: async (repoId: number, trigger: "install" | "push" | "command" | "manual" | "catalog") => {
         await boss.send(QUEUES.scan, { repoId, trigger }, { singletonKey: String(repoId) });
       },
       enqueuePublicScan: async (publicScanId: string) => {
@@ -93,7 +93,7 @@ async function main() {
     };
     // key_strict_fifo holds a repo's queue behind a failed job, so these handlers never throw:
     // failures live on the scan and run rows.
-    await boss.work<{ repoId: number; trigger: "install" | "push" | "command" | "manual" }>(
+    await boss.work<{ repoId: number; trigger: "install" | "push" | "command" | "manual" | "catalog" }>(
       QUEUES.scan,
       async (jobs) => {
         for (const job of jobs) {

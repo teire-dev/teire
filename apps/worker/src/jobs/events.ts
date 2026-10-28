@@ -31,7 +31,10 @@ const CI = { maxChecks: 3, maxLogChars: 6000 } as const;
  * findings; a push to the default branch that touches dependencies or code queues a rescan.
  */
 export interface EventContext extends WorkerContext {
-  enqueueScan: (repoId: number, trigger: "install" | "push" | "command" | "manual") => Promise<void>;
+  enqueueScan: (
+    repoId: number,
+    trigger: "install" | "push" | "command" | "manual" | "catalog",
+  ) => Promise<void>;
   enqueuePublicScan: (publicScanId: string) => Promise<void>;
 }
 
@@ -133,7 +136,9 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       ).some((c) =>
         [...(c.added ?? []), ...(c.modified ?? []), ...(c.removed ?? [])].some((f) => RESCAN_FILES.test(f)),
       );
-      if (touched) await ctx.enqueueScan(repo.id, "push");
+      // `schedule: off` means no automatic scans, pushes included (C8).
+      const off = (repo.config as { schedule?: string } | null)?.schedule === "off";
+      if (touched && !off) await ctx.enqueueScan(repo.id, "push");
       // The base moved (C6): open Teire PRs are re-applied when the push touched dependency files
       // or GitHub reports a conflict; their verification ran against the old base.
       const deps = (

@@ -27,20 +27,23 @@ export const RELIABILITY = {
 const SCHEDULE_MS = { daily: 24 * 3600_000, weekly: 7 * 24 * 3600_000 } as const;
 
 /**
- * `schedule: daily | weekly` in teire.yml (C8): rescans besides pushes, for active repos whose last
- * scan is older than the period. Push rescans happen whatever the schedule.
+ * `schedule` in teire.yml (C8, D95): active repos are rescanned daily by default, or weekly; `push`
+ * means pushes only and `off` means no automatic scans. The period runs from the last scan
+ * attempt, so a repo whose scans fail is not retried every hour.
  */
 export async function dueScheduledScans(db: Database, now = Date.now()) {
-  const rows = await db
-    .select({ id: repos.id, config: repos.config, lastScannedAt: repos.lastScannedAt })
-    .from(repos)
-    .where(and(eq(repos.status, "active"), sql`${repos.config}->>'schedule' in ('daily', 'weekly')`));
+  const { rows } = await db.execute<{ id: number; schedule: string; last: Date | null }>(sql`
+    select r.id, coalesce(r.config->>'schedule', 'daily') as schedule,
+      (select max(s.created_at) from scans s where s.repo_id = r.id) as last
+    from repos r
+    where r.status = 'active' and coalesce(r.config->>'schedule', 'daily') in ('daily', 'weekly')
+  `);
   return rows
     .filter((r) => {
-      const every = SCHEDULE_MS[(r.config as { schedule?: keyof typeof SCHEDULE_MS }).schedule ?? "daily"];
-      return !r.lastScannedAt || now - r.lastScannedAt.getTime() >= every;
+      const every = SCHEDULE_MS[r.schedule as keyof typeof SCHEDULE_MS] ?? SCHEDULE_MS.daily;
+      return !r.last || now - new Date(r.last).getTime() >= every;
     })
-    .map((r) => r.id);
+    .map((r) => Number(r.id));
 }
 
 export async function getState<T>(db: Database, key: string): Promise<T | null> {

@@ -155,7 +155,8 @@ export function defaultConfig(): TeireConfig {
     paths: [],
     ignorePaths: [],
     upgrades: { majors: true, plainBumps: true, cooldownDays: REGISTRY.cooldownDays, allow: [], deny: [] },
-    schedule: "push",
+    // Daily by default, as Dependabot schedules per repo: an idle repo still learns of new changes (D95).
+    schedule: "daily",
     verify: [],
     pullRequests: {
       limit: PULL_REQUESTS.maxOpenPerRepo,

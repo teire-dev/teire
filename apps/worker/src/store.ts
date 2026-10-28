@@ -85,7 +85,7 @@ export async function setRepo(db: Database, id: number, fields: Partial<typeof r
 export async function startScan(
   db: Database,
   repoId: number,
-  trigger: "install" | "push" | "command" | "manual" | "public",
+  trigger: "install" | "push" | "command" | "manual" | "catalog" | "public",
   requestedBy?: string,
 ) {
   const [row] = await db
@@ -447,4 +447,13 @@ export async function setInstallationPaused(db: Database, installationId: number
       : sql`update repos set status = coalesce(paused_from, 'active'), paused_from = null, paused_reason = null, updated_at = now()
             where installation_id = ${installationId} and paused_reason = 'installation_suspended'`,
   );
+}
+
+/** The providers a repo's code used at its last scan (D95), replacing the previous set. */
+export async function setRepoProviders(db: Database, repoId: number, slugs: string[]) {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`delete from repo_providers where repo_id = ${repoId}`);
+    for (const slug of new Set(slugs))
+      await tx.execute(sql`insert into repo_providers (repo_id, provider_slug) values (${repoId}, ${slug})`);
+  });
 }

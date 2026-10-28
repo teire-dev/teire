@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CATALOG_SCHEMA_VERSION } from "../src/catalog/schema";
 import { toChangeV2 } from "../src/catalog/v2";
 import { readTeireConfig } from "../src/config";
+import { DEFAULT_CONFIG } from "../src/github/compose";
 import { memoryTree } from "../src/inventory/tree";
 import { githubSpecLocation } from "../src/openapi";
 import { declaredProviders } from "../src/pipeline/api";
@@ -86,5 +87,14 @@ describe("teire.yml sources", () => {
       githubSpecLocation("https://raw.githubusercontent.com/acme/api-spec/main/openapi.json")?.path,
     ).toBe("openapi.json");
     expect(githubSpecLocation("https://docs.acme.dev/openapi.json")).toBeNull();
+  });
+});
+
+describe("the onboarding teire.yml", () => {
+  it("is valid against Teire's own schema and turns on the daily schedule", () => {
+    const config = readTeireConfig(memoryTree({ ".github/teire.yml": DEFAULT_CONFIG }));
+    expect(config.problems).toEqual([]);
+    expect(config.schedule).toBe("daily");
+    expect(readTeireConfig(memoryTree({})).schedule).toBe("daily");
   });
 });

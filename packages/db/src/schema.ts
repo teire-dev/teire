@@ -81,6 +81,23 @@ export const repos = pgTable(
   ],
 );
 
+/**
+ * Which providers each repo's code uses, as of its last scan (D95): when reading a provider's pages
+ * turns up a new change, the other active repos that use it are rescanned (provider fan-out).
+ */
+export const repoProviders = pgTable(
+  "repo_providers",
+  {
+    repoId: githubId("repo_id").notNull(),
+    providerSlug: text("provider_slug").notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.repoId, t.providerSlug] }),
+    index("repo_providers_slug_idx").on(t.providerSlug),
+  ],
+);
+
 /** Index of catalog/providers/*.json (the JSON files are the source of truth). */
 export const providers = pgTable("providers", {
   slug: text("slug").primaryKey(),
