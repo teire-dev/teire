@@ -1,0 +1,23 @@
+[Unit]
+Description=Teire resolver Docker daemon (gVisor runtime, no iptables, own bridge)
+Documentation=https://github.com/teire-dev/teire/tree/main/apps/resolver
+After=network-online.target containerd.service docker.service
+Wants=network-online.target
+Requires=containerd.service
+
+[Service]
+Type=notify
+Slice=teire-resolver.slice
+ExecStartPre=/usr/local/lib/teire-resolver/firewall.sh up
+ExecStart=/usr/bin/dockerd --config-file /etc/teire-resolver/daemon.json
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+LimitNOFILE=infinity
+Delegate=yes
+KillMode=process
+OOMScoreAdjust=-100
+
+[Install]
+WantedBy=multi-user.target

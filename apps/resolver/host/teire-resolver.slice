@@ -1,0 +1,10 @@
+[Unit]
+Description=Teire resolver: the second Docker daemon and its jobs (plan D93)
+Before=slices.target
+
+[Slice]
+# Caps for every resolver job together; the host also runs Coolify's apps.
+MemoryHigh=7G
+MemoryMax=8G
+CPUQuota=400%
+TasksMax=4096

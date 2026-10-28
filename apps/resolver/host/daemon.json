@@ -1,0 +1,27 @@
+{
+  "hosts": ["unix:///run/docker-resolver.sock"],
+  "data-root": "/var/lib/docker-resolver",
+  "exec-root": "/run/docker-resolver",
+  "pidfile": "/run/docker-resolver.pid",
+  "bridge": "br-resolver",
+  "iptables": false,
+  "ip6tables": false,
+  "ip-masq": false,
+  "ipv6": false,
+  "userland-proxy": false,
+  "default-address-pools": [{ "base": "192.168.224.0/20", "size": 24 }],
+  "host-gateway-ips": ["192.168.240.1"],
+  "containerd-namespace": "teire-resolver",
+  "containerd-plugins-namespace": "teire-resolver-plugins",
+  "features": { "containerd-snapshotter": false },
+  "storage-driver": "overlay2",
+  "default-runtime": "runsc",
+  "runtimes": {
+    "runsc": { "path": "/usr/local/bin/runsc", "runtimeArgs": ["--platform=systrap", "--overlay2=none"] }
+  },
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "cgroup-parent": "teire-resolver.slice",
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "10m", "max-file": "2" },
+  "live-restore": false
+}
