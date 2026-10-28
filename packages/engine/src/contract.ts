@@ -275,6 +275,18 @@ export function groupKey(ecosystem: Ecosystem, name: string, target: string) {
   return `${ecosystem}/${name}/${target}`;
 }
 
+/**
+ * The PR line a group belongs to across targets (D111): a package group `npm/zod/4.6.7` is the
+ * lineage `npm/zod` (`npm/zod#security` for a security update, which runs beside a version
+ * update), so a newer target opens a new PR in the same lineage and supersedes the open one. Every
+ * other group (`models/openai`, `api/…`, `advisory/…`, `runtime/…`) is its own lineage.
+ */
+export function lineageKey(group: string, intent: "version" | "security" = "version") {
+  const [head, ...rest] = group.split("/");
+  if (!(ECOSYSTEMS as readonly string[]).includes(head ?? "") || rest.length < 2) return group;
+  return `${head}/${rest.slice(0, -1).join("/")}${intent === "security" ? "#security" : ""}`;
+}
+
 export const verdicts = [
   "affected",
   "not_affected",

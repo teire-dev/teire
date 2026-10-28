@@ -20,7 +20,7 @@ import {
   sql,
 } from "@teire/db";
 import { sha256 } from "@teire/engine/catalog";
-import type { ChangeV2, Coverage, DependencyInstance } from "@teire/engine/contract";
+import { type ChangeV2, type Coverage, type DependencyInstance, lineageKey } from "@teire/engine/contract";
 import type { FindingDraft } from "@teire/engine/impact";
 
 /** Everything the worker writes, in one place, each write idempotent. */
@@ -202,6 +202,9 @@ export async function upsertFinding(
     callSites: f.callSites,
     coverage: f.coverage as Coverage | null,
     groupKey: f.groupKey,
+    lineageKey: f.groupKey
+      ? lineageKey(f.groupKey, f.changeKind === "security-advisory" ? "security" : "version")
+      : null,
     lastEvaluatedAt: new Date(),
   };
   await db

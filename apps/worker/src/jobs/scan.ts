@@ -2,6 +2,7 @@ import { rm } from "node:fs/promises";
 import { type Database, sql } from "@teire/db";
 import { osvAdvisoryIds } from "@teire/engine/advisories";
 import { readTeireConfig, type TeireConfig } from "@teire/engine/config";
+import { lineageKey } from "@teire/engine/contract";
 import {
   commitToBranch,
   composeOnboarding,
@@ -34,8 +35,8 @@ import {
   coverageLines,
   lookupsAnswered,
   newScanCoverage,
-  type ScanCoverage,
   runtimesOf,
+  type ScanCoverage,
 } from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
@@ -596,7 +597,15 @@ export async function scanRepo(
       ...fixCandidates(assessments, config).flatMap((a) => {
         const groupKey = groupKeyOf(a);
         return groupKey && a.decision?.kind === "upgrade"
-          ? [{ groupKey, priority: a.priority ?? 9, from: a.instance.version, to: a.decision.to }]
+          ? [
+              {
+                groupKey,
+                lineage: lineageKey(groupKey, a.purpose === "security" ? "security" : "version"),
+                priority: a.priority ?? 9,
+                from: a.instance.version,
+                to: a.decision.to,
+              },
+            ]
           : [];
       }),
       ...apiCandidates(api.findings, config),
@@ -608,6 +617,7 @@ export async function scanRepo(
       const { run, created } = await claimRun(db, {
         repoId,
         groupKey: c.groupKey,
+        lineageKey: "lineage" in c ? c.lineage : lineageKey(c.groupKey),
         kind: "fix",
         status: "queued",
         fromVersion: c.from,

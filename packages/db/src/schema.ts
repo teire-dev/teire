@@ -222,6 +222,12 @@ export const findings = pgTable(
     callSites: jsonb("call_sites").notNull().default([]),
     coverage: jsonb("coverage"),
     groupKey: text("group_key"),
+    /**
+     * The PR line this belongs to across targets (D111): `npm/zod` (or `npm/zod#security`), and a
+     * model or API group's own key. A newer target opens a new PR in the same lineage and
+     * supersedes the open one.
+     */
+    lineageKey: text("lineage_key"),
     catalogVersion: text("catalog_version"),
     lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
     createdAt: createdAt(),
@@ -231,6 +237,7 @@ export const findings = pgTable(
     uniqueIndex("findings_repo_change_dep_idx").on(t.repoId, t.changeId, t.dependencyKey),
     index("findings_repo_state_idx").on(t.repoId, t.state),
     index("findings_group_idx").on(t.repoId, t.groupKey),
+    index("findings_lineage_idx").on(t.repoId, t.lineageKey),
   ],
 );
 
@@ -257,6 +264,12 @@ export const runs = pgTable(
     /** Null for grouped upgrade runs, which carry `group_key` and cover several changes. */
     changeId: text("change_id"),
     groupKey: text("group_key"),
+    /**
+     * The PR line this belongs to across targets (D111): `npm/zod` (or `npm/zod#security`), and a
+     * model or API group's own key. A newer target opens a new PR in the same lineage and
+     * supersedes the open one.
+     */
+    lineageKey: text("lineage_key"),
     kind: text("kind").$type<RunKind>().notNull(),
     status: text("status").$type<RunStatus>().notNull().default("queued"),
     step: text("step"),
@@ -363,6 +376,12 @@ export const artifacts = pgTable(
     repoId: githubId("repo_id").notNull(),
     kind: text("kind").$type<ArtifactKind>().notNull(),
     changeKey: text("change_key").notNull().default(""),
+    /**
+     * The PR line this belongs to across targets (D111): `npm/zod` (or `npm/zod#security`), and a
+     * model or API group's own key. A newer target opens a new PR in the same lineage and
+     * supersedes the open one.
+     */
+    lineageKey: text("lineage_key"),
     number: integer("number"),
     branch: text("branch"),
     headSha: text("head_sha"),
@@ -374,7 +393,10 @@ export const artifacts = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("artifacts_repo_kind_change_idx").on(t.repoId, t.kind, t.changeKey)],
+  (t) => [
+    uniqueIndex("artifacts_repo_kind_change_idx").on(t.repoId, t.kind, t.changeKey),
+    index("artifacts_lineage_idx").on(t.repoId, t.lineageKey),
+  ],
 );
 
 /**

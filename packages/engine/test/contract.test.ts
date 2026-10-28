@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { PR_MODE_BY_EVIDENCE } from "../src/constants";
-import { changeV2, dependencyInstance, dependencyKey, groupKey, PR_OPENING_KINDS } from "../src/contract";
+import {
+  changeV2,
+  dependencyInstance,
+  dependencyKey,
+  groupKey,
+  lineageKey,
+  PR_OPENING_KINDS,
+} from "../src/contract";
 
 describe("contract v2", () => {
   it("accepts a surface-diff record for a package major", () => {
@@ -66,5 +73,20 @@ describe("contract v2", () => {
       .filter(([, mode]) => mode === "ready")
       .map(([kind]) => kind);
     expect(ready).toEqual(["verified"]);
+  });
+});
+
+describe("lineage keys", () => {
+  it("drop the target from package groups and keep every other group whole", () => {
+    expect(lineageKey("npm/zod/4.6.7")).toBe("npm/zod");
+    expect(lineageKey("npm/@types/react/19.3.0")).toBe("npm/@types/react");
+    expect(lineageKey("go/github.com/golang-jwt/jwt/v4/v5.3.1")).toBe("go/github.com/golang-jwt/jwt/v4");
+    expect(lineageKey("maven/com.google.guava:guava/33.7.2-jre", "security")).toBe(
+      "maven/com.google.guava:guava#security",
+    );
+    expect(lineageKey("models/openai")).toBe("models/openai");
+    expect(lineageKey("advisory/npm/request/GHSA-p8p7-x288-28g6")).toBe(
+      "advisory/npm/request/GHSA-p8p7-x288-28g6",
+    );
   });
 });

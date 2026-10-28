@@ -14,6 +14,7 @@ import {
 } from "@teire/db";
 import { readTeireConfig } from "@teire/engine/config";
 import { PUBLIC_LIMITS } from "@teire/engine/constants";
+import { lineageKey } from "@teire/engine/contract";
 import { directoryTree, fetchRepoTarball, scopedTree } from "@teire/engine/inventory";
 import { advisoryStatus, coverageLines } from "@teire/engine/pipeline";
 import { modelWorkBlocked } from "../reliability";
@@ -208,6 +209,7 @@ export async function requestDryRun(
     id: runId,
     repoId: request.repoId,
     groupKey,
+    lineageKey: lineageKey(groupKey),
     kind: "dry_run",
     status: overLimit ? "failed" : "queued",
     ...(overLimit

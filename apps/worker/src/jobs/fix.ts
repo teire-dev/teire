@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises";
 import { matchesTarget, readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
-import type { CallSite } from "@teire/engine/contract";
+import { type CallSite, lineageKey } from "@teire/engine/contract";
 import type { FixRun } from "@teire/engine/fix";
 import {
   branchFor,
@@ -576,10 +576,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       ...(ctx.webUrl ? { detailsUrl: `${ctx.webUrl}/runs/${runId}` } : {}),
       sites: outcome.sites,
     }).catch((error) => event("pr", "check-run-failed", { error: String(error) }));
+    const lineage = run.lineageKey ?? lineageKey(groupKey);
     await upsertArtifact(db, {
       repoId: repo.id,
       kind: "pr",
       changeKey: groupKey,
+      lineageKey: lineage,
       number: pr.number,
       branch,
       headSha: commit.oid,
@@ -587,6 +589,30 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       url: pr.url,
       runId,
     });
+    // A newer target in the same lineage supersedes the open PR for the older one (D111): it closes
+    // with a link here, so one PR per package stays open.
+    for (const old of await openArtifacts(db, repo.id)) {
+      if (old.kind !== "pr" || old.lineageKey !== lineage || old.changeKey === groupKey || !old.number)
+        continue;
+      try {
+        await installation.octokit.rest.issues.createComment({
+          owner,
+          repo: name,
+          issue_number: old.number,
+          body: `Superseded by #${pr.number}, which moves to a newer version (\`${groupKey.split("/").at(-1)}\`).`,
+        });
+        await installation.octokit.rest.pulls.update({
+          owner,
+          repo: name,
+          pull_number: old.number,
+          state: "closed",
+        });
+        await upsertArtifact(db, { ...old, state: "closed" });
+        await event("pr", "superseded", { number: old.number, by: pr.number });
+      } catch (error) {
+        await event("pr", "supersede-failed", { number: old.number, error: String(error) });
+      }
+    }
     await updateRun(db, runId, {
       ...runFields,
       status: "succeeded",
@@ -599,31 +625,6 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       number: pr.number,
       draft: prMode === "draft",
     });
-    // A newer target for the same package supersedes its older PR (C6).
-    // Only a package has versions to supersede: `models/openai` and `models/anthropic` are separate PRs.
-    const family = packageEcosystemOf(groupKey.split("/")[0] ?? "")
-      ? groupKey.split("/").slice(0, -1).join("/")
-      : null;
-    for (const old of family ? await openArtifacts(db, repo.id) : [])
-      if (
-        old.kind === "pr" &&
-        old.changeKey !== groupKey &&
-        old.changeKey.startsWith(`${family}/`) &&
-        old.number
-      ) {
-        await installation.octokit.rest.issues
-          .createComment({
-            owner,
-            repo: name,
-            issue_number: old.number,
-            body: `Superseded by #${pr.number} (${groupKey.split("/").pop()}).`,
-          })
-          .catch(() => undefined);
-        await installation.octokit.rest.pulls
-          .update({ owner, repo: name, pull_number: old.number, state: "closed" })
-          .catch(() => undefined);
-        await upsertArtifact(db, { ...old, state: "closed" });
-      }
     await syncDashboard(ctx, repo.id).catch((error) =>
       event("dashboard", "failed", { error: String(error) }),
     );

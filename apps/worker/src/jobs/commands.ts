@@ -1,5 +1,6 @@
 import { rm } from "node:fs/promises";
 import { describeConfig, matchesTarget, readTeireConfig } from "@teire/engine/config";
+import { lineageKey } from "@teire/engine/contract";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import {
   artifactByNumber,
@@ -332,9 +333,14 @@ export async function startRun(
     fromVersion = join(positions.map((p) => p?.version));
     targetVersion = join(positions.map((p) => p?.target)) ?? "the named replacements";
   }
+  // A security update and a version update of one package are separate PR lines (D111).
+  const security = (await findingsWithChanges(ctx.db, repo.id)).some(
+    (f) => f.groupKey === groupKey && f.kind === "security-advisory",
+  );
   const { run, created } = await claimRun(ctx.db, {
     repoId: repo.id,
     groupKey,
+    lineageKey: lineageKey(groupKey, security ? "security" : "version"),
     kind: "fix",
     status: "queued",
     fromVersion,
