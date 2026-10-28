@@ -16,7 +16,9 @@ import {
   assessRubyRepo,
   assessRuntimes,
   assessRustRepo,
+  newScanCoverage,
   runtimesOf,
+  type ScanCoverage,
 } from "@teire/engine/pipeline";
 import { memoryCache } from "@teire/engine/registry";
 import {
@@ -47,6 +49,8 @@ export interface ScanResult {
   records: Map<string, ChangeV2>;
   providers: string[];
   notes: string[];
+  /** What the scan could not check (D96): advisory sources down, version lookups that failed. */
+  coverage: ScanCoverage;
   filesScanned: number;
   ms: number;
 }
@@ -140,8 +144,10 @@ export async function scanPath(
   const tree = scopedTree(directoryTree(dir), config);
   const cache = memoryCache();
   const token = options.githubToken;
+  const coverage = newScanCoverage();
   const base = {
     cache,
+    coverage,
     cooldownDays: config.upgrades.cooldownDays,
     ...(token ? { githubToken: token } : {}),
     ...(options.progress ? { onProgress: options.progress } : {}),
@@ -281,6 +287,7 @@ export async function scanPath(
     records,
     providers,
     notes: [...new Set(notes.map(plainNote))],
+    coverage,
     filesScanned: filesScanned || tree.files().length,
     ms: Date.now() - started,
   };

@@ -93,12 +93,21 @@ export function groupFindings(rows: FindingRow[]): FindingGroup[] {
   });
 }
 
+/**
+ * A person decides Teire's "needs a human" verdicts and an affecting advisory with no fixed version
+ * (group key `advisory/…`): there is nothing to upgrade to. The Dashboard issue and the CLI agree.
+ */
+const needsPerson = (g: FindingGroup) =>
+  g.verdict === "needs_human" ||
+  g.verdict === "check_by_hand" ||
+  (g.verdict === "affected" && g.key.startsWith("advisory/"));
+
 export function bucketGroups(groups: FindingGroup[]) {
   return {
     affected: groups
-      .filter((g) => g.verdict === "affected")
+      .filter((g) => g.verdict === "affected" && !needsPerson(g))
       .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9)),
-    human: groups.filter((g) => g.verdict === "needs_human" || g.verdict === "check_by_hand"),
+    human: groups.filter(needsPerson),
     // Inconclusive is never "not affected" (rule 12): the upgrade's sandbox run decides.
     undecided: groups.filter((g) => g.verdict === "inconclusive"),
     quiet: groups.filter((g) => g.verdict === "not_affected"),

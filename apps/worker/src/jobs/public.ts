@@ -15,6 +15,7 @@ import {
 import { readTeireConfig } from "@teire/engine/config";
 import { PUBLIC_LIMITS } from "@teire/engine/constants";
 import { directoryTree, fetchRepoTarball, scopedTree } from "@teire/engine/inventory";
+import { advisoryStatus, coverageLines } from "@teire/engine/pipeline";
 import { modelWorkBlocked } from "../reliability";
 import { claimRun, finishScan, setRepo, startScan } from "../store";
 import { assessCheckout, languagesOf, type WorkerContext } from "./scan";
@@ -133,7 +134,14 @@ export async function publicScan(ctx: WorkerContext, publicScanId: string) {
       ...(token ? { token } : {}),
       blocked,
     });
-    const coverage = result.assessments.find((a) => a.located)?.located?.coverage ?? null;
+    // The whole scan's coverage, as an installed scan stores it: an advisory source that was down
+    // shows on the report as "unavailable", never as an empty list (D96).
+    const coverage = {
+      ...(result.assessments.find((a) => a.located)?.located?.coverage ?? {}),
+      advisoryStatus: advisoryStatus(result.coverage),
+      gaps: coverageLines(result.coverage),
+      detectOnly: result.coverage.detectOnly,
+    };
     await finishScan(db, scan.id, { status: "done", sha: head.sha, coverage });
     await setRepo(db, meta.id, {
       lastScannedSha: head.sha,

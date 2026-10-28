@@ -9,6 +9,7 @@ import { styleText } from "node:util";
 import { type ChangeV2, PR_OPENING_KINDS } from "@teire/engine/contract";
 import { displayQuote } from "@teire/engine/github";
 import type { FindingDraft } from "@teire/engine/impact";
+import { advisoryStatus, coverageLines } from "@teire/engine/pipeline";
 import type { ScanResult } from "./scan";
 
 /**
@@ -18,6 +19,17 @@ import type { ScanResult } from "./scan";
  */
 type Style = Parameters<typeof styleText>[0];
 const paint = (style: Style, text: string) => styleText(style, text, { stream: process.stdout });
+
+/**
+ * What a person must decide: Teire's own "needs a human" verdicts, and an affecting advisory with no
+ * fixed version (group key `advisory/…`), where there is nothing to upgrade to. The Dashboard issue
+ * opens an issue for the same groups, so every surface puts them in the same place.
+ */
+export const needsPerson = (g: Pick<Group, "key" | "verdict">) =>
+  g.verdict === "needs_human" ||
+  g.verdict === "check_by_hand" ||
+  (g.verdict === "affected" && g.key.startsWith("advisory/"));
+const fixable = (g: Pick<Group, "key" | "verdict">) => g.verdict === "affected" && !needsPerson(g);
 
 export interface Group {
   key: string;
@@ -160,13 +172,9 @@ export function renderScan(scan: ScanResult, options: { all?: boolean } = {}) {
   section(
     "Affected",
     "red",
-    live.filter((g) => g.verdict === "affected").sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9)),
+    live.filter((g) => fixable(g)).sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9)),
   );
-  section(
-    "Needs a human",
-    "yellow",
-    live.filter((g) => g.verdict === "needs_human" || g.verdict === "check_by_hand"),
-  );
+  section("Needs a human", "yellow", live.filter(needsPerson));
   // Inconclusive is never "not affected" (rule 12): Teire couldn't resolve every reference, so the
   // upgrade's own checks decide.
   section(
@@ -188,14 +196,23 @@ export function renderScan(scan: ScanResult, options: { all?: boolean } = {}) {
       "",
     );
   }
+  // What could not be checked comes before any "nothing affected": an advisory source that was down
+  // or a version lookup that failed is unknown, never clean (D96).
+  const gaps = coverageLines(scan.coverage);
+  if (gaps.length) {
+    out.push(paint("bold", "What Teire could not check"));
+    for (const g of gaps) out.push(paint("yellow", `  ${g}`));
+    out.push("");
+  }
+  const complete =
+    !gaps.length &&
+    !scan.skipped.length &&
+    !scan.notes.some((n) => n.includes("direct packages were not compared"));
   if (!live.some((g) => g.verdict === "affected"))
     out.push(
-      paint(
-        "green",
-        scan.skipped.length || scan.notes.some((n) => n.includes("direct packages were not compared"))
-          ? "Nothing affected in what could be checked; the notes say what could not."
-          : "Nothing affected right now.",
-      ),
+      complete
+        ? paint("green", "Nothing affected right now.")
+        : paint("yellow", "Nothing affected in what could be checked; the lines above say what could not."),
       "",
     );
   if (scan.notes.length) {
@@ -220,6 +237,7 @@ export function scanJson(scan: ScanResult) {
       })),
     })),
     changes: Object.fromEntries(scan.records),
+    coverage: { advisories: advisoryStatus(scan.coverage), gaps: coverageLines(scan.coverage) },
     notes: scan.notes,
     filesScanned: scan.filesScanned,
     ms: scan.ms,
@@ -291,13 +309,16 @@ export function scanSummary(scan: ScanResult) {
     ...(scan.skipped.length ? { notScanned: scan.skipped } : {}),
     providers: scan.providers,
     affected: live
-      .filter((g) => g.verdict === "affected")
+      .filter(fixable)
       .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9))
       .map(brief),
-    needsHuman: live.filter((g) => g.verdict === "needs_human" || g.verdict === "check_by_hand").map(brief),
+    needsHuman: live.filter(needsPerson).map(brief),
     undecided: live.filter((g) => g.verdict === "inconclusive").map(brief),
     notAffected: live.filter((g) => g.verdict === "not_affected").length,
     notApplicable: groups.length - live.length,
+    // "complete" | "partial" | "unavailable": with anything but complete, an empty list is not "clean".
+    advisoryCoverage: advisoryStatus(scan.coverage),
+    notChecked: coverageLines(scan.coverage),
     notes: scan.notes,
     next: "explain_finding with a group key gives its change records, migration notes, quoted sources and every call site.",
   };

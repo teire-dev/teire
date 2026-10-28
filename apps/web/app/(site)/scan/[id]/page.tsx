@@ -83,6 +83,8 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
     filesScanned?: number;
     languages?: string[];
     resolutionLevel?: string;
+    advisoryStatus?: "complete" | "partial" | "unavailable";
+    gaps?: string[];
   } | null;
   const runs = repo ? await dryRunsFor(repo.id, sha) : [];
   const runFor = new Map(runs.map((r) => [r.groupKey, r]));
@@ -132,6 +134,22 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
           </p>
         </div>
       </section>
+
+      {coverage?.gaps?.length ? (
+        <section className="flex flex-col gap-2 rounded-lg bg-card p-5 shadow-card">
+          <h2 className="text-sm font-medium">
+            What Teire could not check
+            {coverage.advisoryStatus && coverage.advisoryStatus !== "complete"
+              ? ` · advisories ${coverage.advisoryStatus}`
+              : ""}
+          </h2>
+          <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
+            {coverage.gaps.map((g) => (
+              <li key={g}>{g}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {b.deadlines.length ? (
         <section className="flex flex-col gap-3">

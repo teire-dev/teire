@@ -17,7 +17,14 @@ import {
   upsertRepo,
 } from "../store";
 import { handleRepoAction } from "./actions";
-import { canWrite, handleComment, matchesTarget, parseCommand, startRun } from "./commands";
+import {
+  canWrite,
+  FIXES_PAUSED_REPLY,
+  handleComment,
+  matchesTarget,
+  parseCommand,
+  startRun,
+} from "./commands";
 import { syncDashboard, tickedActions } from "./dashboard";
 import { requestDryRun } from "./public";
 import { ONBOARDING_BRANCH, type WorkerContext } from "./scan";
@@ -157,7 +164,8 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
           ? true
           : (await octokit.rest.pulls.get({ owner, repo: name, pull_number: a.number }).catch(() => null))
               ?.data.mergeable === false;
-        if (conflict) await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
+        // Paused fixes keep their PRs as they are until `@teire resume-fixes`.
+        if (conflict && !repo.fixesPaused) await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
       }
       return;
     }
@@ -195,6 +203,8 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
           await setIgnore(db, repo.id, a.key, false);
           await setFindingsState(db, repo.id, (f) => matchesTarget(a.key, f), "open");
           done.push(`unignored \`${a.key}\``);
+        } else if (repo.fixesPaused) {
+          done.push(`${a.kind} \`${a.key}\`: ${FIXES_PAUSED_REPLY}`);
         } else {
           const { run, created } = await startRun(ctx, repo, octokit, a.key, a.kind, login);
           done.push(
@@ -217,7 +227,7 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       if (delivery.action !== "completed" || !["failure", "timed_out"].includes(suite?.conclusion)) return;
       if (suite.app?.slug === ctx.gh.slug) return;
       const repo = await getRepo(db, p.repository.id);
-      if (!repo?.installationId || repo.status === "paused") return;
+      if (!repo?.installationId || repo.status === "paused" || repo.fixesPaused) return;
       const artifact = await artifactByBranch(db, repo.id, String(suite.head_branch ?? ""));
       if (!artifact || artifact.kind !== "pr" || artifact.state !== "open") return;
       if (artifact.headSha !== suite.head_sha || artifact.ciRepairSha === suite.head_sha) return;

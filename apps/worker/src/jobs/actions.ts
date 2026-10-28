@@ -87,6 +87,7 @@ export async function handleRepoAction(
     }
     case "fix": {
       if (repo.status === "paused") return { skipped: "paused" };
+      if (repo.fixesPaused) return { skipped: "fixes paused" };
       const group = (await findingsWithChanges(db, repo.id)).find(
         (f) => matchesTarget(target, f) && f.groupKey,
       )?.groupKey;

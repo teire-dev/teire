@@ -77,6 +77,13 @@ async function Repo({
   const open = data.findings.filter((f) => f.state === "open");
   const ignored = data.findings.filter((f) => f.state === "ignored");
   const b = bucketGroups(groupFindings(open));
+  // What the scan could not check (D96): shown before any "nothing reaches this code".
+  const coverage = scan?.coverage as {
+    filesScanned?: number;
+    advisoryStatus?: "complete" | "partial" | "unavailable";
+    gaps?: string[];
+  } | null;
+  const gaps = coverage?.gaps ?? [];
   const ignoredGroups = groupFindings(ignored);
   const prFor = new Map(data.artifacts.filter((a) => a.kind === "pr").map((a) => [a.changeKey, a]));
   const byEcosystem = new Map<string, number>();
@@ -193,13 +200,27 @@ async function Repo({
               ))}
             </section>
           ) : null}
+          {gaps.length ? (
+            <section className="flex flex-col gap-2 rounded-lg bg-card p-4 shadow-card">
+              <h2 className="text-sm font-medium">
+                What Teire could not check
+                {coverage?.advisoryStatus && coverage.advisoryStatus !== "complete"
+                  ? ` · advisories ${coverage.advisoryStatus}`
+                  : ""}
+              </h2>
+              <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
+                {gaps.map((g) => (
+                  <li key={g}>{g}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           {!b.affected.length && !b.human.length && !b.undecided.length ? (
             <p className="text-sm text-muted-foreground">
-              Nothing reaches this code right now
-              {scan?.coverage
-                ? ` (Teire searched ${(scan.coverage as { filesScanned?: number }).filesScanned ?? "the"} files)`
-                : ""}
-              .
+              {gaps.length
+                ? "Nothing reaches this code in what Teire could check"
+                : "Nothing reaches this code right now"}
+              {coverage?.filesScanned ? ` (Teire searched ${coverage.filesScanned} files)` : ""}.
             </p>
           ) : null}
           {b.quiet.length ? (

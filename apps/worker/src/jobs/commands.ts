@@ -290,6 +290,15 @@ export async function canWrite(
  * A fix run for one group on the default branch's head: `fix` and Dashboard ticks once per head,
  * `rebase` re-applies on the new head, `recreate` always starts fresh (C6).
  */
+/** Thrown by `startRun` for a repo whose fixes are paused (D110): the one gate every run start passes. */
+export class FixesPausedError extends Error {
+  constructor(repo: string) {
+    super(`fixes are paused for ${repo}`);
+  }
+}
+
+export const FIXES_PAUSED_REPLY = "Fixes are paused here; `@teire resume-fixes` first.";
+
 export async function startRun(
   ctx: EventContext,
   repo: NonNullable<Awaited<ReturnType<typeof getRepo>>>,
@@ -300,6 +309,7 @@ export async function startRun(
   /** Runs after the run exists and before its job is queued (the CI log a repair starts from). */
   beforeEnqueue?: (runId: string) => Promise<void>,
 ) {
+  if (repo.fixesPaused) throw new FixesPausedError(repo.fullName);
   const [owner = "", name = ""] = repo.fullName.split("/");
   const { data: branch } = await octokit.rest.repos.getBranch({
     owner,
