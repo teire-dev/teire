@@ -92,14 +92,17 @@ export function AppShell({ data, children }: { data: AppShellData; children: Rea
   const liveSet = new Set(live.data.live);
 
   useEffect(() => {
+    // In the app, ⌘K is this palette (it searches the docs too): caught before the docs' own search
+    // dialog, which listens for the same keys, so only one opens.
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
+        e.stopPropagation();
         setPalette((open) => !open);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
   }, []);
 
   const current = data.current;
