@@ -1,0 +1,12 @@
+# Teire's gitleaks config: the default rules, minus values that are public by design.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Published checksums and Go pseudo-versions, not secrets"
+regexes = [
+  # japicmp's jar SHA-1, as Maven Central publishes it (Dockerfile ARG and the engine constant).
+  '''(?i)japicmp_?sha1\s*[:=]\s*"?[0-9a-f]{40}"?''',
+  # golang.org/x/exp's pseudo-version the apidiff helper pins.
+  '''apidiffVersion:\s*"v0\.0\.0-\d{14}-[0-9a-f]{12}"''',
+]
