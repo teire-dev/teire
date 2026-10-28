@@ -20,6 +20,7 @@ import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectPyChecks } from "../verify/python-commands";
+import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
 
@@ -38,6 +39,8 @@ export interface PyAssessOptions extends RegistryOptions {
   githubToken?: string;
   surfaceDiff?: (name: string, from: string, to: string) => Promise<SurfaceDiff>;
   onProgress?: (line: string) => void;
+  /** The scan's record of what it could not check (D96). */
+  coverage?: ScanCoverage;
 }
 
 /** A version the sandbox's Python cannot install: every file for it requires a newer Python. */
@@ -98,7 +101,10 @@ export async function assessPyRepo(repoDir: string, _tree: RepoTree, options: Py
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("pypi", instance.name, options).catch(() => null);
+      const info = await getPackageInfo("pypi", instance.name, options).catch(() => {
+        options.coverage?.lookupsFailed.push({ ecosystem: "pypi", name: instance.name });
+        return null;
+      });
       if (!info) {
         assessments.push(base);
         continue;

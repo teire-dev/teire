@@ -90,7 +90,6 @@ async function osvGet<T>(path: string): Promise<T> {
   return res.json<T>();
 }
 
-/** GHSA's `vulnerable_version_range` (`>= 4.0.0, <= 4.17.23`) as a check on one version; npm only for now. */
 /**
  * Whether a GHSA `vulnerable_version_range` (`>= 1.0, < 1.2.3`) covers the installed version, in the
  * ecosystem's own grammar; a range Teire cannot read keeps the advisory (never silently dropped).
@@ -206,10 +205,79 @@ export interface AdvisoryMatch {
   record: ChangeV2;
 }
 
+/**
+ * Advisory ids for packages in ecosystems Teire can't upgrade (rule 8: inventory and advisories,
+ * never "clean"), queried with OSV's own ecosystem names. Throws when OSV doesn't answer.
+ */
+export async function osvAdvisoryIds(packages: { ecosystem: string; name: string; version: string }[]) {
+  const out: { ecosystem: string; name: string; version: string; ids: string[] }[] = [];
+  for (let i = 0; i < packages.length; i += ADVISORIES.osvBatchSize) {
+    const slice = packages.slice(i, i + ADVISORIES.osvBatchSize);
+    const res = await fetch("https://api.osv.dev/v1/querybatch", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        queries: slice.map((p) => ({
+          package: { ecosystem: p.ecosystem, name: p.name },
+          version: p.version,
+        })),
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) throw new Error(`OSV querybatch ${res.status}`);
+    const data = (await res.json()) as { results: { vulns?: { id: string }[] }[] };
+    slice.forEach((p, k) => {
+      const ids = (data.results[k]?.vulns ?? []).map((v) => v.id);
+      if (ids.length) out.push({ ...p, ids });
+    });
+  }
+  return out;
+}
+
+/**
+ * How complete an advisory lookup was (D96). "complete": every source answered. "partial": OSV
+ * answered but some advisory details, a GHSA query or ruby-advisory-db did not, so some advisories may
+ * be missing. "unavailable": OSV itself failed, so nothing can be said. Never read a failure as "none".
+ */
+export interface AdvisoryCoverage {
+  status: "complete" | "partial" | "unavailable";
+  notes: string[];
+}
+
 /** Advisories that apply to the exact versions given, as security change records (one per advisory and package). */
 export async function advisoriesFor(
   queries: PackageQuery[],
   options: { githubToken?: string } = {},
+): Promise<AdvisoryMatch[]> {
+  const { matches, coverage } = await advisoriesWithCoverage(queries, options);
+  if (coverage.status === "unavailable") throw new Error(coverage.notes.join("; "));
+  return matches;
+}
+
+/** The same lookup, saying how complete it was instead of failing or dropping silently. */
+export async function advisoriesWithCoverage(
+  queries: PackageQuery[],
+  options: { githubToken?: string } = {},
+): Promise<{ matches: AdvisoryMatch[]; coverage: AdvisoryCoverage }> {
+  const notes: string[] = [];
+  try {
+    const matches = await lookup(queries, options, notes);
+    return { matches, coverage: { status: notes.length ? "partial" : "complete", notes } };
+  } catch (error) {
+    return {
+      matches: [],
+      coverage: {
+        status: "unavailable",
+        notes: [`OSV did not answer: ${error instanceof Error ? error.message : String(error)}`],
+      },
+    };
+  }
+}
+
+async function lookup(
+  queries: PackageQuery[],
+  options: { githubToken?: string },
+  notes: string[],
 ): Promise<AdvisoryMatch[]> {
   const unique = [...new Map(queries.map((q) => [`${q.ecosystem}:${q.name}@${q.version}`, q])).values()];
   const idsPer: string[][] = [];
@@ -219,9 +287,12 @@ export async function advisoriesFor(
   const vulns = new Map<string, OsvVuln>();
   for (let i = 0; i < allIds.length; i += ADVISORIES.detailConcurrency) {
     const batch = await Promise.all(
-      allIds
-        .slice(i, i + ADVISORIES.detailConcurrency)
-        .map((id) => osvGet<OsvVuln>(`/v1/vulns/${encodeURIComponent(id)}`).catch(() => null)),
+      allIds.slice(i, i + ADVISORIES.detailConcurrency).map((id) =>
+        osvGet<OsvVuln>(`/v1/vulns/${encodeURIComponent(id)}`).catch(() => {
+          notes.push(`OSV advisory ${id}: details not fetched`);
+          return null;
+        }),
+      ),
     );
     for (const v of batch) if (v && !v.withdrawn) vulns.set(v.id, v);
   }
@@ -233,7 +304,12 @@ export async function advisoriesFor(
       ecosystem,
       unique.filter((q) => q.ecosystem === ecosystem),
       options.githubToken,
-    ).catch(() => []);
+    ).catch((error: unknown) => {
+      notes.push(
+        `GitHub advisories (${ecosystem}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    });
     for (const g of list) {
       if (g.withdrawn_at) continue;
       for (const v of g.vulnerabilities) {
@@ -245,7 +321,10 @@ export async function advisoriesFor(
 
   // ruby-advisory-db: what OSV and the global GHSA API lack for gems (merged, deduplicated by alias).
   const rubysec = unique.some((q) => q.ecosystem === "rubygems")
-    ? await rubysecDatabase().catch(() => new Map<string, RubysecAdvisory[]>())
+    ? await rubysecDatabase().catch((error: unknown) => {
+        notes.push(`ruby-advisory-db: ${error instanceof Error ? error.message : String(error)}`);
+        return new Map<string, RubysecAdvisory[]>();
+      })
     : new Map<string, RubysecAdvisory[]>();
 
   const checkedAt = new Date().toISOString();

@@ -593,6 +593,11 @@ export function composeOnboarding(input: {
   /** Provider changes found in the code (retired models, removed endpoints). */
   apiFindings?: FindingDraft[];
   scanUrl?: string;
+  /** What the scan could not check (D96), as plain lines. */
+  gaps?: string[];
+  /** False when the repo has Issues turned off: the Dashboard lives on the Teire dashboard instead. */
+  issuesEnabled?: boolean;
+  dashboardUrl?: string;
 }) {
   const { rows } = input;
   const direct = rows.filter((r) => r.instance.direct);
@@ -698,6 +703,14 @@ export function composeOnboarding(input: {
     }
     out.push("\n</details>");
   }
+  if (input.gaps?.length) {
+    out.push("### What Teire could not check");
+    for (const g of input.gaps) out.push(`- ${g}`);
+  }
+  if (input.issuesEnabled === false)
+    out.push(
+      `> **Issues are turned off in this repository,** so Teire can't keep its Dashboard issue or open "needs a human" issues here. They live on ${input.dashboardUrl ? `the [Teire dashboard](${input.dashboardUrl})` : "the Teire dashboard"} instead; turn Issues on in Settings to get them in GitHub.`,
+    );
   out.push("### How it works here");
   out.push(
     "Teire reads your lockfiles, compares each package's published API between your version and the target, finds the lines that use what changed, fixes them with NVIDIA Nemotron on Nebius Token Factory, and runs your own typecheck and tests before and after in a sandbox with the network off. A PR is ready only when that verification passes; otherwise it opens as a draft that says what is not covered.",

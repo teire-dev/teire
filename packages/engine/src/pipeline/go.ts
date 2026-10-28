@@ -24,6 +24,7 @@ import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectGoChecks } from "../verify/go-commands";
+import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
 
@@ -45,6 +46,8 @@ export interface GoAssessOptions extends RegistryOptions {
   githubToken?: string;
   surfaceDiff?: (oldPath: string, from: string, newPath: string, to: string) => Promise<SurfaceDiff>;
   onProgress?: (line: string) => void;
+  /** The scan's record of what it could not check (D96). */
+  coverage?: ScanCoverage;
 }
 
 function goPolicy(instance: DependencyInstance, options: GoAssessOptions): TargetPolicy {
@@ -86,7 +89,10 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
         assessments.push(base);
         continue;
       }
-      const family = await goModuleFamily(instance.name, options).catch(() => null);
+      const family = await goModuleFamily(instance.name, options).catch(() => {
+        options.coverage?.lookupsFailed.push({ ecosystem: "go", name: instance.name });
+        return null;
+      });
       if (!family) {
         assessments.push(base);
         continue;

@@ -19,6 +19,7 @@ import { rustDocsLookup } from "../surface/rustdoc";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectRustChecks } from "../verify/rust-commands";
+import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
 
@@ -35,6 +36,8 @@ export interface RustAssessOptions extends RegistryOptions {
   githubToken?: string;
   surfaceDiff?: (name: string, from: string, to: string) => Promise<SurfaceDiff>;
   onProgress?: (line: string) => void;
+  /** The scan's record of what it could not check (D96). */
+  coverage?: ScanCoverage;
 }
 
 function rustPolicy(instance: DependencyInstance, options: RustAssessOptions): TargetPolicy {
@@ -74,7 +77,10 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("cargo", instance.name, options).catch(() => null);
+      const info = await getPackageInfo("cargo", instance.name, options).catch(() => {
+        options.coverage?.lookupsFailed.push({ ecosystem: "cargo", name: instance.name });
+        return null;
+      });
       if (!info) {
         assessments.push(base);
         continue;

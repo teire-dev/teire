@@ -20,6 +20,7 @@ import { rubyDocsLookup } from "../surface/rubydoc";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectRubyChecks } from "../verify/ruby-commands";
+import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
 
@@ -37,6 +38,8 @@ export interface RubyAssessOptions extends RegistryOptions {
   githubToken?: string;
   surfaceDiff?: (name: string, from: string, to: string) => Promise<SurfaceDiff>;
   onProgress?: (line: string) => void;
+  /** The scan's record of what it could not check (D96). */
+  coverage?: ScanCoverage;
 }
 
 function rubyPolicy(
@@ -100,7 +103,10 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
         continue;
       }
       const [info, versions] = await Promise.all([
-        getPackageInfo("rubygems", instance.name, options).catch(() => null),
+        getPackageInfo("rubygems", instance.name, options).catch(() => {
+          options.coverage?.lookupsFailed.push({ ecosystem: "rubygems", name: instance.name });
+          return null;
+        }),
         gemVersions(instance.name).catch(() => [] as GemVersion[]),
       ]);
       if (!info) {

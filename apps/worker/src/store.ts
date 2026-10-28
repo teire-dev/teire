@@ -405,3 +405,46 @@ export async function runEventsOf(db: Database, runId: string, step: string) {
   `);
   return rows;
 }
+
+/**
+ * Uninstall (card C1, D109): queued and running work stops and the repositories' data is removed:
+ * findings, inventories, scans, artifacts, feedback, snapshots, and every run with its events,
+ * model calls and sandbox executions. Public dry runs stay (they are public pages). The repo rows
+ * remain, disabled, so a later install starts clean.
+ */
+export async function removeInstallationData(db: Database, installationId: number) {
+  await db.transaction(async (tx) => {
+    const ids = sql`(select id from repos where installation_id = ${installationId})`;
+    const runIds = sql`(select id from runs where repo_id in ${ids} and kind <> 'dry_run')`;
+    await tx.execute(sql`delete from run_events where run_id in ${runIds}`);
+    await tx.execute(sql`delete from llm_calls where run_id in ${runIds}`);
+    await tx.execute(sql`delete from sandbox_execs where run_id in ${runIds}`);
+    await tx.execute(sql`delete from runs where repo_id in ${ids} and kind <> 'dry_run'`);
+    for (const table of [
+      "findings",
+      "dependency_instances",
+      "scans",
+      "artifacts",
+      "feedback",
+      "sandbox_snapshots",
+    ])
+      await tx.execute(sql`delete from ${sql.identifier(table)} where repo_id in ${ids}`);
+    await tx.execute(sql`
+      update repos set status = 'disabled', installation_id = null, config = null, config_source = null,
+        ignores = '[]'::jsonb, last_scanned_sha = null, last_scanned_at = null, paused_from = null,
+        paused_reason = null, fixes_paused = false, updated_at = now()
+      where installation_id = ${installationId}
+    `);
+  });
+}
+
+/** Suspend pauses every repo of the installation (D109); unsuspend restores what it paused. */
+export async function setInstallationPaused(db: Database, installationId: number, paused: boolean) {
+  await db.execute(
+    paused
+      ? sql`update repos set paused_from = status, status = 'paused', paused_reason = 'installation_suspended', updated_at = now()
+            where installation_id = ${installationId} and status <> 'paused' and status <> 'disabled'`
+      : sql`update repos set status = coalesce(paused_from, 'active'), paused_from = null, paused_reason = null, updated_at = now()
+            where installation_id = ${installationId} and paused_reason = 'installation_suspended'`,
+  );
+}

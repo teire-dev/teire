@@ -25,6 +25,15 @@ export interface OsvPackage {
   groups: string[];
 }
 
+/** A package in an ecosystem Teire can't upgrade (Packagist, NuGet, Pub, Hex…): detect only (rule 8). */
+export interface OtherPackage {
+  /** OSV's ecosystem name, as advisories are queried. */
+  ecosystem: string;
+  name: string;
+  version: string;
+  sourcePath: string;
+}
+
 const ECOSYSTEM: Record<string, Ecosystem> = {
   npm: "npm",
   PyPI: "pypi",
@@ -75,13 +84,23 @@ export async function osvExtract(dir: string, options: { bin?: string; timeoutMs
     );
     const output = JSON.parse(stdout) as OsvOutput;
     const packages: OsvPackage[] = [];
+    const others: OtherPackage[] = [];
     const unknownEcosystems = new Set<string>();
     for (const result of output.results ?? []) {
       const sourcePath = result.source?.path ? relative(dir, result.source.path) : "";
       for (const entry of result.packages ?? []) {
         const ecosystem = ECOSYSTEM[entry.package?.ecosystem ?? ""];
         if (!ecosystem) {
-          if (entry.package?.ecosystem) unknownEcosystems.add(entry.package.ecosystem);
+          if (entry.package?.ecosystem) {
+            unknownEcosystems.add(entry.package.ecosystem);
+            if (entry.package.name && entry.package.version)
+              others.push({
+                ecosystem: entry.package.ecosystem,
+                name: entry.package.name,
+                version: entry.package.version,
+                sourcePath,
+              });
+          }
           continue;
         }
         if (!entry.package?.name || !entry.package.version) continue;
@@ -94,7 +113,7 @@ export async function osvExtract(dir: string, options: { bin?: string; timeoutMs
         });
       }
     }
-    return { packages, unknownEcosystems: [...unknownEcosystems] };
+    return { packages, others, unknownEcosystems: [...unknownEcosystems] };
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

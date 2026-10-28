@@ -1,4 +1,5 @@
 export * from "./api";
+export * from "./coverage";
 export * from "./go";
 export * from "./js";
 export * from "./jvm";

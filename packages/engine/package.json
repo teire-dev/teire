@@ -11,6 +11,7 @@
     "./contract": "./src/contract.ts",
     "./verify": "./src/verify/index.ts",
     "./inventory": "./src/inventory/index.ts",
+    "./advisories": "./src/advisories/index.ts",
     "./registry": "./src/registry/index.ts",
     "./net": "./src/net/fetch.ts",
     "./surface": "./src/surface/index.ts",

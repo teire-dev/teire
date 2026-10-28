@@ -47,6 +47,8 @@ export interface DashboardInput {
   inventory: { ecosystem: string; n: number }[];
   ignores: string[];
   configProblems: string[];
+  /** What the latest scan could not check (D96). */
+  gaps?: string[];
 }
 
 export function composeDashboard(d: DashboardInput) {
@@ -137,6 +139,7 @@ export function composeDashboard(d: DashboardInput) {
   }
   if (d.inventory.length)
     lines.push("## Inventory", "", d.inventory.map((i) => `${i.ecosystem}: ${i.n}`).join(" · "), "");
+  if (d.gaps?.length) lines.push("## What Teire could not check", "", ...d.gaps.map((g) => `- ${g}`), "");
   if (d.configProblems.length)
     lines.push("## Config problems (defaults used)", "", ...d.configProblems.map((p) => `- ${p}`), "");
   lines.push("<details><summary>Commands</summary>", "", HELP, "", "</details>");
@@ -167,6 +170,9 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
     where scan_id = (select id from scans where repo_id = ${repoId} and status = 'done' order by created_at desc limit 1)
     group by ecosystem order by ecosystem
   `);
+  const { rows: latest } = await db.execute<{ coverage: { gaps?: string[] } | null }>(sql`
+    select coverage from scans where repo_id = ${repoId} and status = 'done' order by created_at desc limit 1
+  `);
   const body = composeDashboard({
     fullName: repo.fullName,
     sha: repo.lastScannedSha,
@@ -179,18 +185,21 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
     inventory: inventory.map((i) => ({ ecosystem: i.ecosystem, n: Number(i.n) })),
     ignores: (repo.ignores as string[] | null) ?? [],
     configProblems: config?.problems ?? [],
+    gaps: latest[0]?.coverage?.gaps ?? [],
   });
   if (existing?.number && existing.state === "open") {
     await octokit.rest.issues.update({ owner, repo: name, issue_number: existing.number, body });
     return existing.number;
   }
-  const { data } = await octokit.rest.issues.create({
-    owner,
-    repo: name,
-    title: DASHBOARD_TITLE,
-    body,
-    labels: ["teire"],
-  });
+  // A repo with Issues turned off keeps its Dashboard on the Teire dashboard only (card C1).
+  const created = await octokit.rest.issues
+    .create({ owner, repo: name, title: DASHBOARD_TITLE, body, labels: ["teire"] })
+    .catch((error: { status?: number; message?: string }) => {
+      if (error.status === 410 || /issues has been disabled/i.test(error.message ?? "")) return null;
+      throw error;
+    });
+  if (!created) return null;
+  const { data } = created;
   await upsertArtifact(db, {
     repoId,
     kind: "dashboard",

@@ -1,5 +1,6 @@
 import { rm } from "node:fs/promises";
 import type { Database } from "@teire/db";
+import { osvAdvisoryIds } from "@teire/engine/advisories";
 import { readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import {
   commitToBranch,
@@ -11,10 +12,17 @@ import {
   publishConfigCheckRun,
 } from "@teire/engine/github";
 import type { FindingDraft } from "@teire/engine/impact";
-import { directoryTree, fetchRepoTarball, scopedTree } from "@teire/engine/inventory";
+import {
+  directoryTree,
+  fetchRepoTarball,
+  type OtherPackage,
+  osvExtract,
+  scopedTree,
+} from "@teire/engine/inventory";
 import {
   type AssessedProject,
   type Assessment,
+  advisoryStatus,
   assessApiChanges,
   assessGoRepo,
   assessJsRepo,
@@ -23,6 +31,8 @@ import {
   assessRubyRepo,
   assessRuntimes,
   assessRustRepo,
+  coverageLines,
+  newScanCoverage,
   runtimesOf,
 } from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
@@ -57,6 +67,17 @@ export interface WorkerContext {
   enqueueFix: (runId: string, repoId: number, startAfterSeconds?: number) => Promise<void>;
   webUrl: string | null;
 }
+
+/** What the scan looks for, said when it finds none of it (card C1). */
+const SEARCHED = [
+  "package.json + a lockfile",
+  "pyproject.toml, requirements*.txt, Pipfile, setup.py",
+  "go.mod",
+  "Cargo.toml",
+  "Gemfile",
+  "pom.xml, build.gradle(.kts)",
+  "API URLs and model IDs in source files",
+];
 
 export const ONBOARDING_BRANCH = "teire/onboarding";
 
@@ -166,7 +187,9 @@ export async function assessCheckout(
 ) {
   const { repoId, scanId, fullName, dir, tree, config, sha, blocked } = input;
   const [owner = "", name = ""] = fullName.split("/");
-  const auth = input.token ? { githubToken: input.token } : {};
+  // What this scan could not check (advisory sources down, registries that did not answer), D96.
+  const coverage = newScanCoverage();
+  const auth = { ...(input.token ? { githubToken: input.token } : {}), coverage };
   const on = config.ecosystems;
   const none = { projects: [], assessments: [] };
   const cache = postgresRegistryCache(db);
@@ -316,7 +339,25 @@ export async function assessCheckout(
   // Ignored targets stay ignored across scans, new findings included.
   if (config.ignore.length)
     await setFindingsState(db, repoId, (f) => config.ignore.some((t) => matchesTarget(t, f)), "ignored");
-  return { js, py, go, rust, ruby, jvm, projects, assessments, api, runtimes };
+  // Rule 8: packages in ecosystems Teire can't upgrade (Packagist, NuGet, Pub…) are reported with
+  // their advisories, never "clean". osv-scanner reads the lockfiles offline (D56).
+  const others = (await osvExtract(dir).catch(() => null))?.others ?? [];
+  if (others.length) {
+    const byEcosystem = new Map<string, OtherPackage[]>();
+    for (const p of others) byEcosystem.set(p.ecosystem, [...(byEcosystem.get(p.ecosystem) ?? []), p]);
+    const found = await osvAdvisoryIds(others).catch(() => null);
+    for (const [ecosystem, list] of byEcosystem)
+      coverage.detectOnly.push({
+        ecosystem,
+        packages: new Set(list.map((p) => `${p.name}@${p.version}`)).size,
+        advisories: found
+          ? found
+              .filter((f) => f.ecosystem === ecosystem)
+              .map(({ name, version, ids }) => ({ name, version, ids }))
+          : null,
+      });
+  }
+  return { js, py, go, rust, ruby, jvm, projects, assessments, api, runtimes, coverage };
 }
 
 export async function scanRepo(
@@ -360,7 +401,19 @@ export async function scanRepo(
     // Model work (provider pages, wrapped-model triage) waits while credits or the budget are out (S10).
     const blocked = await modelWorkBlocked(db);
     if (blocked) console.log(`[scan] ${repo.fullName}: model reading skipped: ${blocked}`);
-    const { js, py, go, rust, ruby, jvm, assessments, api, runtimes } = await assessCheckout(db, {
+    const {
+      js,
+      py,
+      go,
+      rust,
+      ruby,
+      jvm,
+      projects,
+      assessments,
+      api,
+      runtimes,
+      coverage: gaps,
+    } = await assessCheckout(db, {
       repoId,
       scanId: scan.id,
       fullName: repo.fullName,
@@ -371,7 +424,15 @@ export async function scanRepo(
       token,
       blocked,
     });
-    const coverage = assessments.find((a) => a.located)?.located?.coverage ?? null;
+    // Nothing in the six ecosystems and no API or model in the code: no onboarding PR (card C1).
+    const nothingReadable = !projects.length && !api.findings.length && !runtimes.findings.length;
+    const coverage = {
+      ...(assessments.find((a) => a.located)?.located?.coverage ?? {}),
+      advisoryStatus: advisoryStatus(gaps),
+      gaps: coverageLines(gaps),
+      detectOnly: gaps.detectOnly,
+      ...(nothingReadable ? { nothingReadable: true, searched: SEARCHED } : {}),
+    };
     await finishScan(db, scan.id, { status: "done", sha, coverage });
     await setRepo(db, repoId, {
       lastScannedSha: sha,
@@ -390,13 +451,18 @@ export async function scanRepo(
       }).catch((error) => console.error(`[scan] ${repo.fullName}: config check run: ${error}`));
 
     let status = repo.status;
-    if (status === "detected" && config.present) status = "active";
+    // A teire.yml on the default branch activates, whether the onboarding PR or a person put it there.
+    if ((status === "detected" || status === "onboarding") && config.present) status = "active";
+    if (status === "detected" && nothingReadable) return { status, nothingReadable: true };
     if (status === "detected") {
       // Onboarding PR: the inventory, what Teire would do, and the config file whose merge activates it.
       const { title, body } = composeOnboarding({
         repo: { owner, repo: name, baseSha: sha },
         rows: onboardingRows(assessments),
         apiFindings: [...api.findings, ...runtimes.findings],
+        gaps: coverageLines(gaps),
+        issuesEnabled: meta.has_issues,
+        ...(ctx.webUrl ? { dashboardUrl: `${ctx.webUrl}/app/repos/${repo.fullName}` } : {}),
       });
       const commit = await commitToBranch({
         octokit: installation.octokit,

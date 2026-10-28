@@ -28,6 +28,7 @@ import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import type { VerifyBackend } from "../verify/backend";
 import { detectJsChecks, withVerifyOverrides } from "../verify/commands";
+import type { ScanCoverage } from "./coverage";
 import { securityAssessments } from "./security";
 
 /**
@@ -70,6 +71,8 @@ export interface AssessOptions extends NpmSurfaceOptions {
   /** A cached surface diff (the worker's `surface_diffs`); defaults to computing it. */
   surfaceDiff?: (name: string, from: string, to: string) => Promise<SurfaceDiff>;
   onProgress?: (line: string) => void;
+  /** The scan's record of what it could not check (D96). */
+  coverage?: ScanCoverage;
 }
 
 export async function assessJsRepo(repoDir: string, tree: RepoTree, options: AssessOptions) {
@@ -99,7 +102,10 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("npm", instance.name, options).catch(() => null);
+      const info = await getPackageInfo("npm", instance.name, options).catch(() => {
+        options.coverage?.lookupsFailed.push({ ecosystem: "npm", name: instance.name });
+        return null;
+      });
       if (!info) {
         assessments.push(base);
         continue;

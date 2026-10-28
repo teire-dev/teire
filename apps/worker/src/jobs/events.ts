@@ -7,8 +7,10 @@ import {
   markFindings,
   markInstallation,
   openArtifacts,
+  removeInstallationData,
   setFindingsState,
   setIgnore,
+  setInstallationPaused,
   setRepo,
   upsertArtifact,
   upsertInstallation,
@@ -63,12 +65,19 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
   switch (delivery.event) {
     case "installation": {
       const installation = p.installation;
-      if (delivery.action === "deleted")
-        return markInstallation(db, installation.id, { deletedAt: new Date() });
-      if (delivery.action === "suspend")
-        return markInstallation(db, installation.id, { suspendedAt: new Date() });
-      if (delivery.action === "unsuspend")
-        return markInstallation(db, installation.id, { suspendedAt: null });
+      // Uninstalled: runs stop and the repos' data is removed. Suspended: its repos pause (D109).
+      if (delivery.action === "deleted") {
+        await markInstallation(db, installation.id, { deletedAt: new Date() });
+        return removeInstallationData(db, installation.id);
+      }
+      if (delivery.action === "suspend") {
+        await markInstallation(db, installation.id, { suspendedAt: new Date() });
+        return setInstallationPaused(db, installation.id, true);
+      }
+      if (delivery.action === "unsuspend") {
+        await markInstallation(db, installation.id, { suspendedAt: null });
+        return setInstallationPaused(db, installation.id, false);
+      }
       await upsertInstallation(db, installation);
       if (delivery.action === "created")
         for (const r of (p.repositories ?? []) as RepoPayload[]) {
@@ -105,7 +114,10 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
         if (merged) {
           await setRepo(db, repo.id, { status: "active" });
           await ctx.enqueueScan(repo.id, "command");
-        }
+        } else if (repo.status === "onboarding")
+          // Closing the onboarding PR is "no thanks" (card C1): paused until `@teire resume`, which
+          // starts onboarding again.
+          await setRepo(db, repo.id, { status: "paused", pausedFrom: "detected", pausedReason: "opted_out" });
         return;
       }
       if (artifact.kind === "pr")

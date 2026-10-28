@@ -124,7 +124,7 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       return;
     case "resume":
       if (repo.status === "paused")
-        await setRepo(db, repo.id, { status: repo.pausedFrom ?? "active", pausedFrom: null });
+        await setRepo(db, repo.id, { status: repo.pausedFrom ?? "active", pausedFrom: null, pausedReason: null });
       await ctx.enqueueScan(repo.id, "command");
       await reply("Resumed; rescanning now.");
       return;

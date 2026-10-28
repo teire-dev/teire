@@ -21,6 +21,7 @@ import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectJvmChecks } from "../verify/jvm-commands";
+import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
 
@@ -38,6 +39,8 @@ export interface JvmAssessOptions extends RegistryOptions {
   githubToken?: string;
   surfaceDiff?: (name: string, from: string, to: string) => Promise<SurfaceDiff>;
   onProgress?: (line: string) => void;
+  /** The scan's record of what it could not check (D96). */
+  coverage?: ScanCoverage;
 }
 
 function jvmPolicy(instance: DependencyInstance, options: JvmAssessOptions): TargetPolicy {
@@ -90,6 +93,12 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
   const projects = readJvmInventory(tree);
   const assessments: Assessment<JvmProject>[] = [];
   const diffOf = options.surfaceDiff ?? jvmSurfaceDiff;
+  // Maven's transitive tree comes from the build, which runs only in the sandbox: until the scan reads
+  // it, transitive Maven dependencies are not inventoried and their advisories are not checked.
+  if (projects.some((p) => p.manager === "maven"))
+    options.coverage?.notes.push(
+      "Maven: only dependencies declared in pom.xml are inventoried; transitive dependencies (and their advisories) are not yet checked.",
+    );
   for (const project of projects) {
     const seen = new Set<string>();
     for (const instance of project.instances) {
@@ -117,7 +126,10 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("maven", instance.name, options).catch(() => null);
+      const info = await getPackageInfo("maven", instance.name, options).catch(() => {
+        options.coverage?.lookupsFailed.push({ ecosystem: "maven", name: instance.name });
+        return null;
+      });
       if (!info) {
         assessments.push(base);
         continue;
