@@ -1,4 +1,4 @@
-import { REGISTRY } from "../constants";
+import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { runFix } from "../fix/run";
 import { jvmTransaction } from "../fix/upgrade-jvm";
@@ -182,7 +182,7 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
         a.priority = breaking.length ? Math.min(...breaking) : 4;
       } else if (decision.kind === "upgrade") {
         a.summary = { verdict: "not_affected", breaking: [], annotations: [], coverage: null };
-        a.priority = 4;
+        a.priority = PRIORITY.plainBump;
       }
       assessments.push(a);
     }

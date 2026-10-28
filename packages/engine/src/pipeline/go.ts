@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { goVulnReachability } from "../advisories/govulncheck";
-import { REGISTRY } from "../constants";
+import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { runFix } from "../fix/run";
 import { goTransaction } from "../fix/upgrade-go";
@@ -140,7 +140,7 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
           a.priority = breaking.length ? Math.min(...breaking) : 4;
         } else {
           a.summary = { verdict: "not_affected", breaking: [], annotations: [], coverage: null };
-          a.priority = 4;
+          a.priority = PRIORITY.plainBump;
         }
       }
       assessments.push(a);

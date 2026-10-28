@@ -1,4 +1,4 @@
-import { REGISTRY, RUBY } from "../constants";
+import { PRIORITY, REGISTRY, RUBY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { runFix } from "../fix/run";
 import { rubyTransaction } from "../fix/upgrade-ruby";
@@ -154,7 +154,7 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
         a.priority = breaking.length ? Math.min(...breaking) : 4;
       } else if (decision.kind === "upgrade") {
         a.summary = { verdict: "not_affected", breaking: [], annotations: [], coverage: null };
-        a.priority = 4;
+        a.priority = PRIORITY.plainBump;
       }
       assessments.push(a);
     }

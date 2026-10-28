@@ -1,3 +1,4 @@
+import { PRIORITY } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import type { MigrationNote } from "../fix/codemods";
 import { lookupDocs } from "../fix/context7";
@@ -167,7 +168,7 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
         a.priority = breaking.length ? Math.min(...breaking) : 4;
       } else if (decision.kind === "upgrade") {
         a.summary = { verdict: "not_affected", breaking: [], annotations: [], coverage: null };
-        a.priority = 4;
+        a.priority = PRIORITY.plainBump;
       }
       assessments.push(a);
     }

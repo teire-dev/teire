@@ -410,3 +410,11 @@ export const PYTHON = {
   /** Version of Teire's griffe step (join keys, guards); with griffe's own version it keys cached diffs. */
   surfaceTool: { name: "griffe", version: "2.4.1+teire2" },
 } as const;
+
+/**
+ * The PR queue's order (D70, S15.9): security (0) → already broken (1) → dated within 90 days (2) →
+ * majors with located use (3) → other majors (4) → plain bumps last (5).
+ */
+export const PRIORITY = {
+  plainBump: 5,
+} as const;

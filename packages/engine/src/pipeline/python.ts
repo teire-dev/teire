@@ -1,5 +1,5 @@
 import * as pep440 from "@renovatebot/pep440";
-import { REGISTRY } from "../constants";
+import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { runFix } from "../fix/run";
 import { pyTransaction } from "../fix/upgrade-py";
@@ -163,7 +163,7 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
         a.priority = breaking.length ? Math.min(...breaking) : 4;
       } else if (decision.kind === "upgrade") {
         a.summary = { verdict: "not_affected", breaking: [], annotations: [], coverage: null };
-        a.priority = 4;
+        a.priority = PRIORITY.plainBump;
       }
       assessments.push(a);
     }

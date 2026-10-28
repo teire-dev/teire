@@ -1,4 +1,4 @@
-import { REGISTRY } from "../constants";
+import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { runFix } from "../fix/run";
 import { cargoTransaction } from "../fix/upgrade-rust";
@@ -124,7 +124,7 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
         a.priority = breaking.length ? Math.min(...breaking) : 4;
       } else if (decision.kind === "upgrade") {
         a.summary = { verdict: "not_affected", breaking: [], annotations: [], coverage: null };
-        a.priority = 4;
+        a.priority = PRIORITY.plainBump;
       }
       assessments.push(a);
     }
