@@ -254,6 +254,9 @@ function resolverManager(manager: string): TeireManager | null {
   );
 }
 
+/** Which of several roots leads a run: one whose code breaks before one that is unclear or clean. */
+const LEAD_RANK: Record<string, number> = { affected: 3, needs_human: 2, inconclusive: 1, not_affected: 0 };
+
 /** How Teire raises a transitive package past its parents' ranges, per package manager (S15.7). */
 function transitiveRung(ecosystem: Ecosystem, manager: string): string | null {
   if (ecosystem === "npm") return "an override (npm and pnpm `overrides`, Yarn and Bun `resolutions`)";
@@ -527,7 +530,13 @@ async function packageOutcome(
       .filter(
         (a) => !a.findings.length || a.findings.some((f) => !config.ignore.some((t) => matchesTarget(t, f))),
       )
-      .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9));
+      // Ties go to the root the change breaks: its code is what the run fixes and verifies.
+      .sort(
+        (a, b) =>
+          (a.priority ?? 9) - (b.priority ?? 9) ||
+          (LEAD_RANK[b.summary?.verdict ?? ""] ?? 0) - (LEAD_RANK[a.summary?.verdict ?? ""] ?? 0) ||
+          (b.summary?.breaking.length ?? 0) - (a.summary?.breaking.length ?? 0),
+      );
   let matching = matchingIn(await assess());
   // A refresh (rebase, CI repair, recreate) of a PR whose target moved from the registry's answer
   // (a D103 cap, a security floor, a D71 fallback) keeps that PR's version.
