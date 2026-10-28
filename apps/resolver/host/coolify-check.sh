@@ -24,7 +24,7 @@ const dns=require("dns").promises, net=require("net");
 (async()=>{
   const out=[];
   try{await dns.lookup("github.com");out.push("dns ok")}catch(e){out.push("dns FAIL "+e.code)}
-  try{const r=await fetch("https://api.github.com/zen",{signal:AbortSignal.timeout(10000)});out.push("internet "+(r.ok?"ok":"FAIL "+r.status))}catch(e){out.push("internet FAIL "+e.message)}
+  try{const r=await fetch("https://api.github.com/zen",{signal:AbortSignal.timeout(10000)});out.push("internet "+(r.status<500?"ok"+(r.ok?"":" ("+r.status+": GitHub answered, so the route works)"):"FAIL "+r.status))}catch(e){out.push("internet FAIL "+e.message)}
   await new Promise(res=>{const s=net.connect(5432,"6cgivvfez576mi0twzkehvgv");s.setTimeout(5000);s.on("connect",()=>{out.push("postgres ok");s.destroy();res()});s.on("error",e=>{out.push("postgres FAIL "+e.code);res()});s.on("timeout",()=>{out.push("postgres FAIL timeout");s.destroy();res()})});
   console.log(out.join("; ")); process.exit(out.some(x=>x.includes("FAIL"))?1:0);
 })()' || fail=1
