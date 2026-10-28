@@ -529,6 +529,7 @@ export async function scanRepo(
       composeOnboarding({
         repo: { owner, repo: name, baseSha: sha },
         rows: onboardingRows(assessments, gaps),
+        transitive: projects.reduce((n, p) => n + p.instances.filter((i) => !i.direct).length, 0),
         apiFindings: [...api.findings, ...runtimes.findings],
         gaps: coverageLines(gaps),
         issuesEnabled: meta.has_issues,

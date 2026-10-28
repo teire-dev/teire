@@ -737,6 +737,8 @@ export function upgradeGroups(direct: OnboardingRow[]): UpgradeGroup[] {
 export function composeOnboarding(input: {
   repo: RepoRef;
   rows: OnboardingRow[];
+  /** Transitive packages the inventory read (rows hold only those with an advisory). */
+  transitive?: number;
   /** Provider changes found in the code (retired models, removed endpoints). */
   apiFindings?: FindingDraft[];
   scanUrl?: string;
@@ -759,7 +761,7 @@ export function composeOnboarding(input: {
   out.push("### What Teire found");
   out.push(
     rows.length
-      ? `${direct.length} direct dependencies (${rows.length - direct.length} transitive)${projects.size > 1 ? ` across ${projects.size} projects` : ""} in ${ecosystems.join(", ")}, at the exact versions your lockfiles pin. ${affected.length} upgrade${affected.length === 1 ? "" : "s"} would break this repo's code; Teire fixes and verifies those before opening a PR.`
+      ? `${direct.length} direct dependencies (${input.transitive ?? rows.length - direct.length} transitive)${projects.size > 1 ? ` across ${projects.size} projects` : ""} in ${ecosystems.join(", ")}, at the exact versions your lockfiles pin. ${affected.length} upgrade${affected.length === 1 ? "" : "s"} would break this repo's code; Teire fixes and verifies those before opening a PR.`
       : "No packages in the ecosystems Teire upgrades (npm, PyPI, Go, Cargo, RubyGems, Maven/Gradle). What it found instead, and what it could not check, is below.",
   );
   if (upgrades.length) {
@@ -846,7 +848,11 @@ export function composeOnboarding(input: {
             : `unresolved${r.instance.unresolvedReason ? `: ${r.instance.unresolvedReason}` : ""}`
           : null,
         r.lookupFailed ? "registry lookup failed: newer versions unknown" : null,
-        r.majorsBehind > 0 ? `${r.majorsBehind} major${r.majorsBehind === 1 ? "" : "s"} behind` : null,
+        r.majorsBehind > 0
+          ? `${r.majorsBehind} major${r.majorsBehind === 1 ? "" : "s"} behind`
+          : r.target
+            ? `${r.target} available`
+            : null,
         r.deprecated !== null ? "deprecated" : null,
       ].filter(Boolean);
       out.push(
