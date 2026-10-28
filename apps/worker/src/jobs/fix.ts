@@ -69,6 +69,7 @@ import {
   recordLlmCall,
   recordSandboxExec,
   runEventsOf,
+  setRepo,
   updateRun,
   upsertArtifact,
 } from "../store";
@@ -267,6 +268,35 @@ function repoRuby(tree: RepoTree, root: string) {
     .replace(/^ruby-/, "");
   if (version && /^\d+\.\d+(\.\d+)?$/.test(version)) return version;
   return /^\s*ruby\s+["']([\d.]+)["']/m.exec(at("Gemfile") ?? "")?.[1] ?? null;
+}
+
+/**
+ * Whether the repository is private right now, from GitHub (review R1): with the installation's
+ * client for installed repos, else as the person who asked (a dry run). A repository GitHub hides
+ * from an anonymous read is not public. Null when GitHub didn't answer.
+ */
+async function currentlyPrivate(
+  owner: string,
+  name: string,
+  octokit: Awaited<ReturnType<WorkerContext["gh"]["installation"]>>["octokit"] | null,
+  token: string | null,
+): Promise<boolean | null> {
+  try {
+    if (octokit) return (await octokit.rest.repos.get({ owner, repo: name })).data.private;
+    const res = await fetch(`https://api.github.com/repos/${owner}/${name}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        "user-agent": "teire",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (res.status === 404) return true;
+    if (!res.ok) return null;
+    return ((await res.json()) as { private?: boolean }).private ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** How Teire raises a transitive package past its parents' ranges, per package manager (S15.7). */
@@ -892,6 +922,27 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   }
   const installation = repo.installationId && !dry ? await gh.installation(repo.installationId) : null;
   const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);
+  // D107 (review R1): the backend follows the repository's visibility now, read from GitHub just
+  // before it is chosen, never the stored flag; an answer GitHub didn't give counts as private. A
+  // dry run is for public repositories only, so one whose repository went private is refused.
+  const requester = dry ? ((await requesterToken(db, run.requestedBy)) ?? null) : null;
+  const privateNow = await currentlyPrivate(owner, name, installation?.octokit ?? null, requester);
+  if (privateNow !== null && privateNow !== repo.isPrivate)
+    await setRepo(db, repo.id, { isPrivate: privateNow });
+  if (dry && privateNow !== false) {
+    const reason =
+      privateNow === null
+        ? "GitHub didn't say whether the repository is still public; dry runs are for public repositories only"
+        : "the repository is no longer public; dry runs are for public repositories only";
+    await updateRun(db, runId, {
+      status: "failed",
+      step: "not public",
+      error: reason,
+      finishedAt: new Date(),
+    });
+    await event("queue", "refused", { reason });
+    return { refused: "not public" };
+  }
 
   // Noise controls before any work (D70): per-repo open PRs and new PRs per hour. They limit new
   // pull requests, as Dependabot's open-pull-requests-limit does: a run for a lineage that already
@@ -930,7 +981,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   );
   await event("assess", "started", { group: groupKey, from: run.fromVersion, target: run.targetVersion });
   // A dry run reads GitHub as the person who asked (their own rate limit), anonymously without it.
-  const token = installation ? await installation.token() : await requesterToken(db, run.requestedBy);
+  const token = installation ? await installation.token() : (requester ?? undefined);
   let dir: string | null = null;
   try {
     const checkout = await fetchRepoTarball(owner, name, run.baseSha, token ? { token } : {});
@@ -947,7 +998,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const tf = createTokenFactory(tokenFactoryConfigFromEnv());
     const prices = await fetchModelPrices().catch(() => undefined);
     // D107: public repositories and dry runs verify on Token Factory Sandboxes; private ones on Cloudflare.
-    const { backend, note } = await selectBackend(process.env, { isPrivate: dry ? false : repo.isPrivate });
+    const { backend, note } = await selectBackend(process.env, {
+      isPrivate: dry ? false : (privateNow ?? true),
+    });
     // A CI repair starts from what the repo's own CI said about the PR (C6: one repair attempt).
     const ci = run.requestedBy?.startsWith("ci-repair:")
       ? ((await runEventsOf(db, runId, "ci"))[0]?.payload as
