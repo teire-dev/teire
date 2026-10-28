@@ -3,6 +3,7 @@ import type { UpstreamCommits } from "../resolver/pr-body";
 import type { VerifySession } from "../verify/backend";
 import type { CheckPlan } from "../verify/commands";
 import { prepareSide, type SideRun } from "../verify/run";
+import { gradleFloorFrom, WRAPPER_PROPERTIES, wrapperRaise } from "./gradle-wrapper";
 import type { ManifestEdit } from "./upgrade-js";
 
 /**
@@ -70,6 +71,24 @@ export async function prepareTransaction(
     applied,
     deleted: [],
   });
+  // A Gradle plugin that refuses the build's Gradle names the one it needs: the wrapper is raised
+  // to it, joins the change, and the refused step runs again, once (S15.10).
+  let raised = false;
+  const raiseGradle = async (output: string) => {
+    const floor = raised || plan.manager !== "gradle" ? null : gradleFloorFrom(output);
+    if (!floor) return false;
+    const root = plan.cwd.slice(VERIFY.workDir.length).replace(/^\/+/, "");
+    const path = root ? `${root}/${WRAPPER_PROPERTIES}` : WRAPPER_PROPERTIES;
+    const bytes = await session.readFile(`${VERIFY.workDir}/${path}`);
+    const text = bytes ? utf8(bytes) : null;
+    const edit = text === null ? null : await wrapperRaise(path, text, floor);
+    if (!edit) return false;
+    raised = true;
+    onManifest([edit]);
+    await session.writeFile(`${VERIFY.workDir}/${path}`, encoder.encode(edit.after));
+    log(`after: ${edit.note}`);
+    return true;
+  };
   let current: Transaction | undefined = transaction;
   let files: Record<string, string> = {};
   let binary: Record<string, Uint8Array> = {};
@@ -98,12 +117,15 @@ export async function prepareTransaction(
           timeoutSec: 60,
         });
     for (const argv of t.commands) {
-      const run = await session.run(`after-lock-${++step}`, argv, {
-        cwd: plan.cwd,
-        timeoutSec: VERIFY.installTimeoutSec,
-        // The same settings as the install (Go: GOTOOLCHAIN=local, so `go get` never fetches a toolchain).
-        ...(plan.installEnv ? { env: plan.installEnv } : {}),
-      });
+      const once = () =>
+        session.run(`after-lock-${++step}`, argv, {
+          cwd: plan.cwd,
+          timeoutSec: VERIFY.installTimeoutSec,
+          // The same settings as the install (Go: GOTOOLCHAIN=local, so `go get` never fetches a toolchain).
+          ...(plan.installEnv ? { env: plan.installEnv } : {}),
+        });
+      let run = await once();
+      if (run.exitCode !== 0 && (await raiseGradle(run.stdout + run.stderr))) run = await once();
       log(`after: ${argv.slice(0, 3).join(" ")} exit ${run.exitCode} in ${run.ms} ms`);
       if (run.exitCode !== 0) {
         if (t.fallback) {
@@ -132,7 +154,9 @@ export async function prepareTransaction(
     }
     break;
   }
-  const side = await prepareSide(session, plan, "after", undefined, log);
+  let side = await prepareSide(session, plan, "after", undefined, log);
+  if (!side.install.ok && (await raiseGradle(side.install.output)))
+    side = await prepareSide(session, plan, "after", undefined, log);
   const deleted = (applied.at(-1)?.writes ?? []).filter((w) => w.bytes === null).map((w) => w.path);
   return { side, files, binary, applied, deleted };
 }
