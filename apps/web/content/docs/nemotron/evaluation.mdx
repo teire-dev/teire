@@ -4,7 +4,7 @@ description: Twelve upgrades across six ecosystems, model retirements in all six
 icon: FlaskConical
 ---
 
-Each case runs the worker's own path. Teire fetches the repository, assesses it (registries, API diff, locate), runs the fix with each model as the agent, and verifies in a sandbox, the repository's own checks before and after: Cloudflare Containers for the first rounds, Token Factory Sandboxes for the four model retirements in Go, Java, Ruby and Rust. Every repository is public as a folder of [teire-dev/examples](https://github.com/teire-dev/examples), with tests that pass on the old version. For the model retirements, the tests fail because the old model is gone.
+Each case runs the engine's fix path, the one the worker calls, without the worker's dependency-file updater, PR limits or per-repository backend choice. Teire fetches the repository, assesses it (registries, API diff, locate), runs the fix with each model as the agent, and verifies in a sandbox, the repository's own checks before and after: Cloudflare Containers for the first rounds, Token Factory Sandboxes for the four model retirements in Go, Java, Ruby and Rust. Every repository is public as a folder of [teire-dev/examples](https://github.com/teire-dev/examples), with tests that pass on the old version. For the model retirements, the tests fail because the old model is gone.
 
 The columns read evidence · attempts · agent steps · model cost.
 

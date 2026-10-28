@@ -4,8 +4,8 @@ description: The manifest and lockfile change comes from Dependabot's own update
 icon: FileDiff
 ---
 
-<Callout title="Rolling out">
-The updater service runs on Teire's server and is measured below. Fix runs move to it one ecosystem at a time, each once its upgrades pass on a real repository. Until an ecosystem moves, Teire's own transaction edits its manifest and lockfile, and the [verification](/docs/build/verification) is the same either way.
+<Callout title="Where it runs">
+The updater service runs on Teire's server and is measured below. On the deployed worker it decides fix runs' dependency files in all six ecosystems. A self-hosted worker names its ecosystems in `TEIRE_RESOLVER_ECOSYSTEMS`; an ecosystem left out uses Teire's own transaction, and the [verification](/docs/build/verification) is the same either way.
 </Callout>
 
 Changing a version in `package.json` is the easy part. Resolving the new lockfile, moving every declaration across workspaces, and knowing which other packages must move too is what package managers spend years getting right. Teire doesn't reimplement that. It runs **dependabot-core's updater** (MIT), through GitHub's `dependabot` CLI, and builds its own work on top: finding the lines that break, fixing them, and proving the fix.
@@ -32,13 +32,13 @@ The updater reports what it did as events. Teire reads those events, never the e
 - **A change**:
   - the dependency files, byte for byte, including binary lockfiles, deletions, symlinks, and the executable bit of files that already have one. Only dependency files are taken: the updater runs repository code, so any other file it returns (a workflow, a source file) stops the run instead of reaching a commit;
   - every package the updater moved alongside the upgrade, listed in the PR with its old and new version;
-  - the version the dependency actually landed on. A version below the target means "resolvable only up to here", and the PR says why.
+  - the version the updater reports the dependency landed on. A version below the target means "resolvable only up to here", and the PR says why. The install and checks then run on exactly these files.
 - **A named stop**, quoted in the PR or issue. Examples: no set of versions satisfies every requirement; every newer version is ignored by the repository's configuration; no version that fixes the advisory has been published.
 - **Nothing to change**: for a version update whose every newer version the repository ignores, the updater changes nothing, as Dependabot does. The run ends saying so.
 
 ## When the updater says no
 
-There is no silent fallback. For an ecosystem that has moved to the updater:
+Teire's own change takes over from the updater in two cases only, and the run's timeline says so, quoting the updater: a transitive security fix the updater can't make (the rungs below), and a Ruby gem the updater resolved on the gemspec's lowest Ruby when that Ruby is the only conflict and the repository pins a newer one (Bundler then resolves on the repository's Ruby in the sandbox). Otherwise:
 
 | What came back | What Teire does |
 |---|---|

@@ -241,15 +241,15 @@ function Rules() {
     ],
     [
       "Your code runs only in a sandbox",
-      "Installs, builds and tests run in an isolated container per side (before and after the change). In all six ecosystems, dependency files are updated by Dependabot's updater under gVisor, on a network with no route out except its proxy. The worker never runs repository code.",
+      "Installs, builds and tests run in a sandbox per side (before and after the change): for public repositories and dry runs, a microVM per command on Nebius Token Factory Sandboxes; for private repositories, a container on Cloudflare. On the deployed worker, dependency files in all six ecosystems are updated by Dependabot's updater under gVisor, on a network with no route out except its proxy. The worker never runs repository code.",
     ],
     [
       "Registries only, then offline",
-      "During the install the sandbox may read package registries (GET only). Checks run with the network off; any other request is denied and recorded.",
+      "Private repositories install on Cloudflare from package registries only (GET only); any other request is denied and recorded. Public repositories install on Token Factory, whose install network is open and unrecorded (it has no allowlist). Checks run with the network off on both.",
     ],
     [
       "No secrets in the sandbox",
-      "GitHub tokens and model keys never enter it; the repository arrives as a tarball the sandbox service fetches itself.",
+      "GitHub tokens and model keys never enter it; the repository arrives as a tarball, which Cloudflare's sandbox service fetches itself and Teire's worker streams into Token Factory.",
     ],
     [
       "Evidence decides the PR",

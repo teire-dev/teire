@@ -20,7 +20,7 @@ Teire watches every dependency and API a repository uses:
 
 - six package ecosystems: npm, PyPI, Go, Cargo, RubyGems and Maven/Gradle;
 - the AI and payment APIs the code calls: OpenAI, Anthropic, Google Gemini, Nebius Token Factory, Stripe, and any other API host it discovers in the code;
-- the Node.js and Python versions it is pinned to.
+- the runtime versions it is pinned to: Node.js, Python, Java, Go, Rust and Ruby, with end-of-life notices.
 
 For each change that reaches the code, Teire:
 
@@ -84,7 +84,7 @@ You meet Teire in five places:
 
 ## Accomplishments that we're proud of
 
-- **Evaluation.** 12 package majors across all six ecosystems and 7 model retirements (in TypeScript, Python, Go, Java, Ruby and Rust), each verified end to end with Nemotron 3 Ultra as the agent. No false positive across 6 clean repositories.
+- **Evaluation.** 12 package majors across all six ecosystems and 7 model retirements (in TypeScript, Python, Go, Java, Ruby and Rust), each verified end to end: two fixed by Nemotron 3 Ultra as the agent, five by a deterministic swap, four of them with Ultra reviewing the diff. No false positive across 6 clean repositories.
 - **Every PR carries its own evidence:** quotes, call sites, a before/after table, and a receipt down to the cent. A PR opens ready only when that evidence verifies it; otherwise it's a draft or an issue that says why.
 - **Discovery.** Teire finds providers with no hand-written reader from the code itself, and reads their notices with Nemotron under a quote gate.
 - **A complete product.** GitHub App, dashboard, public scan, dry run, catalog, CLI, MCP, a live trust page, and docs with real captures of every screen.
@@ -104,7 +104,7 @@ You meet Teire in five places:
 ## Honest limits
 
 - Private repositories verify on Cloudflare Containers: Token Factory Sandboxes keeps images 180 days with no delete call.
-- dependabot-core decides npm's dependency files today; the other ecosystems move to it as each passes on a real fork.
+- dependabot-core decides the dependency files in all six ecosystems on the deployed worker; real-repository PRs don't cover every package manager yet (`smoke/forks/` records each fork's result).
 - Only major upgrades get an API diff and a line search.
 - Rust, Ruby, and Java/Kotlin at scan time are searched by syntax.
 - Model and API fixes run in all six ecosystems; the evaluation proves them in JavaScript/TypeScript and Python only.

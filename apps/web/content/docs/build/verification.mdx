@@ -19,8 +19,8 @@ Every run opens two sandboxes from the same commit, in parallel:
 
 Each side goes through two phases:
 
-1. **Install.** Only `GET` and `HEAD` requests to package registries, toolchain hosts and GitHub's release downloads are allowed. JavaScript installs run no lifecycle or build scripts. The time limit is 600 seconds.
-2. **Checks.** The network is **off**: every request is refused and recorded. Each check has a 300-second limit.
+1. **Install.** On Cloudflare Containers (private repositories), only `GET` and `HEAD` requests to package registries, toolchain hosts and GitHub's release downloads are allowed. On [Token Factory Sandboxes](/docs/build/token-factory-sandboxes) (public repositories and dry runs) the install's network is open, because Token Factory has no allowlist, and no request is recorded. JavaScript installs run no lifecycle or build scripts. The time limit is 600 seconds, 1,200 for Maven and Gradle, whose warm-up downloads the whole build's plugins.
+2. **Checks.** The network is **off**: Cloudflare refuses and records every request; a Token Factory microVM has no network interface at all, so the error in the output is what Teire reads. Each check has a 300-second limit.
 
 If the baseline fails to install, Teire retries it once. If it still fails, the agent doesn't start, because no edit could be judged.
 
@@ -58,7 +58,7 @@ Rule 8 sorts out why both sides failed:
 
 ## When a change touches several projects
 
-One pull request can change several projects: a package locked in two folders of a monorepo, or a retired model swapped in a TypeScript service and a Go one. The project the change breaks runs the fix and its checks first. Then every other project the final files touch installs and runs its own checks, before and after, in its own sandboxes with its own toolchain. A project that can't be checked (its sandbox didn't open, twice) counts as unverified rather than being left out. The weakest result decides the pull request, the Verification section lists each project with its before and after, and the receipt lists every project's commands.
+One pull request can change several projects: a package locked in two folders of a monorepo, or a retired model swapped in a TypeScript service and a Go one. The project the change breaks runs the fix and its checks first. Then every other project the final files touch installs and runs its own checks, before and after, in its own sandboxes with its own toolchain. A project that can't be checked (its sandbox didn't open twice, or its verification failed to run) counts as unverified rather than being left out, and the pull request names it. The weakest result decides the pull request, the Verification section lists each project with its before and after, and the receipt lists every project's commands.
 
 ## When the newest major won't pass
 

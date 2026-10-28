@@ -14,7 +14,7 @@ Teire verifies a public repository's upgrade, and every dry run, on **Nebius Tok
 | Dry run of a public repository | Token Factory Sandboxes | The same reason |
 | Private | Cloudflare Containers | A private repository's files never land in an image that outlives the run |
 
-The run page and its receipt name the backend each run used.
+When Token Factory isn't available to the worker (no project, or `whoami` grants no spawn), a public run verifies on Cloudflare Containers instead. The run page and its receipt name the backend each run used.
 
 ## How a run works there
 
@@ -25,13 +25,13 @@ Token Factory Sandboxes runs one command per microVM. A microVM that is kept sav
 **The image.** Teire builds its sandbox images inside Token Factory, from the same Dockerfiles as the Cloudflare images: it imports the public base image, runs the build steps in one microVM, and tags the result by the recipe's hash, so each image is built once.
 </Step>
 <Step>
-**The checkout.** The worker fetches the commit's tarball (no repository code runs on the worker), uploads it, and unpacks it into `/work` in a kept microVM.
+**The checkout.** The worker streams the commit's tarball into Token Factory's upload as it arrives (no repository code runs on the worker, and the tarball is never held in its memory; it stops past 200 MB), then unpacks it into `/work` in a kept microVM.
 </Step>
 <Step>
 **The install, with the network on.** Your package manager installs from its registries. The result is the image the checks start from.
 </Step>
 <Step>
-**The checks, with the network off.** Each check runs in a fresh microVM from the install's image, with **no network interface at all**, as the unprivileged user `teire` (uid 10001), as CI runs them. A check's own image is kept only so its test report can be read back; the next check starts from the install's image again. The agent's edits between attempts are uploaded and placed into each check's microVM.
+**The checks, with the network off.** Each check runs in a microVM with **no network interface at all**, as the unprivileged user `teire` (uid 10001), as CI runs them. The first check starts from the install's image and each later check from the image the one before it left, so a build's output (generated files, compiled code) reaches the tests, as it does in a single container. Each command runs under GNU `timeout`, so a check that hangs ends with exit 124 inside the microVM. The agent's edits between attempts are uploaded and placed into each check's microVM.
 </Step>
 </Steps>
 
@@ -46,7 +46,7 @@ Measured on `teire-dev/examples` (2026-10-28), each baseline on its own image bu
 | `ruby-major` | Bundler | 4.9 s | 6/6 tests |
 | `jvm-major` | Maven, JDK 17 | 51.9 s | compile, 4/4 tests |
 
-Limits come from Token Factory's own `whoami` call, never assumed: an hour per microVM, 50 at a time, 12 GB per image layer. A failed spawn is not retried, because spawns carry no idempotency key.
+Limits come from Token Factory's own `whoami` call, never assumed, and Teire keeps to them: an hour per microVM, 50 at a time (spawns wait for a free slot, shared by every run on the worker), 8 image imports at a time, 12 GB per image layer. A failed spawn is not retried, because spawns carry no idempotency key. While a command runs, its output streams from the operation's server-sent events; a run that is cancelled or closed cancels the operations it still has running.
 
 ## What differs from Cloudflare Containers
 
@@ -60,4 +60,6 @@ Limits come from Token Factory's own `whoami` call, never assumed: an hour per m
 
 <Callout title="Gaps that shape how Teire uses it">
 Token Factory Sandboxes has no call to delete an image, no idempotency key on spawns, no egress log and no allowlist for the install's network. Each shapes how Teire uses it: public repositories only, spawns never retried, and checks with no network interface.
+
+One more, found on a real fork (`teire-dev/bristow`): the microVM's root filesystem (virtiofs) loses a file a Ruby native-extension build writes while the compiler it started holds it open, so every native gem failed with `Errno::EBADF` on `mkmf.log`. The same build passes on the microVM's tmpfs, so on Token Factory Teire builds gems there and copies them into place.
 </Callout>

@@ -55,13 +55,13 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
 - Every model call in Teire goes to Token Factory.
 - Nemotron 3 Ultra (`nvidia/Nemotron-3-Ultra-550b-a55b`) is the coding agent and the reader: release notes, provider deprecation pages, tracing wrapped model IDs, and reviewing fixes.
 - Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) is the failover.
-- Token Factory Sandboxes verifies every public repository's upgrade and every dry run. Teire builds its six sandbox images inside Token Factory from its own Dockerfiles, then runs the install and each check as microVMs.
+- Token Factory Sandboxes verifies public repositories' upgrades and dry runs (Cloudflare Containers when Token Factory isn't available to the worker). Teire builds its six sandbox images inside Token Factory from its own Dockerfiles, then runs the install and each check as microVMs.
 
 **What worked well.**
 - Token Factory's OpenAI-compatible endpoint worked with the AI SDK's OpenAI-compatible provider on the first try. Structured outputs (`json_schema`) worked with Nemotron 3 Ultra.
 - One endpoint for all three roles means moving a role between Ultra and Super is a config change.
 - The public `models_info` endpoint gives per-token prices, so every pull request carries an exact receipt.
-- Token Factory Sandboxes' model fit verification well: a kept microVM's result is the next image, so the install becomes the image every check starts from, and `networking.enabled: false` gives the checks no network interface at all. Importing public images worked on the first call, and `whoami` states the limits instead of leaving us to guess them.
+- Token Factory Sandboxes' model fit verification well: a kept microVM's result is the next image, so the install becomes the image every check starts from, and `networking.enabled: false` gives the checks no network interface at all. Importing public images worked on the first call, and `whoami` states the limits, which Teire reads and keeps to, instead of leaving us to guess them.
 - Nemotron 3 Ultra as a coding agent was the standout. In our evaluation it verified every fix across npm, PyPI, Go, Rust, Ruby, Java and Kotlin, with fewer attempts than Super on the Kotlin and wrapped-model cases. Super was 3 to 7 times cheaper and a solid failover, but once it passed the tests by bypassing the model call.
 
 **What needs work.**
@@ -79,6 +79,7 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
   - No idempotency key on spawns, so a spawn whose response is lost can't be retried safely; Teire never retries one.
   - No egress log and no allowlist for an instance's network, so the install's network is either fully open or off.
   - CPU and memory per instance aren't documented or settable; `whoami` gives the timeout, concurrency and layer size only.
+  - The microVM's root filesystem (virtiofs) loses a file that a process writes while a child it started holds the same file open: every Ruby native extension failed with `Errno::EBADF` on `mkmf.log` (reproduced with `gem install bigdecimal -v 3.1.9`). The same build passes on the VM's tmpfs, so Teire builds gems there and copies them into place.
 
 **Would we build with them again?** Yes. Nemotron 3 Ultra did real multi-step repository work, and Token Factory made it a drop-in API.
 
