@@ -15,5 +15,8 @@ RUN GOBIN=/usr/local/bin GOTOOLCHAIN=local go install golang.org/x/vuln/cmd/govu
 # Go 1.20+ ships no precompiled standard library: build it once so the first check is not paying for it.
 RUN GOTOOLCHAIN=local go build std && GOTOOLCHAIN=local go vet std >/dev/null 2>&1 || true
 COPY teire-job teire-job-status /usr/local/bin/
+# The check phase runs as this user, as CI runs a repository's tests (not as root); the install
+# phase runs as root with HOME=/home/teire, so the caches it fills are the ones the checks read.
+RUN useradd -m -u 10001 -s /bin/bash teire
 WORKDIR /work
 CMD ["sleep", "infinity"]

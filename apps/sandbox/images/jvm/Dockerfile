@@ -28,5 +28,9 @@ COPY teire.init.gradle TeireRefs.java /usr/local/share/teire/
 # Maven Central answers 403 to the sandbox's Cloudflare egress; Google's mirror of it does not.
 COPY settings.xml /root/.m2/settings.xml
 COPY teire-job teire-job-status teire-jvm /usr/local/bin/
+# The check phase runs as this user, as CI runs a repository's tests (not as root); the install
+# phase runs as root with HOME=/home/teire, so the caches it fills are the ones the checks read.
+RUN useradd -m -u 10001 -s /bin/bash teire
+COPY settings.xml /home/teire/.m2/settings.xml
 WORKDIR /work
 CMD ["sleep", "infinity"]

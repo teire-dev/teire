@@ -169,6 +169,51 @@ function pep440ToSemver(spec: string) {
   return semver.validRange(range);
 }
 
+/** Rubies the ruby image provides: its own 4.0.9, and rv's prebuilt ones it installs on demand. */
+export const RUBY_VERSIONS = ["3.2.11", "3.3.13", "3.4.12", "4.0.9"] as const;
+
+/**
+ * The Ruby a repo's CI tests on (`ruby/setup-ruby`'s `ruby-version`, a matrix's newest, or
+ * `.travis.yml`'s `rvm`), as the nearest provided Ruby at or above it. Tests are written against
+ * that Ruby's behaviour (Ruby 3.4 changed NoMethodError's message, and coal's spec matches the old
+ * one), so with no exact pin this is preferred over the image's newest. A soft preference: the
+ * lockfile can still ask for another.
+ */
+export function rubyFor(tree: RepoTree, root: string): ToolchainPick | null {
+  const found: { version: string; source: string }[] = [];
+  for (const job of ciJobsFor(tree, root))
+    for (const step of job.steps) {
+      if (!step.uses?.startsWith("ruby/setup-ruby")) continue;
+      const raw = step.with?.["ruby-version"];
+      const ref = typeof raw === "string" ? /^\$\{\{\s*matrix\.([\w-]+)\s*\}\}$/.exec(raw)?.[1] : undefined;
+      const values = ref ? job.strategy?.matrix?.[ref] : raw;
+      for (const v of Array.isArray(values) ? values : [values]) {
+        const m = /^(\d+)\.(\d+)/.exec(String(v ?? ""));
+        if (m) found.push({ version: `${m[1]}.${m[2]}`, source: "CI setup-ruby" });
+      }
+    }
+  if (!found.length) {
+    const travis = tree.read(".travis.yml");
+    const rvm = travis ? /^rvm:\s*\n((?:\s+-\s*.+\n?)+)/m.exec(travis)?.[1] : undefined;
+    for (const line of rvm?.split("\n") ?? []) {
+      const m = /-\s*["']?(\d+)\.(\d+)/.exec(line);
+      if (m) found.push({ version: `${m[1]}.${m[2]}`, source: ".travis.yml" });
+    }
+  }
+  const newest = found.sort((a, b) => (semver.gt(`${a.version}.0`, `${b.version}.0`) ? -1 : 1))[0];
+  if (!newest) return null;
+  const got =
+    RUBY_VERSIONS.find((v) => semver.gte(v, `${newest.version}.0`)) ??
+    RUBY_VERSIONS[RUBY_VERSIONS.length - 1];
+  return {
+    version: got as string,
+    source: newest.source,
+    ...(!got?.startsWith(`${newest.version}.`)
+      ? { note: `${newest.source} runs Ruby ${newest.version}; the sandbox runs ${got}` }
+      : {}),
+  };
+}
+
 /** A `rust-toolchain(.toml)` channel the install step must fetch with rustup, or null. */
 export function rustFor(tree: RepoTree, root: string): ToolchainPick | null {
   const toml = read(tree, root, "rust-toolchain.toml");

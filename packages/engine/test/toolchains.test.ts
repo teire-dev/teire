@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { memoryTree } from "../src/inventory/tree";
-import { nodeEnv, nodeFor, pythonFor, rustFor } from "../src/verify/toolchains";
+import { nodeEnv, nodeFor, pythonFor, rubyFor, rustFor } from "../src/verify/toolchains";
 
 describe("toolchain versions from the repo", () => {
   it("reads Node from .nvmrc (versions and lts codenames), volta and engines", () => {
@@ -46,6 +46,19 @@ describe("toolchain versions from the repo", () => {
     expect(
       pythonFor(memoryTree({ "pyproject.toml": poetry, ".github/workflows/ci.yml": matrix }), ".")?.version,
     ).toBe("3.11");
+  });
+
+  it("prefers the Ruby the repo's CI tests on, as the nearest provided one", () => {
+    // coal: Travis on 2.6.5 and 2.7.2, no pin; its spec matches Ruby < 3.4's NoMethodError message.
+    expect(
+      rubyFor(memoryTree({ ".travis.yml": "language: ruby\nrvm:\n  - 2.6.5\n  - 2.7.2\n" }), "."),
+    ).toMatchObject({
+      version: "3.2.11",
+      source: ".travis.yml",
+    });
+    const matrix = `jobs:\n  test:\n    strategy:\n      matrix:\n        ruby: ["3.2", "3.3"]\n    steps:\n      - uses: ruby/setup-ruby@v1\n        with:\n          ruby-version: \${{ matrix.ruby }}\n`;
+    expect(rubyFor(memoryTree({ ".github/workflows/ci.yml": matrix }), ".")?.version).toBe("3.3.13");
+    expect(rubyFor(memoryTree({}), ".")).toBeNull();
   });
 
   it("reads a rust-toolchain channel", () => {

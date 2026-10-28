@@ -4,7 +4,8 @@
 #   teire-ruby lock GEM [DAYS]  the upgrade: bundle lock --update GEM --conservative [--cooldown DAYS],
 #                               then drop platforms the sandbox added (lockfile noise)
 # Inputs come from the environment the worker's plan sets: TEIRE_RUBY_VERSION, TEIRE_SERVICES
-# (postgres,redis,mysql), TEIRE_DB_SETUP (e.g. "bin/rails db:prepare"), DATABASE_URL.
+# (postgres,redis,mysql), TEIRE_DB_SETUP (e.g. "bin/rails db:prepare"), DATABASE_URL, and
+# TEIRE_RUBY_PREFER (the CI's Ruby when the repo pins none; the lockfile may overrule it).
 set -uo pipefail
 # exec() passes no image ENV; root is the only user in a throwaway sandbox.
 export BUNDLE_SILENCE_ROOT_WARNING=1
@@ -18,7 +19,7 @@ use_ruby() {
   local want="$1" have
   have="$(ruby -e 'print RUBY_VERSION')"
   [ "$have" = "$want" ] && return 0
-  echo "teire-ruby: the repo pins Ruby $want; the image has $have: installing it with rv"
+  echo "teire-ruby: installing Ruby $want with rv (the image has $have)"
   rv ruby install "$want" || return 3
   local bin
   bin="$(find / -path /proc -prune -o -type f -path "*ruby-${want}*/bin/ruby" -print 2>/dev/null | head -1)"
@@ -73,7 +74,8 @@ start_postgres() {
   # Trust authentication on localhost: the roles the app's config names, with any password.
   local user=""
   [[ "${DATABASE_URL:-}" =~ ^postgres(ql)?://([^:@/]+) ]] && user="${BASH_REMATCH[2]}"
-  for r in root rails $user; do
+  # teire: the OS user the checks run as, which libpq uses when database.yml names no user.
+  for r in root rails teire $user; do
     psql -h 127.0.0.1 -U postgres -qc "CREATE ROLE \"$r\" LOGIN SUPERUSER" 2>/dev/null || true
   done
   echo "teire-ruby: postgres $(pg_ctl --version | awk "{print \$3}") on 127.0.0.1:5432"
@@ -97,7 +99,13 @@ start_mysql() {
 
 case "${1:-}" in
   install)
-    if [ -n "${TEIRE_RUBY_VERSION:-}" ]; then use_ruby "$TEIRE_RUBY_VERSION" || exit $?; fi
+    if [ -n "${TEIRE_RUBY_VERSION:-}" ]; then
+      use_ruby "$TEIRE_RUBY_VERSION" || exit $?
+    elif [ -n "${TEIRE_RUBY_PREFER:-}" ]; then
+      # The Ruby the repo's CI tests on (no exact pin): preferred, and the lockfile may still overrule it.
+      echo "teire-ruby: the repo's CI tests on Ruby ${TEIRE_RUBY_PREFER%.*}; using $TEIRE_RUBY_PREFER"
+      use_ruby "$TEIRE_RUBY_PREFER" || exit $?
+    fi
     locked_bundler="$(bundled_with)"
     # A frozen install fails when the lockfile has neither `ruby` nor this platform (research gotcha 2).
     if [ -f "$LOCK" ] && ! platforms | grep -qE '^(ruby|x86_64-linux)'; then

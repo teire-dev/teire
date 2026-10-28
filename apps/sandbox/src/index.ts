@@ -14,6 +14,8 @@ import { DirectoryBackup, type DirectoryBackupRecord, Files } from "@cloudflare/
 import {
   ALARM_MS,
   BASE_ENV,
+  CHECK_HOME,
+  CHECK_USER,
   IDLE_MS,
   INTERCEPT_CA,
   type InstanceType,
@@ -196,6 +198,9 @@ export class VerifySandbox extends DurableObject<Env> {
   /** Switches between the install (registries only) and check (nothing) phases without a restart. */
   async setPhase(phase: Phase) {
     const sid = await this.#sid();
+    // The checks run as the unprivileged user: hand it the checkout and the caches the install filled.
+    if (phase === "check")
+      await this.#run(["chown", "-R", `${CHECK_USER}:${CHECK_USER}`, WORK_DIR, CHECK_HOME], {});
     await this.#routeEgress(sid, phase);
     await this.ctx.storage.put("phase", phase);
     return { phase };
@@ -212,11 +217,21 @@ export class VerifySandbox extends DurableObject<Env> {
     const made = await this.#run(["mkdir", "-p", JOBS_DIR], {}).then(() => this.#run(["mkdir", dir], {}));
     if (made.exitCode !== 0) throw new Error("conflict: job id already used");
     const timeoutSec = Math.min(options.timeoutSec ?? 600, MAX_JOB_SECONDS);
+    // Check-phase commands run unprivileged, as CI runs them; the install phase stays root (it
+    // installs toolchains and starts services).
+    const check = (await this.ctx.storage.get<Phase>("phase")) === "check";
+    const run = check
+      ? ["setpriv", `--reuid=${CHECK_USER}`, `--regid=${CHECK_USER}`, "--init-groups", "--", ...argv]
+      : argv;
     // Output ignored on purpose: the job outlives this request and writes its own log files.
     await this.#container.exec(
-      ["teire-job", dir, String(timeoutSec), options.cwd ?? WORK_DIR, "--", ...argv],
+      ["teire-job", dir, String(timeoutSec), options.cwd ?? WORK_DIR, "--", ...run],
       {
-        env: { ...BASE_ENV, ...options.env },
+        env: {
+          ...BASE_ENV,
+          ...(check ? { USER: CHECK_USER, LOGNAME: CHECK_USER } : {}),
+          ...options.env,
+        },
         stdout: "ignore",
         stderr: "ignore",
       },
@@ -282,6 +297,21 @@ export class VerifySandbox extends DurableObject<Env> {
 
   async writeFile(path: string, content: ArrayBuffer) {
     await this.#files.writeFile(path, content);
+    // A file the fix loop writes during the checks belongs to the user the checks run as.
+    // The file and any folder the write created above it, up to the checkout, not the whole tree.
+    if ((await this.ctx.storage.get<Phase>("phase")) === "check" && path.startsWith(`${WORK_DIR}/`))
+      await this.#run(
+        [
+          "sh",
+          "-c",
+          'p="$1"; while [ "$p" != "$2" ] && [ "$p" != / ]; do chown "$3" "$p"; p=$(dirname "$p"); done',
+          "sh",
+          path,
+          WORK_DIR,
+          `${CHECK_USER}:${CHECK_USER}`,
+        ],
+        {},
+      );
     return { path, bytes: content.byteLength };
   }
 

@@ -3,6 +3,7 @@ import type { RubyProject } from "../inventory/ruby";
 import type { RepoTree } from "../inventory/tree";
 import { ciJobsFor } from "./ci";
 import type { CheckPlan, PlannedCheck } from "./commands";
+import { rubyFor } from "./toolchains";
 
 /**
  * What to run for a Bundler project (plan S07, research ruby.md Job 8). The repo's CI says it best:
@@ -112,6 +113,9 @@ export function detectRubyChecks(tree: RepoTree, project: RubyProject, sandboxRo
 
   const setup = ci.setup[0] ?? (rails && services.size ? "bin/rails db:prepare" : undefined);
   const ruby = rubyPin(tree, project);
+  // No exact pin: the Ruby the repo's CI tests on, as a preference the lockfile can still overrule.
+  const preferred = ruby ? null : rubyFor(tree, root);
+  if (preferred?.note) notes.push(preferred.note);
   const env: Record<string, string> = {
     ...ci.env,
     ...(rails ? { RAILS_ENV: ci.env.RAILS_ENV ?? "test" } : {}),
@@ -134,6 +138,7 @@ export function detectRubyChecks(tree: RepoTree, project: RubyProject, sandboxRo
       ...(services.size ? { TEIRE_SERVICES: [...services].join(",") } : {}),
       ...(setup ? { TEIRE_DB_SETUP: setup } : {}),
       ...(ruby ? { TEIRE_RUBY_VERSION: ruby } : {}),
+      ...(preferred ? { TEIRE_RUBY_PREFER: preferred.version } : {}),
     },
     env,
     checks,

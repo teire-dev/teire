@@ -24,5 +24,8 @@ RUN curl -fsSL -o /tmp/rv.tar.xz \
 # own defaults, so gems install to the default GEM_HOME and binstubs land in /usr/local/bin.
 RUN rm -rf /usr/local/bundle && ruby -v && bundle -v
 COPY teire-job teire-job-status teire-ruby /usr/local/bin/
+# The check phase runs as this user, as CI runs a repository's tests (not as root); the install
+# phase runs as root with HOME=/home/teire, so the caches it fills are the ones the checks read.
+RUN useradd -m -u 10001 -s /bin/bash teire
 WORKDIR /work
 CMD ["sleep", "infinity"]

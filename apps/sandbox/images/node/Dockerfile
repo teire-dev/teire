@@ -25,6 +25,9 @@ RUN set -eux; for major in 18 20 22; do \
 RUN npm install -g bun@1.4.4 && bun --version
 # Background-job helpers (setsid + log files + exit-code file) driven by the Durable Object.
 COPY teire-job teire-job-status /usr/local/bin/
+# The check phase runs as this user, as CI runs a repository's tests (not as root); the install
+# phase runs as root with HOME=/home/teire, so the caches it fills are the ones the checks read.
+RUN useradd -m -u 10001 -s /bin/bash teire
 WORKDIR /work
 # The instance stops when the main process exits; commands run through exec().
 CMD ["sleep", "infinity"]

@@ -64,9 +64,18 @@ export const REGISTRY_HOSTS = new Set([
 ]);
 
 /** Environment for every command: exec() does not inherit the image's ENV (only PATH). */
+/**
+ * The unprivileged user the check phase runs as, as CI runs a repository's tests: suites that
+ * check file permissions or warn when run as root (diskonaut's header says "running as root")
+ * behave as they do on CI. Every image creates it; the install phase runs as root with the same
+ * HOME, so every cache the install fills is the one the checks read.
+ */
+export const CHECK_USER = "teire";
+export const CHECK_HOME = "/home/teire";
+
 export const BASE_ENV: Record<string, string> = {
   PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-  HOME: "/root",
+  HOME: CHECK_HOME,
   CI: "1",
   NODE_EXTRA_CA_CERTS: INTERCEPT_CA,
   SSL_CERT_FILE: "/etc/ssl/certs/ca-certificates.crt",

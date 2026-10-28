@@ -22,9 +22,11 @@ const OFFLINE_ENV = {
 /**
  * Where rustup and cargo keep toolchains and the crates the install fetched. exec() does not pass
  * the image's ENV, so both phases name them: the offline checks must read the cache the install
- * filled (a fetch into one home and a build from another finds no crates).
+ * filled (a fetch into one home and a build from another finds no crates). Cargo's home is the
+ * check user's (the checks run unprivileged and cargo locks its cache even offline); toolchains
+ * stay in the image's rustup home, read-only to the checks.
  */
-const HOMES = { RUSTUP_HOME: "/usr/local/rustup", CARGO_HOME: "/usr/local/cargo" };
+const HOMES = { RUSTUP_HOME: "/usr/local/rustup", CARGO_HOME: "/home/teire/.cargo" };
 
 function ciFeatures(tree: RepoTree) {
   for (const file of tree.files().filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f))) {

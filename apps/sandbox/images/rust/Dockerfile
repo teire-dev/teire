@@ -24,5 +24,8 @@ RUN curl -fsSL -o /tmp/csc.tar.gz \
   && tar -xzf /tmp/csc.tar.gz -C /usr/local/bin cargo-semver-checks \
   && rm /tmp/csc.tar.gz && cargo-semver-checks --version
 COPY teire-job teire-job-status /usr/local/bin/
+# The check phase runs as this user, as CI runs a repository's tests (not as root); the install
+# phase runs as root with HOME=/home/teire, so the caches it fills are the ones the checks read.
+RUN useradd -m -u 10001 -s /bin/bash teire
 WORKDIR /work
 CMD ["sleep", "infinity"]

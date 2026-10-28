@@ -20,5 +20,8 @@ RUN set -eux; UV_PYTHON_DOWNLOADS=automatic uv python install 3.10 3.11 3.13; \
       "/opt/python/$v/bin/python3" --version; \
     done
 COPY teire-job teire-job-status /usr/local/bin/
+# The check phase runs as this user, as CI runs a repository's tests (not as root); the install
+# phase runs as root with HOME=/home/teire, so the caches it fills are the ones the checks read.
+RUN useradd -m -u 10001 -s /bin/bash teire
 WORKDIR /work
 CMD ["sleep", "infinity"]

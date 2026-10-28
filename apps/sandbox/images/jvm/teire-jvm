@@ -24,6 +24,10 @@ trust_sandbox_ca() {
   fi
   export JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=$store -Djavax.net.ssl.trustStorePassword=changeit ${JAVA_TOOL_OPTIONS:-}"
 }
+# Java takes user.home from the passwd entry, not $HOME: root would cache in /root/.m2 and /root/.gradle
+# while the checks (run as teire) read /home/teire. Follow $HOME in both phases.
+export JAVA_TOOL_OPTIONS="-Duser.home=${HOME:-/home/teire} ${JAVA_TOOL_OPTIONS:-}"
+export GRADLE_USER_HOME="${GRADLE_USER_HOME:-${HOME:-/home/teire}/.gradle}"
 trust_sandbox_ca
 
 ensure_jdk() {
