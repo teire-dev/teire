@@ -56,12 +56,16 @@ for (const c of cases) {
     console.log(
       JSON.stringify({ case: c.name, pass, ms: run.ms, state: run.state, commit: commit.slice(0, 7), got }),
     );
+    // Why it differs, from the updater's own log: errors, and what it said about the lead dependency.
     if (!pass && run.stderrTail)
       console.log(
         run.stderrTail
           .split("\n")
-          .filter((l) => /error|Error|ERROR/.test(l))
-          .slice(-6)
+          .filter(
+            (l) => /error|Error|ERROR|ignor|requires|latest|resolvable|filter/.test(l) || l.includes(lead),
+          )
+          .filter((l) => !/proxy \|.*(GET|POST) /.test(l))
+          .slice(-15)
           .join("\n"),
       );
   } catch (error) {
