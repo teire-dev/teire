@@ -67,7 +67,8 @@ You meet Teire in five places:
   - **Maven/Gradle:** japicmp, and references read from your compiled classes.
 
   ast-grep finds model IDs and URLs in seven languages.
-- **Proving it.** Two sandboxes on Cloudflare Containers start from the same commit. Installs may reach only package registries, checks run with the network off, and no secret enters. Fixed rules, never a model, turn the results into the evidence that decides ready, draft or issue.
+- **Changing the dependency files.** dependabot-core's own updater (MIT) makes the manifest and lockfile change, through GitHub's `dependabot` CLI on a second Docker daemon under gVisor, firewalled and one job at a time. Where Dependabot stops, Teire keeps its own change: Go majors, aliases, a removed Cargo feature, Gradle locks for one coordinate, an override for a transitive fix, and the Java a new version needs.
+- **Proving it.** Two sandboxes start from the same commit. A public repository's, and every dry run's, run on Nebius Token Factory Sandboxes: Teire builds its images inside Token Factory, the install runs with the network on, and each check runs in a microVM with no network interface. A private repository's run on Cloudflare Containers, where installs reach only registries. No secret enters either. Fixed rules, never a model, turn the results into the evidence that decides ready, draft or issue.
 - **Running it.** A Next.js web app on Vercel holds the GitHub webhook, a Postgres outbox, the dashboard, the catalog and the docs. A Node worker on Coolify runs the scans and fixes from pg-boss queues. A reliability ticker reaps stuck runs and redelivers missed webhooks.
 
 ## Challenges we ran into
@@ -96,16 +97,16 @@ You meet Teire in five places:
 
 ## What's next
 
-- Move verification to Token Factory Sandboxes.
 - A type-level locator for Rust.
 - Android projects.
 - Open the change catalog to provider contributions.
 
 ## Honest limits
 
-- Checks run on Cloudflare Containers, not Token Factory Sandboxes.
+- Private repositories verify on Cloudflare Containers: Token Factory Sandboxes keeps images 180 days with no delete call.
+- dependabot-core decides npm's dependency files today; the other ecosystems move to it as each passes on a real fork.
 - Only major upgrades get an API diff and a line search.
 - Rust, Ruby, and Java/Kotlin at scan time are searched by syntax.
-- Model and API fixes are verified in JavaScript/TypeScript or Python projects.
+- Model and API fixes run in all six ecosystems; the evaluation proves them in JavaScript/TypeScript and Python only.
 - Android is not supported.
 - There are no real users yet: the evaluation repositories are Teire's own demos, built to reproduce real breakages.
