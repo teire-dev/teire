@@ -523,20 +523,30 @@ async function packageOutcome(
   };
   // Every lockfile root that declares the package at this target. The most urgent leads; the run
   // names the others (one PR per package per repo, D94; the resolver edits them all from S15).
-  const matchingIn = (list: Assessment<AssessedProject>[]) =>
-    list
+  const matchingIn = (list: Assessment<AssessedProject>[]) => {
+    const found = list
       .filter((a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion)
       // `@teire ignore` and teire.yml `ignore` apply to the run as they do to the scan (C8).
       .filter(
         (a) => !a.findings.length || a.findings.some((f) => !config.ignore.some((t) => matchesTarget(t, f))),
-      )
-      // Ties go to the root the change breaks: its code is what the run fixes and verifies.
-      .sort(
-        (a, b) =>
-          (a.priority ?? 9) - (b.priority ?? 9) ||
-          (LEAD_RANK[b.summary?.verdict ?? ""] ?? 0) - (LEAD_RANK[a.summary?.verdict ?? ""] ?? 0) ||
-          (b.summary?.breaking.length ?? 0) - (a.summary?.breaking.length ?? 0),
       );
+    // Ties go to the root the change breaks, counted over all its assessments for this target (a
+    // security assessment locates nothing; the upgrade's API diff does): that code is what the run
+    // fixes and verifies.
+    const sites = new Map<string, number>();
+    for (const a of found)
+      sites.set(
+        a.project.root,
+        (sites.get(a.project.root) ?? 0) +
+          (a.summary?.breaking.reduce((n, f) => n + Math.max(1, f.callSites.length), 0) ?? 0),
+      );
+    return found.sort(
+      (a, b) =>
+        (a.priority ?? 9) - (b.priority ?? 9) ||
+        (sites.get(b.project.root) ?? 0) - (sites.get(a.project.root) ?? 0) ||
+        (LEAD_RANK[b.summary?.verdict ?? ""] ?? 0) - (LEAD_RANK[a.summary?.verdict ?? ""] ?? 0),
+    );
+  };
   let matching = matchingIn(await assess());
   // A refresh (rebase, CI repair, recreate) of a PR whose target moved from the registry's answer
   // (a D103 cap, a security floor, a D71 fallback) keeps that PR's version.
