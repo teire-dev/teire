@@ -60,6 +60,7 @@ import {
   openArtifacts,
   openLineages,
   recentlySettled,
+  recordAction,
   recordLlmCall,
   retireUnreported,
   saveInstances,
@@ -814,6 +815,18 @@ async function closeStalePullRequests(
       });
       await octokit.rest.pulls.update({ owner, repo: name, pull_number: a.number, state: "closed" });
       await upsertArtifact(ctx.db, { ...a, state: "closed" });
+      // Teire's own close is in the repository's Activity too, with its reason (plan's mode table).
+      await recordAction(ctx.db, {
+        requester: "teire",
+        installationId: repo.installationId,
+        repoId: repo.id,
+        kind: "close-pr",
+        params: { number: a.number, group: a.changeKey },
+        source: "teire",
+        status: "done",
+        result: `Closed #${a.number}: ${why}`,
+        links: a.url ? [{ label: `#${a.number}`, href: a.url }] : [],
+      }).catch(() => undefined);
     } catch (error) {
       console.error(`[scan] ${repo.fullName}#${a.number}: close: ${error}`);
     }

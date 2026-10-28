@@ -490,17 +490,21 @@ async function Repo({
                     <span className="font-medium">{describeAction(a.kind as ActionKind, a.params)}</span>{" "}
                     <span className="text-muted-foreground">
                       ·{" "}
-                      {a.actor
-                        ? `@${a.actor}`
-                        : a.requester.startsWith("github:")
-                          ? `@${a.requester.slice(7)}`
-                          : "someone signed in"}{" "}
+                      {a.source === "teire"
+                        ? "Teire"
+                        : a.actor
+                          ? `@${a.actor}`
+                          : a.requester.startsWith("github:")
+                            ? `@${a.requester.slice(7)}`
+                            : "someone signed in"}{" "}
                       ·{" "}
                       {a.source === "web"
                         ? "dashboard"
                         : a.source === "dashboard"
                           ? "Dashboard issue"
-                          : a.source}
+                          : a.source === "teire"
+                            ? "on its own"
+                            : a.source}
                     </span>
                     {a.result ? <p className="truncate text-xs text-muted-foreground">{a.result}</p> : null}
                   </div>

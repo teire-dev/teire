@@ -487,7 +487,8 @@ export const actions = pgTable(
     repoId: githubId("repo_id"),
     kind: text("kind").notNull(),
     params: jsonb("params").$type<Record<string, unknown>>().notNull().default({}),
-    source: text("source").$type<"web" | "comment" | "dashboard" | "assistant">().notNull(),
+    /** Who asked: the web app, a comment, a Dashboard tick, the assistant, or Teire itself (a close). */
+    source: text("source").$type<"web" | "comment" | "dashboard" | "assistant" | "teire">().notNull(),
     idempotencyKey: text("idempotency_key").notNull(),
     status: text("status")
       .$type<"requested" | "accepted" | "started" | "done" | "refused" | "failed" | "stopping" | "unknown">()

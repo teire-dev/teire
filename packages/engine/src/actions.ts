@@ -94,6 +94,7 @@ export function describeAction(kind: ActionKind, params: Record<string, unknown>
     case "feedback":
       return "Report a wrong finding";
     default:
+      if ((kind as string) === "close-pr") return `Closed #${params.number}`;
       return `${kind[0]?.toUpperCase()}${kind.slice(1)}`;
   }
 }

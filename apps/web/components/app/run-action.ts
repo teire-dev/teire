@@ -130,6 +130,7 @@ export async function runActions(requests: ActionRequest[], label: string): Prom
       const began = Date.now();
       while (!TERMINAL.has(state.status as ActionStatus) && Date.now() - began < FOLLOW_MS) {
         await sleep(Date.now() - began > SLOW_AFTER_MS ? SLOW_MS : FAST_MS);
+        while (document.hidden) await sleep(SLOW_MS);
         const res = await fetch(`/api/actions/${state.id}`, { cache: "no-store" }).catch(() => null);
         if (res?.ok) state = (await res.json()) as ActionState;
       }

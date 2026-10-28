@@ -201,7 +201,7 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       const before = await fixModeOf(db, repo);
       const mode = await fixModeOf(db, { ...repo, fixMode: next ?? null });
       // The repository's file wins (D118): as on the dashboard, nothing is stored under it (U1 review).
-      if (mode.origin === "repo-file" && next !== null && mode.mode !== next)
+      if (mode.origin === "repo-file" && next !== null)
         return void (await reply(
           `Fixes here are set in ${mode.file} (**${describeFixMode(mode)}**); change \`fixes:\` there.`,
         ));

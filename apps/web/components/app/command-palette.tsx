@@ -8,6 +8,7 @@ import {
   FolderGit2,
   GitPullRequestArrow,
   LayoutGrid,
+  PauseCircle,
   PlayCircle,
   RefreshCw,
   Settings,
@@ -81,7 +82,7 @@ export function CommandPalette({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  repos: { fullName: string; fixMode: string }[];
+  repos: { fullName: string; fixMode: string; status?: string }[];
   runs?: { id: string; repo: string; groupKey: string | null; status: string }[];
   changes?: { id: string; title: string; repos: number }[];
 }) {
@@ -169,6 +170,18 @@ export function CommandPalette({
                 onSelect={() => setConfirm({ kind: "rescan", params: {}, repo: repo.fullName })}
               >
                 <RefreshCw /> Rescan now
+              </CommandItem>
+              <CommandItem
+                value={`pause ${repo.fullName}`}
+                onSelect={() =>
+                  setConfirm({
+                    kind: repo.status === "paused" ? "resume" : "pause",
+                    params: {},
+                    repo: repo.fullName,
+                  })
+                }
+              >
+                <PauseCircle /> {repo.status === "paused" ? "Resume Teire here" : "Pause Teire here"}
               </CommandItem>
               {MODES.filter(([m]) => m !== repo.fixMode).map(([m, label]) => (
                 <CommandItem

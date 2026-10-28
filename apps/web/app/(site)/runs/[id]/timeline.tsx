@@ -18,6 +18,8 @@ function offset(first: string | undefined, at: string) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 const POLL_MS = 1000;
+const SLOW_POLL_MS = 5000;
+const SLOW_AFTER_MS = 10 * 60_000;
 
 /** Live timeline: polls new events every second while the run is active and the tab is visible. */
 export function Timeline({ runId, initialStatus }: { runId: string; initialStatus: string }) {
@@ -26,6 +28,7 @@ export function Timeline({ runId, initialStatus }: { runId: string; initialStatu
   const after = useRef(0);
 
   useEffect(() => {
+    const opened = Date.now();
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
@@ -46,7 +49,8 @@ export function Timeline({ runId, initialStatus }: { runId: string; initialStatu
           if (!ACTIVE.has(data.status) && data.events.length === 0) return;
         }
       }
-      if (!stopped) timer = setTimeout(tick, POLL_MS);
+      // Every second, then every five after ten minutes on the page (plan "Live islands": budgeted).
+      if (!stopped) timer = setTimeout(tick, Date.now() - opened > SLOW_AFTER_MS ? SLOW_POLL_MS : POLL_MS);
     };
     void tick();
     return () => {

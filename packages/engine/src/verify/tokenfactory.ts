@@ -29,6 +29,22 @@ const TOKEN_FACTORY_POLL_RETRIES = 8;
 /** A quiet event stream is checked against the operation's state this often. */
 const FOLLOW_IDLE_MS = 20_000;
 
+/** Sleeps `ms`; false when the signal fires first. */
+function pause(ms: number, signal?: AbortSignal) {
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", stop);
+      resolve(true);
+    }, ms);
+    const stop = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
+    if (signal?.aborted) stop();
+    else signal?.addEventListener("abort", stop, { once: true });
+  });
+}
+
 /** A frame's JSON, or null when the service sent something else. */
 function safeJson<T>(raw: string): T | null {
   try {
@@ -61,9 +77,26 @@ class Slots {
   constructor(size: number) {
     this.#free = Math.max(1, size);
   }
-  async take() {
-    if (this.#free > 0) this.#free--;
-    else await new Promise<void>((resolve) => this.#waiting.push(resolve));
+  /** A slot, or `RunCancelledError` when the run is cancelled while it waits (U1 review). */
+  async take(signal?: AbortSignal) {
+    if (signal?.aborted) throw new RunCancelledError();
+    if (this.#free > 0) {
+      this.#free--;
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      const turn = () => {
+        signal?.removeEventListener("abort", leave);
+        resolve();
+      };
+      const leave = () => {
+        const at = this.#waiting.indexOf(turn);
+        if (at >= 0) this.#waiting.splice(at, 1);
+        reject(new RunCancelledError());
+      };
+      this.#waiting.push(turn);
+      signal?.addEventListener("abort", leave, { once: true });
+    });
   }
   give() {
     const next = this.#waiting.shift();
@@ -143,8 +176,13 @@ export class TokenFactorySandboxes {
     path: string,
     body?: Uint8Array | string | ReadableStream<Uint8Array> | object,
     contentType?: string,
+    /** False for the cancel itself, which must go out after the run's signal fired. */
+    cancellable = true,
   ): Promise<Response> {
     const stream = body instanceof ReadableStream;
+    // A cancelled run's requests end at once, not at their own timeout (U1 review: 30 s).
+    const run = cancellable ? cancelSignal() : undefined;
+    const limit = AbortSignal.timeout(stream ? VERIFY.uploadTimeoutMs : 120_000);
     const raw = stream || body instanceof Uint8Array || typeof body === "string";
     const response = await fetch(`${this.#config.baseUrl ?? BASE}${path}`, {
       method,
@@ -162,7 +200,10 @@ export class TokenFactorySandboxes {
             ...(stream ? { duplex: "half" } : {}),
           }
         : {}),
-      signal: AbortSignal.timeout(stream ? VERIFY.uploadTimeoutMs : 120_000),
+      signal: run ? AbortSignal.any([limit, run]) : limit,
+    }).catch((error: unknown) => {
+      if (run?.aborted) throw new RunCancelledError();
+      throw error;
     });
     if (!response.ok)
       throw new Error(
@@ -212,7 +253,9 @@ export class TokenFactorySandboxes {
 
   /** Asks Token Factory to stop an operation; one already finished or gone is fine. */
   async cancel(operation: string) {
-    await this.#request("DELETE", `/operations/${operation}`).catch(() => undefined);
+    await this.#request("DELETE", `/operations/${operation}`, undefined, undefined, false).catch(
+      () => undefined,
+    );
   }
 
   /** An image by tag, if this project or the public catalog has it. */
@@ -304,7 +347,7 @@ export class TokenFactorySandboxes {
     const limits = await this.limits();
     const timeoutSec = Math.min(request.timeoutSec, limits.maxTimeoutSec);
     const signal = cancelSignal();
-    await limits.spawns.take();
+    await limits.spawns.take(signal);
     // Timed from the spawn itself, not the wait for a slot: "137 at the limit" compares with it.
     const started = Date.now();
     let op: Operation;
@@ -369,7 +412,11 @@ export class TokenFactorySandboxes {
             project: this.#config.project,
             accept: "text/event-stream",
           },
-          signal: AbortSignal.timeout(Math.max(1_000, deadline - Date.now())),
+          signal: (() => {
+            const limit = AbortSignal.timeout(Math.max(1_000, deadline - Date.now()));
+            const run = cancelSignal();
+            return run ? AbortSignal.any([limit, run]) : limit;
+          })(),
         },
       ).catch(() => null);
       if (!response || response.status === 410 || response.status === 425 || response.status >= 500) {
@@ -472,12 +519,11 @@ export class TokenFactorySandboxes {
       }
       if (op.status === "SUCCESS" || op.status === "FAILED" || op.status === "CANCELLED") return op;
       if (Date.now() > deadline) throw new Error(`operation ${operation} still ${op.status}`);
-      // A cancelled run stops waiting and stops the operation itself (U1 review).
-      if (cancelSignal()?.aborted) {
+      // A cancelled run stops waiting and stops the operation itself (U1 review), the sleep included.
+      if (cancelSignal()?.aborted || !(await pause(POLL_MS, cancelSignal()))) {
         await this.cancel(operation).catch(() => undefined);
         throw new RunCancelledError();
       }
-      await new Promise((r) => setTimeout(r, POLL_MS));
     }
   }
 }

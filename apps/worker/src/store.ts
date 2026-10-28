@@ -119,7 +119,7 @@ export async function finishScan(
     .update(scans)
     .set({ ...fields, finishedAt: new Date() })
     .where(eq(scans.id, id))
-    .returning({ repoId: scans.repoId });
+    .returning({ repoId: scans.repoId, createdAt: scans.createdAt });
   if (!scan) return;
   // A Rescan someone asked for is done when its scan is (plan "Actions with real results").
   const { rows } = await db.execute<{ n: number }>(sql`
@@ -136,6 +136,9 @@ export async function finishScan(
           : `Rescan failed: ${(fields.error ?? "the scan stopped").slice(0, 300)}`
       }
     where repo_id = ${scan.repoId} and kind = 'rescan' and status in ('accepted', 'started', 'unknown')
+      -- Only a scan that started after the action was asked for answers it: one already running
+      -- when someone asked doesn't (U1 review).
+      and created_at < ${scan.createdAt}
   `);
 }
 
@@ -531,23 +534,46 @@ export async function updateHeldRun(db: Database, id: string, fields: Partial<ty
 }
 
 /** Appends to a run's event log; `seq` is assigned in the database so writers never collide. */
-export async function appendEvent(db: Database, runId: string, step: string, type: string, payload: object) {
+export async function appendEvent(
+  db: Database,
+  runId: string,
+  step: string,
+  type: string,
+  payload: object,
+  /** Only while this worker holds the run (its fix run's own events; U1 review). */
+  held = false,
+) {
   // The baseline and after sandboxes report at the same time; without a per-run lock two inserts
   // can read the same max(seq) and the second fails on the primary key, taking the run down.
   await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${runId}))`);
     await tx.execute(sql`
       insert into run_events (run_id, seq, step, type, payload)
-      values (${runId}, coalesce((select max(seq) from run_events where run_id = ${runId}), 0) + 1, ${step}, ${type}, ${JSON.stringify(payload)}::jsonb)
+      select ${runId}, coalesce((select max(seq) from run_events where run_id = ${runId}), 0) + 1, ${step}, ${type}, ${JSON.stringify(payload)}::jsonb
+      where ${held ? sql`exists (select 1 from runs where id = ${runId} and worker_id = ${WORKER_ID})` : sql`true`}
     `);
   });
 }
 
-export async function recordLlmCall(db: Database, values: typeof llmCalls.$inferInsert) {
+/**
+ * Whether this worker holds the run, locking its row until the transaction ends (U1 review): writes
+ * made in that transaction can't interleave with another worker taking the run over.
+ */
+export async function holdsRun(db: Pick<Database, "execute">, runId: string) {
+  const { rows } = await db.execute<{ id: string }>(sql`
+    select id from runs where id = ${runId} and worker_id = ${WORKER_ID} for update
+  `);
+  return rows.length > 0;
+}
+
+export async function recordLlmCall(db: Pick<Database, "insert">, values: typeof llmCalls.$inferInsert) {
   await db.insert(llmCalls).values(values);
 }
 
-export async function recordSandboxExec(db: Database, values: typeof sandboxExecs.$inferInsert) {
+export async function recordSandboxExec(
+  db: Pick<Database, "insert">,
+  values: typeof sandboxExecs.$inferInsert,
+) {
   await db.insert(sandboxExecs).values(values);
 }
 

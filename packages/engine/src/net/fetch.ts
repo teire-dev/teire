@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { cancelSignal } from "../cancel";
 import { NET } from "../constants";
 
 /**
@@ -96,7 +97,10 @@ export async function guardedFetch(
   options: GuardedFetchOptions = {},
 ): Promise<GuardedResponse> {
   const maxBytes = options.maxBytes ?? NET.maxResponseBytes;
-  const deadline = AbortSignal.timeout(options.timeoutMs ?? NET.timeoutMs);
+  // A cancelled run's downloads (its checkout, registry reads) end at once (U1 review).
+  const limit = AbortSignal.timeout(options.timeoutMs ?? NET.timeoutMs);
+  const run = cancelSignal();
+  const deadline = run ? AbortSignal.any([limit, run]) : limit;
   // English pages, wherever the worker runs: quotes are checked against what the readers understand.
   const headers: Record<string, string> = {
     "user-agent": NET.userAgent,

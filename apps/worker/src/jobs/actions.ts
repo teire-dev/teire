@@ -226,7 +226,9 @@ async function repoAction(
       const mode = (params.mode ?? null) as FixMode | null;
       const after = await fixModeOf(db, { ...repo, fixMode: mode });
       // A file that sets the mode wins (D118): the dashboard can't override it, so nothing is stored.
-      if (after.origin === "repo-file" && mode !== null && after.mode !== mode)
+      // Nothing is stored while the file decides, not even the same value: it would surface later
+      // as a hidden override when the file drops `fixes:` (U1 review).
+      if (after.origin === "repo-file" && mode !== null)
         return refused(`Fixes are set in ${after.file} (${describeFixMode(after)}); change \`fixes:\` there`);
       await setRepo(db, repo.id, { fixMode: mode });
       const cancelled =
@@ -380,29 +382,6 @@ async function started(
       };
 }
 
-/** Whether `login` is an admin of every repository Teire knows in the installation (org owners are). */
-async function adminOfEveryRepo(
-  db: EventContext["db"],
-  octokit: Octokit,
-  installationId: number,
-  org: string,
-  login: string,
-) {
-  const rows = await db
-    .select({ fullName: repos.fullName })
-    .from(repos)
-    .where(eq(repos.installationId, installationId));
-  if (!rows.length) return false;
-  for (const r of rows) {
-    const name = r.fullName.split("/")[1] ?? "";
-    const { data } = await octokit.rest.repos
-      .getCollaboratorPermissionLevel({ owner: org, repo: name, username: login })
-      .catch(() => ({ data: { permission: "none" } }));
-    if (data.permission !== "admin") return false;
-  }
-  return true;
-}
-
 /**
  * The installation's default fix mode (D126): an org admin, or the account owner for a user
  * installation. Membership is read from GitHub now; an answer GitHub didn't give is a refusal.
@@ -427,17 +406,19 @@ async function installationAction(
       return refused(`Only ${inst.accountLogin} can change this installation's default`);
   } else {
     const { octokit } = await ctx.gh.installation(inst.id);
-    // The org role, when the App may read members; otherwise (the App asks for no members
-    // permission) an admin of every repository in the installation, which an org owner always is.
-    // Anything GitHub doesn't answer is a refusal.
+    // The org role, read from GitHub now (D126). Only an org admin passes: GitHub tells Teire that
+    // only when the App may read organization members; without that permission nobody passes, and
+    // the refusal says what to grant (a repository admin is not an org admin; U1 review).
     const role = await octokit.rest.orgs
       .getMembershipForUser({ org: inst.accountLogin, username: login })
       .then((r) => (r.data.state === "active" ? r.data.role : "none"))
       .catch((error: { status?: number }) => (error.status === 403 ? "unknown" : "none"));
-    const admin =
-      role === "admin" ||
-      (role === "unknown" && (await adminOfEveryRepo(db, octokit, inst.id, inst.accountLogin, login)));
-    if (!admin) return refused(`Only an admin of ${inst.accountLogin} can change the installation's default`);
+    if (role === "unknown")
+      return refused(
+        `Teire can't check who administers ${inst.accountLogin}: the Teire app needs the organization permission "Members: read" (an owner of ${inst.accountLogin} grants it in the app's settings on GitHub)`,
+      );
+    if (role !== "admin")
+      return refused(`Only an admin of ${inst.accountLogin} can change the installation's default`);
   }
   const mode = parsed.params.mode as FixMode;
   const security = (parsed.params.security as "auto" | "ask" | undefined) ?? inst.securityFixMode;

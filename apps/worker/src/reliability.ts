@@ -105,9 +105,16 @@ export async function reap(db: Database) {
     .where(and(eq(runs.status, "running"), lt(runs.heartbeatAt, new Date(Date.now() - RUNS.staleAfterMs))))
     .returning({ id: runs.id });
   // A run asked to stop whose worker went away is stopped: its sandboxes timed out with it.
+  // It doesn't claim its sandboxes were closed: the worker that knew them is gone (U1 review).
   await db
     .update(runs)
-    .set({ status: "cancelled", step: "cancelled by a person", finishedAt: new Date() })
+    .set({
+      status: "cancelled",
+      step: "cancelled by a person",
+      error:
+        "stopped after its worker went away; a sandbox command it had started ends at its own time limit",
+      finishedAt: new Date(),
+    })
     .where(and(eq(runs.status, "stopping"), lt(runs.heartbeatAt, new Date(Date.now() - RUNS.leaseMs))));
   // Actions the worker never took (plan "Actions with real results"): failed once the outbox gave
   // their delivery up, with its reason; "unknown" after two minutes without a word (the page says
@@ -135,7 +142,7 @@ export async function reap(db: Database) {
         when r.status = 'cancelled' then 'refused'
         else 'done' end,
       result = case
-        when a.kind = 'cancel-run' and r.status = 'cancelled' then 'Stopped'
+        when a.kind = 'cancel-run' and r.status = 'cancelled' then 'Stopped: ' || coalesce(r.error, r.step, 'cancelled')
         when a.kind = 'cancel-run' then 'The run had already ' || r.status
         else 'The run ' || r.status || coalesce(': ' || left(coalesce(r.error, r.step), 200), '') end
     from runs r

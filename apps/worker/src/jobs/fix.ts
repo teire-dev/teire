@@ -77,6 +77,7 @@ import {
   getArtifact,
   getRepo,
   getRun,
+  holdsRun,
   openArtifacts,
   prCounts,
   recordLlmCall,
@@ -1015,6 +1016,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const abort = new AbortController();
   let cancelledBy: string | null = null;
   let lastStep = run.step ?? "assess";
+  // The last thing the run said it was doing ("after: test exit 0 in 2214 ms"), for "stopping".
+  let lastDetail: string | null = null;
   // Once the branch is pushed the run has published: a cancel after that is too late, never a
   // "cancelled" run with its PR standing on GitHub (U1 review).
   let published = false;
@@ -1025,7 +1028,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       if (abort.signal.aborted) throw new RunCancelledError();
       // Off since the run started: nothing is published (D125; the U1 review's race with a run
       // claimed just before the mode changed).
-      const now = dry || !repo ? null : await fixModeOf(db, repo);
+      // The repository as it is now: a fix mode set during the run counts (U1 review).
+      const fresh = dry || !repo ? null : await getRepo(db, repo.id);
+      const now = fresh ? await fixModeOf(db, fresh) : null;
       if (now?.mode === "off") {
         stopReason = fixesOffReply(now);
         abort.abort();
@@ -1081,7 +1086,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const installation = repo.installationId && !dry ? await gh.installation(repo.installationId) : null;
   const event = (step: string, type: string, payload: object) => {
     if (leaseLost) throw new LeaseLostError();
-    return appendEvent(db, runId, step, type, payload);
+    return appendEvent(db, runId, step, type, payload, true);
   };
   // The run's progress comment on GitHub, edited in place; only while this worker holds the run.
   const progress = async (text: string) => {
@@ -1180,9 +1185,11 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
             cancelledBy = c.by;
             abort.abort();
             // The run page says it is stopping and where (plan "Cancel is honest").
-            void appendEvent(db, runId, "run", "stopping", { by: c.by, during: lastStep }).catch(
-              () => undefined,
-            );
+            void appendEvent(db, runId, "run", "stopping", {
+              by: c.by,
+              during: lastStep,
+              doing: lastDetail,
+            }).catch(() => undefined);
           }
         })
         .catch(() => undefined),
@@ -1206,7 +1213,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const token = installation ? await installation.token() : (requester ?? undefined);
   let dir: string | null = null;
   try {
-    const checkout = await fetchRepoTarball(owner, name, run.baseSha, token ? { token } : {});
+    const baseSha = run.baseSha;
+    const checkout = await withCancel(abort.signal, () =>
+      fetchRepoTarball(owner, name, baseSha, token ? { token } : {}),
+    );
     dir = checkout.dir;
     // The scan's own config: the repo's file over `<org>/teire-config` over defaults, plus
     // `@teire ignore` targets, and the same scoped tree (C8).
@@ -1280,7 +1290,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       onEvent: (e: { step: string }) => {
         if (leaseLost) return;
         lastStep = e.step;
-        void appendEvent(db, runId, e.step, "log", e).catch(() => undefined);
+        const said = (e as { detail?: unknown }).detail;
+        if (typeof said === "string") lastDetail = said.slice(0, 160);
+        void appendEvent(db, runId, e.step, "log", e, true).catch(() => undefined);
         void updateHeldRun(db, runId, { step: e.step })
           .then((held) => {
             if (!held) leaseLost = true;
@@ -1333,108 +1345,113 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const { fix, pr: composed, notesReceipt } = outcome;
 
     // Receipts: every model call and every sandbox command, written only by the worker that holds
-    // the run, so a run never shows another worker's calls and costs (review round 2).
+    // the run, so a run never shows another worker's calls and costs (review round 2). They go in
+    // one transaction that first locks the run as this worker's: a worker taking the run over waits
+    // for it, and a worker that lost it writes nothing (U1 review).
     await holdLease();
-    if (notesReceipt)
-      await recordLlmCall(db, {
-        runId,
-        purpose: "notes",
-        step: "notes",
-        model: notesReceipt.model,
-        tokensIn: notesReceipt.tokensIn,
-        tokensOut: notesReceipt.tokensOut,
-        costUsd: notesReceipt.costUsd.toFixed(6),
-        latencyMs: notesReceipt.ms,
-      });
-    for (const s of fix.agentSteps)
-      await recordLlmCall(db, {
-        runId,
-        purpose: "fix",
-        step: s.tools.map((t) => t.name).join(",") || "answer",
-        model: s.model,
-        tokensIn: s.tokensIn,
-        tokensCached: s.tokensCached,
-        tokensOut: s.tokensOut,
-        costUsd: s.costUsd.toFixed(6),
-        latencyMs: s.ms,
-      });
-    if (fix.review)
-      await recordLlmCall(db, {
-        runId,
-        purpose: "review",
-        step: "review",
-        model: fix.review.model,
-        tokensIn: fix.review.tokensIn,
-        tokensOut: fix.review.tokensOut,
-        costUsd: fix.review.costUsd.toFixed(6),
-        latencyMs: fix.review.ms,
-      });
-    if (fix.triage)
-      await recordLlmCall(db, {
-        runId,
-        purpose: "review",
-        step: "install-triage",
-        model: fix.triage.model,
-        tokensIn: fix.triage.tokensIn,
-        tokensOut: fix.triage.tokensOut,
-        costUsd: fix.triage.costUsd.toFixed(6),
-        latencyMs: fix.triage.ms,
-      });
-    for (const [phase, side] of [
-      ["baseline", fix.baseline],
-      ["after", fix.after],
-    ] as const) {
-      await recordSandboxExec(db, {
-        runId,
-        backend: backend.name,
-        phase: phase === "baseline" ? "install_baseline" : "install_after",
-        command: "install",
-        exitCode: side.install.exitCode,
-        durationMs: side.install.ms,
-        stdoutTail: side.install.output.slice(-4000),
-      });
-      for (const c of side.checks)
-        await recordSandboxExec(db, {
+    await db.transaction(async (tx) => {
+      if (!(await holdsRun(tx, runId))) throw lost();
+      if (notesReceipt)
+        await recordLlmCall(tx, {
+          runId,
+          purpose: "notes",
+          step: "notes",
+          model: notesReceipt.model,
+          tokensIn: notesReceipt.tokensIn,
+          tokensOut: notesReceipt.tokensOut,
+          costUsd: notesReceipt.costUsd.toFixed(6),
+          latencyMs: notesReceipt.ms,
+        });
+      for (const s of fix.agentSteps)
+        await recordLlmCall(tx, {
+          runId,
+          purpose: "fix",
+          step: s.tools.map((t) => t.name).join(",") || "answer",
+          model: s.model,
+          tokensIn: s.tokensIn,
+          tokensCached: s.tokensCached,
+          tokensOut: s.tokensOut,
+          costUsd: s.costUsd.toFixed(6),
+          latencyMs: s.ms,
+        });
+      if (fix.review)
+        await recordLlmCall(tx, {
+          runId,
+          purpose: "review",
+          step: "review",
+          model: fix.review.model,
+          tokensIn: fix.review.tokensIn,
+          tokensOut: fix.review.tokensOut,
+          costUsd: fix.review.costUsd.toFixed(6),
+          latencyMs: fix.review.ms,
+        });
+      if (fix.triage)
+        await recordLlmCall(tx, {
+          runId,
+          purpose: "review",
+          step: "install-triage",
+          model: fix.triage.model,
+          tokensIn: fix.triage.tokensIn,
+          tokensOut: fix.triage.tokensOut,
+          costUsd: fix.triage.costUsd.toFixed(6),
+          latencyMs: fix.triage.ms,
+        });
+      for (const [phase, side] of [
+        ["baseline", fix.baseline],
+        ["after", fix.after],
+      ] as const) {
+        await recordSandboxExec(tx, {
           runId,
           backend: backend.name,
-          phase,
-          command: c.argv.join(" "),
-          exitCode: c.exitCode,
-          timedOut: c.timedOut,
-          durationMs: c.ms,
-          stdoutTail: c.output.slice(-4000),
+          phase: phase === "baseline" ? "install_baseline" : "install_after",
+          command: "install",
+          exitCode: side.install.exitCode,
+          durationMs: side.install.ms,
+          stdoutTail: side.install.output.slice(-4000),
         });
-    }
-
-    // Every other project the change touched is on the receipt too, its commands named by folder (review R2).
-    for (const other of fix.others ?? [])
-      for (const [phase, side] of [
-        ["baseline", other.baseline],
-        ["after", other.after],
-      ] as const) {
-        const folder = `[${other.root === "." ? "/" : other.root}] `;
-        if (side.install.ms || side.install.output)
-          await recordSandboxExec(db, {
-            runId,
-            backend: backend.name,
-            phase: phase === "baseline" ? "install_baseline" : "install_after",
-            command: `${folder}install`,
-            exitCode: side.install.exitCode,
-            durationMs: side.install.ms,
-            stdoutTail: side.install.output.slice(-4000),
-          });
         for (const c of side.checks)
-          await recordSandboxExec(db, {
+          await recordSandboxExec(tx, {
             runId,
             backend: backend.name,
             phase,
-            command: `${folder}${c.argv.join(" ")}`,
+            command: c.argv.join(" "),
             exitCode: c.exitCode,
             timedOut: c.timedOut,
             durationMs: c.ms,
             stdoutTail: c.output.slice(-4000),
           });
       }
+
+      // Every other project the change touched is on the receipt too, its commands named by folder (review R2).
+      for (const other of fix.others ?? [])
+        for (const [phase, side] of [
+          ["baseline", other.baseline],
+          ["after", other.after],
+        ] as const) {
+          const folder = `[${other.root === "." ? "/" : other.root}] `;
+          if (side.install.ms || side.install.output)
+            await recordSandboxExec(tx, {
+              runId,
+              backend: backend.name,
+              phase: phase === "baseline" ? "install_baseline" : "install_after",
+              command: `${folder}install`,
+              exitCode: side.install.exitCode,
+              durationMs: side.install.ms,
+              stdoutTail: side.install.output.slice(-4000),
+            });
+          for (const c of side.checks)
+            await recordSandboxExec(tx, {
+              runId,
+              backend: backend.name,
+              phase,
+              command: `${folder}${c.argv.join(" ")}`,
+              exitCode: c.exitCode,
+              timedOut: c.timedOut,
+              durationMs: c.ms,
+              stdoutTail: c.output.slice(-4000),
+            });
+        }
+    });
 
     const prMode = fix.evidence.prMode;
     const models = [...new Set([notesReceipt?.model, ...fix.attempts.map((a) => a.model)].filter(Boolean))];

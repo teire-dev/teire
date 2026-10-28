@@ -96,6 +96,17 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
   const subjectHref = run.groupKey ? groupHref(run.groupKey) : null;
   const ms = run.startedAt && run.finishedAt ? run.finishedAt.getTime() - run.startedAt.getTime() : null;
   const secs = ms === null ? null : Math.round(ms / 1000);
+  // The worker's note when a cancel reached it: what it was doing.
+  const [stoppingEvent] =
+    run.status === "stopping"
+      ? await db
+          .select({ payload: runEvents.payload })
+          .from(runEvents)
+          .where(and(eq(runEvents.runId, run.id), eq(runEvents.step, "run"), eq(runEvents.type, "stopping")))
+          .orderBy(desc(runEvents.seq))
+          .limit(1)
+      : [];
+  const stopping = stoppingEvent?.payload as { during?: string; doing?: string | null } | undefined;
   const duration = secs === null ? "—" : secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
   const active = run.status === "queued" || run.status === "running" || run.status === "stopping";
   // Cancel and Retry (U1) for people who can see the installation; the worker checks write access.
@@ -151,10 +162,18 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
           <span className="font-mono">{run.targetVersion}</span>
         </h1>
         {run.status === "stopping" ? (
-          // Plan "Cancel is honest": what a stopping run is doing until it has stopped.
+          // Plan "Cancel is honest": what a stopping run was doing, and that it ends within 30 s.
           <p className="text-sm text-running">
             Stopping: {run.cancelledBy ? `@${run.cancelledBy} asked` : "asked"} during{" "}
-            {run.step ?? "its work"}; its model calls and updater stop and its sandboxes are being closed.
+            {stopping?.during ?? run.step ?? "its work"}
+            {stopping?.doing ? (
+              <>
+                {" "}
+                (<span className="font-mono text-xs">{stopping.doing}</span>)
+              </>
+            ) : null}
+            . Its model calls, updater job and sandbox commands are being stopped; this takes up to 30
+            seconds.
           </p>
         ) : null}
         {member ? (
