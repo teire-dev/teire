@@ -95,6 +95,8 @@ export function composeDashboard(d: DashboardInput) {
       ...d.findings.filter((f) => f.state === "ignored").map((f) => f.groupKey ?? f.changeId),
     ]),
   ];
+  // While fixes are paused a fix can't start, so its row offers no box to tick.
+  const fixRow = (key: string, text: string) => (d.fixesPaused ? `- ${text}` : box("fix", key, text));
   const sha = d.sha ? `\`${d.sha.slice(0, 7)}\`` : "—";
   const lines = [
     MARKER,
@@ -118,7 +120,7 @@ export function composeDashboard(d: DashboardInput) {
     for (const [k, list] of affected
       .sort((a, b) => (a[1][0]?.priority ?? 9) - (b[1][0]?.priority ?? 9))
       .slice(0, 40))
-      lines.push(box("fix", k, `Fix now: ${label(k, list)}`));
+      lines.push(fixRow(k, `Fix now: ${label(k, list)}`));
   else lines.push("Nothing affected right now.");
   lines.push("");
   if (undecided.length) {
@@ -130,8 +132,7 @@ export function composeDashboard(d: DashboardInput) {
     );
     for (const [k, list] of undecided.slice(0, 40))
       lines.push(
-        box(
-          "fix",
+        fixRow(
           k,
           `Upgrade and check: ${label(k, list)}${list[0]?.reason ? `: ${list[0].reason.slice(0, 160)}` : ""}`,
         ),
