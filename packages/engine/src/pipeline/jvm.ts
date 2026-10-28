@@ -271,6 +271,7 @@ export async function fixJvmDependency(
               why: `${a.instance.name} ${target} needs Java ${javaFloor} (its published Gradle Module Metadata)`,
             }
           : undefined,
+        advisoryReason(a.records, a.instance.name),
       ),
     instance: a.instance,
     target,
@@ -328,4 +329,10 @@ export async function fixJvmDependency(
     ...(extraction ? { notesReceipt: extraction.receipt } : {}),
   });
   return { run, pr, groupKey, behaviour, notesReceipt: extraction?.receipt ?? null };
+}
+
+/** The constraint's `because`: the advisories a transitive fix answers (S15.7). */
+function advisoryReason(records: { kind: string; id: string }[], name: string) {
+  const ids = records.filter((r) => r.kind === "security-advisory").map((r) => r.id.split("/").at(-1));
+  return ids.length ? `Teire: fixes ${ids.join(", ")}` : `Teire: fixes a security advisory in ${name}`;
 }

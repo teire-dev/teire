@@ -254,6 +254,23 @@ function resolverManager(manager: string): TeireManager | null {
   );
 }
 
+/** How Teire raises a transitive package past its parents' ranges, per package manager (S15.7). */
+function transitiveRung(ecosystem: Ecosystem, manager: string): string | null {
+  if (ecosystem === "npm") return "an override (npm and pnpm `overrides`, Yarn and Bun `resolutions`)";
+  if (ecosystem === "go")
+    return "a `go get` requirement: Go builds with the highest version any module requires";
+  if (ecosystem === "pypi" && manager === "uv") return "uv's `override-dependencies`";
+  if (ecosystem === "maven" && manager === "gradle") return "a Gradle dependency constraint";
+  return null;
+}
+
+/** Why a package manager has no such rung, quoted in the stop. */
+const NO_TRANSITIVE_RUNG: Partial<Record<Ecosystem, string>> = {
+  cargo: "Cargo can't override a crates.io version: `[patch]` must point to another source",
+  rubygems: "Bundler has no override: every gem that depends on it must allow the fixed version",
+  pypi: "Only uv can override a dependency's dependencies (`override-dependencies`); this package manager can't",
+};
+
 /**
  * The dependency-file change from dependabot-core's updater (S15.1, D92), one job across every
  * lockfile root the same Dependabot package manager covers (D94), for the ecosystems in
@@ -341,22 +358,28 @@ async function resolverTransactionFor(
   if (!resolved) throw new ResolverUnavailableError("the worker has no resolver configured");
   const r = resolved.result;
   // The transitive ladder (S15.7): when the updater can't move a transitive package within its
-  // parents' ranges, Teire's own override rung pins it (npm overrides, pnpm overrides, Yarn and Bun
-  // resolutions, D104), read back from the new lockfile; other ecosystems stop until theirs exists.
-  if (
+  // parents' ranges, Teire's own rung raises it where the package manager has a way (D104), read
+  // back from the new lockfile; where it has none, the stop says so.
+  const transitiveStop =
     r.kind === "stop" &&
     r.type === "security_update_not_possible" &&
     assessment.purpose === "security" &&
-    !assessment.instance.direct &&
-    ecosystem === "npm"
-  ) {
+    !assessment.instance.direct;
+  const rung = transitiveStop ? transitiveRung(ecosystem, assessment.project.manager) : null;
+  if (transitiveStop && rung) {
     common.onEvent?.({
       step: "transaction",
-      detail: `dependabot-core's updater can't move ${packageName} within its parents' ranges (${r.message}); Teire pins the fix with an override`,
+      detail: `dependabot-core's updater can't move ${packageName} within its parents' ranges (${r.message}); Teire raises it with ${rung}`,
     });
     return null;
   }
-  if (r.kind === "stop") throw new ResolverStopError(r.type, r.message);
+  if (r.kind === "stop")
+    throw new ResolverStopError(
+      r.type,
+      transitiveStop && NO_TRANSITIVE_RUNG[ecosystem]
+        ? `${r.message}. ${NO_TRANSITIVE_RUNG[ecosystem]}`
+        : r.message,
+    );
   if (r.kind === "close") throw new ResolverNothingError(`nothing to change: ${r.reason}`);
   if (r.kind === "nothing")
     throw new ResolverNothingError(

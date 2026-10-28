@@ -108,7 +108,17 @@ Some upgrades Dependabot doesn't do, so Teire keeps its own changes for them:
 - pnpm lockfiles older than version 6 (pnpm 7), which the updater's pnpm reader fails on although pnpm reads them;
 - Bun's binary `bun.lockb`, since the updater reads only the text `bun.lock` (Bun 1.1.39 and later);
 - `pylock.toml`;
-- a vulnerable transitive package the updater can't move within its parents' ranges: Teire pins the fix with npm `overrides`, pnpm `overrides`, or Yarn and Bun `resolutions`, and reads the new lockfile back. The same rung for the other ecosystems is planned; until then the run stops and says so.
+- a vulnerable transitive package the updater can't move within its parents' ranges. Teire raises it the way each package manager allows, and reads the new lockfile back:
+
+  | Package manager | How Teire raises a transitive fix |
+  |---|---|
+  | npm, pnpm | `overrides` (pnpm: `pnpm.overrides`) |
+  | Yarn, Bun | `resolutions` |
+  | uv | `override-dependencies` under `[tool.uv]`, after an in-range `uv lock` |
+  | Go | `go get module@version`: Go builds with the highest version any module requires |
+  | Gradle | a dependency constraint in each module whose lock holds it, then a targeted re-lock |
+
+  Cargo, Bundler, Poetry, Pipenv and pip-tools have no such override (Cargo's `[patch]` must point to another source than crates.io), so the run stops, quoting the updater and saying why.
 
 - the Java a new version needs: when the target's own Gradle Module Metadata asks for a newer Java than the build files declare (Spring Boot 4 asks for 17), the same change raises `sourceCompatibility`, the toolchain or Maven's release to it, and the PR says why. Raising the Gradle wrapper for a plugin that needs a newer Gradle is planned; until then the after side's install says so.
 

@@ -125,6 +125,57 @@ function lockedCheck(manager: PyProject["manager"], lock: string | undefined, na
   };
 }
 
+/**
+ * uv's override for a transitive fix (S15.7): `override-dependencies` under `[tool.uv]` in the
+ * workspace root's pyproject.toml, which replaces what the packages depending on it ask for.
+ */
+export function uvOverrideEdit(
+  tree: RepoTree,
+  project: PyProject,
+  name: string,
+  target: string,
+): ManifestEdit | null {
+  const path = project.root === "." ? "pyproject.toml" : `${project.root}/pyproject.toml`;
+  const before = tree.read(path);
+  if (before === null) return null;
+  const entry = `"${name}>=${target}"`;
+  const lines = before.split("\n");
+  const header = lines.findIndex((l) => /^\s*\[tool\.uv\]\s*(#.*)?$/.test(l));
+  let after: string;
+  if (header === -1)
+    after = `${before.replace(/\n*$/, "\n")}\n[tool.uv]\noverride-dependencies = [${entry}]\n`;
+  else {
+    const next = lines.findIndex((l, i) => i > header && /^\s*\[/.test(l));
+    const end = next === -1 ? lines.length : next;
+    const key = lines.findIndex((l, i) => i > header && i < end && /^\s*override-dependencies\s*=/.test(l));
+    if (key === -1) lines.splice(header + 1, 0, `override-dependencies = [${entry}]`);
+    else {
+      let close = key;
+      while (close < end - 1 && !(lines[close] ?? "").includes("]")) close++;
+      const same = new RegExp(`(["'])${namePattern(name)}\\s*(?:[<>=!~;\\[][^"']*)?\\1`, "i");
+      const at = lines.slice(key, close + 1).findIndex((l) => same.test(l));
+      if (at !== -1) lines[key + at] = (lines[key + at] ?? "").replace(same, entry);
+      else if (close > key)
+        lines.splice(close, 0, `${/^\s*/.exec(lines[key + 1] ?? "")?.[0] || "    "}${entry},`);
+      else
+        lines[key] = (lines[key] ?? "").replace(/\[\s*(.*?)\s*\]/, (_m, inner: string) =>
+          inner ? `[${inner.replace(/,\s*$/, "")}, ${entry}]` : `[${entry}]`,
+        );
+    }
+    after = lines.join("\n");
+  }
+  return after === before
+    ? null
+    : {
+        path,
+        before,
+        after,
+        from: "",
+        to: `>=${target}`,
+        note: `\`[tool.uv] override-dependencies\` pins \`${name}\` to \`>=${target}\`: the packages that depend on it don't allow the fixed version`,
+      };
+}
+
 export function pyTransaction(
   tree: RepoTree,
   project: PyProject,
@@ -157,6 +208,9 @@ export function pyTransaction(
   switch (project.manager) {
     case "uv": {
       const edits = edit();
+      // A transitive package first moves within its parents' ranges; if they forbid the fix, uv's
+      // override pins it (the transitive ladder, S15.7).
+      const override = instance.direct ? null : uvOverrideEdit(tree, project, instance.name, target);
       return {
         ...base,
         describe:
@@ -164,6 +218,17 @@ export function pyTransaction(
           `uv lock: ${instance.name} → ${target}`,
         manifest: edits,
         commands: [["uv", "lock", "--upgrade-package", edits.length ? instance.name : pin]],
+        ...(override
+          ? {
+              fallback: {
+                ...base,
+                readBack: [...new Set([...readBack, override.path])],
+                describe: `${override.path}: [tool.uv] override-dependencies ${instance.name}>=${target}`,
+                manifest: [override],
+                commands: [["uv", "lock", "--upgrade-package", instance.name]],
+              },
+            }
+          : {}),
       };
     }
     case "poetry":

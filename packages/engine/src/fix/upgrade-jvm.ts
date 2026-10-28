@@ -243,12 +243,49 @@ export function withJavaFloor(
   return out;
 }
 
+/**
+ * A transitive fix on Gradle (S15.7): a dependency constraint in the module's build file. A
+ * constraint takes part in conflict resolution, so the locked version rises to the fix even where
+ * the packages that pull it in ask for less; Gradle's own way to raise a version you don't declare.
+ */
+export function gradleConstraintEdit(
+  tree: RepoTree,
+  path: string,
+  instance: DependencyInstance,
+  target: string,
+  because: string,
+): ManifestEdit | null {
+  const before = tree.read(path);
+  if (before === null) return null;
+  const q = (s: string) => (path.endsWith(".kts") ? `"${s}"` : `'${s}'`);
+  const indent = /^( +|\t)\S/m.exec(before)?.[1] ?? "    ";
+  const configuration = instance.scope === "test" ? "testImplementation" : "implementation";
+  const block = [
+    "dependencies {",
+    `${indent}constraints {`,
+    `${indent.repeat(2)}${configuration}(${q(`${instance.name}:${target}`)}) {`,
+    `${indent.repeat(3)}because(${q(because.replace(/['"\\$]/g, ""))})`,
+    `${indent.repeat(2)}}`,
+    `${indent}}`,
+    "}",
+  ].join("\n");
+  return {
+    path,
+    before,
+    after: `${before.replace(/\n*$/, "\n")}\n${block}\n`,
+    from: instance.version ?? "",
+    to: target,
+    note: `a dependency constraint raises \`${instance.name}\` to ${target}: the packages that depend on it ask for less`,
+  };
+}
+
 export function jvmTransaction(
   tree: RepoTree,
   project: JvmProject,
   instance: DependencyInstance,
   target: string,
   javaFloor?: { version: number; why: string },
+  because = `fixes a security advisory in ${instance.name}`,
 ): Transaction {
   if (project.manager === "maven") {
     const versionEdit = mavenEdit(tree, project, instance, target);
@@ -272,11 +309,19 @@ export function jvmTransaction(
           : `${instance.name} ${target} is not declared in ${readBack[0]}`,
     };
   }
-  const versionEdits = gradleEdits(tree, project, instance, target);
+  const locked = project.modules.filter((m) => m.lockfile);
+  // The modules whose locks hold the package: each must lock the target afterwards.
+  const listed = new RegExp(`^${instance.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`, "m");
+  const holders = locked.filter((m) => listed.test(tree.read(m.lockfile as string) ?? ""));
+  // A transitive package gets a constraint in each module that locks it (one module: its own file).
+  const versionEdits = instance.direct
+    ? gradleEdits(tree, project, instance, target)
+    : (holders.length ? holders.map((m) => m.manifest) : [instance.manifestPath])
+        .map((path) => gradleConstraintEdit(tree, path, instance, target, because))
+        .filter((e): e is ManifestEdit => !!e);
   const edits = javaFloor
     ? withJavaFloor(tree, project, versionEdits, javaFloor.version, javaFloor.why)
     : versionEdits;
-  const locked = project.modules.filter((m) => m.lockfile);
   const readBack = [...new Set([...edits.map((e) => e.path), ...locked.map((m) => m.lockfile as string)])];
   const lockLine = `${instance.name}:${target}=`;
   return {
@@ -289,7 +334,9 @@ export function jvmTransaction(
     ...(locked[0]?.lockfile ? { lockfilePath: locked[0].lockfile } : {}),
     check: (files) => {
       if (!edits.length) return `${instance.name} is not declared with a version Teire can edit`;
-      const stale = locked.find((m) => !(files[m.lockfile as string] ?? "").includes(lockLine));
+      const stale = (holders.length ? holders : locked).find(
+        (m) => !(files[m.lockfile as string] ?? "").includes(lockLine),
+      );
       return stale ? `${stale.lockfile} does not lock ${instance.name} ${target}` : null;
     },
   };
