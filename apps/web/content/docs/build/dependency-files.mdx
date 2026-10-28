@@ -108,6 +108,8 @@ Some upgrades Dependabot doesn't do, so Teire keeps its own changes for them:
 - pnpm lockfiles older than version 6 (pnpm 7), which the updater's pnpm reader fails on although pnpm reads them;
 - Bun's binary `bun.lockb`, since the updater reads only the text `bun.lock` (Bun 1.1.39 and later);
 - `pylock.toml`;
-Two more are planned and not built yet: the runtime or build-tool bump a new major needs (Java 17 for Spring Boot 4, for example), and overrides for a vulnerable transitive package the updater can't move.
+- a vulnerable transitive package the updater can't move within its parents' ranges: Teire pins the fix with npm `overrides`, pnpm `overrides`, or Yarn and Bun `resolutions`, and reads the new lockfile back. The same rung for the other ecosystems is planned; until then the run stops and says so.
+
+Planned and not built yet: the runtime or build-tool bump a new major needs (Java 17 for Spring Boot 4, for example).
 
 Then, for every upgrade, the [verification](/docs/build/verification) runs your own install, typecheck and tests before and after.
