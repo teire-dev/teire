@@ -1,0 +1,12 @@
+# teire-dev/examples: Teire's own demo repository (a folder per demo), activated 2026-10-28 with teire.yml caps
+# of 30 open PRs and 10 an hour. Not a fork; recorded here so its walks sit with the others.
+repository: teire-dev/examples
+fix_mode: automatic (installation default)
+walks:
+  - run: d1b0c4d8-a46e-4e9d-b057-30b6d12be23b
+    change: npm zod 3.25.76 → 4.6.6 (npm-zod/, a security advisory reaches the installed version)
+    observed_2026_10_28: "PR #30 verified on Token Factory Sandboxes: tests 4/4 before and after; dependabot-core's updater 50 s, then Nemotron 3 Ultra (22 calls, $0.163) moved `.errors` to `.issues` and the `z.record` signature. The run page captures in the docs (public-scan, verification, receipts) are this run."
+  - run: 176654d2-e70f-4cb0-8644-1be66cda65ac
+    change: maven org.junit.jupiter:junit-jupiter 5.11.4 → 6.1.3
+    observed_2026_10_28: "needs-a-human issue #25: the upgraded lockfile did not install (kotlin-major/gradle.lockfile does not lock 6.1.3)."
+    open_draft_2026_10_29: "U2 walk: `@teire open-draft` on #25 → draft PR #31 'Unconfirmed: upgrade org.junit.jupiter:junit-jupiter from 5.11.4 to 6.1.3', labels teire, unconfirmed, regression; the run's one-line java-openai/pom.xml change rebuilt from its diff on main as it is now; commit by teire-bot[bot], verified by GitHub; a comment on #25 links it."

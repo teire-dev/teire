@@ -134,5 +134,9 @@
   "phone/run-sheet": {
     "width": 780,
     "height": 1688
+  },
+  "wide/run-reverify": {
+    "width": 1280,
+    "height": 1080
   }
 }

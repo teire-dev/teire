@@ -344,7 +344,7 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       const link = ctx.webUrl ? `: ${ctx.webUrl}/runs/${begun.run.id}` : ".";
       return void (await reply(
         begun.created
-          ? `Re-verifying #${begun.number} as it stands, before and after${link}`
+          ? `Re-verifying #${begun.number}: what it would merge into the base as it is now, before and after${link}`
           : `Already re-verifying${link}`,
       ));
     }

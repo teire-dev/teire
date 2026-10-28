@@ -82,6 +82,12 @@ A run page has **Cancel** while the run works: within seconds the model calls an
 
 A run whose PR is open has **Re-verify**: both sides run again on what the PR would merge, your own commits on its branch included, with its code unchanged. The after side is GitHub's test merge of the PR into the base branch as it is now, and the baseline is that base. A PR that conflicts with the base is checked as its branch stands, against the commit it branched from, and says so. Every project the PR's files touch runs its own checks; the weakest result decides. The result lands on the PR only if the PR is still open with the same head and base: a new **Teire** check run (failing for a regression), a comment, and the draft state and evidence label set to what the checks now show (a draft that verifies becomes ready; a ready PR that no longer verifies becomes a draft). Re-verify runs under every fix mode, since it changes no code; under Off it is how a PR marked `stale-evidence` gets current evidence, and the label comes off only when the merge with today's base was checked.
 
+<Shot
+  name="run-reverify"
+  alt="A Re-verify run for github.com/BurntSushi/toml v1.4.0 → v1.6.0 on teire-dev/nlsh: Finished, Proven, on Token Factory Sandboxes in 1m 22s with no model calls; the chain reads FIXED as the PR's code, unchanged, and PR #7; build, typecheck and test pass before and after, 10/11 tests, one skipped."
+  caption="Re-verify on teire-dev/nlsh #7: the PR merged into today's base, checked again; verified, so it stayed ready."
+/>
+
 A run that ended in a "needs a human" issue has **Open draft anyway**: Teire opens its best diff as a draft PR titled **Unconfirmed**, labelled `unconfirmed` and with the evidence that stopped it, for you to finish by hand. It follows the fix mode and the PR limits as **Fix now** does, and it refuses, naming the file, when the diff holds a binary file or no longer applies.
 
 **Share** copies the run's link and says who can open it: anyone, for a public repository; people with access to the installation, for a private one.

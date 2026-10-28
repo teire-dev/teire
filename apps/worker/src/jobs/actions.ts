@@ -359,7 +359,7 @@ async function repoAction(
       return {
         status: "started",
         result: begun.created
-          ? `Queued: #${begun.number} is checked again as it stands`
+          ? `Queued: #${begun.number} is checked again, merged into the base as it is now`
           : "Already re-verifying",
         links: [runLink(begun.run.id)],
       };

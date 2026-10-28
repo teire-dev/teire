@@ -399,7 +399,12 @@ export function RunFacts({ sheet }: { sheet: RunSheetData }) {
   const cost = Number(run.costUsd);
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11px] text-ink-3">
-      <StatusChip tone={status.tone}>{status.label}</StatusChip>
+      {/* A finished run's verdict is its evidence chip; the word alone says it ended. */}
+      {run.status === "succeeded" ? (
+        <span className="text-ink-2">{status.label}</span>
+      ) : (
+        <StatusChip tone={status.tone}>{status.label}</StatusChip>
+      )}
       {run.evidenceKind ? <EvidenceChip kind={run.evidenceKind} /> : null}
       {run.backend ? <span>{backendName(run.backend)}</span> : null}
       {ms !== null ? <span>{duration(ms)}</span> : null}
