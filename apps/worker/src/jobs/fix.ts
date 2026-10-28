@@ -300,6 +300,22 @@ async function resolverTransactionFor(
   );
   if (!resolved) throw new ResolverUnavailableError("the worker has no resolver configured");
   const r = resolved.result;
+  // The transitive ladder (S15.7): when the updater can't move a transitive package within its
+  // parents' ranges, Teire's own override rung pins it (npm overrides, pnpm overrides, Yarn and Bun
+  // resolutions, D104), read back from the new lockfile; other ecosystems stop until theirs exists.
+  if (
+    r.kind === "stop" &&
+    r.type === "security_update_not_possible" &&
+    assessment.purpose === "security" &&
+    !assessment.instance.direct &&
+    ecosystem === "npm"
+  ) {
+    common.onEvent?.({
+      step: "transaction",
+      detail: `dependabot-core's updater can't move ${packageName} within its parents' ranges (${r.message}); Teire pins the fix with an override`,
+    });
+    return null;
+  }
   if (r.kind === "stop") throw new ResolverStopError(r.type, r.message);
   if (r.kind === "close") throw new ResolverNothingError(`nothing to change: ${r.reason}`);
   if (r.kind === "nothing")
@@ -1073,7 +1089,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     // Named stops in this lineage (earlier runs the updater refused) are settled by this PR.
     for (const stop of (await openArtifacts(db, repo.id)).filter(
       (a) =>
-        a.kind === "issue" && a.state === "open" && a.number && a.changeKey.startsWith(`stop/${lineage}@`),
+        a.kind === "issue" &&
+        a.state === "open" &&
+        a.number &&
+        (a.changeKey === `stop/${lineage}` || a.changeKey.startsWith(`stop/${lineage}@`)),
     ))
       try {
         await installation.octokit.rest.issues.createComment({
