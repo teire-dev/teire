@@ -4,6 +4,7 @@ useDefault = true
 
 [allowlist]
 description = "Published checksums and Go pseudo-versions, not secrets"
+regexTarget = "line"
 regexes = [
   # japicmp's jar SHA-1, as Maven Central publishes it (Dockerfile ARG and the engine constant).
   '''(?i)japicmp_?sha1\s*[:=]\s*"?[0-9a-f]{40}"?''',
