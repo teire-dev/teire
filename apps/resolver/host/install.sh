@@ -16,7 +16,12 @@ case "${1:-install}" in
     install -m 0644 teire-resolver.slice docker-resolver.service /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable --now docker-resolver.service
-    check
+    # The stop rule, enforced: if Coolify lost anything, the resolver comes out again at once.
+    if ! check; then
+      echo "teire-resolver: Coolify check failed after install; removing the resolver daemon" >&2
+      "$0" remove
+      exit 1
+    fi
     ;;
   remove)
     systemctl disable --now docker-resolver.service 2>/dev/null || true
