@@ -81,8 +81,11 @@ import type { WorkerContext } from "./scan";
 /** A run deferred for credits or the daily budget tries again after this long. */
 const BUDGET_RETRY_SECONDS = 30 * 60;
 const DEFER_SECONDS = 3600;
-/** An unreachable resolver queues the run this many times, this far apart, then it is a named stop. */
-const RESOLVER_RETRIES = 3;
+/**
+ * An unreachable resolver queues the run this many times, 15 minutes doubling (about 16 hours in
+ * all, so a deploy window or a host restart never ends a run), then it is a named stop.
+ */
+const RESOLVER_RETRIES = 6;
 const RESOLVER_RETRY_SECONDS = 15 * 60;
 
 /**
@@ -1243,7 +1246,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           error: error.message,
         });
         await event("resolver", "deferred", { reason: error.message, retry: tries + 1 });
-        await ctx.enqueueFix(runId, repo.id, RESOLVER_RETRY_SECONDS);
+        await ctx.enqueueFix(runId, repo.id, RESOLVER_RETRY_SECONDS * 2 ** tries);
         return { deferred: error.message };
       }
     }

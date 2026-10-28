@@ -47,7 +47,7 @@ There is no silent fallback. For an ecosystem that has moved to the updater:
 | A security fix above the lowest published one | The lowest published fix doesn't resolve in this repository, so the updater's lowest fix becomes the target, as Dependabot's own security update would; the PR says why |
 | A named stop | Opens one issue for the package, quoting the updater's words. The next pull request for that package closes it |
 | Nothing to change | Ends the run with the reason |
-| The updater is unreachable | Waits 15 minutes and tries again, up to three times, then stops with an issue |
+| The updater is unreachable | Tries again after 15 minutes, then 30, 60 and so on, six times (about 16 hours), then stops with an issue |
 
 Every file path is checked before it is used. A path that would leave the repository, or touch `.git`, is refused.
 
