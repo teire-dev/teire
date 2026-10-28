@@ -202,6 +202,8 @@ export function gradleIncludes(settings: string) {
 
 interface Catalog {
   versions: Record<string, string>;
+  /** `[plugins]` accessor (`spring.boot`) → { id, version | null, ref } (S18.1). */
+  plugins: Map<string, { id: string; version: string | null; ref: string | null }>;
   /** Accessor (`okhttp.logging`) → { module, version | null, ref }. */
   libraries: Map<string, { module: string; version: string | null; ref: string | null; key: string }>;
 }
@@ -210,6 +212,7 @@ export function readCatalog(text: string): Catalog {
   const doc = parseToml(text) as {
     versions?: Record<string, unknown>;
     libraries?: Record<string, unknown>;
+    plugins?: Record<string, unknown>;
   };
   const versions: Record<string, string> = {};
   for (const [k, v] of Object.entries(doc.versions ?? {}))
@@ -251,11 +254,30 @@ export function readCatalog(text: string): Catalog {
     // Gradle's accessor: separators `-`, `_`, `.` all become `.`.
     libraries.set(key.replace(/[-_]/g, "."), { module, version, ref, key });
   }
-  return { versions, libraries };
+  const plugins = new Map<string, { id: string; version: string | null; ref: string | null }>();
+  for (const [key, v] of Object.entries(doc.plugins ?? {})) {
+    if (typeof v === "string") {
+      const [id, ver] = v.split(":");
+      if (id) plugins.set(key.replace(/[-_]/g, "."), { id, version: ver ?? null, ref: null });
+      continue;
+    }
+    const o = v as { id?: string; version?: string | { ref?: string } };
+    if (!o.id) continue;
+    const ref = typeof o.version === "object" ? (o.version.ref ?? null) : null;
+    plugins.set(key.replace(/[-_]/g, "."), {
+      id: o.id,
+      version: typeof o.version === "string" ? o.version : ref ? (versions[ref] ?? null) : null,
+      ref,
+    });
+  }
+  return { versions, libraries, plugins };
 }
 
 const GRADLE_CONFIG =
   /\b(api|implementation|compileOnly|runtimeOnly|testImplementation|testCompileOnly|testRuntimeOnly|androidTestImplementation|kapt|ksp|annotationProcessor)\b\s*\(?\s*(?:platform\s*\(\s*)?(?:"([^"$]+)"|'([^'$]+)'|(libs\.[\w.]+))/g;
+
+/** A plugins-block line with a version: Groovy `id 'x' version 'y'` and Kotlin `id("x") version "y"`. */
+const GRADLE_PLUGIN = /\bid\s*\(?\s*["']([\w.-]+)["']\s*\)?\s+version\s*\(?\s*["']([^"'$]+)["']/g;
 
 /** `gradle.lockfile`: `g:a:v=conf1,conf2` (research jvm.md Job 1). */
 export function parseGradleLockfile(text: string) {
@@ -320,6 +342,25 @@ function readGradle(tree: RepoTree): JvmProject[] {
       const text = tree.read(manifest) ?? "";
       const locked = lockText !== null ? parseGradleLockfile(lockText) : null;
       const declared = new Map<string, { version: string | null; config: string; declaredAs: string }>();
+      // Plugins (S18.1): `id 'x' version 'y'`, `id("x") version "y"` and catalog aliases, as their
+      // marker coordinate `x:x.gradle.plugin`, which is how Gradle and Dependabot resolve them.
+      for (const m of text.matchAll(GRADLE_PLUGIN)) {
+        const id = m[1] as string;
+        declared.set(`${id}:${id}.gradle.plugin`, {
+          version: m[2] ?? null,
+          config: "plugin",
+          declaredAs: `id ${id}`,
+        });
+      }
+      for (const m of text.matchAll(/\balias\(\s*libs\.plugins\.([\w.]+)\s*\)/g)) {
+        const plugin = catalog?.plugins.get(m[1] as string);
+        if (plugin)
+          declared.set(`${plugin.id}:${plugin.id}.gradle.plugin`, {
+            version: plugin.version,
+            config: "plugin",
+            declaredAs: `libs.plugins.${m[1]}`,
+          });
+      }
       for (const m of text.matchAll(GRADLE_CONFIG)) {
         const config = m[1] as string;
         const notation = m[2] ?? m[3];
@@ -352,7 +393,7 @@ function readGradle(tree: RepoTree): JvmProject[] {
           direct: true,
           scope: test
             ? "test"
-            : d.config === "compileOnly"
+            : d.config === "compileOnly" || d.config === "plugin"
               ? "build"
               : /kapt|ksp|annotationProcessor/.test(d.config)
                 ? "build"

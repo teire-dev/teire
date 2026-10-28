@@ -122,6 +122,34 @@ export function gradleEdits(
   const ga = `${esc(group)}:${esc(artifact)}`;
   const edits: ManifestEdit[] = [];
   const from = instance.version ?? instance.declaredRange ?? "";
+  // A plugin (its marker `id:id.gradle.plugin`): the plugins-block line, or its catalog entry.
+  if (artifact === `${group}.gradle.plugin`) {
+    const id = esc(group);
+    for (const m of project.modules) {
+      const before = tree.read(m.manifest);
+      if (before === null) continue;
+      const after = before.replace(
+        new RegExp(`(\\bid\\s*\\(?\\s*["']${id}["']\\s*\\)?\\s+version\\s*\\(?\\s*["'])[^"'$]+(["'])`, "g"),
+        `$1${target}$2`,
+      );
+      if (after !== before) edits.push({ path: m.manifest, before, after, from, to: target });
+    }
+    if (project.catalog) {
+      const before = tree.read(project.catalog) ?? "";
+      const entry = new RegExp(`^.*id\\s*=\\s*"${id}".*$`, "m").exec(before)?.[0];
+      const ref = entry ? /version\.ref\s*=\s*"([^"]+)"/.exec(entry)?.[1] : undefined;
+      const after = !entry
+        ? before
+        : ref
+          ? before.replace(
+              new RegExp(`(\\[versions\\][\\s\\S]*?^\\s*${esc(ref)}\\s*=\\s*)"[^"]*"`, "m"),
+              `$1"${target}"`,
+            )
+          : before.replace(entry, entry.replace(/(version\s*=\s*)"[^"]*"/, `$1"${target}"`));
+      if (after !== before) edits.push({ path: project.catalog, before, after, from, to: target });
+    }
+    return edits;
+  }
   // `"g:a:v"` strings in any build file of the project, and `"g:a:$var"` variables.
   const variables = new Set<string>();
   for (const m of project.modules) {
