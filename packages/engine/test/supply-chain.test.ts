@@ -23,3 +23,16 @@ describe("supply-chain signals between the installed version and the target (D-1
     expect(supplyChainSignals(version("1.0.0", same), version("2.0.0", same))).toEqual([]);
   });
 });
+
+describe("trusted publishing", () => {
+  it("doesn't flag a move to CI publishing with provenance as a new publisher", () => {
+    const from = { version: "4.24.0", publisher: "ai", installScripts: [], provenance: false } as never;
+    const to = {
+      version: "4.28.7",
+      publisher: "GitHub Actions",
+      installScripts: [],
+      provenance: true,
+    } as never;
+    expect(supplyChainSignals(from, to)).toEqual([]);
+  });
+});

@@ -19,6 +19,8 @@ export interface ManifestEdit {
   after: string;
   from: string;
   to: string;
+  /** What the edit is, when it isn't a version line (an override), for the PR's Changes table. */
+  note?: string;
 }
 
 const SECTIONS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] as const;
@@ -184,7 +186,15 @@ export function overrideEdit(
     text,
     modify(text, path, range, { formattingOptions: { insertSpaces: true, tabSize: 2 } }),
   );
-  return { path: manifestPath, before: text, after, from: current ?? "", to: range };
+  const field = path.slice(0, -1).join(".");
+  return {
+    path: manifestPath,
+    before: text,
+    after,
+    from: current ?? "",
+    to: range,
+    note: `\`${field}\` pins \`${name}\` to \`${range}\`: the packages that depend on it don't allow the fixed version`,
+  };
 }
 
 /** Versions of `name` a JS lockfile pins, read with Teire's own readers. */

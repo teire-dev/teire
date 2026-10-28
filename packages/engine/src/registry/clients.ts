@@ -76,7 +76,8 @@ export function supplyChainSignals(from: NpmVersionDetail | null, to: NpmVersion
     out.push(
       `${to.version} adds an install script (\`${added.join("`, `")}\`) that runs when the package is installed`,
     );
-  if (from.publisher && to.publisher && from.publisher !== to.publisher)
+  // Moving to CI trusted publishing with provenance is the safer direction, not a new person.
+  if (from.publisher && to.publisher && from.publisher !== to.publisher && !to.provenance)
     out.push(
       `${to.version} was published by the npm account \`${to.publisher}\`; ${from.version} by \`${from.publisher}\``,
     );
