@@ -16,6 +16,8 @@ export interface GuardedFetchOptions {
   /** Conditional request validators. */
   etag?: string | null;
   lastModified?: string | null;
+  /** Return the body as a capped stream (`stream`) instead of reading it into `body`. */
+  stream?: boolean;
 }
 
 export interface GuardedResponse {
@@ -25,6 +27,8 @@ export interface GuardedResponse {
   redirects: string[];
   headers: Headers;
   body: Uint8Array;
+  /** Set when the request asked for `stream`: the body, capped at `maxBytes`, as it arrives. */
+  stream?: AsyncIterable<Uint8Array>;
   text(): string;
   json<T>(): T;
 }
@@ -129,6 +133,29 @@ export async function guardedFetch(
     if (declared > maxBytes) {
       await response.body?.cancel();
       throw new BlockedUrlError(`response larger than ${maxBytes} bytes`);
+    }
+    if (options.stream) {
+      // The body as it arrives, capped: a repository tarball never sits whole in memory (R17).
+      const body = response.body;
+      async function* capped() {
+        let seen = 0;
+        for await (const chunk of body ?? []) {
+          seen += chunk.byteLength;
+          if (seen > maxBytes) throw new BlockedUrlError(`response larger than ${maxBytes} bytes`);
+          yield chunk;
+        }
+      }
+      return {
+        status: response.status,
+        url: input,
+        finalUrl: current,
+        redirects,
+        headers: response.headers,
+        body: new Uint8Array(0),
+        stream: capped(),
+        text: () => "",
+        json: <T>() => ({}) as T,
+      };
     }
     const chunks: Uint8Array[] = [];
     let size = 0;

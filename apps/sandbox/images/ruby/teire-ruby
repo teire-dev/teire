@@ -56,8 +56,16 @@ restore_bundled_with() {
 bundle_install() {
   [ "$(awk '$2=="/"{print $3; exit}' /proc/mounts 2>/dev/null)" = virtiofs ] && [ -d /dev/shm ] \
     || { bundle install "$@"; return $?; }
-  local dir shm=/dev/shm/teire-bundle status
+  local dir shm=/dev/shm/teire-bundle status free used
   dir="$(ruby -rbundler -e 'print Bundler.bundle_path' 2>/dev/null)" || { bundle install "$@"; return $?; }
+  # tmpfs is 2 GB on Token Factory's VMs: the bundle and 1 GB of headroom must fit, else the gems
+  # install in place (native extensions may then fail there, and the run says so).
+  free="$(df -Pk /dev/shm | awk 'NR==2 {print $4}')"
+  used="$(du -sk "$dir" 2>/dev/null | awk '{print $1}')"
+  if [ "$(( ${used:-0} + 1048576 ))" -gt "${free:-0}" ]; then
+    echo "teire-ruby: /dev/shm has ${free:-0} KB free, too little to build gems there; installing in place"
+    bundle install "$@"; return $?
+  fi
   rm -rf "$shm" && mkdir -p "$dir" "$shm" && cp -a "$dir/." "$shm/" && rm -rf "$dir" && ln -s "$shm" "$dir" || return $?
   bundle install "$@"; status=$?
   rm "$dir" && mkdir -p "$dir" && cp -a "$shm/." "$dir/" && rm -rf "$shm" || return $?

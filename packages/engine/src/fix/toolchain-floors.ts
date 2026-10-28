@@ -14,8 +14,9 @@ import { withJavaFloor } from "./upgrade-jvm";
  * - Java: the target's Gradle Module Metadata (`org.gradle.jvm.version`);
  * - Python: the target's own `Requires-Python` lower bound, raised in `requires-python`;
  * - Rust: the target's `rust_version` from the crates.io index, raised in `rust-version`.
- * Go needs nothing here: `go get` raises the `go` line itself. Only plain floors are raised
- * (`>=3.9`, `"1.70"`); anything else is left as it is and said in a note.
+ * Go needs nothing here: `go get` raises the `go` line itself, on Teire's path and on the updater's
+ * (dependabot-core's go_modules updater runs `go get lib@version`, go_mod_updater.rb:207). Only plain
+ * floors are raised (`>=3.9`, `"1.70"`); anything else is left as it is and said in a note.
  */
 export async function withToolchainFloors(input: {
   ecosystem: Ecosystem;
@@ -42,6 +43,11 @@ export async function withToolchainFloors(input: {
       notes: [],
     };
   }
+  // uv and Poetry record `requires-python` in their lock and refuse to lock a target that needs more,
+  // so a raise after their lock would only leave the lock stale (stage R review): it's for managers
+  // without a recorded floor (pip-tools, Pipenv, plain requirements).
+  if (ecosystem === "pypi" && (project.manager === "uv" || project.manager === "poetry"))
+    return { edits, notes: [] };
   if (ecosystem === "pypi") {
     const needs = (await getPypiVersion(name, target, input.options).catch(() => null))?.requiresPython;
     const floor = needs ? minorFloor(needs) : null;

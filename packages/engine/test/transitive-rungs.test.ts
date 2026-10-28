@@ -145,4 +145,12 @@ describe("Maven dependencyManagement pin", () => {
     expect(after).toContain("<artifactId>x</artifactId>\n        <version>3.0</version>");
     expect(after.match(/<dependencyManagement>/g)).toHaveLength(1);
   });
+
+  it("ignores a profile's section and pins in the project's own (stage R review)", () => {
+    const profile =
+      "  <profiles>\n    <profile>\n      <dependencyManagement>\n        <dependencies>\n        </dependencies>\n      </dependencyManagement>\n    </profile>\n  </profiles>\n";
+    const after = pin(pom().replace("</project>", `${profile}</project>`)).manifest[0]?.after ?? "";
+    expect(after.match(/<dependencyManagement>/g)).toHaveLength(2);
+    expect(after.indexOf("jackson-databind")).toBeLessThan(after.indexOf("<profiles>"));
+  });
 });

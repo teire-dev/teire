@@ -22,4 +22,10 @@ And because current Ruby version is = 3.0.7 and sinatra requires Ruby >= 3.2.0,
   version solving has failed.`;
     expect(rubyIsTheOnlyCause(message)).toBe(false);
   });
+
+  it("refuses one clause that mixes the Ruby floor with a gem conflict (stage R review)", () => {
+    const message = `Because every version of rails depends on rack < 3 and every version of sinatra depends on rack >= 3
+  and current Ruby version is = 3.0.7, version solving has failed.`;
+    expect(rubyIsTheOnlyCause(message)).toBe(false);
+  });
 });

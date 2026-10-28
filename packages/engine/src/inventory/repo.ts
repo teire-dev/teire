@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SCAN } from "../constants";
 import { guardedFetch } from "../net/fetch";
-import { extractTarGz } from "./archive";
+import { extractTarGzStream } from "./archive";
 
 /**
  * A repository at one commit, as files on disk: the GitHub tarball (one request, no git) through the
@@ -27,6 +27,7 @@ export async function fetchRepoTarball(
     allowHosts: ["api.github.com", "codeload.github.com"],
     maxBytes: SCAN.maxTarballBytes,
     timeoutMs: 120_000,
+    stream: true,
     headers: {
       accept: "application/vnd.github+json",
       "x-github-api-version": "2022-11-28",
@@ -35,6 +36,9 @@ export async function fetchRepoTarball(
   });
   if (res.status !== 200) throw new Error(`GitHub tarball ${res.status} for ${owner}/${repo}@${ref}`);
   const dir = options.dir ?? (await mkdtemp(join(tmpdir(), "teire-repo-")));
-  const report = await extractTarGz(res.body, dir, { stripComponents: 1 });
+  // Streamed from GitHub through gunzip to disk: the tarball never sits whole in memory (R17).
+  const report = await extractTarGzStream(res.stream as AsyncIterable<Uint8Array>, dir, {
+    stripComponents: 1,
+  });
   return { dir, sha: report.comment ?? null, skipped: report.skipped.length };
 }

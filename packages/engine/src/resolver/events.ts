@@ -253,20 +253,32 @@ const DEPENDENCY_FILE = new RegExp(
     String.raw`(^|/)requirements/[^/]+\.(txt|in)$`,
     // Go
     String.raw`(^|/)(go\.mod|go\.sum|go\.work|go\.work\.sum)$`,
-    // Vendored Go modules, and Bundler's gem cache (review R8: nothing else under vendor/).
-    String.raw`(^|/)vendor/(modules\.txt$|.+\.go$|.+/go\.(mod|sum)$|.+/(LICENSE|NOTICE|PATENTS)[^/]*$)`,
-    String.raw`(^|/)vendor/cache/[^/]+\.gem$`,
     // Cargo
     String.raw`(^|/)(Cargo\.toml|Cargo\.lock)$`,
     // Bundler
     String.raw`(^|/)(Gemfile|Gemfile\.lock|gems\.rb|gems\.locked|[^/]+\.gemspec)$`,
     // Maven and Gradle
     String.raw`(^|/)(pom\.xml|extensions\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties|[^/]+\.versions\.toml|[^/]*\.lockfile|gradlew(\.bat)?)$`,
-    // The Gradle wrapper's own two files (a wrapper raise), nothing else under gradle/wrapper/.
-    String.raw`(^|/)gradle/wrapper/gradle-wrapper\.(properties|jar)$`,
   ].join("|"),
 );
 
-export function isDependencyFile(path: string) {
-  return DEPENDENCY_FILE.test(path);
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * A file the updater may write for this change (review R8, stage R review): the dependency files
+ * above for any ecosystem; under `vendor/`, only what belongs to a module or gem the change moved
+ * (Go vendors every file of a package: `.s`, `.c`, embedded data); the Gradle wrapper's two files
+ * only when the change moved Gradle itself.
+ */
+export function isDependencyFile(path: string, change?: { ecosystem?: string; moved?: string[] }) {
+  if (DEPENDENCY_FILE.test(path)) return true;
+  const moved = change?.moved ?? [];
+  const vendor = /(?:^|\/)vendor\/(.+)$/.exec(path)?.[1];
+  if (vendor && change?.ecosystem === "go")
+    return vendor === "modules.txt" || moved.some((m) => vendor.startsWith(`${m}/`));
+  if (vendor && change?.ecosystem === "rubygems")
+    return moved.some((g) => new RegExp(`^cache/${escape(g)}-[^/]+\\.gem$`).test(vendor));
+  if (/(?:^|\/)gradle\/wrapper\/gradle-wrapper\.(?:properties|jar)$/.test(path))
+    return change?.ecosystem === "maven" && moved.some((m) => /(?:^|:)gradle(?:-wrapper)?$/.test(m));
+  return false;
 }

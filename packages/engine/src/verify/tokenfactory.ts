@@ -578,10 +578,22 @@ async function buildImage(
  * A verification session on Token Factory Sandboxes. The checkout is the first step: the tarball
  * is uploaded once and unpacked into /work in a non-disposable VM.
  */
+/** The repository is no longer confirmed public: nothing of it goes to Token Factory. */
+export class RepositoryNotPublicError extends Error {
+  constructor() {
+    super("the repository is no longer confirmed public, so it isn't sent to Token Factory Sandboxes");
+  }
+}
+
 export function tokenFactoryBackend(
   config: TokenFactorySandboxConfig,
   images: { dir: string },
   fetchTarball: (url: string, token?: string) => Promise<ReadableStream<Uint8Array>>,
+  /**
+   * Asked before every upload (review R1): a repository that went private during the run never
+   * reaches Token Factory, whose images keep code for 180 days. Unknown counts as private.
+   */
+  stillPublic?: () => Promise<boolean>,
 ): VerifyBackend {
   const client = new TokenFactorySandboxes(config);
   return {
@@ -589,6 +601,7 @@ export function tokenFactoryBackend(
     async open(id, options) {
       const name = (options.image ?? "teire-node").replace(/^teire-/, "");
       let image = await ensureImage(client, name, join(images.dir, name));
+      if (stillPublic && !(await stillPublic().catch(() => false))) throw new RepositoryNotPublicError();
       const tarball = await client.upload(await fetchTarball(options.tarball.url, options.tarball.token));
       // Operations this session started that may still run, cancelled on close. An operation leaves
       // the set only once it finished; one whose wait failed stays, so close can still cancel it.
@@ -690,6 +703,7 @@ export function tokenFactoryBackend(
           return client.download(image, path).catch(() => null);
         },
         async writeFile(path, content) {
+          if (stillPublic && !(await stillPublic().catch(() => false))) throw new RepositoryNotPublicError();
           written.set(path, { uuid: await client.upload(content), bytes: content });
         },
         // Token Factory keeps no egress log; checks run with no network at all.

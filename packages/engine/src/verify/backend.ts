@@ -140,7 +140,7 @@ export function byteCap(max: number) {
  */
 export async function selectBackend(
   env: NodeJS.ProcessEnv = process.env,
-  repo?: { isPrivate: boolean | null },
+  repo?: { isPrivate: boolean | null; stillPublic?: () => Promise<boolean> },
 ) {
   const tf = tokenFactorySandboxConfigFromEnv(env);
   const images = env.TEIRE_SANDBOX_IMAGES;
@@ -148,7 +148,7 @@ export async function selectBackend(
     const access = await tokenFactorySandboxAccess(env);
     if (access.available)
       return {
-        backend: tokenFactoryBackend(tf, { dir: images }, fetchTarball),
+        backend: tokenFactoryBackend(tf, { dir: images }, fetchTarball, repo.stillPublic),
         note: "Token Factory Sandboxes (a public repository)",
       };
     return {

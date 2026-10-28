@@ -44,17 +44,37 @@ describe("files the updater may return (untrusted events)", () => {
       "py/uv.lock",
       "requirements/dev.txt",
       "go.sum",
-      "vendor/x/y.go",
-      "vendor/modules.txt",
-      "vendor/cache/faraday-2.14.0.gem",
       "Cargo.lock",
       "coal.gemspec",
       "gradle/libs.versions.toml",
       "gradle.lockfile",
-      "gradle/wrapper/gradle-wrapper.properties",
       "pom.xml",
     ])
       expect(isDependencyFile(p), p).toBe(true);
+  });
+  it("takes vendor/ and wrapper files only for what the change moved (stage R review)", () => {
+    const go = { ecosystem: "go", moved: ["golang.org/x/sys"] };
+    expect(isDependencyFile("vendor/golang.org/x/sys/unix/asm_linux_amd64.s", go)).toBe(true);
+    expect(isDependencyFile("vendor/modules.txt", go)).toBe(true);
+    expect(isDependencyFile("vendor/evil.go", go)).toBe(false);
+    expect(
+      isDependencyFile("vendor/golang.org/x/sys/unix/a.go", {
+        ecosystem: "npm",
+        moved: ["golang.org/x/sys"],
+      }),
+    ).toBe(false);
+    const ruby = { ecosystem: "rubygems", moved: ["faraday"] };
+    expect(isDependencyFile("vendor/cache/faraday-2.14.0.gem", ruby)).toBe(true);
+    expect(isDependencyFile("vendor/cache/evil-1.0.gem", ruby)).toBe(false);
+    expect(
+      isDependencyFile("gradle/wrapper/gradle-wrapper.properties", { ecosystem: "maven", moved: ["gradle"] }),
+    ).toBe(true);
+    expect(
+      isDependencyFile("gradle/wrapper/gradle-wrapper.jar", {
+        ecosystem: "maven",
+        moved: ["com.google.guava:guava"],
+      }),
+    ).toBe(false);
   });
   it("refuses workflows, sources and scripts", () => {
     for (const p of [

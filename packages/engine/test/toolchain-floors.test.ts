@@ -20,7 +20,7 @@ describe("toolchain floors", () => {
     const { edits } = await withToolchainFloors({
       ecosystem: "pypi",
       tree: memoryTree({ "pyproject.toml": pyproject }),
-      project: { root: ".", manager: "uv" },
+      project: { root: ".", manager: "pip-tools" },
       name: "pydantic",
       target: "2.14.1",
       edits: [{ path: "pyproject.toml", before: pyproject, after: updated, from: "1.10", to: "2.14.1" }],
@@ -50,6 +50,20 @@ describe("toolchain floors", () => {
       target: "0.28.1",
       edits: [],
       options: { cache } as never,
+    });
+    expect(edits).toEqual([]);
+  });
+
+  it("leaves uv and Poetry alone: their lock records requires-python (stage R review)", async () => {
+    const pyproject = '[project]\nrequires-python = ">=3.8"\n';
+    const { edits } = await withToolchainFloors({
+      ecosystem: "pypi",
+      tree: memoryTree({ "pyproject.toml": pyproject }),
+      project: { root: ".", manager: "poetry" },
+      name: "pydantic",
+      target: "2.14.1",
+      edits: [],
+      options: { cache: memoryCache() } as never,
     });
     expect(edits).toEqual([]);
   });

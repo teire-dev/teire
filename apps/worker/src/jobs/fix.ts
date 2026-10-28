@@ -76,6 +76,7 @@ import {
   prCounts,
   recordLlmCall,
   recordSandboxExec,
+  renewLease,
   runEventsOf,
   setRepo,
   updateRun,
@@ -200,6 +201,13 @@ function withRoots(
 }
 
 /** The updater refused the upgrade, with its typed reason, quoted on the run and in an issue. */
+/** This worker no longer holds the run's lease: another worker has it and writes its results. */
+class LeaseLostError extends Error {
+  constructor() {
+    super("another worker took this run over");
+  }
+}
+
 class ResolverStopError extends Error {
   constructor(
     readonly type: string,
@@ -278,7 +286,18 @@ export function rubyIsTheOnlyCause(message: string) {
     .split(/(?=\b(?:Because|So, because|And because|Thus,)\b)/)
     .map((c) => c.trim())
     .filter((c) => /^(?:Because|So, because|And because|Thus,)/.test(c));
-  return clauses.length > 0 && clauses.every((c) => /\bRuby\b/.test(c));
+  if (!clauses.length || !clauses.every((c) => /\bRuby\b/.test(c))) return false;
+  // A clause can name Ruby and still carry a gem conflict (stage R review): two constraints on the
+  // same gem, or gems found incompatible with each other, mean Ruby isn't the only cause.
+  const text = clauses.join(" ");
+  if (/\b(?!Ruby\b)[\w.-]+ is incompatible with\b/.test(text)) return false;
+  const constraints = new Map<string, Set<string>>();
+  for (const m of text.matchAll(/depends on ([\w.-]+) ([<>=~!]+ ?[\w.-]+)/g)) {
+    const [, gem = "", req = ""] = m;
+    if (gem === "Ruby") continue;
+    constraints.set(gem, (constraints.get(gem) ?? new Set()).add(req.replace(/\s+/g, "")));
+  }
+  return [...constraints.values()].every((reqs) => reqs.size === 1);
 }
 
 /** The Ruby a repo pins for a root: `.ruby-version`, else the Gemfile's `ruby "…"`. */
@@ -472,7 +491,8 @@ async function resolverTransactionFor(
       [`no update to ${target} (the updater's log has the details)`, ...r.warnings].join("; "),
     );
   // The updater runs repository code, so its events are untrusted: only dependency files come back.
-  const unexpected = r.files.filter((f) => !isDependencyFile(f.path)).map((f) => f.path);
+  const scope = { ecosystem, moved: [packageName, ...r.moved.map((m) => m.name)] };
+  const unexpected = r.files.filter((f) => !isDependencyFile(f.path, scope)).map((f) => f.path);
   if (unexpected.length)
     throw new ResolverStopError(
       "unexpected_file",
@@ -842,6 +862,9 @@ async function apiOutcome(
   };
 }
 
+/** How stale a repository's "public" may be before Token Factory gets another upload from it. */
+const VISIBILITY_RECHECK_MS = 60_000;
+
 /** A stop issue quotes more of the updater than a progress line does. */
 const STOP_REASON_CHARS = 1500;
 
@@ -933,10 +956,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // A run the reaper failed (its worker stopped) is retried by its queue: it starts over cleanly.
   // Any other failure stays failed until someone asks again (`@teire recreate`).
   if (run.status === "failed" && run.step !== "interrupted") return { skipped: true };
-  if (!(await claimRunLease(db, runId, RUNS.leaseMs))) {
-    await ctx.enqueueFix(runId, run.repoId, RUNS.leaseRetrySeconds);
-    return { deferred: "another worker holds this run" };
-  }
+  // Another worker is on this run now: it finishes it. Its own job brings the run back if that
+  // worker dies (the boot sweep and the reaper), so nothing is queued here; a deferral queued under
+  // the repository's singleton key could be dropped silently (stage R review).
+  if (!(await claimRunLease(db, runId, RUNS.leaseMs))) return { skipped: "another worker holds this run" };
   if (run.status === "failed" || run.status === "running")
     await updateRun(db, runId, { status: "queued", attempt: run.attempt + 1, error: null });
   const repo = await getRepo(db, run.repoId);
@@ -1014,9 +1037,15 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // branch and PR, so it counts (review R5).
   const config = (repo.config as ReturnType<typeof readTeireConfig> | null) ?? null;
   const limits = config?.pullRequests ?? { limit: 5, perHour: 2 };
-  const refresh =
-    !dry && (await openArtifacts(db, repo.id)).some((a) => a.kind === "pr" && a.changeKey === groupKey);
-  const counts = dry || refresh ? { open: 0, lastHour: 0 } : await prCounts(db, repo.id);
+  const openNow = dry ? [] : await openArtifacts(db, repo.id);
+  const refresh = openNow.some((a) => a.kind === "pr" && a.changeKey === groupKey);
+  // A newer version in a lineage replaces that lineage's open PR one for one (it closes when the new
+  // one opens), so the PR it supersedes doesn't count against the open limit (stage R review).
+  const supersedes = openNow.some(
+    (a) => a.kind === "pr" && a.changeKey !== groupKey && !!run.lineageKey && a.lineageKey === run.lineageKey,
+  );
+  const counted = dry || refresh ? { open: 0, lastHour: 0 } : await prCounts(db, repo.id);
+  const counts = { ...counted, open: Math.max(0, counted.open - (supersedes ? 1 : 0)) };
   if (counts.open >= limits.limit || counts.lastHour >= limits.perHour) {
     await updateRun(db, runId, { status: "queued", step: "waiting for the PR limit" });
     await event("queue", "deferred", { open: counts.open, lastHour: counts.lastHour, limits });
@@ -1036,10 +1065,21 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // A run resumed after a deferral (credits, the updater) starts clean: the old reason is history.
   await updateRun(db, runId, { status: "running", step: "assess", startedAt: new Date(), error: null });
   // A heartbeat while the run works, so the reaper can tell a long sandbox step from a dead worker.
+  // It renews only this worker's lease: if another worker took the run (this one was paused past the
+  // lease), the run stops before writing anything to GitHub (stage R review).
+  let leaseLost = false;
   const heartbeat = setInterval(
-    () => void updateRun(db, runId, {}).catch(() => undefined),
+    () =>
+      void renewLease(db, runId)
+        .then((held) => {
+          if (!held) leaseLost = true;
+        })
+        .catch(() => undefined),
     RUNS.heartbeatEveryMs,
   );
+  const holdLease = async () => {
+    if (leaseLost || !(await renewLease(db, runId))) throw new LeaseLostError();
+  };
   await event("assess", "started", { group: groupKey, from: run.fromVersion, target: run.targetVersion });
   // A dry run reads GitHub as the person who asked (their own rate limit), anonymously without it.
   const token = installation ? await installation.token() : (requester ?? undefined);
@@ -1059,8 +1099,20 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const tf = createTokenFactory(tokenFactoryConfigFromEnv());
     const prices = await fetchModelPrices().catch(() => undefined);
     // D107: public repositories and dry runs verify on Token Factory Sandboxes; private ones on Cloudflare.
+    // Read again before every upload to Token Factory (review R1), at most once a minute: a repository
+    // made private during the run stops reaching it. Anything but a confirmed "public" is private.
+    let seen = { at: Date.now(), isPrivate: privateNow };
+    const stillPublic = async () => {
+      if (Date.now() - seen.at > VISIBILITY_RECHECK_MS)
+        seen = {
+          at: Date.now(),
+          isPrivate: (await githubRepoNow(owner, name, installation?.octokit ?? null, requester)).isPrivate,
+        };
+      return seen.isPrivate === false;
+    };
     const { backend, note } = await selectBackend(process.env, {
       isPrivate: dry ? false : (privateNow ?? true),
+      stillPublic,
     });
     // A CI repair starts from what the repo's own CI said about the PR (C6: one repair attempt).
     const ci = run.requestedBy?.startsWith("ci-repair:")
@@ -1321,6 +1373,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       return { dryRun: prMode };
     }
     if (!installation) throw new Error(`run ${runId}: no installation`);
+    // Every write to GitHub from here on happens only while this worker holds the run.
+    await holdLease();
 
     if (prMode === "issue") {
       // No usable result: a "needs a human" issue with the evidence and the best diff.
@@ -1377,6 +1431,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       ...(f.encoding ? { encoding: f.encoding } : {}),
       ...(f.mode ? { mode: f.mode } : {}),
     }));
+    await holdLease();
     const commit = await commitToBranch({
       octokit: installation.octokit,
       owner,
@@ -1502,6 +1557,13 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     );
     return { pr: pr.url };
   } catch (error) {
+    if (error instanceof LeaseLostError) {
+      // Nothing more is written from here: the run belongs to the worker that took it.
+      await event("run", "lease-lost", { worker: "this worker was paused past its lease" }).catch(
+        () => undefined,
+      );
+      return { skipped: "lease lost" };
+    }
     if (error instanceof CreditsExhaustedError) {
       // Not this run's fault: it waits, and every other run waits, until credits are back.
       await markCreditsExhausted(db, error.message);
@@ -1552,8 +1614,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           : `the dependency-file updater was unavailable ${RESOLVER_RETRIES + 1} times: ${error.message}`;
       await updateRun(db, runId, { status: "failed", error: `stopped: ${reason}`, finishedAt: new Date() });
       await event("resolver", "stopped", { reason });
-      // The updater's own words are quoted (D104), redacted and shortened for GitHub (review R18).
-      if (!dry && installation)
+      // The updater's own words are quoted (D104), redacted and shortened for GitHub (review R18);
+      // only while this worker still holds the run.
+      if (!dry && installation && !leaseLost)
         await openStopIssue(
           ctx,
           installation.octokit,

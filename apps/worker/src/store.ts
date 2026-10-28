@@ -336,6 +336,14 @@ export async function claimRunLease(db: Database, runId: string, leaseMs: number
   return rows.length > 0;
 }
 
+/** Renews this worker's lease; false when another worker has taken the run (this one must stop). */
+export async function renewLease(db: Database, runId: string) {
+  const { rows } = await db.execute<{ id: string }>(sql`
+    update runs set heartbeat_at = now() where id = ${runId} and worker_id = ${WORKER_ID} returning id
+  `);
+  return rows.length > 0;
+}
+
 export async function getRun(db: Database, id: string) {
   const [row] = await db.select().from(runs).where(eq(runs.id, id)).limit(1);
   return row ?? null;

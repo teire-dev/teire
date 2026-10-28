@@ -81,8 +81,16 @@ async function main() {
   // them briefly), jobs that went active before this one booted are failed and retry here.
   setTimeout(() => {
     void (async () => {
+      // A fix job whose run another worker is still heartbeating is that worker's (review R13):
+      // during a rolling deploy the old container may still be finishing it.
       const { rows } = await db.execute<{ id: string; name: string }>(sql`
-        select id, name from pgboss.job where state = 'active' and started_on < ${booted.toISOString()}
+        select j.id, j.name from pgboss.job j
+        where j.state = 'active' and j.started_on < ${booted.toISOString()}
+          and not exists (
+            select 1 from runs r
+            where j.name = 'fix' and r.id::text = j.data->>'runId' and r.status = 'running'
+              and r.heartbeat_at > now() - make_interval(secs => ${RUNS.leaseMs / 1000})
+          )
       `);
       for (const name of new Set(rows.map((r) => r.name)))
         await boss.fail(

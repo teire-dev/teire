@@ -290,17 +290,21 @@ export function mavenManagedPin(
   name: string,
   target: string,
 ): ManifestEdit | null {
-  const path = project.manifest;
+  // The root POM governs the whole build; a child module's would pin only that module.
+  const rootPom = project.root === "." ? "pom.xml" : `${project.root}/pom.xml`;
+  const path = tree.read(rootPom) !== null ? rootPom : project.manifest;
   const before = tree.read(path);
   if (before === null) return null;
   const [group = "", artifact = ""] = name.split(":");
   const indent = /\n([ \t]+)<(?:dependencies|properties|modelVersion)>/.exec(before)?.[1] ?? "  ";
   const entry = (pad: string) =>
     `${pad}<dependency>\n${pad}${indent}<groupId>${group}</groupId>\n${pad}${indent}<artifactId>${artifact}</artifactId>\n${pad}${indent}<version>${target}</version>\n${pad}</dependency>`;
-  const managed =
-    /<dependencyManagement>\s*<dependencies>([\s\S]*?)<\/dependencies>\s*<\/dependencyManagement>/.exec(
-      before,
-    );
+  // The project's own section, at its first indent: never a profile's, which sits deeper (stage R
+  // review); comments between the tags are allowed.
+  const gap = String.raw`(?:\s|<!--[\s\S]*?-->)*`;
+  const managed = new RegExp(
+    `\\n${indent}<dependencyManagement>${gap}<dependencies>([\\s\\S]*?)</dependencies>${gap}</dependencyManagement>`,
+  ).exec(before);
   let after: string;
   if (managed) {
     const block = managed[0];
