@@ -38,7 +38,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           <TooltipProvider delayDuration={200}>
             {children}
-            <Toaster />
+            {/* Bottom left: the bottom right is Ask Teire's launcher (plan revision 3.3). */}
+            <Toaster position="bottom-left" />
           </TooltipProvider>
         </RootProvider>
       </body>

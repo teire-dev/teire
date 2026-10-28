@@ -104,6 +104,27 @@ export async function reap(db: Database) {
     })
     .where(and(eq(runs.status, "running"), lt(runs.heartbeatAt, new Date(Date.now() - RUNS.staleAfterMs))))
     .returning({ id: runs.id });
+  // A run asked to stop whose worker went away is stopped: its sandboxes timed out with it.
+  await db
+    .update(runs)
+    .set({ status: "cancelled", step: "cancelled by a person", finishedAt: new Date() })
+    .where(and(eq(runs.status, "stopping"), lt(runs.heartbeatAt, new Date(Date.now() - RUNS.leaseMs))));
+  // Actions the worker never took (plan "Actions with real results"): failed once the outbox gave
+  // their delivery up, with its reason; "unknown" after two minutes without a word (the page says
+  // "checking" and reads again), and after ten for one taken but never finished.
+  await db.execute(sql`
+    update actions a set status = 'failed', updated_at = now(),
+      result = 'Teire could not process this request: ' || left(coalesce(d.error, 'no reason recorded'), 200)
+    from webhook_deliveries d
+    where d.event = 'teire.action' and d.payload->>'actionId' = a.id::text
+      and d.processed_at is not null and d.error is not null
+      and a.status in ('requested', 'accepted', 'unknown')
+  `);
+  await db.execute(sql`
+    update actions set status = 'unknown', updated_at = now()
+    where (status = 'requested' and created_at < now() - interval '2 minutes')
+       or (status = 'accepted' and updated_at < now() - interval '10 minutes')
+  `);
   const staleScans = await db
     .update(scans)
     .set({ status: "failed", error: "the worker stopped during this scan", finishedAt: new Date() })

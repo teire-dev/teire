@@ -1,5 +1,6 @@
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { z } from "zod";
+import { cancelSignal } from "../../cancel";
 import { DISCOVERY } from "../../constants";
 import { type ModelPrice, nemotronOptions, nemotronSampling, receiptFor, type TokenFactory } from "../../llm";
 import { quoteInSource } from "../../notes/extract";
@@ -167,6 +168,7 @@ export async function readVendorPage(
       try {
         const result = await generateText({
           model: reader.tf.model("reader"),
+          abortSignal: cancelSignal(),
           system: SYSTEM,
           prompt,
           output: Output.object({ schema: pageSchema }),

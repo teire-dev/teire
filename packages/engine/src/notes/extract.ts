@@ -1,5 +1,6 @@
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { z } from "zod";
+import { cancelSignal } from "../cancel";
 import { normalizeForQuote } from "../catalog/markdown";
 import { sha256 } from "../catalog/source";
 import { NOTES } from "../constants";
@@ -181,6 +182,7 @@ export async function extractNotes(
   try {
     const result = await generateText({
       model: tf.model("reader"),
+      abortSignal: cancelSignal(),
       system: SYSTEM,
       prompt,
       output: Output.object({ schema: extractionSchema }),

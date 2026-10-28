@@ -1,4 +1,5 @@
 import {
+  actions,
   and,
   artifacts,
   changes,
@@ -19,6 +20,7 @@ import {
 } from "@teire/db";
 import { database } from "./db";
 import type { FindingRow } from "./findings";
+import { repoFixMode } from "./fix-mode";
 
 /**
  * The signed-in dashboard (C3–C8): everything is scoped to the installations GitHub said this
@@ -34,6 +36,8 @@ export async function myInstallations(userId: string) {
       avatarUrl: installations.avatarUrl,
       selection: installations.repositorySelection,
       suspendedAt: installations.suspendedAt,
+      defaultFixMode: installations.defaultFixMode,
+      securityFixMode: installations.securityFixMode,
     })
     .from(userInstallations)
     .innerJoin(installations, eq(installations.id, userInstallations.installationId))
@@ -53,6 +57,10 @@ export async function myRepos(userId: string) {
       languages: repos.languages,
       lastScannedAt: repos.lastScannedAt,
       installationId: repos.installationId,
+      config: repos.config,
+      fixMode: repos.fixMode,
+      defaultFixMode: installations.defaultFixMode,
+      securityFixMode: installations.securityFixMode,
       // Correlated subqueries name the outer row as "repos"."id": Drizzle leaves single-table
       // columns unqualified, and an unqualified "id" would bind to the subquery's own table.
       affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f
@@ -63,6 +71,7 @@ export async function myRepos(userId: string) {
         (select s.id from scans s where s.repo_id = "repos"."id" and s.status = 'done' order by s.created_at desc limit 1))`,
     })
     .from(repos)
+    .innerJoin(installations, eq(installations.id, repos.installationId))
     .where(inArray(repos.installationId, ids))
     .orderBy(repos.fullName);
 }
@@ -182,7 +191,29 @@ export async function repoDetail(userId: string, fullName: string) {
       .orderBy(desc(artifacts.updatedAt)),
     db.select().from(runs).where(eq(runs.repoId, repo.id)).orderBy(desc(runs.createdAt)).limit(25),
   ]);
-  return { repo, scan: scan ?? null, findings: rows, inventory, artifacts: prs, runs: recent };
+  const [[inst], activity] = await Promise.all([
+    db
+      .select({
+        defaultFixMode: installations.defaultFixMode,
+        securityFixMode: installations.securityFixMode,
+      })
+      .from(installations)
+      .where(eq(installations.id, repo.installationId))
+      .limit(1),
+    // Every action on the repository, from the web, comments and the Dashboard issue (U1).
+    db.select().from(actions).where(eq(actions.repoId, repo.id)).orderBy(desc(actions.createdAt)).limit(40),
+  ]);
+  return {
+    activity,
+    repo,
+    scan: scan ?? null,
+    findings: rows,
+    inventory,
+    artifacts: prs,
+    runs: recent,
+    // The effective fix mode and where it was set (D118), as the worker reads it.
+    fixMode: repoFixMode(repo, inst ?? null),
+  };
 }
 
 /** Totals for the settings page: runs, model tokens and cost, sandbox time, across the person's repos. */

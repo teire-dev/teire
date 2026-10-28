@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { z } from "zod";
+import { cancelSignal } from "../cancel";
 import type { PageReader } from "../catalog/adapters/vendor-page";
 import { sha256 } from "../catalog/source";
 import { DISCOVERY } from "../constants";
@@ -162,6 +163,7 @@ export async function triageModelSites(input: {
       try {
         const result = await generateText({
           model: input.reader.tf.model("reader"),
+          abortSignal: cancelSignal(),
           system: SYSTEM,
           prompt,
           output: Output.object({ schema: answerSchema }),

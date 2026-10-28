@@ -1,5 +1,6 @@
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { z } from "zod";
+import { cancelSignal } from "../cancel";
 import { FIX } from "../constants";
 import { type ModelPrice, nemotronOptions, nemotronSampling, receiptFor, type TokenFactory } from "../llm";
 import type { MigrationNote } from "./codemods";
@@ -91,6 +92,7 @@ export async function reviewFix(input: {
   try {
     const result = await generateText({
       model: input.tf.model("reader"),
+      abortSignal: cancelSignal(),
       system: SYSTEM,
       prompt,
       output: Output.object({ schema: reviewSchema }),
@@ -156,6 +158,7 @@ export async function triageInstall(input: {
   try {
     const result = await generateText({
       model: input.tf.model("reader"),
+      abortSignal: cancelSignal(),
       system: TRIAGE,
       prompt: `Change: ${input.brief}\n\n<install_output>\n${input.output.slice(-FIX.maxCheckOutputChars)}\n</install_output>`,
       output: Output.object({ schema: triageSchema }),

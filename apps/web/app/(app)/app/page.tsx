@@ -6,15 +6,13 @@ import { overview } from "@/lib/dashboard";
 import { ago } from "@/lib/languages";
 import { getSession } from "@/lib/session";
 import { InstallCard, SignInCard } from "./gate";
-import { SubNav } from "./sub-nav";
 
 export const metadata = { title: "Dashboard" };
 
 /** Dashboard home (C3, C6): what needs attention across every repository you can see. */
 export default function DashboardPage() {
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10">
-      <SubNav />
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8">
       <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" aria-hidden />}>
         <Overview />
       </Suspense>

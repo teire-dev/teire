@@ -1,3 +1,4 @@
+import { RunCancelledError } from "../cancel";
 import { SCAN, VERIFY } from "../constants";
 import {
   CloudflareSandbox,
@@ -38,6 +39,56 @@ export interface VerifyBackend {
     id: string,
     options: { tarball: { url: string; token?: string }; instance?: InstanceType; image?: string },
   ): Promise<VerifySession>;
+}
+
+/**
+ * A backend whose sessions stop when the run is cancelled (U1, "Cancel is honest"): every open
+ * session is closed at once (Token Factory cancels its running operations; a Cloudflare sandbox is
+ * destroyed), and any later call on it, or a new session, throws `RunCancelledError`.
+ */
+export function cancellableBackend(backend: VerifyBackend, signal: AbortSignal): VerifyBackend {
+  const sessions = new Set<VerifySession>();
+  signal.addEventListener(
+    "abort",
+    () => {
+      for (const s of sessions) void s.close().catch(() => undefined);
+      sessions.clear();
+    },
+    { once: true },
+  );
+  const check = () => {
+    if (signal.aborted) throw new RunCancelledError();
+  };
+  return {
+    name: backend.name,
+    async open(id, options) {
+      check();
+      const session = await backend.open(id, options);
+      if (signal.aborted) {
+        await session.close().catch(() => undefined);
+        throw new RunCancelledError();
+      }
+      sessions.add(session);
+      const guarded = async <T>(work: () => Promise<T>) => {
+        check();
+        const result = await work();
+        check();
+        return result;
+      };
+      return {
+        id: session.id,
+        setPhase: (phase) => guarded(() => session.setPhase(phase)),
+        run: (jobId, argv, opts) => guarded(() => session.run(jobId, argv, opts)),
+        readFile: (path) => guarded(() => session.readFile(path)),
+        writeFile: (path, content) => guarded(() => session.writeFile(path, content)),
+        egress: () => session.egress(),
+        close: async () => {
+          sessions.delete(session);
+          await session.close();
+        },
+      };
+    },
+  };
 }
 
 export function cloudflareBackend(config = sandboxConfigFromEnv()): VerifyBackend {

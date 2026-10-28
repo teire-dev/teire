@@ -1,5 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import { Suspense } from "react";
+import { InstallationFixMode } from "@/components/app/installation-fix-mode";
 import { GithubMark } from "@/components/icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -7,15 +8,13 @@ import { myInstallations, usage } from "@/lib/dashboard";
 import { getSession } from "@/lib/session";
 import { APP_SLUG, INSTALL_URL } from "@/lib/site";
 import { SignInCard } from "../gate";
-import { SubNav } from "../sub-nav";
 
 export const metadata = { title: "Settings" };
 
 /** Installations, where repository access is changed (GitHub), where config lives, and usage (C8, C12). */
 export default function SettingsPage() {
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-10">
-      <SubNav />
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8">
       <Suspense fallback={<div className="h-80 animate-pulse rounded-lg bg-muted" aria-hidden />}>
         <Settings />
       </Suspense>
@@ -36,7 +35,10 @@ async function Settings() {
         {installs.length ? (
           <ul className="divide-y overflow-hidden rounded-lg bg-card shadow-card">
             {installs.map((i) => (
-              <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <li
+                key={i.id}
+                className="flex flex-col gap-3 px-4 py-3 md:flex-row md:flex-wrap md:items-center md:justify-between"
+              >
                 <span className="flex items-center gap-3">
                   <Avatar className="size-7">
                     {i.avatarUrl ? <AvatarImage src={i.avatarUrl} alt="" /> : null}
@@ -52,6 +54,11 @@ async function Settings() {
                     </span>
                   </span>
                 </span>
+                <InstallationFixMode
+                  installationId={i.id}
+                  mode={i.defaultFixMode}
+                  security={i.securityFixMode}
+                />
                 <a
                   href={
                     i.type === "Organization"

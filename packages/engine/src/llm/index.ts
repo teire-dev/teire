@@ -1,5 +1,6 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText, type LanguageModelUsage } from "ai";
+import { cancelSignal } from "../cancel";
 import { MODEL_DEFAULTS, MODEL_ENV, NEMOTRON, TOKENFACTORY } from "../constants";
 
 /** Which job a model does. Each maps to an env var so IDs are never hard-coded in logic. */
@@ -217,6 +218,7 @@ export async function ping(tf: TokenFactory, role: ModelRole, prices?: Map<strin
   const started = Date.now();
   const result = await generateText({
     model: tf.model(role),
+    abortSignal: cancelSignal(),
     prompt: "Reply with the single word: ready",
     maxOutputTokens: 16,
     ...nemotronSampling,

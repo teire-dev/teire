@@ -1,8 +1,12 @@
+import type { ScanUpgrade } from "@teire/db";
+import { type ActionKind, describeAction } from "@teire/engine/actions";
 import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { ActionButton } from "@/components/app/action-button";
+import { FixModeControl } from "@/components/app/fix-mode-control";
 import { BrandLogo } from "@/components/brand-logo";
 import { FindingGroupCard } from "@/components/findings/finding-group";
 import { EvidenceBadge } from "@/components/run/evidence-badge";
@@ -13,9 +17,7 @@ import { repoDetail } from "@/lib/dashboard";
 import { bucketGroups, groupFindings } from "@/lib/findings";
 import { ago } from "@/lib/languages";
 import { getSession } from "@/lib/session";
-import { ActionButton } from "../../../action-button";
 import { SignInCard } from "../../../gate";
-import { SubNav } from "../../../sub-nav";
 
 type Params = PageProps<"/app/repos/[owner]/[repo]">["params"];
 
@@ -27,13 +29,18 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 /** One repository (C3–C8): findings with actions, inventory, PRs, runs and the resolved config. */
 export default function RepoPage({ params, searchParams }: PageProps<"/app/repos/[owner]/[repo]">) {
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10">
-      <SubNav />
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8">
       <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" aria-hidden />}>
         <Repo params={params} searchParams={searchParams} />
       </Suspense>
     </main>
   );
+}
+
+/** `zod` from `npm/zod/4.6.6`; a provider group (`models/openai`) as it is. */
+function upgradeName(u: ScanUpgrade) {
+  const eco = u.groupKey.split("/")[0] ?? "";
+  return u.groupKey.endsWith(`/${u.to}`) ? u.groupKey.slice(eco.length + 1, -(u.to.length + 1)) : u.groupKey;
 }
 
 /** `teire.yml` as stored on the repo: dotted keys with their values and where each came from. */
@@ -72,7 +79,6 @@ async function Repo({
   const data = await repoDetail(session.user.id, fullName);
   if (!data) notFound();
   const { repo, scan } = data;
-  const back = `/app/repos/${fullName}`;
   // Only what the latest scan still reports: fixed, dismissed and gone findings are history.
   const open = data.findings.filter((f) => f.state === "open");
   const ignored = data.findings.filter((f) => f.state === "ignored");
@@ -96,7 +102,16 @@ async function Repo({
   const byEcosystem = new Map<string, number>();
   for (const i of data.inventory) byEcosystem.set(i.ecosystem, (byEcosystem.get(i.ecosystem) ?? 0) + 1);
   const config = configRows(repo.config as Record<string, unknown> | null);
-  const queued = typeof query.queued === "string" ? query.queued : null;
+  // Ask first and Off (D125): what Automatic would have started, listed for a person to start.
+  const { fixMode } = data;
+  const off = fixMode.mode === "off";
+  const shown = new Set([...b.affected, ...b.human, ...b.undecided].map((g) => g.key));
+  const upgrades =
+    fixMode.mode === "auto"
+      ? []
+      : ((scan?.upgrades ?? []) as ScanUpgrade[]).filter(
+          (u) => !shown.has(u.groupKey) && !prFor.has(u.groupKey),
+        );
 
   return (
     <>
@@ -131,19 +146,16 @@ async function Repo({
           </p>
         </div>
         <div className="flex gap-2">
-          <ActionButton repo={fullName} action="rescan" back={back}>
+          <ActionButton kind="rescan" repo={fullName}>
             Rescan
           </ActionButton>
-          <ActionButton repo={fullName} action={repo.status === "paused" ? "resume" : "pause"} back={back}>
+          <ActionButton kind={repo.status === "paused" ? "resume" : "pause"} repo={fullName}>
             {repo.status === "paused" ? "Resume" : "Pause"}
           </ActionButton>
         </div>
       </header>
-      {queued ? (
-        <p className="rounded-md bg-running-soft px-3 py-2 text-sm text-running">
-          Queued: {queued}. The page shows the result after the worker finishes.
-        </p>
-      ) : null}
+
+      <FixModeControl repo={fullName} mode={fixMode.mode} origin={fixMode.origin} file={fixMode.file} />
 
       <Tabs defaultValue="findings" className="gap-4">
         <TabsList>
@@ -152,9 +164,44 @@ async function Repo({
           <TabsTrigger value="prs">Pull requests ({data.artifacts.length})</TabsTrigger>
           <TabsTrigger value="runs">Runs ({data.runs.length})</TabsTrigger>
           <TabsTrigger value="config">Config</TabsTrigger>
+          <TabsTrigger value="activity">Activity ({data.activity.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="findings" className="flex flex-col gap-6">
+          {upgrades.length ? (
+            <section className="flex flex-col gap-2">
+              <h2 className="text-sm font-medium">
+                Upgrades available{" "}
+                <span className="font-normal text-muted-foreground">({upgrades.length})</span>
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {off
+                  ? "Fixes are off here, so none of these starts."
+                  : "Teire won't start these until you ask."}
+              </p>
+              <ul className="divide-y overflow-hidden rounded-lg bg-card text-sm shadow-card">
+                {upgrades.map((u) => (
+                  <li key={u.groupKey} className="flex items-center justify-between gap-3 px-4 py-2">
+                    <span className="min-w-0 truncate font-mono text-xs">
+                      {upgradeName(u)} {u.from ? `${u.from} → ` : "→ "}
+                      {u.to}
+                      {u.security ? <span className="ml-2 text-attention">security</span> : null}
+                    </span>
+                    {off ? null : (
+                      <ActionButton
+                        kind="fix"
+                        repo={fullName}
+                        params={{ target: u.groupKey }}
+                        variant="default"
+                      >
+                        Upgrade
+                      </ActionButton>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           {[...b.affected, ...b.human].map((g) => {
             const pr = prFor.get(g.key);
             return (
@@ -170,11 +217,24 @@ async function Repo({
                         Open PR #{pr.number}
                       </a>
                     ) : g.key.startsWith("runtime/") ? null : (
-                      <ActionButton repo={fullName} action="fix" target={g.key} back={back} variant="default">
+                      <ActionButton
+                        kind="fix"
+                        repo={fullName}
+                        params={{ target: g.key }}
+                        variant="default"
+                        disabled={off}
+                        title={
+                          off
+                            ? `Fixes are Off here (${fixMode.file ? `set in ${fixMode.file}` : "change it above"})`
+                            : fixMode.mode === "ask"
+                              ? "Teire won't start this until you ask"
+                              : undefined
+                        }
+                      >
                         Fix now
                       </ActionButton>
                     )}
-                    <ActionButton repo={fullName} action="ignore" target={g.key} back={back} variant="ghost">
+                    <ActionButton kind="ignore" repo={fullName} params={{ target: g.key }} variant="ghost">
                       Ignore
                     </ActionButton>
                   </>
@@ -199,7 +259,7 @@ async function Repo({
                   repo={fullName}
                   sha={repo.lastScannedSha}
                   action={
-                    <ActionButton repo={fullName} action="fix" target={g.key} back={back} variant="default">
+                    <ActionButton kind="fix" repo={fullName} params={{ target: g.key }} variant="default">
                       Upgrade and check
                     </ActionButton>
                   }
@@ -257,13 +317,7 @@ async function Repo({
                     ) : (
                       <span className="truncate">{g.title}</span>
                     )}
-                    <ActionButton
-                      repo={fullName}
-                      action="unignore"
-                      target={g.key}
-                      back={back}
-                      variant="ghost"
-                    >
+                    <ActionButton kind="unignore" repo={fullName} params={{ target: g.key }} variant="ghost">
                       Unignore
                     </ActionButton>
                   </li>
@@ -409,6 +463,56 @@ async function Repo({
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Read at the next scan.</p>
+          )}
+        </TabsContent>
+        <TabsContent value="activity" className="flex flex-col gap-3">
+          {data.activity.length ? (
+            <ul className="divide-y overflow-hidden rounded-lg bg-card text-sm shadow-card">
+              {data.activity.map((a) => (
+                <li
+                  key={a.id}
+                  className="grid gap-1 px-4 py-2.5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4"
+                >
+                  <div className="min-w-0">
+                    <span className="font-medium">{describeAction(a.kind as ActionKind, a.params)}</span>{" "}
+                    <span className="text-muted-foreground">
+                      · {a.requester.startsWith("github:") ? `@${a.requester.slice(7)}` : "you or a teammate"}{" "}
+                      ·{" "}
+                      {a.source === "web"
+                        ? "dashboard"
+                        : a.source === "dashboard"
+                          ? "Dashboard issue"
+                          : a.source}
+                    </span>
+                    {a.result ? <p className="truncate text-xs text-muted-foreground">{a.result}</p> : null}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    {a.links.map((l) => (
+                      <a key={l.href} href={l.href} className="text-link hover:underline">
+                        {l.label}
+                      </a>
+                    ))}
+                    <span
+                      className={
+                        a.status === "done"
+                          ? "text-clear"
+                          : a.status === "refused" || a.status === "failed"
+                            ? "text-affected"
+                            : "text-running"
+                      }
+                    >
+                      {a.status}
+                    </span>
+                    <span className="text-muted-foreground">{ago(a.createdAt)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Nothing yet. Rescans, fixes, ignores and fix-mode changes show here, whether asked on this page,
+              in a comment or in the Dashboard issue.
+            </p>
           )}
         </TabsContent>
       </Tabs>

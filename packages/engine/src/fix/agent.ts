@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "
 import { join, normalize, sep } from "node:path";
 import { APICallError, generateText, hasToolCall, isStepCount, tool } from "ai";
 import { z } from "zod";
+import { cancelSignal, RunCancelledError } from "../cancel";
 import { FIX } from "../constants";
 import { type ModelPrice, nemotronOptions, nemotronSampling, receiptFor, type TokenFactory } from "../llm";
 
@@ -208,6 +209,7 @@ export async function runAgent(input: {
     let last = Date.now();
     const result = await generateText({
       model: input.tf.model(role),
+      abortSignal: cancelSignal(),
       system: input.system,
       prompt: input.prompt,
       tools: tools(input.workspace),
@@ -242,6 +244,8 @@ export async function runAgent(input: {
   try {
     return await attempt("agent");
   } catch (error) {
+    // A cancelled run stops here; an aborted request is not an outage to fail over from.
+    if (cancelSignal()?.aborted) throw new RunCancelledError();
     // Ultra unavailable (5xx, 429, network): Super continues from the same working copy.
     const retryable =
       (APICallError.isInstance(error) &&

@@ -13,7 +13,8 @@ network's gateway address; every request needs the shared secret.
   POST /jobs       {"job": {...}, "repo": "owner/name", "commit": "<sha>", "token"?: str, "timeoutSec"?: int,
                     "overlay"?: [{"path": str, "content": str}]}
                    -> 202 {"id"}
-  GET  /jobs/<id>  -> {"state": queued|running|done|failed|timeout, ...result}
+  GET  /jobs/<id>  -> {"state": queued|running|done|failed|timeout|cancelled, ...result}
+  DELETE /jobs/<id> -> 202 {"state": "cancelled"}: a queued job never starts, a running one is killed
   GET  /health     -> {"ok": true, "queued": n, "cli": "..."}
 """
 
@@ -60,6 +61,9 @@ lock = threading.Lock()
 # The same job (repo, commit, job document, overlay) asked again while it waits or runs gets the
 # same id: a client that gave up polling and retried must not queue a second copy.
 active: dict[str, str] = {}
+# Running `dependabot` processes by job, and jobs the worker cancelled (DELETE /jobs/<id>).
+processes: dict[str, subprocess.Popen] = {}
+cancelled: set[str] = set()
 MAX_QUEUED = 50
 
 
@@ -155,7 +159,7 @@ def mirror_of(ref: str) -> str | None:
     return f"{mirror}/{repo.rsplit('/', 1)[1]}@{digest}"
 
 
-def cli(folder: Path, job_file: Path, repo_dir: Path, timeout: int, env: dict, updater: str, proxy: str):
+def cli(job_id: str, folder: Path, job_file: Path, repo_dir: Path, timeout: int, env: dict, updater: str, proxy: str):
     """One `dependabot update` run in its own process group; (state, exit code)."""
     command = [
         "dependabot", "update", "-f", str(job_file), "--local", str(repo_dir),
@@ -163,17 +167,26 @@ def cli(folder: Path, job_file: Path, repo_dir: Path, timeout: int, env: dict, u
     ]
     with open(folder / "stdout", "wb") as out, open(folder / "stderr", "wb") as err:
         process = subprocess.Popen(command, stdout=out, stderr=err, env=env, cwd=folder, start_new_session=True)
+        with lock:
+            processes[job_id] = process
         try:
-            return "done", process.wait(timeout=timeout + GRACE)
+            code = process.wait(timeout=timeout + GRACE)
+            return ("cancelled" if job_id in cancelled else "done"), code
         except subprocess.TimeoutExpired:
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
             return "timeout", None
+        finally:
+            with lock:
+                processes.pop(job_id, None)
 
 
 def run(job_id: str) -> None:
     with lock:
         spec = jobs[job_id]
+        # Cancelled while it waited (DELETE /jobs/<id>): never started.
+        if job_id in cancelled:
+            return
         spec["state"] = "running"
     started = time.monotonic()
     folder = WORK / job_id
@@ -209,9 +222,11 @@ def run(job_id: str) -> None:
             # A per-run token for one repository with contents:read (D106): release notes, Go metadata.
             env["LOCAL_GITHUB_ACCESS_TOKEN"] = spec["token"]
         clean_daemon()
+        if job_id in cancelled:
+            raise JobCancelled()
         updater, proxy = local_image(IMAGES["updaters"][manager]), local_image(IMAGES["proxy"])
         result["mirror"] = updater != IMAGES["updaters"][manager]
-        state, result["exitCode"] = cli(folder, job_file, repo_dir, timeout, env, updater, proxy)
+        state, result["exitCode"] = cli(job_id, folder, job_file, repo_dir, timeout, env, updater, proxy)
         stderr = (folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace")
         # Upstream images unreachable or deleted (the run never started): the same digests from
         # Teire's mirror, whose attestations the CLI verifies the same way (R-P27).
@@ -222,18 +237,21 @@ def run(job_id: str) -> None:
             and PULL_FAILED.search(stderr)
             and not result["mirror"]
             and mirror_of(updater)
+            and job_id not in cancelled
         ):
             # Upstream attestations unreachable: the mirror carries the same digests and bundles.
             log(f"job {job_id}: upstream images failed verification; retrying from the mirror")
             clean_daemon()
             updater, proxy = local_image(mirror_of(updater) or updater), local_image(mirror_of(proxy) or proxy)
-            state, result["exitCode"] = cli(folder, job_file, repo_dir, timeout, env, updater, proxy)
+            state, result["exitCode"] = cli(job_id, folder, job_file, repo_dir, timeout, env, updater, proxy)
             result["mirror"] = True
         token = spec.get("token")
         result["events"] = redact((folder / "stdout").read_bytes()[:MAX_EVENTS].decode("utf-8", "replace"), token)
         result["stderrTail"] = redact((folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace"), token)
+    except JobCancelled:
+        state = "cancelled"
     except Exception as error:  # noqa: BLE001 - every failure becomes the job's named state
-        state = "failed"
+        state = "cancelled" if job_id in cancelled else "failed"
         result["error"] = redact(f"{type(error).__name__}: {error}", spec.get("token"))[:2000]
     finally:
         try:
@@ -254,6 +272,34 @@ def run(job_id: str) -> None:
     log(f"job {job_id} {spec['repo']}@{spec['commit'][:7]} {state} exit={result.get('exitCode')} {result['ms']}ms")
 
 
+class JobCancelled(Exception):
+    """DELETE /jobs/<id> arrived before the updater started."""
+
+
+def cancel(job_id: str) -> str | None:
+    """Stops a job (the worker's run was cancelled): a queued one never starts; a running one has its
+    `dependabot` process group killed, and the job's `finally` cleans the daemon. Its state, or None."""
+    with lock:
+        spec = jobs.get(job_id)
+        if not spec:
+            return None
+        if spec.get("state") in ("done", "failed", "timeout", "cancelled"):
+            return spec["state"]
+        cancelled.add(job_id)
+        if spec.get("state") == "queued":
+            spec.update(state="cancelled", finishedAt=time.time())
+            if active.get(spec.get("key", "")) == job_id:
+                active.pop(spec["key"], None)
+        process = processes.get(job_id)
+    if process is not None:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    log(f"job {job_id} cancelled")
+    return "cancelled"
+
+
 def worker() -> None:
     while True:
         job_id = pending.get()
@@ -265,6 +311,7 @@ def worker() -> None:
             cutoff = time.time() - KEEP_RESULTS
             for key in [k for k, v in jobs.items() if v.get("finishedAt", time.time()) < cutoff]:
                 del jobs[key]
+            cancelled.intersection_update(jobs.keys())
 
 
 def validate(body: dict) -> str | None:
@@ -340,6 +387,13 @@ class Handler(BaseHTTPRequestHandler):
             spec = jobs.get(match.group(1)) if match else None
             value = {k: v for k, v in spec.items() if k not in ("token", "job", "overlay", "key")} if spec else None
         self.reply(200 if value else 404, value or {"error": "no such job"})
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        if not self.authorised():
+            return
+        match = re.fullmatch(r"/jobs/([0-9a-f-]{36})", self.path)
+        state = cancel(match.group(1)) if match else None
+        self.reply(202 if state else 404, {"state": state} if state else {"error": "no such job"})
 
     def do_POST(self) -> None:  # noqa: N802
         if not self.authorised():

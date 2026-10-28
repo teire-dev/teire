@@ -8,6 +8,7 @@ import {
   markFindings,
   markInstallation,
   openArtifacts,
+  recordAction,
   removeInstallationData,
   setFindingsState,
   setIgnore,
@@ -17,7 +18,7 @@ import {
   upsertInstallation,
   upsertRepo,
 } from "../store";
-import { handleRepoAction } from "./actions";
+import { handleAction, handleRepoAction } from "./actions";
 import { canWrite, fixesOffReply, handleComment, matchesTarget, parseCommand, startRun } from "./commands";
 import { syncDashboard, tickedActions } from "./dashboard";
 import { requestDryRun } from "./public";
@@ -192,20 +193,50 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
         return;
       }
       const done: string[] = [];
+      // Each tick is written to the repository's Activity like a web action (source `dashboard`).
+      const record = (
+        kind: string,
+        params: Record<string, unknown>,
+        status: "started" | "done" | "refused",
+        result: string,
+        run?: string,
+      ) =>
+        recordAction(db, {
+          requester: `github:${login}`,
+          installationId: repo.installationId,
+          repoId: repo.id,
+          kind,
+          params,
+          source: "dashboard",
+          status,
+          result,
+          links: run ? [{ label: "Run", href: `/runs/${run}` }] : [],
+        }).catch(() => undefined);
       for (const a of actions) {
         if (a.kind === "rescan") {
           await ctx.enqueueScan(repo.id, "command");
           done.push("rescan started");
+          await record("rescan", {}, "started", "Rescanning the default branch");
         } else if (a.kind === "unignore") {
           await setIgnore(db, repo.id, a.key, false);
           await setFindingsState(db, repo.id, (f) => matchesTarget(a.key, f), "open");
           done.push(`unignored \`${a.key}\``);
+          await record("unignore", { target: a.key }, "done", `Unignored ${a.key}`);
         } else if ((await fixModeOf(db, repo)).mode === "off") {
-          done.push(`${a.kind} \`${a.key}\`: ${fixesOffReply(await fixModeOf(db, repo))}`);
+          const why = fixesOffReply(await fixModeOf(db, repo));
+          done.push(`${a.kind} \`${a.key}\`: ${why}`);
+          await record(a.kind, a.kind === "fix" ? { target: a.key } : { group: a.key }, "refused", why);
         } else {
           const { run, created } = await startRun(ctx, repo, octokit, a.key, a.kind, login);
           done.push(
             `${a.kind} \`${a.key}\`: ${created ? "started" : "already running"}${ctx.webUrl ? ` (${ctx.webUrl}/runs/${run.id})` : ""}`,
+          );
+          await record(
+            a.kind,
+            a.kind === "fix" ? { target: a.key } : { group: a.key },
+            created ? "started" : "done",
+            created ? "Queued" : "Already running",
+            run.id,
           );
         }
       }
@@ -262,6 +293,10 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       return;
     case "teire.repo_action":
       console.log("[action]", JSON.stringify(await handleRepoAction(ctx, p)));
+      return;
+    // A person's action with its recorded outcome (U1, D121).
+    case "teire.action":
+      console.log("[action]", JSON.stringify(await handleAction(ctx, p)));
       return;
     default:
       return;

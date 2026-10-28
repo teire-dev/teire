@@ -1,3 +1,4 @@
+import { cancelSignal, RunCancelledError } from "../cancel";
 import type { Ecosystem } from "../contract";
 import { parseEvents, type ResolverEvent, type ResolverResult, resultOf } from "./events";
 import { buildJob, type JobInput } from "./job";
@@ -75,6 +76,11 @@ export async function resolve(
   const deadline = Date.now() + MAX_WAIT_MS;
   let last = "";
   for (;;) {
+    // A cancelled run stops its updater job too (U1): the host drops it or kills it.
+    if (cancelSignal()?.aborted) {
+      await call(config, "DELETE", `/jobs/${id}`).catch(() => undefined);
+      throw new RunCancelledError();
+    }
     const job = await call<{
       state: string;
       exitCode?: number | null;
@@ -121,6 +127,7 @@ export async function resolve(
         error: job.error ?? null,
       };
     }
+    if (job.state === "cancelled") throw new RunCancelledError();
     if (Date.now() > deadline)
       throw new ResolverUnavailableError(`resolver job ${id} still ${job.state} after an hour`);
     await new Promise((r) => setTimeout(r, POLL_MS));

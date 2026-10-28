@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { AFFECTED_RANGES_SEPARATOR, stillAffected } from "@teire/engine/advisories";
+import { RunCancelledError, withCancel } from "@teire/engine/cancel";
 import { matchesTarget, readTeireConfig, type TeireConfig, updateIgnores } from "@teire/engine/config";
 import { RUNS, SCAN } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
@@ -63,12 +64,13 @@ import {
   wrapperRaiseOnly,
 } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
-import { selectBackend, unsupportedToolchain } from "@teire/engine/verify";
+import { cancellableBackend, selectBackend, unsupportedToolchain } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import { markCreditsExhausted, modelWorkBlocked } from "../reliability";
 import { resolveForRepo } from "../resolver";
 import {
   appendEvent,
+  cancelRequest,
   claimRun,
   claimRunLease,
   fixModeOf,
@@ -82,6 +84,7 @@ import {
   renewLease,
   runEventsOf,
   setRepo,
+  settleRunActions,
   updateHeldRun,
   type updateRun,
   upsertArtifact,
@@ -996,6 +999,16 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const holdLease = async () => {
     if (leaseLost || !(await renewLease(db, runId))) throw lost();
   };
+  // Cancel (U1, "Cancel is honest"): a person's request (`runs.cancel_requested_at`) is looked for
+  // every few seconds and fires one controller: model calls and the updater job stop, sandboxes are
+  // closed, and nothing is published after it.
+  const abort = new AbortController();
+  let cancelledBy: string | null = null;
+  let lastStep = run.step ?? "assess";
+  const beforePublish = async () => {
+    if (abort.signal.aborted) throw new RunCancelledError();
+    await holdLease();
+  };
   if (run.status === "failed" || run.status === "running")
     await update({ status: "queued", attempt: run.attempt + 1, error: null });
   const repo = await getRepo(db, run.repoId);
@@ -1020,6 +1033,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     await appendEvent(db, runId, "queue", "cancelled", {
       reason: "the repository is paused; resume it to fix",
     });
+    await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+      status: "refused",
+      result: "The repository is paused; resume it first",
+    });
     return { cancelled: "paused" };
   }
   // Fix mode (D118, D125): Off cancels queued runs with the mode and where it was set; scans and the
@@ -1029,6 +1046,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     await update({ status: "cancelled", step: "fixes off", finishedAt: new Date() });
     await appendEvent(db, runId, "queue", "cancelled", {
       reason: fixesOffReply(mode),
+    });
+    await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+      status: "refused",
+      result: fixesOffReply(mode),
     });
     return { cancelled: "fixes off" };
   }
@@ -1095,6 +1116,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   if (counts.open >= limits.limit || counts.lastHour >= limits.perHour) {
     await update({ status: "queued", step: "waiting for the PR limit", workerId: null });
     await event("queue", "deferred", { open: counts.open, lastHour: counts.lastHour, limits });
+    await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+      status: "started",
+      result: `Waiting for the PR limit (${counts.open} of ${limits.limit} open, ${counts.lastHour} of ${limits.perHour} this hour)`,
+    });
     await ctx.enqueueFix(runId, repo.id, DEFER_SECONDS);
     return { deferred: true };
   }
@@ -1104,15 +1129,36 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   if (blocked) {
     await update({ status: "queued", step: "waiting for the model budget", workerId: null });
     await event("queue", "deferred", { reason: blocked });
+    await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+      status: "started",
+      result: `Waiting: ${blocked}`,
+    });
     await ctx.enqueueFix(runId, repo.id, BUDGET_RETRY_SECONDS);
     return { deferred: blocked };
   }
 
   // A run resumed after a deferral (credits, the updater) starts clean: the old reason is history.
   await update({ status: "running", step: "assess", startedAt: new Date(), error: null });
+  // A person's Fix now, Rebase, Recreate or Retry is done once its run has started.
+  await settleRunActions(db, runId, ["fix", "rebase", "recreate", "retry-run"], {
+    status: "done",
+    result: "Run started",
+  });
   // A heartbeat while the run works, so the reaper can tell a long sandbox step from a dead worker.
   // It renews only this worker's lease: if another worker took the run (this one was paused past the
   // lease), the run stops before writing anything to GitHub (stage R review).
+  const watchCancel = setInterval(
+    () =>
+      void cancelRequest(db, runId)
+        .then((c) => {
+          if (c && !abort.signal.aborted) {
+            cancelledBy = c.by;
+            abort.abort();
+          }
+        })
+        .catch(() => undefined),
+    RUNS.cancelPollMs,
+  );
   const heartbeat = setInterval(
     () =>
       void renewLease(db, runId)
@@ -1157,10 +1203,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         });
       return reading;
     };
-    const { backend, note } = await selectBackend(process.env, {
+    const selected = await selectBackend(process.env, {
       isPrivate: dry ? false : (privateNow ?? true),
       stillPublic,
     });
+    const { note } = selected;
+    const backend = cancellableBackend(selected.backend, abort.signal);
     // A CI repair starts from what the repo's own CI said about the PR (C6: one repair attempt).
     const ci = run.requestedBy?.startsWith("ci-repair:")
       ? ((await runEventsOf(db, runId, "ci"))[0]?.payload as
@@ -1198,6 +1246,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       // Fire-and-forget, so it never throws: a lost lease is noted and the next fenced write stops the run.
       onEvent: (e: { step: string }) => {
         if (leaseLost) return;
+        lastStep = e.step;
         void appendEvent(db, runId, e.step, "log", e).catch(() => undefined);
         void updateHeldRun(db, runId, { step: e.step })
           .then((held) => {
@@ -1211,24 +1260,28 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const fallbackFrom = (await runEventsOf(db, runId, "fallback")).find((e) => e.type === "from")?.payload as
       | { version: string; reason: string }
       | undefined;
-    const outcome = isApi
-      ? await apiOutcome(ctx, { groupKey }, checkout.dir, tree, runConfig, common)
-      : await packageOutcome(
-          ctx,
-          { id: repo.id, installationId: repo.installationId, isPrivate: repo.isPrivate },
-          {
-            groupKey,
-            targetVersion: run.targetVersion,
-            fromVersion: run.fromVersion,
-            fallbackMajors: run.fallbackMajors,
-            ...(fallbackFrom ? { fallbackFrom } : {}),
-          },
-          checkout.dir,
-          tree,
-          runConfig,
-          token,
-          common,
-        );
+    const targetVersion = run.targetVersion;
+    const outcome = await withCancel(abort.signal, async () =>
+      isApi
+        ? await apiOutcome(ctx, { groupKey }, checkout.dir, tree, runConfig, common)
+        : await packageOutcome(
+            ctx,
+            { id: repo.id, installationId: repo.installationId, isPrivate: repo.isPrivate },
+            {
+              groupKey,
+              targetVersion,
+              fromVersion: run.fromVersion,
+              fallbackMajors: run.fallbackMajors,
+              ...(fallbackFrom ? { fallbackFrom } : {}),
+            },
+            checkout.dir,
+            tree,
+            runConfig,
+            token,
+            common,
+          ),
+    );
+    if (abort.signal.aborted) throw new RunCancelledError();
     if (outcome?.groupKey && outcome.groupKey !== groupKey) {
       await event("transaction", "target-moved", { from: run.targetVersion, to: outcome.targetVersion });
       await update({
@@ -1421,7 +1474,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     }
     if (!installation) throw new Error(`run ${runId}: no installation`);
     // Every write to GitHub from here on happens only while this worker holds the run.
-    await holdLease();
+    await beforePublish();
 
     if (prMode === "issue") {
       // No usable result: a "needs a human" issue with the evidence and the best diff.
@@ -1466,7 +1519,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       });
       await event("pr", "issue", { url: issue.html_url, evidence: fix.evidence.kind });
       // The Dashboard issue links "Needs a human" issues, and this group no longer offers "Fix now".
-      await holdLease();
+      await beforePublish();
       await syncDashboard(ctx, repo.id).catch(() => undefined);
       await progress(`Done: a person is needed, ${issue.html_url}`);
       return { issue: issue.html_url };
@@ -1481,7 +1534,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       ...(f.encoding ? { encoding: f.encoding } : {}),
       ...(f.mode ? { mode: f.mode } : {}),
     }));
-    await holdLease();
+    await beforePublish();
     const commit = await commitToBranch({
       octokit: installation.octokit,
       owner,
@@ -1493,7 +1546,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       body: `${fix.evidence.kind === "verified" ? "Verified" : "Draft"}: ${saidOnGitHub(fix.evidence.reasons)}`,
       files,
     });
-    await holdLease();
+    await beforePublish();
     const pr = await openOrUpdatePullRequest({
       octokit: installation.octokit,
       owner,
@@ -1511,7 +1564,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         ...(config?.pullRequests?.labels ?? []),
       ],
     });
-    await holdLease();
+    await beforePublish();
     await publishCheckRun({
       octokit: installation.octokit,
       owner,
@@ -1541,7 +1594,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     for (const old of await openArtifacts(db, repo.id)) {
       if (old.kind !== "pr" || old.lineageKey !== lineage || old.changeKey === groupKey || !old.number)
         continue;
-      await holdLease();
+      await beforePublish();
       try {
         await installation.octokit.rest.issues.createComment({
           owner,
@@ -1569,7 +1622,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         a.number &&
         (a.changeKey === `stop/${lineage}` || a.changeKey.startsWith(`stop/${lineage}@`)),
     )) {
-      await holdLease();
+      await beforePublish();
       try {
         await installation.octokit.rest.issues.createComment({
           owner,
@@ -1601,15 +1654,37 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       number: pr.number,
       draft: prMode === "draft",
     });
-    await holdLease();
+    await beforePublish();
     await syncDashboard(ctx, repo.id).catch((error) =>
       event("dashboard", "failed", { error: String(error) }),
     );
     await progress(
       `Done: ${pr.url} (${prMode === "draft" ? `draft, ${fix.evidence.kind.replace(/_/g, " ")}` : "verified"}).`,
     );
+    // A cancel that arrived after the PR was opened came too late to stop it; it says so.
+    await settleRunActions(db, runId, ["cancel-run"], {
+      status: "refused",
+      result: `Too late to stop: the run had already opened ${pr.url}`,
+    });
     return { pr: pr.url };
   } catch (error) {
+    if (!(error instanceof LeaseLostError) && (error instanceof RunCancelledError || abort.signal.aborted)) {
+      // Stopped because a person asked: said on the run, its action and its progress comment.
+      const by = cancelledBy ?? (await cancelRequest(db, runId))?.by ?? "a person";
+      await update({
+        status: "cancelled",
+        step: "cancelled by a person",
+        error: `cancelled by @${by} during ${lastStep}`,
+        finishedAt: new Date(),
+      });
+      await event("run", "cancelled", { by, during: lastStep });
+      await settleRunActions(db, runId, ["cancel-run"], {
+        status: "done",
+        result: `Stopped during ${lastStep}; its sandboxes were closed`,
+      });
+      await progress(`Cancelled by @${by} during ${lastStep}.`).catch(() => undefined);
+      return { cancelled: by };
+    }
     if (error instanceof LeaseLostError) {
       // Nothing more is written from here: the run belongs to the worker that took it.
       await appendEvent(db, runId, "run", "lease-lost", {
@@ -1707,6 +1782,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     return { stopped: message };
   } finally {
     clearInterval(heartbeat);
+    clearInterval(watchCancel);
     if (dir) await rm(dir, { recursive: true, force: true });
   }
 }

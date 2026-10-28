@@ -257,7 +257,8 @@ export const findings = pgTable(
 );
 
 export type RunKind = "fix" | "dry_run";
-export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+/** `stopping`: a person asked to cancel and the run is closing its sandboxes (U1). */
+export type RunStatus = "queued" | "running" | "stopping" | "succeeded" | "failed" | "cancelled";
 /** Mirrors PR_MODE_BY_EVIDENCE in the engine: evidence, not a score, decides the PR (rule 13). */
 export type EvidenceKind =
   | "verified"

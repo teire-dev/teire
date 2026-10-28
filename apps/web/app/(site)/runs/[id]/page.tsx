@@ -1,9 +1,21 @@
-import { and, artifacts, asc, desc, eq, llmCalls, publicScans, runEvents, sandboxExecs } from "@teire/db";
+import {
+  and,
+  artifacts,
+  asc,
+  desc,
+  eq,
+  llmCalls,
+  publicScans,
+  runEvents,
+  sandboxExecs,
+  userInstallations,
+} from "@teire/db";
 import { ArrowRight, ExternalLink, Loader } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { ActionButton } from "@/components/app/action-button";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Markdown } from "@/components/markdown";
 import { DiffView } from "@/components/run/diff-view";
@@ -16,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { visibleRun } from "@/lib/access";
 import { database } from "@/lib/db";
 import { groupHref } from "@/lib/links";
+import { getSession } from "@/lib/session";
 import { INSTALL_URL } from "@/lib/site";
 import { backendName } from "@/lib/utils";
 import { Timeline } from "./timeline";
@@ -39,6 +52,7 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
 const STATUS_TONE: Record<string, string> = {
   queued: "text-running",
   running: "text-running",
+  stopping: "text-running",
   succeeded: "text-clear",
   failed: "text-affected",
   cancelled: "text-muted-foreground",
@@ -81,13 +95,26 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
   const subject = isApi ? (rest[0] ?? "") : rest.slice(0, -1).join("/");
   const subjectHref = run.groupKey ? groupHref(run.groupKey) : null;
   const ms = run.startedAt && run.finishedAt ? run.finishedAt.getTime() - run.startedAt.getTime() : null;
-  const duration =
-    ms === null
-      ? "—"
-      : ms < 60_000
-        ? `${Math.round(ms / 1000)}s`
-        : `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
-  const active = run.status === "queued" || run.status === "running";
+  const secs = ms === null ? null : Math.round(ms / 1000);
+  const duration = secs === null ? "—" : secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
+  const active = run.status === "queued" || run.status === "running" || run.status === "stopping";
+  // Cancel and Retry (U1) for people who can see the installation; the worker checks write access.
+  const session = await getSession();
+  const member =
+    !dry && session && repo.installationId
+      ? (
+          await db
+            .select({ id: userInstallations.installationId })
+            .from(userInstallations)
+            .where(
+              and(
+                eq(userInstallations.userId, session.user.id),
+                eq(userInstallations.installationId, repo.installationId),
+              ),
+            )
+            .limit(1)
+        ).length > 0
+      : false;
 
   return (
     <>
@@ -123,6 +150,24 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
           {run.fromVersion ? " → " : ""}
           <span className="font-mono">{run.targetVersion}</span>
         </h1>
+        {member ? (
+          <div className="flex gap-2">
+            {active ? (
+              <ActionButton
+                kind="cancel-run"
+                params={{ runId: run.id }}
+                repo={repo.fullName}
+                disabled={run.status === "stopping"}
+              >
+                {run.status === "stopping" ? "Stopping…" : "Cancel"}
+              </ActionButton>
+            ) : run.status === "failed" || run.status === "cancelled" ? (
+              <ActionButton kind="retry-run" params={{ runId: run.id }} repo={repo.fullName}>
+                Retry
+              </ActionButton>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border text-sm shadow-card sm:grid-cols-5">

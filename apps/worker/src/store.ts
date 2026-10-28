@@ -1,5 +1,6 @@
 import { hostname } from "node:os";
 import {
+  actions,
   and,
   artifacts,
   changes,
@@ -114,10 +115,72 @@ export async function finishScan(
   id: string,
   fields: { status: "done" | "failed"; sha?: string | null; coverage?: unknown; error?: string },
 ) {
-  await db
+  const [scan] = await db
     .update(scans)
     .set({ ...fields, finishedAt: new Date() })
-    .where(eq(scans.id, id));
+    .where(eq(scans.id, id))
+    .returning({ repoId: scans.repoId });
+  if (!scan) return;
+  // A Rescan someone asked for is done when its scan is (plan "Actions with real results").
+  const { rows } = await db.execute<{ n: number }>(sql`
+    select count(distinct coalesce(group_key, change_id))::int as n from findings
+    where repo_id = ${scan.repoId} and verdict = 'affected' and state = 'open'
+  `);
+  const n = rows[0]?.n ?? 0;
+  await db.execute(sql`
+    update actions set updated_at = now(),
+      status = ${fields.status === "done" ? "done" : "failed"},
+      result = ${
+        fields.status === "done"
+          ? `Rescan finished: ${n} change${n === 1 ? "" : "s"} reach${n === 1 ? "es" : ""} your code`
+          : `Rescan failed: ${(fields.error ?? "the scan stopped").slice(0, 300)}`
+      }
+    where repo_id = ${scan.repoId} and kind = 'rescan' and status in ('accepted', 'started', 'unknown')
+  `);
+}
+
+/** What the latest finished scan would upgrade (Ask first's and Off's "Upgrades available"). */
+export async function latestUpgrades(db: Database, repoId: number) {
+  const [row] = await db
+    .select({ upgrades: scans.upgrades })
+    .from(scans)
+    .where(and(eq(scans.repoId, repoId), eq(scans.status, "done")))
+    .orderBy(sql`${scans.createdAt} desc`)
+    .limit(1);
+  return row?.upgrades ?? [];
+}
+
+/** A run's fields set by someone other than its worker (a cancel): the heartbeat is left alone. */
+export async function setRun(db: Database, id: string, fields: Partial<typeof runs.$inferInsert>) {
+  await db.update(runs).set(fields).where(eq(runs.id, id));
+}
+
+export type ActionRow = typeof actions.$inferSelect;
+
+export async function getAction(db: Database, id: string) {
+  const [row] = await db.select().from(actions).where(eq(actions.id, id)).limit(1);
+  return row ?? null;
+}
+
+/** Moves an action on; a terminal action never moves again (a late redelivery can't reopen it). */
+export async function setAction(
+  db: Database,
+  id: string,
+  fields: Partial<Pick<ActionRow, "status" | "result" | "links" | "params">>,
+) {
+  await db
+    .update(actions)
+    .set({ ...fields, updatedAt: new Date() })
+    .where(and(eq(actions.id, id), sql`${actions.status} not in ('done', 'refused', 'failed')`));
+}
+
+/** A comment command or a Dashboard tick, written to the same record as the web's actions (Activity). */
+export async function recordAction(
+  db: Database,
+  row: Pick<ActionRow, "requester" | "installationId" | "repoId" | "kind" | "params" | "source" | "status"> &
+    Partial<Pick<ActionRow, "result" | "links">>,
+) {
+  await db.insert(actions).values({ ...row, idempotencyKey: `${row.source}:${crypto.randomUUID()}` });
 }
 
 /** What the scan would upgrade (U1), kept for Ask first's and Off's "Upgrades available". */
@@ -261,7 +324,7 @@ export async function recentlySettled(db: Database, repoId: number, groupKey: st
       and idempotency_key like ${`fix:${repoId}:${groupKey}:%`}
       and created_at > now() - make_interval(days => ${days})
       and (group_key <> ${groupKey} or step like 'fell back%' or error like 'stopped:%'
-        or step in ('nothing to change', 'no longer applies'))
+        or step in ('nothing to change', 'no longer applies', 'cancelled by a person'))
   `);
   return (rows[0]?.n ?? 0) > 0;
 }
@@ -391,6 +454,34 @@ export async function updateRun(db: Database, id: string, fields: Partial<typeof
     .update(runs)
     .set({ ...fields, heartbeatAt: new Date() })
     .where(eq(runs.id, id));
+}
+
+/** A person's cancel for a run (U1): who asked, or null. */
+export async function cancelRequest(db: Database, runId: string) {
+  const [row] = await db
+    .select({ at: runs.cancelRequestedAt, by: runs.cancelledBy })
+    .from(runs)
+    .where(eq(runs.id, runId))
+    .limit(1);
+  return row?.at ? { by: row.by ?? "a person" } : null;
+}
+
+/**
+ * Settles the open actions that asked for something this run does (Fix now, Retry, Cancel), found
+ * by the run link they carry: "done means the effect happened" (plan "Actions with real results").
+ */
+export async function settleRunActions(
+  db: Database,
+  runId: string,
+  kinds: string[],
+  fields: { status: "started" | "done" | "refused" | "failed"; result: string },
+) {
+  await db.execute(sql`
+    update actions set status = ${fields.status}, result = ${fields.result}, updated_at = now()
+    where kind in ${sql.raw(`(${kinds.map((k) => `'${k.replace(/'/g, "")}'`).join(",")})`)}
+      and status in ('requested', 'accepted', 'started', 'stopping', 'unknown')
+      and links @> ${JSON.stringify([{ href: `/runs/${runId}` }])}::jsonb
+  `);
 }
 
 /** Updates a run only while this worker holds its lease; false when another worker has taken it. */

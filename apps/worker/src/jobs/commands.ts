@@ -18,6 +18,7 @@ import {
   fixModeOf,
   getArtifact,
   getRepo,
+  recordAction,
   recordFeedback,
   setFindingsState,
   setIgnore,
@@ -106,8 +107,36 @@ export async function handleComment(ctx: EventContext, p: Payload) {
   const [owner = "", name = ""] = repo.fullName.split("/");
   const { octokit } = await gh.installation(repo.installationId);
   const issueNumber: number = p.issue.number;
-  const reply = (body: string) =>
-    octokit.rest.issues.createComment({ owner, repo: name, issue_number: issueNumber, body });
+  // Every command is written to the repository's Activity with Teire's answer (source `comment`): the
+  // first reply is the outcome; a refusal ("…first", "Usage", "need write access") is said as one.
+  let recorded = false;
+  const reply = async (body: string) => {
+    const sent = await octokit.rest.issues.createComment({
+      owner,
+      repo: name,
+      issue_number: issueNumber,
+      body,
+    });
+    if (!recorded) {
+      recorded = true;
+      const refusal =
+        /need write access|first\.|^Usage|^I don't know|^No finding|^Fixes are|isn't|works on a Teire PR/.test(
+          body,
+        );
+      await recordAction(db, {
+        requester: `github:${comment.user.login}`,
+        installationId: repo.installationId,
+        repoId: repo.id,
+        kind: command.name,
+        params: command.args ? { args: command.args.slice(0, 300) } : {},
+        source: "comment",
+        status: refusal ? "refused" : "done",
+        result: body.split("\n")[0]?.slice(0, 300) ?? "",
+        links: [{ label: "Comment", href: sent.data.html_url }],
+      }).catch(() => undefined);
+    }
+    return sent;
+  };
   await octokit.rest.reactions
     .createForIssueComment({ owner, repo: name, comment_id: comment.id, content: "eyes" })
     .catch(() => undefined);

@@ -108,6 +108,8 @@ export const RUNS = {
   /** How long a worker that found the run held waits before looking again. */
   leaseRetrySeconds: 60,
   heartbeatEveryMs: 15 * 1000,
+  /** How often a running run looks for a person's cancel (U1: stopped within 30 s). */
+  cancelPollMs: 5 * 1000,
   /**
    * Fix runs the worker takes at once, each from a different repository (the queue keeps one per
    * repository in order). Each holds two sandboxes (Token Factory allows 50 per project) and up to
