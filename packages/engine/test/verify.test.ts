@@ -186,7 +186,7 @@ describe("check commands", () => {
     expect(plan.checks[0]?.source).toBe("ci");
     expect(plan.checks[0]?.argv.slice(0, 5)).toEqual([
       "yarn",
-      "exec",
+      "run",
       "jest",
       "--forceExit",
       "test/integration.test.js",

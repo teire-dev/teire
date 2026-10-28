@@ -195,7 +195,8 @@ export type Verdict =
   | "needs_human"
   | "inconclusive"
   | "check_by_hand";
-export type FindingState = "open" | "ignored" | "fixed" | "dismissed";
+/** `gone`: the latest complete scan no longer reports it (dependency moved or removed, target superseded). */
+export type FindingState = "open" | "ignored" | "fixed" | "dismissed" | "gone";
 
 /**
  * One change × one dependency × one repo. `dependency_key` (`<ecosystem>:<name>@<workspace>`) is

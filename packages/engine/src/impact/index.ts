@@ -142,7 +142,12 @@ function strip(hit: Hit): CallSite {
 export function assess(input: ImpactInput): FindingDraft[] {
   const { instance, target, records, locate } = input;
   const now = input.now ?? new Date();
-  const depKey = dependencyKey(instance);
+  // A transitive package can be installed at several versions in one project (npm nests them:
+  // ansi-regex 3.0.0 and 4.1.0 under one lockfile), each its own finding; a direct dependency
+  // keeps one key across versions, so its finding follows it through upgrades.
+  const depKey = instance.direct
+    ? dependencyKey(instance)
+    : `${dependencyKey(instance)}#${instance.version ?? "unresolved"}`;
   const group = target ? groupKey(instance.ecosystem, instance.name, target) : null;
   const position = { version: instance.version, target, isMajor: input.isMajor };
   return records.map((record): FindingDraft => {
@@ -188,6 +193,17 @@ export function assess(input: ImpactInput): FindingDraft[] {
       };
     }
     const searchable = record.signatures.some((s) => s.kind === "symbol" || s.kind === "import-path");
+    // A major whose API surface couldn't be compared is a package upgrade, which Teire verifies:
+    // the upgrade's own checks before and after decide, not a person (rule 12: never "not affected").
+    if (!searchable && record.kind === "package-major")
+      return {
+        ...base,
+        verdict: "inconclusive",
+        reachability: "package-present",
+        priority: null,
+        callSites: [],
+        reason: "its API surface could not be compared; the upgrade's sandbox check decides",
+      };
     if (!searchable)
       return {
         ...base,

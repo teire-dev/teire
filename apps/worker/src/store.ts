@@ -9,7 +9,10 @@ import {
   findings,
   gte,
   installations,
+  isNull,
   llmCalls,
+  ne,
+  or,
   repos,
   runs,
   sandboxExecs,
@@ -206,8 +209,32 @@ export async function upsertFinding(
     .values({ repoId, changeId: f.changeId, dependencyKey: f.dependencyKey, ...values })
     .onConflictDoUpdate({
       target: [findings.repoId, findings.changeId, findings.dependencyKey],
-      set: values,
+      // A finding a scan reports again is open again; ignored, fixed and dismissed stay as people left them.
+      set: {
+        ...values,
+        state: sql`case when ${findings.state} = 'gone' then 'open' else ${findings.state} end`,
+      },
     });
+}
+
+/**
+ * After a complete scan, open findings it did not report again are `gone`: the dependency moved or
+ * was removed, or a newer target superseded them. Never after a partial scan: a lookup that failed
+ * would read as "no longer affected" (D96).
+ */
+export async function retireUnreported(db: Database, repoId: number, scanId: string) {
+  const rows = await db
+    .update(findings)
+    .set({ state: "gone" })
+    .where(
+      and(
+        eq(findings.repoId, repoId),
+        eq(findings.state, "open"),
+        or(isNull(findings.scanId), ne(findings.scanId, scanId)),
+      ),
+    )
+    .returning({ id: findings.id });
+  return rows.length;
 }
 
 export async function markFindings(

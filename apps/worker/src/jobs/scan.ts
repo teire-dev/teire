@@ -47,6 +47,7 @@ import {
   getArtifact,
   getRepo,
   recordLlmCall,
+  retireUnreported,
   saveInstances,
   setFindingsState,
   setRepo,
@@ -354,6 +355,10 @@ export async function assessCheckout(
   // Ignored targets stay ignored across scans, new findings included.
   if (config.ignore.length)
     await setFindingsState(db, repoId, (f) => config.ignore.some((t) => matchesTarget(t, f)), "ignored");
+  // What this scan no longer reports is gone (a superseded target, a removed or upgraded package),
+  // but only when every lookup answered: a failed one must not read as "fixed" (D96).
+  if (advisoryStatus(coverage) === "complete" && !coverage.lookupsFailed.length)
+    await retireUnreported(db, repoId, scanId);
   // Rule 8: packages in ecosystems Teire can't upgrade (Packagist, NuGet, Pub…) are reported with
   // their advisories, never "clean". osv-scanner reads the lockfiles offline (D56).
   const others = (await osvExtract(dir).catch(() => null))?.others ?? [];

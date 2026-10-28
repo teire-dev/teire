@@ -89,7 +89,9 @@ function exec(manager: JsManager, argv: string[]): string[] {
     case "pnpm":
       return ["pnpm", "--config.verify-deps-before-run=false", "exec", ...argv];
     case "yarn":
-      return ["yarn", "exec", ...argv];
+      // `yarn run <bin>`, not `yarn exec`: Yarn 1's exec drops every argument and takes `--json` as
+      // its own flag (checked with 1.22.22), so `jest --forceExit` ran as a bare `jest`.
+      return ["yarn", "run", ...argv];
     case "bun":
       return ["bunx", "--no-install", ...argv];
     default:

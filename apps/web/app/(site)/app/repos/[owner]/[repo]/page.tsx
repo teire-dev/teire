@@ -73,7 +73,8 @@ async function Repo({
   if (!data) notFound();
   const { repo, scan } = data;
   const back = `/app/repos/${fullName}`;
-  const open = data.findings.filter((f) => f.state !== "ignored");
+  // Only what the latest scan still reports: fixed, dismissed and gone findings are history.
+  const open = data.findings.filter((f) => f.state === "open");
   const ignored = data.findings.filter((f) => f.state === "ignored");
   const b = bucketGroups(groupFindings(open));
   const ignoredGroups = groupFindings(ignored);
