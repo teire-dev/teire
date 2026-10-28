@@ -82,6 +82,8 @@ export const PR_MODE_BY_EVIDENCE = {
 export type EvidenceKind = keyof typeof PR_MODE_BY_EVIDENCE;
 
 export const PULL_REQUESTS = {
+  /** Compare-and-swap attempts when a refreshed branch moved under Teire (review R4). */
+  refSwapAttempts: 3,
   maxOpenPerRepo: 5,
   maxNewPerHour: 2,
   /** New "needs a human" issues one scan may open; the Dashboard issue lists the rest. */

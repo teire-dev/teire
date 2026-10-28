@@ -54,7 +54,24 @@ function status(error: unknown) {
   return (error as { status?: number }).status;
 }
 
-/** True when the branch was created at the base; false when it exists and only Teire committed to it. */
+/** The branch's head when it holds only Teire's commits over the base; throws on anyone else's. */
+async function ownedHead(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string,
+  baseSha: string,
+  botLogin: string,
+) {
+  const { data: ref } = await octokit.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+  const head = ref.object.sha;
+  const { data } = await octokit.rest.repos.compareCommits({ owner, repo, base: baseSha, head });
+  const foreign = data.commits.filter((c) => c.author?.login !== botLogin);
+  if (foreign.length) throw new HumanCommitsError(`${branch} has ${foreign.length} commit(s) by others`);
+  return head;
+}
+
+/** Null when the branch was created at the base; otherwise its head, which holds only Teire's commits. */
 async function startBranch(
   octokit: Octokit,
   owner: string,
@@ -65,14 +82,52 @@ async function startBranch(
 ) {
   try {
     await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: baseSha });
-    return true;
+    return null;
   } catch (error) {
     if (status(error) !== 422) throw error;
   }
-  const { data } = await octokit.rest.repos.compareCommits({ owner, repo, base: baseSha, head: branch });
-  const foreign = data.commits.filter((c) => c.author?.login !== botLogin);
-  if (foreign.length) throw new HumanCommitsError(`${branch} has ${foreign.length} commit(s) by others`);
-  return false;
+  return ownedHead(octokit, owner, repo, branch, baseSha, botLogin);
+}
+
+const UPDATE_REFS = `mutation($input: UpdateRefsInput!) { updateRefs(input: $input) { clientMutationId } }`;
+
+/**
+ * Moves an existing branch to `sha` only if it still points at `expected` (review R4): GraphQL
+ * `updateRefs` with `beforeOid` is atomic, so a person's commit pushed after Teire read the branch
+ * is never erased. A moved head is read again; it is taken only if it still holds Teire's commits
+ * alone, else the person's commit stops the refresh.
+ */
+async function swapBranch(
+  octokit: Octokit,
+  input: { owner: string; repo: string; branch: string; baseSha: string; botLogin: string },
+  expected: string,
+  sha: string,
+) {
+  const { data: meta } = await octokit.rest.repos.get({ owner: input.owner, repo: input.repo });
+  let before = expected;
+  for (let attempt = 0; attempt < PULL_REQUESTS.refSwapAttempts; attempt++) {
+    try {
+      await octokit.graphql(UPDATE_REFS, {
+        input: {
+          repositoryId: meta.node_id,
+          refUpdates: [{ name: `refs/heads/${input.branch}`, beforeOid: before, afterOid: sha, force: true }],
+        },
+      });
+      return;
+    } catch (error) {
+      const now = await ownedHead(
+        octokit,
+        input.owner,
+        input.repo,
+        input.branch,
+        input.baseSha,
+        input.botLogin,
+      );
+      if (now === before) throw error;
+      before = now;
+    }
+  }
+  throw new Error(`${input.branch} kept moving while Teire refreshed it`);
 }
 
 export async function commitToBranch(input: {
@@ -87,7 +142,8 @@ export async function commitToBranch(input: {
   files: FileWrite[];
 }): Promise<{ oid: string; url: string }> {
   const { octokit, owner, repo, branch, baseSha } = input;
-  const created = await startBranch(octokit, owner, repo, branch, baseSha, input.botLogin);
+  const existingHead = await startBranch(octokit, owner, repo, branch, baseSha, input.botLogin);
+  const created = existingHead === null;
   const additions = input.files
     .filter((f) => f.content !== null)
     .map((f) => ({ path: f.path, contents: base64Of(f) }));
@@ -141,6 +197,15 @@ export async function commitToBranch(input: {
     parents: [baseSha],
   });
   // A new branch fast-forwards from the base; an existing one jumps to the rebuilt commit.
-  await octokit.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.sha, force: !created });
+  // A new branch fast-forwards from the base; an existing one swaps only from the head Teire read.
+  if (created)
+    await octokit.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.sha, force: false });
+  else
+    await swapBranch(
+      octokit,
+      { owner, repo, branch, baseSha, botLogin: input.botLogin },
+      existingHead,
+      commit.sha,
+    );
   return { oid: commit.sha, url: commit.html_url };
 }
