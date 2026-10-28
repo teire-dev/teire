@@ -39,7 +39,8 @@ bundler_from_lock() {
   local bv
   bv="$(awk '/^BUNDLED WITH/ {getline; gsub(/[[:space:]]/, ""); print; exit}' "$LOCK")"
   if [ -n "$bv" ] && ! gem list -i bundler -v "$bv" >/dev/null 2>&1; then
-    gem install bundler -v "$bv" --no-document || return $?
+    # --force: a Ruby rv installed ships its own `bundle` binstub, which a plain install refuses to replace.
+    gem install bundler -v "$bv" --no-document --force || return $?
   fi
 }
 
