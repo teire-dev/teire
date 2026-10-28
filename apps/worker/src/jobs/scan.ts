@@ -475,9 +475,8 @@ export async function scanRepo(
     // A teire.yml on the default branch activates, whether the onboarding PR or a person put it there.
     if ((status === "detected" || status === "onboarding") && config.present) status = "active";
     if (status === "detected" && nothingReadable) return { status, nothingReadable: true };
-    if (status === "detected") {
-      // Onboarding PR: the inventory, what Teire would do, and the config file whose merge activates it.
-      const { title, body } = composeOnboarding({
+    const onboarding = () =>
+      composeOnboarding({
         repo: { owner, repo: name, baseSha: sha },
         rows: onboardingRows(assessments),
         apiFindings: [...api.findings, ...runtimes.findings],
@@ -485,6 +484,32 @@ export async function scanRepo(
         issuesEnabled: meta.has_issues,
         ...(ctx.webUrl ? { dashboardUrl: `${ctx.webUrl}/app/repos/${repo.fullName}` } : {}),
       });
+    if (status === "onboarding") {
+      // The open onboarding PR says what this scan found. Only its text changes: the branch keeps
+      // its commit (and any a person added), and a closed PR stays closed (that is an opt-out).
+      const { data: open } = await installation.octokit.rest.pulls.list({
+        owner,
+        repo: name,
+        head: `${owner}:${ONBOARDING_BRANCH}`,
+        state: "open",
+      });
+      const pr = open[0];
+      if (pr) {
+        const { title, body } = onboarding();
+        if (pr.body !== body || pr.title !== title)
+          await installation.octokit.rest.pulls.update({
+            owner,
+            repo: name,
+            pull_number: pr.number,
+            title,
+            body,
+          });
+      }
+      return { status, ...(pr ? { onboarding: pr.html_url } : {}) };
+    }
+    if (status === "detected") {
+      // Onboarding PR: the inventory, what Teire would do, and the config file whose merge activates it.
+      const { title, body } = onboarding();
       const commit = await commitToBranch({
         octokit: installation.octokit,
         owner,
