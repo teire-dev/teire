@@ -3,5 +3,13 @@
   "description": "How Teire is built, verified and secured",
   "icon": "Wrench",
   "root": true,
-  "pages": ["index", "verification", "security", "---Tools---", "cli", "mcp"]
+  "pages": [
+    "index",
+    "dependency-files",
+    "verification",
+    "security",
+    "---Tools---",
+    "cli",
+    "mcp"
+  ]
 }

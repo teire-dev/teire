@@ -27,6 +27,18 @@ Every install and check runs on **Cloudflare Containers**. One Durable Object dr
 
 The worker never runs your repository's code. It reads packages with static tools: TypeScript declarations, griffe, apidiff, Prism, japicmp on jars, and ast-grep. Tarballs are integrity-checked and unpacked by Teire's own extractor, which refuses links and `..` paths.
 
+## The dependency updater
+
+Manifest and lockfile changes are moving to dependabot-core's updater ([How Teire updates dependency files](/docs/build/dependency-files)). It runs on Teire's own server, not in the verification sandbox:
+
+- in a separate Docker daemon whose containers run under gVisor;
+- on a network with no route out, behind Dependabot's proxy and a host firewall that blocks Teire's apps, its database, cloud metadata and every host port;
+- with a token that can only read the one repository, held by the proxy, never by the updater;
+- with images pinned by digest, whose build attestations are checked before use;
+- one job at a time.
+
+The [threat model](https://github.com/teire-dev/teire/blob/main/apps/resolver/THREAT-MODEL.md) lists each control and the probe that proves it.
+
 ## The agent
 
 The model is handed file contents, documentation, check output and provider pages **as data, never as instructions**. Code limits what it can do:

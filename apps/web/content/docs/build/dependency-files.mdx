@@ -1,0 +1,81 @@
+---
+title: How Teire updates dependency files
+description: The manifest and lockfile change comes from Dependabot's own updater, run in an isolated sandbox on Teire's server; Teire's loop of locating, fixing and verifying the code sits on top.
+icon: FileDiff
+---
+
+<Callout title="Rolling out">
+The updater service runs on Teire's server and is measured below. Fix runs move to it one ecosystem at a time, each once its upgrades pass on a real repository. Until an ecosystem moves, Teire's own transaction edits its manifest and lockfile, and the [verification](/docs/build/verification) is the same either way.
+</Callout>
+
+Changing a version in `package.json` is the easy part. Resolving the new lockfile, moving every declaration across workspaces, and knowing which other packages must move too is what package managers spend years getting right. Teire doesn't reimplement that. It runs **dependabot-core's updater** (MIT), through GitHub's `dependabot` CLI, and builds its own work on top: finding the lines that break, fixing them, and proving the fix.
+
+## One job per upgrade
+
+For each upgrade Teire decides on, it builds one updater job:
+
+| Job | What it asks for |
+|---|---|
+| Version update | Exactly the target version Teire chose: only this dependency, nothing above the target, no extra cooldown (Teire already applied the repository's) |
+| Security update | The lowest version that fixes the advisory |
+| Refresh | Bring an open Teire PR up to date with its base branch |
+| Group refresh | A group the repository configured in `dependabot.yml` |
+
+A package declared in several lockfile roots runs as **one** job listing every root, so one pull request carries every root's change.
+
+The job is bound to the commit Teire scanned, and the run returns the sha256 of the tarball it used.
+
+## What comes back
+
+The updater reports what it did as events. Teire reads those events, never the exit code:
+
+- **A change**:
+  - the dependency files, byte for byte, including binary lockfiles, deletions, symlinks and executable bits;
+  - every package the updater moved, so each co-upgrade gets its own API diff and release notes;
+  - the version the dependency actually landed on. A version below the target means "resolvable only up to here", and the PR says why.
+- **A named stop**, quoted in the PR or issue. Examples: no set of versions satisfies every requirement; every newer version is ignored by the repository's configuration; no version that fixes the advisory has been published.
+
+Every file path is checked before it is used. A path that would leave the repository, or touch `.git`, is refused.
+
+Measured on real repositories (2026-10-28):
+
+| Repository | Upgrade | Files | Time |
+|---|---|---|---|
+| `teire-dev/serve-handler` (Yarn 1) | path-to-regexp 3.3.0 → 9.0.0 | `package.json`, `yarn.lock` | 1 min 46 s |
+| `teire-dev/serve-handler` (Yarn 1) | minimatch 3.1.5 → 10.2.6 | `package.json`, `yarn.lock` | 2 min 17 s |
+
+## Your dependabot.yml counts
+
+If the repository has `.github/dependabot.yml`, the updater's jobs follow it:
+
+- **Applied:** ignores (names, version ranges, update types), groups, the versioning strategy, `vendor`, `exclude-paths`, the commit message prefix, and `insecure-external-code-execution`.
+- **Conflicts:** where `teire.yml` sets the same thing (commit prefix, target branch, PR limit), `teire.yml` wins, and the Dashboard issue says which file decided.
+- **Not applied yet:** reviewers, assignees, milestones and multi-ecosystem groups. They are listed, never silently dropped.
+
+## Where it runs
+
+The updater runs on Teire's own server, in a separate Docker daemon whose containers run under **gVisor**. gVisor is a kernel in user space: container system calls never reach the host's kernel directly.
+
+| Boundary | Rule |
+|---|---|
+| Network | The updater sits on a network with no route out. Only Dependabot's proxy reaches the internet, and the host firewall stops it reaching Teire's apps, its database, cloud metadata or any host port |
+| Credentials | A token that can only read this one repository, valid for an hour. The proxy holds it; the updater never does |
+| Images | Dependabot's updater and proxy images, pinned by digest. The CLI checks their build attestations before use |
+| Code execution | Off only when the job carries private-registry credentials and the repository hasn't allowed it, as Dependabot does |
+| Resources | One job at a time; capped CPU and memory; a 20-minute limit, then everything the job started is removed |
+
+The full threat model, and the probe that proves each point, is [in the repository](https://github.com/teire-dev/teire/blob/main/apps/resolver/THREAT-MODEL.md).
+
+## What Teire still does itself
+
+Some upgrades Dependabot doesn't do, so Teire keeps its own changes for them:
+
+- Go majors, which move to a new module path (`/v5`);
+- Cargo crates renamed in `Cargo.toml`, and features a new version removed;
+- npm aliases (`npm:`);
+- `pylock.toml`;
+- Gradle lockfiles updated for one module only;
+- the runtime or build-tool bump a new major needs (Java 17 for Spring Boot 4, for example);
+- overrides for a vulnerable transitive package.
+
+Then, for every upgrade, the [verification](/docs/build/verification) runs your own install, typecheck and tests before and after.
