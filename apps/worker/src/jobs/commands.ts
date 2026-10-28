@@ -180,46 +180,44 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       const on = command.name === "ignore";
       if (type) {
         await setIgnore(db, repo.id, `${target}@${type}`, on);
-        // Asked on the Teire PR it names: that PR's update is the one being declined, so it closes.
-        if (on && artifact?.kind === "pr" && artifact.state === "open" && artifact.number) {
-          await octokit.rest.issues.createComment({
-            owner,
-            repo: name,
-            issue_number: artifact.number,
-            body: `Closed: @${by} ignored ${type} updates of \`${target}\`.`,
-          });
-          await octokit.rest.pulls.update({
-            owner,
-            repo: name,
-            pull_number: artifact.number,
-            state: "closed",
-          });
-        }
-        return void (await reply(
+        // Asked on the Teire PR it names: that PR's update is the one being declined, so it closes,
+        // after the reply, so the reply isn't left on a closed PR (review R16).
+        const closing = on && artifact?.kind === "pr" && artifact.state === "open" ? artifact.number : null;
+        await reply(
           on
-            ? `Ignoring ${type} updates of \`${target}\`; other updates still come.`
+            ? `Ignoring ${type} updates of \`${target}\`; other updates still come.${closing ? " Closing this PR." : ""}`
             : `${type[0]?.toUpperCase()}${type.slice(1)} updates of \`${target}\` come again.`,
-        ));
+        );
+        if (closing)
+          await octokit.rest.pulls.update({ owner, repo: name, pull_number: closing, state: "closed" });
+        return;
       }
       await setIgnore(db, repo.id, target, on);
       const n = await setFindingsState(db, repo.id, (f) => matchesTarget(target, f), on ? "ignored" : "open");
-      // Ignoring closes the open PR for it (C6: "Ignore this change").
+      // Ignoring closes the open PRs for it (C6: "Ignore this change"), after the reply names them,
+      // so the reply isn't left on a closed PR (review R16).
+      const open = new Set<number>();
       if (on)
         for (const f of (await findingsWithChanges(db, repo.id)).filter(
           (x) => matchesTarget(target, x) && x.groupKey,
         )) {
           const pr = await getArtifact(db, repo.id, "pr", f.groupKey as string);
-          if (pr?.state === "open" && pr.number) {
-            await octokit.rest.issues.createComment({
-              owner,
-              repo: name,
-              issue_number: pr.number,
-              body: `Closed: @${by} ignored \`${target}\`.`,
-            });
-            await octokit.rest.pulls.update({ owner, repo: name, pull_number: pr.number, state: "closed" });
-          }
+          if (pr?.state === "open" && pr.number) open.add(pr.number);
         }
-      await reply(`${on ? "Ignored" : "Unignored"} \`${target}\` (${n} finding${n === 1 ? "" : "s"}).`);
+      const closes = [...open].map((pr) => (pr === issueNumber ? "this PR" : `#${pr}`));
+      await reply(
+        `${on ? "Ignored" : "Unignored"} \`${target}\` (${n} finding${n === 1 ? "" : "s"}).${closes.length ? ` Closing ${closes.join(", ")}.` : ""}`,
+      );
+      for (const pr of open) {
+        if (pr !== issueNumber)
+          await octokit.rest.issues.createComment({
+            owner,
+            repo: name,
+            issue_number: pr,
+            body: `Closed: @${by} ignored \`${target}\`.`,
+          });
+        await octokit.rest.pulls.update({ owner, repo: name, pull_number: pr, state: "closed" });
+      }
       return;
     }
     case "fix":
