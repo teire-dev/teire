@@ -13,7 +13,7 @@ import {
   Search,
   SquareTerminal,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { LedgerCheck } from "@/components/teire/ledger";
 import type { Phase } from "@/components/teire/phase-strip";
 import { EvidenceChip, StatusChip, type Tone } from "@/components/teire/status-chip";
@@ -337,6 +337,28 @@ export function contextOf(sheet: RunSheetData): [string, ContextItem[]][] {
   return Object.entries(groups).filter(([, items]) => items.length);
 }
 
+/**
+ * The clock for a run still working, read only in the browser: the server's render and the page's
+ * first render show the same text (no hydration mismatch), then it ticks each second.
+ */
+export function useNow(ticking: boolean) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    if (!ticking) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [ticking]);
+  return now;
+}
+
+/** How long a run has taken: to its end, or to now once the browser has a clock. */
+export function elapsed(from: string | null, to: string | null, now: number | null) {
+  if (!from) return null;
+  const end = to ? Date.parse(to) : now;
+  return end === null ? null : end - Date.parse(from);
+}
+
 /** The run's state in words, with why it waits or who stopped it. */
 function statusOf(run: RunSheetData["run"]): { label: string; tone: Tone } {
   switch (run.status) {
@@ -372,7 +394,8 @@ export function RunFacts({ sheet }: { sheet: RunSheetData }) {
   const { run } = sheet;
   const status = statusOf(run);
   const began = firstStart(sheet);
-  const ms = began ? Date.parse(run.finishedAt ?? new Date().toISOString()) - Date.parse(began) : null;
+  const now = useNow(!run.finishedAt);
+  const ms = elapsed(began, run.finishedAt, now);
   const cost = Number(run.costUsd);
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11px] text-ink-3">

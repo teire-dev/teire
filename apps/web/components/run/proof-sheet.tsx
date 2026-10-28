@@ -30,11 +30,13 @@ import {
   Closing,
   contextOf,
   duration,
+  elapsed,
   firstStart,
   liveLedger,
   phasesOf,
   RunFacts,
   subjectOf,
+  useNow,
 } from "./sheet-parts";
 
 /** One poll a second while the run works, every five after ten minutes, none while hidden (D122). */
@@ -129,9 +131,8 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const notCovered = notCoveredFrom(baseline, after, verification?.reasons ?? []);
   const test = after.find((c) => c.name === "test")?.counts;
   const testBefore = baseline.find((c) => c.name === "test")?.counts;
-  const ms = run.startedAt
-    ? Date.parse(run.finishedAt ?? new Date().toISOString()) - Date.parse(run.startedAt)
-    : null;
+  const now = useNow(active);
+  const ms = elapsed(run.startedAt, run.finishedAt, now);
   const sandboxMs = sheet.execs.reduce((n, x) => n + (x.durationMs ?? 0), 0);
   const tokens = sheet.calls.reduce((n, c) => n + c.tokensIn + c.tokensOut, 0);
   const context = contextOf(sheet);
