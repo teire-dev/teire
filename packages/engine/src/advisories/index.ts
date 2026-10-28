@@ -94,6 +94,23 @@ async function osvGet<T>(path: string): Promise<T> {
  * Whether a GHSA `vulnerable_version_range` (`>= 1.0, < 1.2.3`) covers the installed version, in the
  * ecosystem's own grammar; a range Teire cannot read keeps the advisory (never silently dropped).
  */
+/** An advisory's ranges, one per release line, kept in one `affectedRange` string. */
+export const AFFECTED_RANGES_SEPARATOR = " || ";
+
+/**
+ * Whether `version` is still inside any range an advisory names (the final check before a
+ * security PR claims a fix, S15.7). Advisories without ranges (OSV) are judged by their fixes.
+ */
+export function stillAffected(
+  record: { applicability: { affectedRange?: string; fixedIn: string[] } },
+  version: string,
+  ecosystem: Ecosystem,
+) {
+  const ranges = record.applicability.affectedRange?.split(AFFECTED_RANGES_SEPARATOR) ?? [];
+  if (ranges.length) return ranges.some((r) => ghsaRangeMatches(r, version, ecosystem));
+  return false;
+}
+
 function ghsaRangeMatches(range: string | null, version: string, ecosystem: Ecosystem) {
   if (!range) return true;
   if (ecosystem === "pypi") {
@@ -388,16 +405,26 @@ async function lookup(
       );
     }
     for (const g of ghsa.get(`${query.ecosystem}:${query.name}`) ?? []) {
-      const vuln = g.vulnerabilities.find((v) => v.package.name === query.name);
-      if (!ghsaRangeMatches(vuln?.vulnerable_version_range ?? null, query.version, query.ecosystem)) continue;
+      // Every entry for the package: an advisory can name one range per release line, and a fix on
+      // one line must not read as a fix on another.
+      const vulns = g.vulnerabilities.filter((v) => v.package.name === query.name);
+      if (
+        !vulns.some((v) =>
+          ghsaRangeMatches(v.vulnerable_version_range ?? null, query.version, query.ecosystem),
+        )
+      )
+        continue;
+      const ranges = vulns.flatMap((v) => (v.vulnerable_version_range ? [v.vulnerable_version_range] : []));
       add(
         g.ghsa_id,
         g.cve_id ? [g.cve_id] : [],
         g.summary,
         g.html_url,
         g.severity,
-        vuln?.first_patched_version ? [moduleVersion(query.ecosystem, vuln.first_patched_version)] : [],
-        vuln?.vulnerable_version_range ?? undefined,
+        vulns.flatMap((v) =>
+          v.first_patched_version ? [moduleVersion(query.ecosystem, v.first_patched_version)] : [],
+        ),
+        ranges.length ? ranges.join(AFFECTED_RANGES_SEPARATOR) : undefined,
         [],
         JSON.stringify(g),
       );

@@ -19,7 +19,7 @@ For each upgrade Teire decides on, it runs one updater job:
 | Version update | Exactly the target version Teire chose: only this dependency, nothing above the target, no extra cooldown (Teire already applied the repository's) |
 | Security update | The lowest version that fixes the advisories that have a published fix |
 
-Refresh and group-refresh jobs are built too. Until they are wired in, a base change re-runs the version or security job, which gives the same files.
+Refresh and group-refresh jobs are built too. Until they are wired in, a base change re-runs the version or security job at the pull request's own version, which gives the same files. A group configured in `dependabot.yml` becomes a group job once group refresh is wired in; until then each package in it gets its own pull request.
 
 A package declared in several lockfile roots runs as **one** job listing every root the same package manager covers (npm and Yarn roots together), so one pull request carries every root's change.
 
@@ -30,7 +30,7 @@ The job is bound to the commit Teire scanned, and the run returns the sha256 of 
 The updater reports what it did as events. Teire reads those events, never the exit code:
 
 - **A change**:
-  - the dependency files, byte for byte, including binary lockfiles, deletions, symlinks and executable bits;
+  - the dependency files, byte for byte, including binary lockfiles, deletions, symlinks, and the executable bit of files that already have one. Only dependency files are taken: the updater runs repository code, so any other file it returns (a workflow, a source file) stops the run instead of reaching a commit;
   - every package the updater moved alongside the upgrade, listed in the PR with its old and new version;
   - the version the dependency actually landed on. A version below the target means "resolvable only up to here", and the PR says why.
 - **A named stop**, quoted in the PR or issue. Examples: no set of versions satisfies every requirement; every newer version is ignored by the repository's configuration; no version that fixes the advisory has been published.
@@ -51,7 +51,7 @@ There is no silent fallback. For an ecosystem that has moved to the updater:
 
 Every file path is checked before it is used. A path that would leave the repository, or touch `.git`, is refused.
 
-Measured on real repositories (2026-10-28):
+Measured on real repositories by Teire's pilot (2026-10-28); the cases and the updater's results are in [`smoke/resolver`](https://github.com/teire-dev/teire/tree/main/smoke/resolver):
 
 | Repository | Upgrade | Files | Time |
 |---|---|---|---|
@@ -79,9 +79,9 @@ Measured on real repositories (2026-10-28):
 
 If the repository has `.github/dependabot.yml`, the updater's jobs follow it:
 
-- **Applied:** ignores (names, version ranges, update types), groups, the versioning strategy, `vendor`, `exclude-paths`, the commit message prefix, and `insecure-external-code-execution`.
+- **Applied:** ignores (names, version ranges, update types), the versioning strategy, `vendor`, `exclude-paths`, the commit message prefix, and `insecure-external-code-execution`.
 - **Conflicts:** where `teire.yml` sets the same thing (commit prefix, target branch, PR limit), `teire.yml` wins, and the run's timeline says which file decided.
-- **Not applied:** reviewers, assignees, milestones, labels, schedules and multi-ecosystem groups. Teire opens its own pull requests on its own schedule, so these don't reach the updater's job.
+- **Not applied:** reviewers, assignees, milestones, labels, `schedule`, `allow`, `cooldown`, `rebase-strategy`, `registries`, `target-branch`, `open-pull-requests-limit` and multi-ecosystem groups. Teire opens its own pull requests on its own schedule and applies its own cooldown and limits from `teire.yml`; private registries come with S18.
 
 ## Where it runs
 

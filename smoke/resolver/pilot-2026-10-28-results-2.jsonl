@@ -1,0 +1,6 @@
+{"case":"pnpm","pass":false,"ms":52048,"state":"done","commit":"34d608c","got":{"kind":"stop","type":"dependency_file_not_parseable","message":"a dependency file could not be parsed (file-path: /pnpm-lock.yaml; message: /pnpm-lock.yaml not parseable)"}}
+{"case":"yarn berry","pass":true,"ms":200532,"state":"done","commit":"3f3a070","got":{"kind":"change","lead":"9.0.0","files":["package.json","yarn.lock"],"moved":["path-to-regexp 6.2.1 → 9.0.0"]}}
+{"case":"bun (binary bun.lockb)","pass":true,"ms":75458,"state":"done","commit":"5512102","got":{"kind":"change","lead":"1.4.30","files":["package.json"],"moved":["elysia 0.7.29 → 1.4.30"]}}
+{"case":"pipenv","pass":true,"ms":168639,"state":"done","commit":"075ac16","got":{"kind":"change","lead":"6.1.3","files":["Pipfile.lock"],"moved":["lxml 4.9.2 → 6.1.3"]}}
+{"case":"pip-compile (two .in pairs)","pass":true,"ms":183893,"state":"done","commit":"a5ea20d","got":{"kind":"change","lead":"8.5.0","files":["requirements.in","requirements-dev.txt","requirements.txt"],"moved":["click 7.1.2 → 8.5.0"]}}
+{"case":"requirements.txt","pass":true,"ms":68561,"state":"done","commit":"00abe3d","got":{"kind":"change","lead":"4.0.0","files":["requirements.txt"],"moved":["flask-babel 2.0.0 → 4.0.0"]}}

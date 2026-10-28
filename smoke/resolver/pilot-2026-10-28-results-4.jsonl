@@ -1,0 +1,2 @@
+{"case":"security npm (transitive)","pass":true,"ms":87375,"state":"done","commit":"cd1cbc1","got":{"kind":"change","lead":"3.1.9","files":["package-lock.json"],"moved":["fast-uri 3.1.8 → 3.1.9"]}}
+{"case":"negative: every fix ignored (security job)","pass":false,"ms":110532,"state":"done","commit":"6118ea9","got":{"kind":"change","lead":"3.1.5","files":["yarn.lock"],"moved":["minimatch 3.1.2 → 3.1.5"]}}

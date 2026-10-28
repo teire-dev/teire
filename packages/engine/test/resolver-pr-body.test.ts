@@ -32,3 +32,36 @@ describe("upstream commits from the updater's PR body (D-13)", () => {
     expect(upstreamFromPrBody(odd)).toBeNull();
   });
 });
+
+import { isDependencyFile } from "../src/resolver/events";
+
+describe("files the updater may return (untrusted events)", () => {
+  it("takes manifests, lockfiles, vendored folders and wrapper files", () => {
+    for (const p of [
+      "package.json",
+      "web/yarn.lock",
+      ".yarn/cache/x.zip",
+      "py/uv.lock",
+      "requirements/dev.txt",
+      "go.sum",
+      "vendor/x/y.go",
+      "Cargo.lock",
+      "coal.gemspec",
+      "gradle/libs.versions.toml",
+      "gradle.lockfile",
+      "gradle/wrapper/gradle-wrapper.properties",
+      "pom.xml",
+    ])
+      expect(isDependencyFile(p), p).toBe(true);
+  });
+  it("refuses workflows, sources and scripts", () => {
+    for (const p of [
+      ".github/workflows/ci.yml",
+      "src/index.ts",
+      "scripts/postinstall.sh",
+      "Makefile",
+      ".npmrc",
+    ])
+      expect(isDependencyFile(p), p).toBe(false);
+  });
+});

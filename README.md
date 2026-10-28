@@ -233,9 +233,12 @@ cd apps/sandbox && npx wrangler deploy && npx wrangler secret put TEIRE_SANDBOX_
 
 # Optional: the dependency updater (dependabot-core under gVisor) on a Linux host with Docker.
 # It installs a second Docker daemon beside yours and checks yours still works; read
-# apps/resolver/THREAT-MODEL.md first. Without it, Teire's own manifest and lockfile edits are used.
+# apps/resolver/THREAT-MODEL.md first.
 #   sudo apps/resolver/host/install.sh install
-# .env.local: TEIRE_RESOLVER_URL=http://<the host's address>:8787, TEIRE_RESOLVER_SECRET from /etc/teire-resolver/env
+# .env.local: TEIRE_RESOLVER_URL=http://<the host's address>:8787, TEIRE_RESOLVER_SECRET from /etc/teire-resolver/env,
+#   TEIRE_RESOLVER_ECOSYSTEMS=npm (the ecosystems whose dependency files the updater decides; for
+#   them a stop is final and an unreachable updater queues). Ecosystems not listed, or no updater at
+#   all, use Teire's own manifest and lockfile edits.
 
 pnpm --parallel --filter ./apps/web --filter ./apps/worker dev   # web on :3000, worker on :8080
 npx smee-client --url <SMEE_URL from .env.local> --target http://localhost:3000/api/github/webhooks

@@ -78,29 +78,32 @@ export async function resolveForRepo(
     },
     lead,
   );
-  await ctx.db
-    .insert(resolverResults)
-    .values({
-      key,
-      repoId: repo.id,
-      commit: input.commit,
-      tarballSha256: run.tarballSha256,
-      state: run.state,
-      exitCode: run.exitCode,
-      durationMs: run.ms,
-      result: run.result,
-    })
-    .onConflictDoUpdate({
-      target: resolverResults.key,
-      set: {
+  // Only results that can't be transient are reused: a stop (a timed-out private source, a timeout)
+  // is asked again next time, so `@teire fix` after it gets a fresh answer.
+  if (run.result.kind !== "stop")
+    await ctx.db
+      .insert(resolverResults)
+      .values({
+        key,
+        repoId: repo.id,
+        commit: input.commit,
         tarballSha256: run.tarballSha256,
         state: run.state,
         exitCode: run.exitCode,
         durationMs: run.ms,
         result: run.result,
-        createdAt: new Date(),
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: resolverResults.key,
+        set: {
+          tarballSha256: run.tarballSha256,
+          state: run.state,
+          exitCode: run.exitCode,
+          durationMs: run.ms,
+          result: run.result,
+          createdAt: new Date(),
+        },
+      });
   if (runId) {
     // On the receipt beside the sandbox runs: what ran, where, for how long (S-P17).
     await recordSandboxExec(ctx.db, {

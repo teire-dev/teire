@@ -1,0 +1,1 @@
+{"case":"cargo","pass":false,"ms":36515,"state":"done","commit":"856e1c4","got":{"kind":"change","lead":"0.9.5","files":["rust-major/Cargo.toml","rust-major/Cargo.lock"],"moved":["rand 0.8.8 → 0.9.5"]}}

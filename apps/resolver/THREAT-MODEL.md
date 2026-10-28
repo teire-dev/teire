@@ -23,7 +23,7 @@ Daemon #2 is separate from Coolify's daemon. It has its own socket (`/run/docker
 | 2 | Repository code reaches Coolify's apps, Postgres or the worker | Updater on an internal network (no route); `TEIRE-RESOLVER` drops 10/8, 172.16/12, 192.168/16, 100.64/10, 169.254/16 | From a job container: `wget 10.0.0.1`, `10.0.1.x:5432`, `169.254.169.254` all blocked |
 | 3 | Repository code reaches host services (SSH, Coolify's API, this service) | `TEIRE-RESOLVER-IN` drops every host port from the resolver range except the fake API's | From a job container: `192.168.240.1:22`, `:8000`, `84.46.247.92:8000`, `10.0.1.1:8787` blocked |
 | 4 | Repository code changes another job's DNS | `resolv.conf` mounted read-only by `runsc-wrapper.sh` | `echo x >> /etc/resolv.conf` → "Read-only file system" |
-| 5 | One job's updater posts events to another job's fake API (through its proxy) | One job at a time (`teire-resolver.py` has one worker thread). Per-job rules follow in S14 before concurrency rises | `GET /health` shows the queue; two submitted jobs run one after the other |
+| 5 | One job's updater posts events to another job's fake API (through its proxy) | One job at a time (`teire-resolver.py` has one worker thread). Per-job rules come before concurrency rises above one | `GET /health` shows the queue; two submitted jobs run one after the other |
 | 6 | Anything outside the resolver reaches the fake API | `TEIRE-RESOLVER-IN` drops the fake-API ports from non-resolver sources | From a Coolify container: `192.168.240.1:47000` refused |
 | 7 | Another Coolify app calls the resolver service | Bearer secret (`/etc/teire-resolver/env`, mode 600, compared in constant time) | `curl 10.0.1.1:8787/health` without the secret → 401 |
 | 8 | A job writes outside the checkout | Tarball extracted with Python's `data` filter (no absolute paths, `..` or escaping links). Every returned file passes `guardedPath`: no `..`, no `.git/`, no NUL | `packages/engine/test/resolver.test.ts` ("refuses paths that leave the checkout") |
@@ -33,9 +33,14 @@ Daemon #2 is separate from Coolify's daemon. It has its own socket (`/run/docker
 | 12 | A runaway job starves Coolify | `teire-resolver.slice`: MemoryMax 8G, CPUQuota 400%; the CLI's 20-minute timeout, then the process group is killed | `systemctl show teire-resolver.slice -p MemoryPeak` |
 | 13 | A resolver change breaks Coolify | `teire-coolify-check` (worker DNS, internet, Postgres, Coolify → host SSH, docker0, Coolify API) before and after every change; `install.sh` removes the resolver if it fails | `teire-coolify-check` prints six "ok" lines |
 | 14 | Leftovers from one job affect the next | After every job the service removes every container and network on daemon #2 and the job folder | `docker -H unix:///run/docker-resolver.sock ps -a` is empty between jobs |
+| 15 | Repository code makes the updater return files that aren't dependency files (a workflow, a source file) | The worker takes only dependency files (`isDependencyFile`: manifests, lockfiles, vendored folders, wrapper files); any other path is a named stop, never committed | `packages/engine/test/resolver-pr-body.test.ts` ("refuses workflows, sources and scripts") |
+| 16 | A repository unpacks into a huge checkout (a compressed bomb) or a retried client floods the queue | Extraction stops at 4 GB or 300,000 files; the same job asked again while it waits gets the same id; more than 50 queued jobs are refused | `teire-resolver.py` `download`, `do_POST` |
+| 17 | A token reaches events or logs | Only installation tokens (`ghs_`) are accepted; events, stderr and errors are redacted before they leave the service | `GET /jobs/<id>` on a finished job shows `[redacted]` where a token was |
 
 ## Not covered yet
 
+- **The checkout on the host disk.** During a job the repository's files sit in the service's work folder, owned by root, until the job ends; the service then deletes them. Running the service as its own user is planned.
+
 - **Private registries.** Credentials will go only to the proxy, injected at egress; external code is refused when they are present (D105). S18.
-- **Image mirror.** Digests and attestation bundles mirrored to teire-dev's GHCR, so a deleted upstream digest can't stop jobs (R-P27). S14.
+
 - **Concurrency above one.** Needs per-job fake-API rules (threat 5).

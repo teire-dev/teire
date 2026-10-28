@@ -65,7 +65,9 @@ export function Receipt({
       ) : (
         <Row left="no model call" right="deterministic fix · $0.0000" />
       )}
-      <p className="mt-3 mb-1 text-muted-foreground">sandbox · {execs[0]?.backend ?? "—"}</p>
+      <p className="mt-3 mb-1 text-muted-foreground">
+        sandbox · {execs.find((e) => e.phase !== "resolve")?.backend ?? "—"}
+      </p>
       {execs.map((e, i) => (
         <Row
           // biome-ignore lint/suspicious/noArrayIndexKey: commands repeat across rounds; order is the identity

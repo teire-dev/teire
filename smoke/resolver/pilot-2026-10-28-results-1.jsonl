@@ -1,0 +1,14 @@
+{"case":"uv two roots","pass":true,"ms":105738,"state":"done","commit":"856e1c4","got":{"kind":"change","lead":"1.17.0","files":["py-live/pyproject.toml","py-live/uv.lock"],"moved":["anthropic 0.125.0 → 1.17.0"]}}
+{"case":"go modules","pass":true,"ms":75674,"state":"done","commit":"856e1c4","got":{"kind":"change","lead":"0.43.0","files":["go-major/go.mod","go-major/go.sum"],"moved":["golang.org/x/text 0.3.5 → 0.43.0"]}}
+{"case":"cargo","pass":false,"ms":57907,"state":"done","commit":"856e1c4","got":{"kind":"change","lead":"0.9.5","files":["rust-major/Cargo.toml","rust-major/Cargo.lock"],"moved":["rand 0.8.8 → 0.9.5"]}}
+{"case":"bundler three roots","pass":true,"ms":109970,"state":"done","commit":"856e1c4","got":{"kind":"change","lead":"2.15.0","files":["rails-db/Gemfile","rails-db/Gemfile.lock"],"moved":["faraday 1.10.6 → 2.15.0"]}}
+{"case":"maven two roots","pass":false,"ms":51073,"state":"done","commit":"856e1c4","got":{"kind":"change","lead":"23.0","files":["jvm-clean/pom.xml"],"moved":["com.google.guava:guava 19.0 → 23.0"]}}
+{"case":"gradle catalog and locks","pass":true,"ms":214524,"state":"done","commit":"856e1c4","got":{"kind":"change","lead":"5.5.0","files":["kotlin-major/gradle/libs.versions.toml","kotlin-major/gradle.lockfile"],"moved":["com.squareup.okhttp3:okhttp 3.14.9 → 5.5.0"]}}
+{"case":"npm","pass":true,"ms":41687,"state":"done","commit":"856e1c4","got":{"kind":"change","lead":"4.6.7","files":["npm-zod/package.json","npm-zod/package-lock.json"],"moved":["zod 3.25.76 → 4.6.7"]}}
+{"case":"poetry","pass":true,"ms":171269,"state":"done","commit":"d272d79","got":{"kind":"change","lead":"2.10.6","files":["pyproject.toml","poetry.lock"],"moved":["pydantic 1.10.16 → 2.10.6"]}}
+{"case":"bundler gemspec","pass":true,"ms":60132,"state":"done","commit":"7f87679","got":{"kind":"change","lead":"1.10.6","files":["Gemfile.lock","locomotivecms_coal.gemspec"],"moved":["faraday 1.10.3 → 1.10.6"]}}
+{"case":"cargo app","pass":true,"ms":44038,"state":"done","commit":"65cd829","got":{"kind":"change","lead":"0.18.0","files":["Cargo.toml","Cargo.lock"],"moved":["crossterm 0.17.7 → 0.18.0"]}}
+{"case":"gradle app","pass":true,"ms":34428,"state":"done","commit":"de24d15","got":{"kind":"change","lead":"0.13.0","files":["build.gradle"],"moved":["io.jsonwebtoken:jjwt-api 0.11.2 → 0.13.0"]}}
+{"case":"negative: target above the newest","pass":true,"ms":86814,"state":"done","commit":"6118ea9","got":{"kind":"change","lead":"9.0.0","files":["package.json","yarn.lock"],"moved":["path-to-regexp 3.3.0 → 9.0.0"]}}
+{"case":"negative: every version ignored","pass":false,"ms":41972,"state":"done","commit":"6118ea9","got":{"kind":"nothing","warnings":[]}}
+{"case":"negative: security update not needed","pass":true,"ms":53686,"state":"done","commit":"6118ea9","got":{"kind":"stop","type":"security_update_not_needed","message":"the installed version is not affected by the advisory (dependency-name: minimatch)"}}

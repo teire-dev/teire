@@ -237,3 +237,33 @@ export function resultOf(
   }
   return { kind: "nothing", warnings };
 }
+
+/**
+ * The files dependabot-core's updaters write: manifests, lockfiles, workspace and wrapper files,
+ * and vendored dependency folders. The updater runs repository code, so its events are untrusted;
+ * any other path (a workflow, a source file, a script) is refused rather than committed.
+ */
+const DEPENDENCY_FILE = new RegExp(
+  [
+    // npm, Yarn, pnpm, Bun
+    String.raw`(^|/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|\.yarnrc\.yml|\.pnp\.c?js|\.pnp\.loader\.mjs|pnpm-lock\.yaml|pnpm-workspace\.yaml|bun\.lockb?)$`,
+    String.raw`(^|/)\.yarn/(cache|releases|plugins|sdks|patches|versions)/`,
+    // Python
+    String.raw`(^|/)(requirements[^/]*\.(txt|in)|[^/]+\.in|constraints[^/]*\.txt|pyproject\.toml|poetry\.lock|uv\.lock|pylock\.toml|Pipfile|Pipfile\.lock|setup\.py|setup\.cfg|pdm\.lock)$`,
+    String.raw`(^|/)requirements/[^/]+\.(txt|in)$`,
+    // Go
+    String.raw`(^|/)(go\.mod|go\.sum|go\.work|go\.work\.sum)$`,
+    String.raw`(^|/)vendor/`,
+    // Cargo
+    String.raw`(^|/)(Cargo\.toml|Cargo\.lock)$`,
+    // Bundler
+    String.raw`(^|/)(Gemfile|Gemfile\.lock|gems\.rb|gems\.locked|[^/]+\.gemspec)$`,
+    // Maven and Gradle
+    String.raw`(^|/)(pom\.xml|extensions\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties|[^/]+\.versions\.toml|[^/]*\.lockfile|gradlew(\.bat)?)$`,
+    String.raw`(^|/)gradle/wrapper/`,
+  ].join("|"),
+);
+
+export function isDependencyFile(path: string) {
+  return DEPENDENCY_FILE.test(path);
+}

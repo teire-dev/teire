@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
+import { AFFECTED_RANGES_SEPARATOR, stillAffected } from "@teire/engine/advisories";
 import { matchesTarget, readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
@@ -43,6 +44,7 @@ import {
   repoInstances,
 } from "@teire/engine/pipeline";
 import {
+  isDependencyFile,
   jobSettings,
   PACKAGE_MANAGER,
   ResolverUnavailableError,
@@ -123,7 +125,7 @@ function securityAdvisories(name: string, records: ChangeV2[], target: string) {
     .filter((r) => r.kind === "security-advisory" && r.applicability.fixedIn.length > 0)
     .map((r) => ({
       dependencyName: name,
-      affectedVersions: [r.applicability.affectedRange ?? `< ${target}`],
+      affectedVersions: r.applicability.affectedRange?.split(AFFECTED_RANGES_SEPARATOR) ?? [`< ${target}`],
       patchedVersions: [],
       unaffectedVersions: [],
     }));
@@ -148,6 +150,39 @@ function belowTargetReason(
       ? `its Maven version finder takes only versions whose suffix matches the installed one (dependabot-core \`suffix_compatible?\`), and ${target} has "${qualifier(target)}" where ${from} has ${qualifier(from) ? `"${qualifier(from)}"` : "none"}`
       : null;
   return [cause ? `${base}: ${cause}` : base, ...warnings].join("; ");
+}
+
+/**
+ * Which lockfile roots a multi-root PR verified (D94): the sandbox installs and checks the lead root;
+ * the others the updater changed are named as not run in the sandbox, and roots under another
+ * package manager that this PR leaves alone are named too, so the PR never claims more than ran.
+ */
+function withRoots(
+  body: string,
+  lead: string,
+  transaction: Transaction | null | undefined,
+  matching: Assessment<AssessedProject>[],
+) {
+  const changed = new Set(
+    (transaction?.readBack ?? [])
+      .map(
+        (path) =>
+          matching.find((m) => m.project.root !== "." && path.startsWith(`${m.project.root}/`))?.project
+            .root ?? ".",
+      )
+      .filter((root) => matching.some((m) => m.project.root === root)),
+  );
+  const unverified = [...changed].filter((r) => r !== lead);
+  const left = [...new Set(matching.map((m) => m.project.root))].filter((r) => r !== lead && !changed.has(r));
+  if (!unverified.length && !left.length) return body;
+  const name = (r: string) => `\`${r === "." ? "/" : r}\``;
+  const lines = [
+    `The sandbox installed and checked ${name(lead)}.${unverified.length ? ` The same upgrade in ${unverified.map(name).join(", ")} was not run in the sandbox.` : ""}${left.length ? ` ${left.map(name).join(", ")} also declare${left.length === 1 ? "s" : ""} it${transaction ? " under another package manager" : ""}; this pull request doesn't change ${left.length === 1 ? "it" : "them"}.` : ""}`,
+  ];
+  const at = body.indexOf("\n\n### Why this repo");
+  return at < 0
+    ? `${body}\n\n${lines.join("\n")}`
+    : `${body.slice(0, at)}\n\n${lines.join("\n")}${body.slice(at)}`;
 }
 
 /** The updater refused the upgrade, with its typed reason, quoted on the run and in an issue. */
@@ -218,10 +253,12 @@ function resolverManager(manager: string): TeireManager | null {
 
 /**
  * The dependency-file change from dependabot-core's updater (S15.1, D92), one job across every
- * lockfile root that declares the package at this target (D94). Teire's own transaction stays
- * where D104 keeps it: Go majors (a new module path), renamed or aliased packages, `pylock.toml`
- * and, until advisories ride along in the job, security updates. When the updater stops or lands
- * below the target, the run says why and uses Teire's own transaction.
+ * lockfile root the same Dependabot package manager covers (D94), for the ecosystems in
+ * TEIRE_RESOLVER_ECOSYSTEMS. Teire's own transaction stays where D104 keeps it: Go majors (a new
+ * module path), renamed or aliased packages, `pylock.toml`, lockfiles the updater can't read, and
+ * npm-family transitive overrides. Every other answer is final: a stop or an unexpected file is a
+ * named stop, nothing is cancelled with the reason, an outage queues; below the target becomes the
+ * target (D103), and a security fix above the lowest published one becomes the floor.
  */
 async function resolverTransactionFor(
   ctx: WorkerContext,
@@ -322,6 +359,13 @@ async function resolverTransactionFor(
     throw new ResolverNothingError(
       [`no update to ${target} (the updater's log has the details)`, ...r.warnings].join("; "),
     );
+  // The updater runs repository code, so its events are untrusted: only dependency files come back.
+  const unexpected = r.files.filter((f) => !isDependencyFile(f.path)).map((f) => f.path);
+  if (unexpected.length)
+    throw new ResolverStopError(
+      "unexpected_file",
+      `the updater's change includes files that aren't dependency files (${unexpected.slice(0, 5).join(", ")}); Teire doesn't commit them`,
+    );
   if (!r.leadVersion)
     throw new ResolverStopError(
       "unreported_version",
@@ -332,6 +376,15 @@ async function resolverTransactionFor(
     // A security job's lowest resolvable fix is above the lowest published one (that one doesn't
     // resolve here): it becomes the target, as Dependabot's own security update would.
     if (assessment.purpose === "security" && r.leadVersion) {
+      // The final check before a security PR claims a fix: the version must be outside every range.
+      const still = assessment.records.filter(
+        (a) => a.kind === "security-advisory" && stillAffected(a, r.leadVersion as string, ecosystem),
+      );
+      if (still.length)
+        throw new ResolverStopError(
+          "fix_not_resolvable",
+          `the lowest ${packageName} the updater can resolve here is ${r.leadVersion}, which ${still.map((a) => a.id.split("/").at(-1)).join(", ")} still affect`,
+        );
       const reason = `${target} is the lowest version that fixes the advisory, but dependabot-core's updater can resolve ${packageName} only from ${r.leadVersion} in this repository`;
       common.onEvent?.({ step: "transaction", detail: reason });
       return { cap: { version: r.leadVersion, reason, floor: true } };
@@ -404,7 +457,13 @@ async function packageOutcome(
     surfaceDiff: (n: string, f: string, t: string) =>
       cachedSurfaceDiff(ctx.db, ecosystem, n, f, t, { cache }),
   };
-  const assess = async (extra: { fallbackMajors?: number } = {}) => {
+  const assess = async (
+    extra: {
+      fallbackMajors?: number;
+      targetMax?: { name: string; version: string; reason: string };
+      targetFloor?: { name: string; version: string };
+    } = {},
+  ) => {
     const options = { ...assessOptions, ...extra };
     return (
       ecosystem === "pypi"
@@ -432,16 +491,30 @@ async function packageOutcome(
                 : await assessJsRepo(repoDir, tree, options)
     ).assessments as Assessment<AssessedProject>[];
   };
-  const assessments = await assess();
   // Every lockfile root that declares the package at this target. The most urgent leads; the run
   // names the others (one PR per package per repo, D94; the resolver edits them all from S15).
-  const matching = assessments
-    .filter((a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion)
-    // `@teire ignore` and teire.yml `ignore` apply to the run as they do to the scan (C8).
-    .filter(
-      (a) => !a.findings.length || a.findings.some((f) => !config.ignore.some((t) => matchesTarget(t, f))),
-    )
-    .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9));
+  const matchingIn = (list: Assessment<AssessedProject>[]) =>
+    list
+      .filter((a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion)
+      // `@teire ignore` and teire.yml `ignore` apply to the run as they do to the scan (C8).
+      .filter(
+        (a) => !a.findings.length || a.findings.some((f) => !config.ignore.some((t) => matchesTarget(t, f))),
+      )
+      .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9));
+  let matching = matchingIn(await assess());
+  // A refresh (rebase, CI repair, recreate) of a PR whose target moved from the registry's answer
+  // (a D103 cap, a security floor, a D71 fallback) keeps that PR's version.
+  if (!matching.length && !cap)
+    matching = matchingIn(
+      await assess({
+        targetMax: {
+          name: packageName,
+          version: run.targetVersion,
+          reason: "the version this pull request already moves to",
+        },
+        targetFloor: { name: packageName, version: run.targetVersion },
+      }),
+    );
   const assessment = matching[0];
   if (!assessment) return null;
   // A runtime the repo pins hard and the sandbox can't fall forward from is a named stop (S14.2).
@@ -491,6 +564,15 @@ async function packageOutcome(
     });
   const input = {
     ...common,
+    // The PR says why its target moved (D103 cap, security floor): compose reads it from options.
+    ...(cap
+      ? {
+          options: {
+            ...common.options,
+            targetMax: { name: packageName, version: cap.version, reason: cap.reason },
+          },
+        }
+      : {}),
     ...(transaction ? { transaction } : {}),
     ...(run.fallbackFrom ? { fallbackFrom: run.fallbackFrom } : {}),
   };
@@ -536,7 +618,7 @@ async function packageOutcome(
   return {
     ...(fallback ? { fallback } : {}),
     fix: result.run,
-    pr: result.pr,
+    pr: { ...result.pr, body: withRoots(result.pr.body, assessment.project.root, transaction, matching) },
     notesReceipt: result.notesReceipt,
     labels: [
       ecosystem,

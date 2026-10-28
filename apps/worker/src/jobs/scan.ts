@@ -587,7 +587,8 @@ export async function scanRepo(
     );
     // Fixes paused (D110): the scan and the Dashboard issue are kept current; no run is queued.
     // Paused fixes also keep their PRs as they are.
-    if (!repo.fixesPaused && lookupsAnswered(gaps))
+    // Not while model work is paused: triage-dependent model findings would look gone.
+    if (!repo.fixesPaused && lookupsAnswered(gaps) && !blocked)
       await closeStalePullRequests(
         ctx,
         installation.octokit,

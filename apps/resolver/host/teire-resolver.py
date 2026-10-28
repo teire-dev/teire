@@ -57,6 +57,10 @@ SHA = re.compile(r"^[0-9a-f]{40}$")
 jobs: dict[str, dict] = {}
 pending: "queue.Queue[str]" = queue.Queue()
 lock = threading.Lock()
+# The same job (repo, commit, job document, overlay) asked again while it waits or runs gets the
+# same id: a client that gave up polling and retried must not queue a second copy.
+active: dict[str, str] = {}
+MAX_QUEUED = 50
 
 
 def log(message: str) -> None:
@@ -244,6 +248,8 @@ def run(job_id: str) -> None:
         spec.pop("token", None)
         spec.pop("job", None)
         spec.pop("overlay", None)
+        if active.get(spec.get("key", "")) == job_id:
+            active.pop(spec["key"], None)
         spec.update(result, state=state, finishedAt=time.time())
     log(f"job {job_id} {spec['repo']}@{spec['commit'][:7]} {state} exit={result.get('exitCode')} {result['ms']}ms")
 
@@ -332,7 +338,7 @@ class Handler(BaseHTTPRequestHandler):
         match = re.fullmatch(r"/jobs/([0-9a-f-]{36})", self.path)
         with lock:
             spec = jobs.get(match.group(1)) if match else None
-            value = {k: v for k, v in spec.items() if k not in ("token", "job", "overlay")} if spec else None
+            value = {k: v for k, v in spec.items() if k not in ("token", "job", "overlay", "key")} if spec else None
         self.reply(200 if value else 404, value or {"error": "no such job"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -353,9 +359,22 @@ class Handler(BaseHTTPRequestHandler):
         if problem:
             self.reply(400, {"error": problem})
             return
+        key = hashlib.sha256(
+            json.dumps([body["repo"], body["commit"], body["job"], body.get("overlay")], sort_keys=True).encode()
+        ).hexdigest()
+        with lock:
+            same = active.get(key)
+            if same and jobs.get(same, {}).get("state") in ("queued", "running"):
+                self.reply(202, {"id": same, "existing": True})
+                return
+            if sum(1 for j in jobs.values() if j.get("state") == "queued") >= MAX_QUEUED:
+                self.reply(503, {"error": f"the queue is full ({MAX_QUEUED} jobs waiting)"})
+                return
         job_id = str(uuid.uuid4())
         with lock:
+            active[key] = job_id
             jobs[job_id] = {
+                "key": key,
                 "id": job_id,
                 "state": "queued",
                 "repo": body["repo"],
