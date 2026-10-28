@@ -2,10 +2,14 @@ import type { Octokit } from "octokit";
 import { PULL_REQUESTS } from "../constants";
 
 /**
- * One commit on Teire's branch (card C6): the branch is (re)set to the base commit, then the files
- * land in a single commit through GraphQL `createCommitOnBranch`, which GitHub signs for the App
- * (a "Verified" commit by `teire-bot[bot]`). Very large changes go through the Git Data API
- * instead. A branch that carries someone else's commits is never reset.
+ * One commit on Teire's branch (card C6), always with the base commit as its parent. A new branch
+ * starts at the base and the files land through GraphQL `createCommitOnBranch`. An existing branch
+ * (a rebase, recreate or refresh) is never moved back to the base first: for that moment its PR
+ * would have no commits and GitHub would close it. The commit is built on the base through the
+ * Git Data API instead and the branch jumps to it in one force-push, as Dependabot's rebases do.
+ * Both ways GitHub signs the commit for the App (a "Verified" commit by `teire-bot[bot]`), since
+ * the requests carry no custom author or committer. A branch with someone else's commits is never
+ * rewritten.
  */
 export interface FileWrite {
   path: string;
@@ -50,7 +54,8 @@ function status(error: unknown) {
   return (error as { status?: number }).status;
 }
 
-async function resetBranch(
+/** True when the branch was created at the base; false when it exists and only Teire committed to it. */
+async function startBranch(
   octokit: Octokit,
   owner: string,
   repo: string,
@@ -60,15 +65,14 @@ async function resetBranch(
 ) {
   try {
     await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: baseSha });
-    return;
+    return true;
   } catch (error) {
     if (status(error) !== 422) throw error;
   }
-  // The branch exists: only reset it when every commit on it is Teire's own.
   const { data } = await octokit.rest.repos.compareCommits({ owner, repo, base: baseSha, head: branch });
   const foreign = data.commits.filter((c) => c.author?.login !== botLogin);
   if (foreign.length) throw new HumanCommitsError(`${branch} has ${foreign.length} commit(s) by others`);
-  await octokit.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: baseSha, force: true });
+  return false;
 }
 
 export async function commitToBranch(input: {
@@ -83,7 +87,7 @@ export async function commitToBranch(input: {
   files: FileWrite[];
 }): Promise<{ oid: string; url: string }> {
   const { octokit, owner, repo, branch, baseSha } = input;
-  await resetBranch(octokit, owner, repo, branch, baseSha, input.botLogin);
+  const created = await startBranch(octokit, owner, repo, branch, baseSha, input.botLogin);
   const additions = input.files
     .filter((f) => f.content !== null)
     .map((f) => ({ path: f.path, contents: base64Of(f) }));
@@ -92,7 +96,7 @@ export async function commitToBranch(input: {
   // GraphQL commits can't set a file mode, so executables and symlinks take the Git Data API.
   const plain = input.files.every((f) => !f.mode || f.mode === "100644");
 
-  if (plain && bytes <= PULL_REQUESTS.maxGraphqlCommitBytes) {
+  if (created && plain && bytes <= PULL_REQUESTS.maxGraphqlCommitBytes) {
     const result = await octokit.graphql<{ createCommitOnBranch: { commit: { oid: string; url: string } } }>(
       MUTATION,
       {
@@ -136,6 +140,7 @@ export async function commitToBranch(input: {
     tree: newTree.sha,
     parents: [baseSha],
   });
-  await octokit.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.sha, force: false });
+  // A new branch fast-forwards from the base; an existing one jumps to the rebuilt commit.
+  await octokit.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.sha, force: !created });
   return { oid: commit.sha, url: commit.html_url };
 }

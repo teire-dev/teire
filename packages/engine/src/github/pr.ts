@@ -1,5 +1,5 @@
 import type { Octokit } from "octokit";
-import { PULL_REQUESTS } from "../constants";
+import { PR_MODE_BY_EVIDENCE, PULL_REQUESTS } from "../constants";
 import type { CallSite } from "../contract";
 
 /**
@@ -62,6 +62,18 @@ export async function openOrUpdatePullRequest(input: {
     created = true;
   }
   if (!pr) throw new Error("pull request missing after create");
+  // An updated PR's evidence may have changed (a draft that now verifies): Teire's own evidence
+  // labels that no longer apply come off; labels people added stay.
+  if (!created) {
+    const stale = Object.keys(PR_MODE_BY_EVIDENCE)
+      .map((kind) => kind.replace(/_/g, "-"))
+      .filter((label) => !input.labels.includes(label));
+    const current = new Set(((pr as { labels?: { name?: string }[] }).labels ?? []).map((l) => l.name));
+    for (const label of stale.filter((l) => current.has(l)))
+      await octokit.rest.issues
+        .removeLabel({ owner, repo, issue_number: pr.number, name: label })
+        .catch(() => undefined);
+  }
   if (input.labels.length)
     await octokit.rest.issues
       .addLabels({ owner, repo, issue_number: pr.number, labels: input.labels })
