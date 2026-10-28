@@ -114,6 +114,7 @@ export interface RunRow {
   evidence: string | null;
   backend: string | null;
   finishedAt: Date | null;
+  startedAt: Date | null;
   createdAt: Date;
   proof: Proof;
   pr: { number: number | null; url: string | null; kind: string } | null;
@@ -146,6 +147,7 @@ async function rowsOf(where: ReturnType<typeof and>, limit: number): Promise<Run
         evidence: run.evidenceKind,
         backend: run.backend,
         finishedAt: run.finishedAt,
+        startedAt: run.startedAt,
         createdAt: run.createdAt,
         pr: art ? { number: art.number, url: art.url, kind: art.kind } : null,
         proof: proofOfRun({
@@ -250,7 +252,28 @@ export async function kitOverview() {
       return { repo: row.full_name, said, unresolved: c.unresolvedSites ?? 0 };
     })
     .filter((g) => g.said.length);
-  return { needsYou, openPrs, live, recent, deadlines, repos: repoRows, gaps };
+  const [counts] = (
+    await db.execute<{ proven: number; drafts: number; open: number; reaching: number }>(sql`
+      select
+        (select count(*)::int from artifacts a join runs r on r.id = a.run_id join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
+          where i.account_login = ${KIT_ACCOUNT} and a.kind = 'pr' and a.state = 'open' and r.evidence_kind = 'verified') as proven,
+        (select count(*)::int from artifacts a join runs r on r.id = a.run_id join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
+          where i.account_login = ${KIT_ACCOUNT} and a.state = 'open' and (r.evidence_kind is distinct from 'verified')) as drafts,
+        (select count(*)::int from artifacts a join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
+          where i.account_login = ${KIT_ACCOUNT} and a.kind = 'pr' and a.state = 'open') as open,
+        (select count(distinct f.group_key)::int from findings f join repos p on p.id = f.repo_id join installations i on i.id = p.installation_id
+          where i.account_login = ${KIT_ACCOUNT} and f.verdict = 'affected') as reaching`)
+  ).rows;
+  return {
+    needsYou,
+    openPrs,
+    live,
+    recent,
+    deadlines,
+    repos: repoRows,
+    gaps,
+    counts: counts ?? { proven: 0, drafts: 0, open: 0, reaching: 0 },
+  };
 }
 
 /** One repository's findings grouped by change, its PRs and runs: the Repository page. */
@@ -287,6 +310,7 @@ export async function kitShell() {
     .select({
       fullName: repos.fullName,
       paused: repos.fixesPaused,
+      languages: repos.languages,
       live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status = 'running')`,
     })
     .from(repos)
@@ -301,7 +325,12 @@ export async function kitShell() {
     .orderBy(asc(repos.fullName));
   return {
     account: { login: account?.login ?? KIT_ACCOUNT, avatarUrl: account?.avatarUrl ?? null },
-    repos: list.map((r) => ({ fullName: r.fullName, live: r.live, paused: r.paused })),
+    repos: list.map((r) => ({
+      fullName: r.fullName,
+      live: r.live,
+      paused: r.paused,
+      languages: r.languages,
+    })),
   };
 }
 

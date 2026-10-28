@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { AssistantPanel, type AssistantTurn } from "@/components/teire/assistant-panel";
 import { KitShell } from "@/components/teire/kit-shell";
+import { Mark, MarkStack } from "@/components/teire/mark";
 import { ProofGlyphs } from "@/components/teire/proof-chain";
 import { RunRowItem } from "@/components/teire/run-row";
 import { StatusChip, type Tone } from "@/components/teire/status-chip";
@@ -11,6 +12,7 @@ import { Surface } from "@/components/teire/surface";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { kitRepo, kitRun, kitShell, type RunRow, requireKit } from "@/lib/kit";
+import { languageMarks, subjectMark } from "@/lib/marks";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Repository" };
@@ -33,6 +35,23 @@ const CLASS: Record<string, { label: string; tone: Tone }> = {
 
 type Site = { file: string; line: number; snippet?: string };
 
+/** A finding group's name: the package, or the provider whose models or API changed. */
+function titleOf(key: string) {
+  const [head, ...rest] = key.split("/");
+  if (head === "models") return `${rest[0]} models`;
+  if (head === "api") return `${rest[0]} API`;
+  return rest.slice(0, -1).join("/") || key;
+}
+
+function Countdown({ date }: { date: Date }) {
+  const days = Math.round((date.getTime() - Date.now()) / 86_400_000);
+  return days < 0 ? (
+    <StatusChip tone="broke">{-days}d past shutdown</StatusChip>
+  ) : (
+    <StatusChip tone={days <= 90 ? "attention" : "neutral"}>in {days}d</StatusChip>
+  );
+}
+
 /** The assistant turn shown docked: why this repository's latest draft is a draft, from its record. */
 async function draftTurn(fullName: string, runs: RunRow[]): Promise<AssistantTurn | null> {
   const draft = runs.find((r) => r.pr?.kind === "pr" && r.evidence && r.evidence !== "verified");
@@ -40,12 +59,14 @@ async function draftTurn(fullName: string, runs: RunRow[]): Promise<AssistantTur
   const run = await kitRun(draft.id);
   if (!run) return null;
   const reason = run.verification?.reasons?.[0] ?? draft.evidence?.replace(/_/g, " ") ?? "";
-  const failed = run.execs.find((x) => x.exitCode !== 0);
-  const errorLine = `${failed?.stdoutTail ?? ""}\n${failed?.stderrTail ?? ""}`
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => /error|Error|failed|cannot|refused/.test(l))
-    .at(-1);
+  // The check that failed, in words (the sandbox's raw output stays on the run page).
+  const failedCheck = [...(run.verification?.baseline ?? []), ...(run.verification?.after ?? [])].find(
+    (c) => c.exitCode !== 0 || c.timedOut,
+  );
+  const side =
+    failedCheck && run.verification?.baseline?.includes(failedCheck)
+      ? "before the change"
+      : "after the change";
   const test = run.verification?.after?.find((c) => c.name === "test")?.counts;
   return {
     question: `Why is #${draft.pr?.number} a draft?`,
@@ -56,8 +77,10 @@ async function draftTurn(fullName: string, runs: RunRow[]): Promise<AssistantTur
     ],
     answer: [
       `#${draft.pr?.number} opened as a draft because Teire couldn't prove the change: ${reason}.`,
-      ...(failed && errorLine
-        ? [`The step that failed was “${failed.phase.replace(/_/g, " ")}”: ${errorLine.slice(0, 220)}`]
+      ...(failedCheck
+        ? [
+            `Your ${failedCheck.name} check failed ${side}${failedCheck.counts ? ` (${failedCheck.counts.passed}/${failedCheck.counts.collected} passed)` : ""}.`,
+          ]
         : []),
       "Teire marks a pull request ready only when your own checks pass before and after the change. Re-verifying runs both sides again on the same files.",
     ],
@@ -102,9 +125,11 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
         <header className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 flex-col gap-1.5">
-              <span className="eyebrow">Repository</span>
-              <h1 className="heading flex flex-wrap items-center gap-2 text-2xl text-ink">
-                <span className="font-mono">{repo.fullName}</span>
+              <span className="eyebrow flex items-center gap-2">
+                Repository <MarkStack brands={languageMarks(repo.languages)} />
+              </span>
+              <h1 className="heading flex flex-wrap items-center gap-2 text-3xl text-ink">
+                <span>{repo.fullName.split("/")[1]}</span>
                 <StatusChip tone="neutral" glyph={false}>
                   {repo.isPrivate ? "private" : "public"}
                 </StatusChip>
@@ -127,17 +152,30 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
               </Button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 rounded-lg bg-sheet px-4 py-3 shadow-card">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="eyebrow">Fixes</span>
-            <ToggleGroup type="single" defaultValue={mode} variant="outline" size="sm" aria-label="Fix mode">
-              <ToggleGroupItem value="auto">Automatic</ToggleGroupItem>
-              <ToggleGroupItem value="ask">Ask first</ToggleGroupItem>
-              <ToggleGroupItem value="off">Off</ToggleGroupItem>
+            <ToggleGroup
+              type="single"
+              defaultValue={mode}
+              aria-label="Fix mode"
+              className="rounded-lg bg-sunken p-0.5 ring-1 ring-rule ring-inset"
+            >
+              {[
+                ["auto", "Automatic"],
+                ["ask", "Ask first"],
+                ["off", "Off"],
+              ].map(([value, label]) => (
+                <ToggleGroupItem
+                  key={value}
+                  value={value as string}
+                  className="h-7 rounded-md px-3 text-xs text-ink-2 data-[state=on]:bg-sheet data-[state=on]:text-ink data-[state=on]:shadow-card"
+                >
+                  {label}
+                </ToggleGroupItem>
+              ))}
             </ToggleGroup>
-            <span className="text-xs text-ink-3">
-              {mode === "off"
-                ? "Off here: Teire lists what it finds and opens nothing. Set with @teire pause-fixes."
-                : "Automatic: the installation's default. Teire opens a fix when a change reaches your code."}
+            <span className="font-mono text-[11px] text-ink-3">
+              {mode === "off" ? "set with @teire pause-fixes" : "installation default"}
             </span>
           </div>
           <nav aria-label="Repository" className="flex gap-1 overflow-x-auto border-b border-rule text-sm">
@@ -175,15 +213,57 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
               <Surface key={key} flush>
                 <div className="flex flex-col gap-3 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <span className="flex items-center gap-2">
-                        <StatusChip tone={cls.tone}>{cls.label}</StatusChip>
-                        <span className="font-mono text-[11px] text-ink-3">{key}</span>
-                      </span>
-                      <h2 className="heading text-base text-ink">{first?.change?.title ?? key}</h2>
-                      {first?.finding.reason ? (
-                        <p className="text-xs text-ink-2">{first.finding.reason}</p>
-                      ) : null}
+                    <div className="flex min-w-0 items-start gap-3">
+                      <Mark brand={subjectMark(key)} />
+                      <div className="flex min-w-0 flex-col gap-1.5">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <h2 className="heading text-base text-ink">{titleOf(key)}</h2>
+                          <StatusChip tone={cls.tone}>{cls.label}</StatusChip>
+                          {first?.change?.deadline ? (
+                            <Countdown date={new Date(first.change.deadline as unknown as string)} />
+                          ) : null}
+                        </span>
+                        {first?.change?.title ? (
+                          <span className="truncate text-xs text-ink-3">
+                            {first.change.title.replace(/^[\w.-]+: /, "")}
+                          </span>
+                        ) : null}
+                        <span className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                          {[
+                            ...new Set(
+                              rows
+                                .map((r) => (r.finding.position as { version?: string } | null)?.version)
+                                .filter(Boolean),
+                            ),
+                          ]
+                            .slice(0, 3)
+                            .map((v) => (
+                              <span
+                                key={v}
+                                className="rounded bg-sunken px-1.5 py-0.5 text-ink-3 line-through decoration-ink-3/40 ring-1 ring-rule ring-inset"
+                              >
+                                {v}
+                              </span>
+                            ))}
+                          <span className="text-ink-3">→</span>
+                          {[
+                            ...new Set(
+                              rows
+                                .map((r) => (r.finding.position as { target?: string } | null)?.target)
+                                .filter(Boolean),
+                            ),
+                          ]
+                            .slice(0, 2)
+                            .map((v) => (
+                              <span
+                                key={v}
+                                className="rounded bg-sheet px-1.5 py-0.5 text-ink ring-1 ring-rule-strong ring-inset"
+                              >
+                                {v}
+                              </span>
+                            ))}
+                        </span>
+                      </div>
                     </div>
                     {run ? (
                       <Link

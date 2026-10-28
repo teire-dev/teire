@@ -12,7 +12,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LogoMark } from "@/components/logo";
 import { LiveDot } from "@/components/teire/live-dot";
+import { Mark } from "@/components/teire/mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Sidebar,
@@ -29,12 +31,14 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { languageMarks } from "@/lib/marks";
 import { cn } from "@/lib/utils";
 
 export interface ShellRepo {
   fullName: string;
   live: boolean;
   paused: boolean;
+  languages?: unknown;
 }
 
 const NAV = [
@@ -67,21 +71,26 @@ export function KitShell({
   return (
     <SidebarProvider style={{ "--sidebar-width": "15rem" } as React.CSSProperties}>
       <Sidebar collapsible="icon" className="border-r border-rule">
-        <SidebarHeader>
+        <SidebarHeader className="gap-3">
+          <div className="flex items-center gap-2 px-1.5 pt-1">
+            <LogoMark className="size-6" />
+            <span className="text-[15px] font-semibold tracking-tight text-ink group-data-[collapsible=icon]:hidden">
+              Teire
+            </span>
+          </div>
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-md p-1.5 text-left hover:bg-hover"
+            className="flex w-full items-center gap-2 rounded-lg p-1.5 text-left ring-1 ring-rule ring-inset hover:bg-hover"
             aria-label={`Installation: ${account.login}. Switch installation`}
           >
             {account.avatarUrl ? (
-              // biome-ignore lint/performance/noImgElement: a GitHub avatar, 24px
-              <img src={account.avatarUrl} alt="" className="size-6 rounded-md ring-1 ring-rule" />
+              // biome-ignore lint/performance/noImgElement: a GitHub avatar, 20px
+              <img src={account.avatarUrl} alt="" className="size-5 rounded" />
             ) : (
-              <span className="size-6 rounded-md bg-ink" />
+              <span className="size-5 rounded bg-ink" />
             )}
-            <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-sm font-medium text-ink">{account.login}</span>
-              <span className="text-[11px] text-ink-3">Organization</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink group-data-[collapsible=icon]:hidden">
+              {account.login}
             </span>
             <ChevronsUpDown
               className="size-3.5 text-ink-3 group-data-[collapsible=icon]:hidden"
@@ -122,16 +131,25 @@ export function KitShell({
               <SidebarMenu>
                 {repos.map((r) => {
                   const href = `/kit/repo/${r.fullName}`;
+                  const mark = languageMarks(r.languages)[0];
                   return (
                     <SidebarMenuItem key={r.fullName}>
-                      <SidebarMenuButton asChild size="sm" isActive={path === href}>
+                      <SidebarMenuButton
+                        asChild
+                        size="sm"
+                        isActive={path === href}
+                        className={cn(r.paused && !r.live && "opacity-55")}
+                        title={r.paused ? `${r.fullName}: fixes off` : r.fullName}
+                      >
                         <Link href={href}>
-                          <span className="font-mono text-xs">{r.fullName.split("/")[1]}</span>
+                          {mark ? (
+                            <Mark brand={mark} size="sm" className="size-5 rounded" />
+                          ) : (
+                            <span className="size-5" />
+                          )}
+                          <span className="truncate">{r.fullName.split("/")[1]}</span>
                           {r.live ? (
                             <LiveDot className="ml-auto" label={`Teire is working on ${r.fullName}`} />
-                          ) : null}
-                          {!r.live && r.paused ? (
-                            <span className="ml-auto text-[10px] text-ink-3">paused</span>
                           ) : null}
                         </Link>
                       </SidebarMenuButton>

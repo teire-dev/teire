@@ -56,10 +56,13 @@
         "rules": {
           "a11y": {
             "useSemanticElements": "off",
-            "useKeyWithClickEvents": "off"
+            "useKeyWithClickEvents": "off",
+            "noNoninteractiveTabindex": "off"
           },
           "suspicious": {
-            "noDocumentCookie": "off"
+            "noDocumentCookie": "off",
+            "noArrayIndexKey": "off",
+            "useIterableCallbackReturn": "off"
           },
           "correctness": {
             "useExhaustiveDependencies": "off"

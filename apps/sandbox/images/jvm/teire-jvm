@@ -78,6 +78,11 @@ case "${1:-}" in
       maven -fae -Dmaven.compiler.failOnError=false -Dmaven.test.failure.ignore=true \
         -Dtest=TeireWarmupNoTest -Dsurefire.failIfNoSpecifiedTests=false \
         -Dit.test=TeireWarmupNoTest -Dfailsafe.failIfNoSpecifiedTests=false verify >"$log" 2>&1
+      # A filter that matches nothing returns before surefire resolves its test provider
+      # (surefire-junit-platform, the JUnit launcher), so the offline `verify` could not find it (live
+      # walk, explain-error-plugin). The test goal runs on its own, online, long enough to download them;
+      # its result is ignored (timeout can't wrap a shell function, so the script calls itself).
+      timeout 300 "$0" maven -fae -Dmaven.test.failure.ignore=true surefire:test >>"$log" 2>&1 || true
     else
       gradle_cmd --continue -PteireWarmup teireResolveAll test >"$log" 2>&1
     fi

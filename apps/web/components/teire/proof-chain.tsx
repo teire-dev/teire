@@ -1,9 +1,13 @@
-import { PROOF_GLYPH, PROOF_STATE_LABEL, PROOF_STEPS, type Proof, type ProofState } from "@/lib/proof";
+"use client";
+
+import { Check, Minus, X } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { PROOF_STATE_LABEL, PROOF_STEPS, type Proof, type ProofState } from "@/lib/proof";
 import { cn } from "@/lib/utils";
 
 /**
- * Colour by meaning only: a finished step is a plain ink check; green belongs to PROVEN alone, when
- * the evidence proves it; cobalt is the step Teire is on now; amber is "ran, not proven"; red failed.
+ * Colour by meaning only: a finished step is ink; green belongs to PROVEN alone, when the evidence
+ * proves it; cobalt is the step Teire is on now; amber is "ran, not proven"; red failed.
  */
 function tone(step: string, state: ProofState) {
   switch (state) {
@@ -20,79 +24,86 @@ function tone(step: string, state: ProofState) {
   }
 }
 
-function marker(step: string, state: ProofState) {
-  switch (state) {
-    case "done":
-      return step === "proven" ? "bg-proven-soft ring-proven/30" : "bg-sheet ring-rule-strong";
-    case "live":
-      return "bg-signal-soft ring-signal/40";
-    case "failed":
-      return "bg-broke-soft ring-broke/30";
-    case "not_proven":
-      return "bg-attention-soft ring-attention/30";
-    default:
-      return "bg-sunken ring-rule";
-  }
+const NODE: Record<ProofState, string> = {
+  done: "bg-ink text-sheet",
+  live: "bg-signal text-sheet",
+  failed: "bg-broke text-sheet",
+  not_proven: "bg-attention text-sheet",
+  pending: "bg-sheet text-ink-3 ring-1 ring-rule-strong ring-inset",
+  not_applicable: "bg-sunken text-ink-3 ring-1 ring-rule ring-inset",
+};
+
+function NodeIcon({ step, state }: { step: string; state: ProofState }) {
+  if (state === "done") return <Check className="size-3" strokeWidth={3} />;
+  if (state === "failed") return <X className="size-3" strokeWidth={3} />;
+  if (state === "not_applicable") return <Minus className="size-3" />;
+  if (state === "not_proven") return <span className="font-mono text-[10px] leading-none">◐</span>;
+  if (state === "live") return <span className="size-1.5 rounded-full bg-sheet" />;
+  return (
+    <span className="font-mono text-[10px] leading-none">
+      {PROOF_STEPS.findIndex((s) => s.key === step) + 1}
+    </span>
+  );
 }
 
 /**
- * The five steps with their state, detail and evidence link (a run's header, the landing hero). On a
- * phone the steps stack; the rule between two steps is solid once the first is done.
+ * The five steps, drawn as a rail: each node fills as its step completes and the rail between two
+ * finished steps draws in; the step Teire is on pulses and a dot travels toward it. Every step links
+ * to its evidence; screen readers get the step, its state and its detail.
  */
 export function ProofChain({ proof, className }: { proof: Proof; className?: string }) {
+  const reduce = useReducedMotion();
+  const states = PROOF_STEPS.map((s) => proof[s.key].state);
+  const reached = states.reduce((n, st, i) => (st !== "pending" ? i : n), 0);
   return (
-    <ol className={cn("grid grid-cols-1 gap-3 sm:grid-cols-5 sm:gap-0", className)} aria-label="Proof chain">
+    <ol className={cn("relative grid grid-cols-5", className)} aria-label="Proof chain">
+      {/* The rail: grey underneath, ink drawn over it up to the last step reached. */}
+      <span aria-hidden className="absolute top-3 right-[10%] left-[10%] h-px bg-rule-strong" />
+      <motion.span
+        aria-hidden
+        className="absolute top-3 left-[10%] h-px origin-left bg-ink"
+        initial={reduce ? false : { scaleX: 0.2 }}
+        animate={{ scaleX: 1 }}
+        transition={{ type: "spring", stiffness: 60, damping: 18, delay: 0.1 }}
+        style={{ width: `${(reached / (PROOF_STEPS.length - 1)) * 80}%` }}
+      />
       {PROOF_STEPS.map((s, i) => {
         const link = proof[s.key];
-        const next = PROOF_STEPS[i + 1];
-        const solid = link.state === "done" && next && proof[next.key].state !== "pending";
-        const body = (
-          <>
-            <span className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-[11px] ring-1 ring-inset",
-                  marker(s.key, link.state),
-                  tone(s.key, link.state),
-                  link.state === "live" && "animate-live",
-                )}
-                aria-hidden
-              >
-                {PROOF_GLYPH[link.state]}
-              </span>
-              {next ? (
-                <span
-                  aria-hidden
-                  className={cn(
-                    "hidden h-px flex-1 sm:block",
-                    solid
-                      ? "bg-rule-strong"
-                      : "bg-[repeating-linear-gradient(to_right,var(--rule-strong)_0_3px,transparent_3px_6px)]",
-                  )}
-                />
-              ) : null}
-            </span>
-            <span className="eyebrow mt-2 block text-ink-2">{s.label}</span>
-            <span className={cn("mt-0.5 block truncate pr-3 text-xs", tone(s.key, link.state))}>
+        const node = (
+          <span className="flex flex-col items-center gap-2 text-center">
+            <motion.span
+              initial={reduce ? false : { scale: 0.7 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.08 * i }}
+              className={cn(
+                "relative z-10 flex size-6 items-center justify-center rounded-full",
+                NODE[link.state],
+                link.state === "live" && "animate-live",
+              )}
+            >
+              <NodeIcon step={s.key} state={link.state} />
+            </motion.span>
+            <span className="eyebrow text-ink-2">{s.label}</span>
+            <span className={cn("max-w-full truncate px-1 font-mono text-[11px]", tone(s.key, link.state))}>
               {link.detail ?? PROOF_STATE_LABEL[link.state]}
             </span>
             <span className="sr-only">
               {s.label}: {PROOF_STATE_LABEL[link.state]}
               {link.detail ? `, ${link.detail}` : ""}
             </span>
-          </>
+          </span>
         );
         return (
           <li key={s.key} className="min-w-0">
             {link.href ? (
               <a
                 href={link.href}
-                className="group block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {body}
+                {node}
               </a>
             ) : (
-              body
+              node
             )}
           </li>
         );
@@ -101,18 +112,24 @@ export function ProofChain({ proof, className }: { proof: Proof; className?: str
   );
 }
 
+/** The rail's segment for each state: ink for done, green only where the evidence proves it. */
+const SEGMENT: Record<ProofState, string> = {
+  done: "bg-ink/70",
+  live: "bg-signal animate-pulse",
+  failed: "bg-broke",
+  not_proven: "bg-attention",
+  pending: "bg-rule-strong/60",
+  not_applicable: "bg-rule",
+};
+
 /**
- * The chain in a row: five glyphs in mono, each with its step and state on hover and for screen
- * readers ("✓ ✓ ● ○ ○"). Status colour never appears below 12px without its glyph.
+ * The chain in a row: five short segments, read left to right like a progress rail. Hover names each
+ * step; screen readers get every step and state. The row's own chip carries the verdict in words.
  */
 export function ProofGlyphs({ proof, className }: { proof: Proof; className?: string }) {
   const said = PROOF_STEPS.map((s) => `${s.label}: ${PROOF_STATE_LABEL[proof[s.key].state]}`).join(", ");
   return (
-    <span
-      className={cn("inline-flex items-center gap-1 font-mono text-xs", className)}
-      role="img"
-      aria-label={said}
-    >
+    <span className={cn("inline-flex items-center gap-[3px]", className)} role="img" aria-label={said}>
       {PROOF_STEPS.map((s) => {
         const link = proof[s.key];
         return (
@@ -120,15 +137,14 @@ export function ProofGlyphs({ proof, className }: { proof: Proof; className?: st
             key={s.key}
             title={`${s.label}: ${link.detail ?? PROOF_STATE_LABEL[link.state]}`}
             className={cn(
-              "w-3 text-center",
-              tone(s.key, link.state),
-              link.state === "live" && "animate-pulse",
+              "h-1.5 w-4 rounded-full",
+              s.key === "proven" && link.state === "done" ? "bg-proven" : SEGMENT[link.state],
             )}
-          >
-            {PROOF_GLYPH[link.state]}
-          </span>
+          />
         );
       })}
     </span>
   );
 }
+
+export { tone as proofTone };

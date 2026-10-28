@@ -21,7 +21,8 @@ export const metadata: Metadata = {
 /**
  * The one provider for the app and the docs: Fumadocs' RootProvider carries next-themes (the
  * `dark` class the tokens key on) and the docs' search. The site's header and footer live in the
- * (site) group; /docs has its own top bar.
+ * (site) group; /docs has its own top bar. Light is the default (plan revision 3.3: light-first, an
+ * equal dark mode); a person's own choice in the theme toggle is kept.
  */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -30,7 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <RootProvider
           theme={{
             attribute: "class",
-            defaultTheme: "system",
+            defaultTheme: "light",
             enableSystem: true,
             disableTransitionOnChange: true,
           }}
