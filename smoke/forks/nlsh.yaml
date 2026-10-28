@@ -1,0 +1,19 @@
+repo: teire-dev/nlsh
+upstream: abakermi/nlsh
+ecosystem: go
+manager: Go modules (go.mod, go.sum)
+baseline:
+  checks: "build: go build ./...; vet: go vet ./...; test: go test ./... (offline, the install's module cache)"
+  expected: pass
+models:
+  - id: gemini-2.0-flash
+    status: shut down by Google on 2026-06-01 (catalog record google-gemini-2026-06-01-gemini-2-0-flash)
+    teire: affected; swapped to gemini-3.6-flash at the located sites; verified PR (S16 done-when, Go, on GitHub)
+    walk_2026_10_28: "teire-dev/nlsh#6, ready, verified on Token Factory Sandboxes"
+security:
+  - packages: golang.org/x/net → v0.62.0, golang.org/x/text → v0.41.0, google.golang.org/grpc → v1.83.1
+    teire: one PR each at the lowest fixed version, verified
+    walk_2026_10_28: "#3, #4, #5, ready, verified on Token Factory"
+upgrades:
+  - packages: github.com/BurntSushi/toml v1.6.0, github.com/sashabaranov/go-openai v1.43.0
+    teire: queued behind the 5-open-PR cap; open as each earlier PR merges or closes

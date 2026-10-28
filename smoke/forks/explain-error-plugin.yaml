@@ -1,0 +1,23 @@
+repo: teire-dev/explain-error-plugin
+upstream: jenkinsci/explain-error-plugin
+ecosystem: maven
+manager: Maven (pom.xml, Jenkins plugin parent POM), JDK 21
+baseline:
+  checks: "typecheck: mvn -o test-compile; test: mvn -o verify (JenkinsRule tests start Jenkins)"
+  expected: pass, or a check that hits its time limit named as such
+  walk_2026_10_28: >-
+    no baseline: the warm-up ran the whole test suite online and hit the 10-minute install limit twice, reported
+    as "the lockfile does not install". Fixed: the warm-up resolves surefire and failsafe with a test filter that
+    matches nothing (no test runs), JVM installs get 20 minutes, and a timed-out install is named as one.
+    Proven on this checkout on Token Factory: warm-up BUILD SUCCESS in 502 s, offline test-compile in 9 s.
+models:
+  - id: gemini-2.0-flash
+    status: shut down by Google on 2026-06-01
+    teire: affected; swapped to gemini-3.6-flash; verified PR (S16 done-when, Java, on GitHub)
+  - id: gpt-4.1-nano, gpt-4-turbo, gpt-3.5-turbo, gpt-5, gpt-5-mini, gpt-5-nano, gpt-5-pro
+    status: shut down or dated by OpenAI (2026-10-23; 2026-12-11)
+    teire: affected; one OpenAI PR with every swap
+  - walk_2026_10_28: "#3 (OpenAI) and #4 (Gemini) opened as environment_mismatch drafts (the baseline above)"
+upgrades:
+  - packages: dev.langchain4j:* 1.22.0 (langchain4j, -open-ai, -google-ai-gemini, -anthropic, -ollama, -bedrock, -http-client-jdk)
+    teire: queued behind the 5-open-PR cap
