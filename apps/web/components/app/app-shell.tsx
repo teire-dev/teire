@@ -2,10 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
+  Activity,
   BookOpen,
   Check,
   ChevronsUpDown,
   FolderGit2,
+  GitCompareArrows,
   LayoutGrid,
   Plus,
   RefreshCw,
@@ -53,6 +55,8 @@ import { CommandPalette } from "./command-palette";
 const NAV = [
   { label: "Overview", href: "/app", icon: LayoutGrid, exact: true },
   { label: "Repositories", href: "/app/repos", icon: FolderGit2, exact: false },
+  { label: "Changes", href: "/app/changes", icon: GitCompareArrows, exact: false },
+  { label: "Runs", href: "/app/runs", icon: Activity, exact: false },
   { label: "Settings", href: "/app/settings", icon: Settings, exact: false },
 ] as const;
 
@@ -61,17 +65,33 @@ const LIVE_MS = 3000;
 const SLOW_LIVE_MS = 5000;
 const IDLE_MS = 30_000;
 
-/** The breadcrumb, from the route: Overview, Repositories › owner/name, Settings. */
+const TAB_LABEL: Record<string, string> = {
+  findings: "Findings",
+  prs: "Pull requests",
+  runs: "Runs",
+  inventory: "Inventory",
+  providers: "Providers",
+  config: "Config",
+  activity: "Activity",
+};
+
+/** The breadcrumb, from the route: Overview, Repositories › owner/name › tab, Settings. */
 function crumbsOf(path: string, account: string | null) {
   const parts = path.split("/").filter(Boolean).slice(1);
   const out: { label: string; href?: string }[] = account ? [{ label: account, href: "/app" }] : [];
   if (!parts.length) return [...out, { label: "Overview" }];
   if (parts[0] === "repos") {
     if (parts.length < 3) return [...out, { label: "Repositories" }];
-    return [...out, { label: "Repositories", href: "/app/repos" }, { label: `${parts[1]}/${parts[2]}` }];
+    const repo = `${parts[1]}/${parts[2]}`;
+    return [
+      ...out,
+      { label: "Repositories", href: "/app/repos" },
+      parts[3] ? { label: repo, href: `/app/repos/${repo}` } : { label: repo },
+      ...(parts[3] ? [{ label: TAB_LABEL[parts[3] ?? ""] ?? parts[3] ?? "" }] : []),
+    ];
   }
-  if (parts[0] === "settings") return [...out, { label: "Settings" }];
-  return [...out, { label: parts[0] ?? "" }];
+  const names: Record<string, string> = { settings: "Settings", changes: "Changes for you", runs: "Runs" };
+  return [...out, { label: names[parts[0] ?? ""] ?? parts[0] ?? "" }];
 }
 
 /**

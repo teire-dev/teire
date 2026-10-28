@@ -29,6 +29,7 @@ import {
   upgradeMatches,
 } from "../store";
 import { canWrite, FixesOffError, fixesOffReply, runState, startRun } from "./commands";
+import { configPr } from "./config-pr";
 import { syncDashboard } from "./dashboard";
 import type { EventContext } from "./events";
 import { requesterToken } from "./public";
@@ -366,6 +367,9 @@ async function repoAction(
     }
     case "open-draft-anyway":
       return openDraftAnyway(ctx, repo, octokit, String(params.runId), login);
+    case "config-pr":
+    case "starter-config-pr":
+      return configPr(ctx, repo, octokit, kind, params, login);
     case "feedback":
       await recordFeedback(db, {
         repoId: repo.id,

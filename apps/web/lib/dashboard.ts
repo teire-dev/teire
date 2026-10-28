@@ -11,6 +11,8 @@ import {
   installations,
   isNull,
   llmCalls,
+  providers,
+  repoProviders,
   repos,
   runs,
   sandboxExecs,
@@ -18,6 +20,7 @@ import {
   sql,
   userInstallations,
 } from "@teire/db";
+import { cache } from "react";
 import { database } from "./db";
 import type { FindingRow } from "./findings";
 import { repoFixMode } from "./fix-mode";
@@ -138,6 +141,9 @@ export async function overview(userId: string) {
 }
 
 /** One repository the person can see, with everything its page shows. */
+/** One request reads a repository once, however many parts of the page ask (layout and tab). */
+export const repoDetailCached = cache((userId: string, fullName: string) => repoDetail(userId, fullName));
+
 export async function repoDetail(userId: string, fullName: string) {
   const db = database();
   const [repo] = await db.select().from(repos).where(eq(repos.fullName, fullName)).limit(1);
@@ -191,7 +197,7 @@ export async function repoDetail(userId: string, fullName: string) {
       .orderBy(desc(artifacts.updatedAt)),
     db.select().from(runs).where(eq(runs.repoId, repo.id)).orderBy(desc(runs.createdAt)).limit(25),
   ]);
-  const [[inst], activity] = await Promise.all([
+  const [[inst], activity, providerRows] = await Promise.all([
     db
       .select({
         defaultFixMode: installations.defaultFixMode,
@@ -202,9 +208,17 @@ export async function repoDetail(userId: string, fullName: string) {
       .limit(1),
     // Every action on the repository, from the web, comments and the Dashboard issue (U1).
     db.select().from(actions).where(eq(actions.repoId, repo.id)).orderBy(desc(actions.createdAt)).limit(40),
+    // The APIs and model providers the repository calls (S20), from its latest scans.
+    db
+      .select({ slug: repoProviders.providerSlug, name: providers.name, seenAt: repoProviders.seenAt })
+      .from(repoProviders)
+      .leftJoin(providers, eq(providers.slug, repoProviders.providerSlug))
+      .where(eq(repoProviders.repoId, repo.id))
+      .orderBy(repoProviders.providerSlug),
   ]);
   return {
     activity,
+    providers: providerRows,
     repo,
     scan: scan ?? null,
     findings: rows,

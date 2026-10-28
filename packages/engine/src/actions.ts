@@ -20,6 +20,8 @@ export const ACTION_KINDS = [
   "retry-run",
   "reverify-run",
   "open-draft-anyway",
+  "config-pr",
+  "starter-config-pr",
   "feedback",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
@@ -97,6 +99,10 @@ export function describeAction(kind: ActionKind, params: Record<string, unknown>
       return "Re-verify the pull request";
     case "open-draft-anyway":
       return "Open a draft anyway";
+    case "config-pr":
+      return `Open a config PR: ${String(params.key)} = ${String(params.value)}`;
+    case "starter-config-pr":
+      return "Open a starter config PR";
     case "feedback":
       return "Report a wrong finding";
     default:

@@ -388,4 +388,5 @@ export function matchesTarget(
   if (t.startsWith("provider:") && f.groupKey?.split("/")[1] === t.slice(9)) return true;
   return f.groupKey !== null && f.groupKey.split("/").slice(0, -1).join("/") === t;
 }
+export * from "./edit";
 export * from "./fix-mode";

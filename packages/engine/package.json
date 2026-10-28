@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./actions": "./src/actions.ts",
     "./actions-schema": "./src/actions-schema.ts",
+    "./config-keys": "./src/config/keys.ts",
     "./cancel": "./src/cancel.ts",
     "./llm": "./src/llm/index.ts",
     "./constants": "./src/constants.ts",

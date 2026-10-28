@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { myInstallations } from "./dashboard";
 import { database } from "./db";
 import { repoFixMode } from "./fix-mode";
+import type { Scope } from "./workspace";
 
 /** The installation the person last chose in the switcher (U1); the first they can see otherwise. */
 export const INSTALLATION_COOKIE = "teire-installation";
@@ -108,3 +109,16 @@ export async function appShell(userId: string) {
 }
 
 export type AppShellData = Awaited<ReturnType<typeof appShell>>;
+
+/**
+ * What the dashboard's pages read for this person (U3): their chosen installation, its private
+ * repositories included (GitHub said they can see it when they signed in). Null with none.
+ */
+export async function myScope(userId: string) {
+  const { current } = await currentInstallation(userId);
+  if (!current) return null;
+  return {
+    scope: { installationId: current.id, account: null, publicOnly: false } satisfies Scope,
+    installation: current,
+  };
+}

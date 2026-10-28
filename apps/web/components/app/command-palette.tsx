@@ -4,8 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import type { ActionKind } from "@teire/engine/actions";
 import { describeAction } from "@teire/engine/actions";
 import {
+  Activity,
   BookOpen,
   FolderGit2,
+  GitCompareArrows,
   GitPullRequestArrow,
   LayoutGrid,
   PauseCircle,
@@ -40,7 +42,11 @@ interface DocHit {
 const PAGES = [
   { label: "Overview", href: "/app", icon: LayoutGrid },
   { label: "Repositories", href: "/app/repos", icon: FolderGit2 },
+  { label: "Changes for you", href: "/app/changes", icon: GitCompareArrows },
+  { label: "Runs", href: "/app/runs", icon: Activity },
+  { label: "Runs that need you", href: "/app/runs?show=needs-you", icon: Activity },
   { label: "Settings", href: "/app/settings", icon: Settings },
+  { label: "Usage", href: "/app/settings/usage", icon: Settings },
   { label: "Docs", href: "/docs", icon: BookOpen },
   { label: "Trust: how Teire runs", href: "/trust", icon: ShieldCheck },
 ] as const;

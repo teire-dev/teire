@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ActionKind } from "./actions";
+import { CONFIG_PR_KEYS, type ConfigPrKey } from "./config/keys";
 
 /**
  * Each action's parameters, exactly (the web validates before recording, the worker again before
@@ -31,6 +32,13 @@ export const ACTION_PARAMS: Record<ActionKind, z.ZodObject> = {
   "reverify-run": z.object({ runId }),
   /** A draft PR from a run that ended in an issue, titled unconfirmed (U2). */
   "open-draft-anyway": z.object({ runId }),
+  /** One `teire.yml` setting changed through a pull request (U3). */
+  "config-pr": z.object({
+    key: z.enum(Object.keys(CONFIG_PR_KEYS) as [ConfigPrKey, ...ConfigPrKey[]]),
+    value: z.string().trim().min(1).max(40),
+  }),
+  /** Teire's starter `teire.yml` (every key at its default) through a pull request (U3). */
+  "starter-config-pr": z.object({}),
   feedback: z.object({
     reason: z.string().trim().min(1).max(2000),
     groupKey: z.string().max(300).optional(),
