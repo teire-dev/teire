@@ -16,6 +16,7 @@ import {
   branchFor,
   commitToBranch,
   composeHumanIssue,
+  forGitHub,
   HumanCommitsError,
   modelName,
   openOrUpdatePullRequest,
@@ -841,6 +842,9 @@ async function apiOutcome(
   };
 }
 
+/** A stop issue quotes more of the updater than a progress line does. */
+const STOP_REASON_CHARS = 1500;
+
 /**
  * The command's "Started" reply, edited in place with how the run ended (S15.8, R-P5): the PR it
  * opened, the issue for a person, the fallback, nothing to change, waiting, or the stop's reason.
@@ -1524,7 +1528,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           ctx,
           runId,
           installation?.octokit,
-          `Waiting: ${error.message}; it tries again by itself.`,
+          `Waiting: ${forGitHub(error.message)}; it tries again by itself.`,
         );
         return { deferred: error.message };
       }
@@ -1538,7 +1542,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         finishedAt: new Date(),
       });
       await event("resolver", "nothing", { reason });
-      await updateProgress(ctx, runId, installation?.octokit, `Nothing to change: ${reason}.`);
+      await updateProgress(ctx, runId, installation?.octokit, `Nothing to change: ${forGitHub(reason)}.`);
       return { cancelled: true };
     }
     if (error instanceof ResolverStopError || error instanceof ResolverUnavailableError) {
@@ -1548,8 +1552,17 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           : `the dependency-file updater was unavailable ${RESOLVER_RETRIES + 1} times: ${error.message}`;
       await updateRun(db, runId, { status: "failed", error: `stopped: ${reason}`, finishedAt: new Date() });
       await event("resolver", "stopped", { reason });
-      if (!dry && installation) await openStopIssue(ctx, installation.octokit, repo, run, groupKey, reason);
-      await updateProgress(ctx, runId, installation?.octokit, `Stopped: ${reason}.`);
+      // The updater's own words are quoted (D104), redacted and shortened for GitHub (review R18).
+      if (!dry && installation)
+        await openStopIssue(
+          ctx,
+          installation.octokit,
+          repo,
+          run,
+          groupKey,
+          forGitHub(reason, STOP_REASON_CHARS),
+        );
+      await updateProgress(ctx, runId, installation?.octokit, `Stopped: ${forGitHub(reason)}.`);
       return { stopped: reason };
     }
     const message =
@@ -1560,7 +1573,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           : String(error);
     await updateRun(db, runId, { status: "failed", error: message, finishedAt: new Date() });
     await event("run", "failed", { error: message });
-    await updateProgress(ctx, runId, installation?.octokit, `Failed: ${message}`);
+    // GitHub gets the short, redacted reason; the run page keeps the whole message (review R18).
+    await updateProgress(ctx, runId, installation?.octokit, `Failed: ${forGitHub(message)}`);
     if (error instanceof HumanCommitsError) {
       // C6: a person pushed to Teire's branch; their commits are never overwritten.
       const open = await getArtifact(db, repo.id, "pr", groupKey);
@@ -1570,7 +1584,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
             owner,
             repo: name,
             issue_number: open.number,
-            body: `Teire stopped updating this branch: ${error.message}. Your commits stay; comment \`@teire recreate\` to start over from the current base.`,
+            body: `Teire stopped updating this branch: ${forGitHub(error.message)}. Your commits stay; comment \`@teire recreate\` to start over from the current base.`,
           })
           .catch(() => undefined);
     }
