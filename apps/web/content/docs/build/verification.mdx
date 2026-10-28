@@ -58,7 +58,7 @@ Rule 8 sorts out why both sides failed:
 
 ## When the newest major won't pass
 
-If a major upgrade still fails its checks after the agent's attempts, Teire opens nothing for it. It tries once more with the newest version of the previous major, and that pull request opens with **Why X, not Y** and the checks that failed on the newer one. The newer major comes back on a later scan.
+If a major upgrade still fails its checks after the agent's attempts, Teire opens nothing for it. It tries once more with the newest version of the previous major, and that pull request opens with **Why X, not Y** and the checks that failed on the newer one. The newer major is tried again when a scan sees a newer commit.
 
 ## What is kept
 

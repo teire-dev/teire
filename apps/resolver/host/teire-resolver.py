@@ -43,6 +43,10 @@ FAKE_API_HOST = "192.168.240.1"
 FAKE_API_PORT = "47000"
 MAX_TARBALL = 512 * 1024 * 1024
 MAX_EVENTS = 128 * 1024 * 1024
+MAX_EXTRACTED = 4 * 1024 * 1024 * 1024  # bytes a checkout may unpack to (a compressed bomb stops here)
+MAX_MEMBERS = 300_000
+# Credentials that must never leave the service in events or logs: GitHub tokens of every kind.
+SECRET = re.compile(r"\b(?:gh[opsu]_[A-Za-z0-9_.\-]{20,}|github_pat_[A-Za-z0-9_]{20,})")
 CLI_TIMEOUT = 1200  # the CLI's own --timeout (plan: 20 minutes)
 GRACE = 300  # then the process group is killed
 KEEP_RESULTS = 2 * 3600
@@ -59,18 +63,45 @@ def log(message: str) -> None:
     print(time.strftime("%Y-%m-%dT%H:%M:%S"), message, flush=True)
 
 
-def resolver_docker(*args: str) -> str:
-    return subprocess.run(
-        ["docker", "-H", DOCKER_HOST, *args], capture_output=True, text=True, timeout=120
-    ).stdout
+def resolver_docker(*args: str, check: bool = True) -> str:
+    done = subprocess.run(["docker", "-H", DOCKER_HOST, *args], capture_output=True, text=True, timeout=600)
+    if check and done.returncode != 0:
+        raise RuntimeError(f"docker {args[0]} failed ({done.returncode}): {done.stderr.strip()[:300]}")
+    return done.stdout
 
 
 def clean_daemon() -> None:
-    """Every container and network a job left on the resolver daemon (only jobs run there)."""
+    """Every container and network a job left on the resolver daemon (only jobs run there). Fails
+    closed: a daemon that can't be emptied takes no next job (threat 14)."""
     ids = resolver_docker("ps", "-aq").split()
     if ids:
         resolver_docker("rm", "-f", *ids)
     resolver_docker("network", "prune", "-f")
+    if resolver_docker("ps", "-aq").split():
+        raise RuntimeError("containers remain on the resolver daemon after cleanup")
+
+
+def redact(text: str, token: str | None) -> str:
+    """Events and logs leave the service without credentials (threat 11)."""
+    if token:
+        text = text.replace(token, "[redacted]")
+    return SECRET.sub("[redacted]", text)
+
+
+def local_image(ref: str) -> str:
+    """The pinned image present on the resolver daemon, upstream first, else Teire's mirror of the
+    same digest (R-P27). The CLI then runs with --pull=false and still verifies its attestation."""
+    for candidate in [ref, mirror_of(ref)]:
+        if not candidate:
+            continue
+        if resolver_docker("image", "inspect", candidate, check=False).strip() not in ("", "[]"):
+            return candidate
+        try:
+            resolver_docker("pull", "-q", candidate)
+            return candidate
+        except RuntimeError as error:
+            log(f"pull {candidate}: {error}")
+    raise RuntimeError(f"image {ref} is neither on the resolver daemon nor pullable (upstream or mirror)")
 
 
 def download(repo: str, commit: str, token: str | None, dest: Path) -> str:
@@ -92,12 +123,16 @@ def download(repo: str, commit: str, token: str | None, dest: Path) -> str:
     dest.mkdir()
     with tarfile.open(tarball) as archive:
         members = []
+        total = 0
         for member in archive.getmembers():
             parts = member.name.split("/", 1)
             if len(parts) < 2 or not parts[1]:
                 continue
             member.name = parts[1]
             members.append(member)
+            total += max(member.size, 0)
+            if total > MAX_EXTRACTED or len(members) > MAX_MEMBERS:
+                raise ValueError("repository unpacks to more than 4 GB or 300,000 files")
         # The "data" filter refuses absolute paths, ".." and links that leave the folder.
         archive.extractall(dest, members=members, filter="data")
     tarball.unlink()
@@ -120,7 +155,7 @@ def cli(folder: Path, job_file: Path, repo_dir: Path, timeout: int, env: dict, u
     """One `dependabot update` run in its own process group; (state, exit code)."""
     command = [
         "dependabot", "update", "-f", str(job_file), "--local", str(repo_dir),
-        "--timeout", f"{timeout}s", "--updater-image", updater, "--proxy-image", proxy,
+        "--timeout", f"{timeout}s", "--updater-image", updater, "--proxy-image", proxy, "--pull=false",
     ]
     with open(folder / "stdout", "wb") as out, open(folder / "stderr", "wb") as err:
         process = subprocess.Popen(command, stdout=out, stderr=err, env=env, cwd=folder, start_new_session=True)
@@ -144,9 +179,16 @@ def run(job_id: str) -> None:
         repo_dir = folder / "repo"
         result["tarballSha256"] = download(spec["repo"], spec["commit"], spec.get("token"), repo_dir)
         # Teire's pre-steps (D104): files written over the checkout before the updater reads it.
+        root = repo_dir.resolve()
         for item in spec.get("overlay") or []:
             target = repo_dir / item["path"]
             target.parent.mkdir(parents=True, exist_ok=True)
+            # A link in the checkout must not redirect the write: the folder resolves inside it,
+            # and the file itself is never a link.
+            if root not in target.parent.resolve().parents and target.parent.resolve() != root:
+                raise ValueError(f"overlay {item['path']} leaves the checkout through a link")
+            if target.is_symlink():
+                raise ValueError(f"overlay {item['path']} is a link in the checkout")
             target.write_text(item["content"])
         job_file = folder / "job.yaml"
         job_file.write_text(json.dumps(spec["job"]))  # JSON is YAML
@@ -162,7 +204,9 @@ def run(job_id: str) -> None:
         if spec.get("token"):
             # A per-run token for one repository with contents:read (D106): release notes, Go metadata.
             env["LOCAL_GITHUB_ACCESS_TOKEN"] = spec["token"]
-        updater, proxy = IMAGES["updaters"][manager], IMAGES["proxy"]
+        clean_daemon()
+        updater, proxy = local_image(IMAGES["updaters"][manager]), local_image(IMAGES["proxy"])
+        result["mirror"] = updater != IMAGES["updaters"][manager]
         state, result["exitCode"] = cli(folder, job_file, repo_dir, timeout, env, updater, proxy)
         stderr = (folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace")
         # Upstream images unreachable or deleted (the run never started): the same digests from
@@ -172,21 +216,28 @@ def run(job_id: str) -> None:
             and result["exitCode"] != 0
             and not (folder / "stdout").stat().st_size
             and PULL_FAILED.search(stderr)
+            and not result["mirror"]
             and mirror_of(updater)
         ):
-            log(f"job {job_id}: upstream images failed; retrying from the mirror")
+            # Upstream attestations unreachable: the mirror carries the same digests and bundles.
+            log(f"job {job_id}: upstream images failed verification; retrying from the mirror")
             clean_daemon()
-            state, result["exitCode"] = cli(
-                folder, job_file, repo_dir, timeout, env, mirror_of(updater), mirror_of(proxy)
-            )
+            updater, proxy = local_image(mirror_of(updater) or updater), local_image(mirror_of(proxy) or proxy)
+            state, result["exitCode"] = cli(folder, job_file, repo_dir, timeout, env, updater, proxy)
             result["mirror"] = True
-        result["events"] = (folder / "stdout").read_bytes()[:MAX_EVENTS].decode("utf-8", "replace")
-        result["stderrTail"] = (folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace")
+        token = spec.get("token")
+        result["events"] = redact((folder / "stdout").read_bytes()[:MAX_EVENTS].decode("utf-8", "replace"), token)
+        result["stderrTail"] = redact((folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace"), token)
     except Exception as error:  # noqa: BLE001 - every failure becomes the job's named state
         state = "failed"
-        result["error"] = f"{type(error).__name__}: {error}"[:2000]
+        result["error"] = redact(f"{type(error).__name__}: {error}", spec.get("token"))[:2000]
     finally:
-        clean_daemon()
+        try:
+            clean_daemon()
+        except Exception as error:  # noqa: BLE001 - recorded; the next job checks again before it runs
+            state = "failed"
+            result["error"] = f"cleanup: {error}"[:2000]
+            log(f"job {job_id}: cleanup failed: {error}")
         shutil.rmtree(folder, ignore_errors=True)
     result["ms"] = int((time.monotonic() - started) * 1000)
     with lock:
@@ -242,10 +293,10 @@ def validate(body: dict) -> str | None:
             ):
                 return "overlay paths must be relative, inside the checkout and outside .git"
     token = body.get("token")
-    # GitHub's tokens: a gh?_ prefix, then (since 2026) up to a few hundred of [A-Za-z0-9_.-] for
-    # installation tokens (390 characters seen), so the shape is checked, not a fixed length.
+    # Only installation tokens (ghs_), which the worker mints for one repository with contents:read
+    # (D106); since 2026 they run to a few hundred of [A-Za-z0-9_.-] (390 characters seen).
     if token is not None and (
-        not isinstance(token, str) or not re.fullmatch(r"gh[sopu]_[A-Za-z0-9_.\-]{20,2048}", token)
+        not isinstance(token, str) or not re.fullmatch(r"ghs_[A-Za-z0-9_.\-]{20,2048}", token)
     ):
         return "token must be a GitHub token"
     return None

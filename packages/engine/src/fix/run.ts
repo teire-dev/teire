@@ -2,13 +2,16 @@ import { randomBytes } from "node:crypto";
 import {
   existsSync,
   lstatSync,
+  mkdirSync,
   readFileSync,
   readlinkSync,
+  rmSync,
   statSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
@@ -360,6 +363,16 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       remember(path);
       unlinkSync(full);
       transactionFiles.add(path);
+    }
+    // Symlinks the transaction made land as links, so the commit carries them as mode 120000.
+    for (const link of input.transaction.links ?? []) {
+      const full = join(input.repoDir, link.path);
+      if (isSymlink(full) && readlinkSync(full) === link.target) continue;
+      if (!originals.has(link.path)) originals.set(link.path, existsSync(full) ? read(link.path) : "");
+      mkdirSync(dirname(full), { recursive: true });
+      rmSync(full, { force: true });
+      symlinkSync(link.target, full);
+      transactionFiles.add(link.path);
     }
     // Binary read-backs (bun.lockb) land byte for byte; decoding them as text would corrupt them.
     for (const [path, bytes] of Object.entries(txn.binary)) {

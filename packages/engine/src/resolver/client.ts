@@ -85,8 +85,19 @@ export async function resolve(
       error?: string;
     }>(config, "GET", `/jobs/${id}`);
     if (job.state !== last) input.onState?.((last = job.state));
-    if (job.state === "done" || job.state === "failed" || job.state === "timeout") {
+    // The host failing (download, images, cleanup) is an outage the worker retries, never a result.
+    if (job.state === "failed")
+      throw new ResolverUnavailableError(
+        `resolver job ${id} failed on the host: ${job.error ?? "no reason given"}`,
+      );
+    if (job.state === "done" || job.state === "timeout") {
       const events = parseEvents(job.events ?? "");
+      // The CLI exits 1 on any error event (D101); exiting non-zero with no event at all is a crash,
+      // not "nothing to change".
+      if (job.state === "done" && job.exitCode !== 0 && !events.length)
+        throw new ResolverUnavailableError(
+          `the updater exited ${job.exitCode} without reporting anything: ${(job.stderrTail ?? "").slice(-300)}`,
+        );
       return {
         id,
         state: job.state,
@@ -99,8 +110,8 @@ export async function resolve(
             ? resultOf(events, lead)
             : {
                 kind: "stop",
-                type: job.state,
-                message: job.error ?? `the resolver job ${job.state === "timeout" ? "timed out" : "failed"}`,
+                type: "timeout",
+                message: job.error ?? "the updater ran past its 20-minute limit",
                 warnings: [],
               },
         stderrTail: job.stderrTail ?? "",

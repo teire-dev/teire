@@ -12,16 +12,16 @@ Changing a version in `package.json` is the easy part. Resolving the new lockfil
 
 ## One job per upgrade
 
-For each upgrade Teire decides on, it builds one updater job:
+For each upgrade Teire decides on, it runs one updater job:
 
 | Job | What it asks for |
 |---|---|
 | Version update | Exactly the target version Teire chose: only this dependency, nothing above the target, no extra cooldown (Teire already applied the repository's) |
-| Security update | The lowest version that fixes the advisory |
-| Refresh | Bring an open Teire PR up to date with its base branch |
-| Group refresh | A group the repository configured in `dependabot.yml` |
+| Security update | The lowest version that fixes the advisories that have a published fix |
 
-A package declared in several lockfile roots runs as **one** job listing every root, so one pull request carries every root's change.
+Refresh and group-refresh jobs are built too. Until they are wired in, a base change re-runs the version or security job, which gives the same files.
+
+A package declared in several lockfile roots runs as **one** job listing every root the same package manager covers (npm and Yarn roots together), so one pull request carries every root's change.
 
 The job is bound to the commit Teire scanned, and the run returns the sha256 of the tarball it used.
 
@@ -80,8 +80,8 @@ Measured on real repositories (2026-10-28):
 If the repository has `.github/dependabot.yml`, the updater's jobs follow it:
 
 - **Applied:** ignores (names, version ranges, update types), groups, the versioning strategy, `vendor`, `exclude-paths`, the commit message prefix, and `insecure-external-code-execution`.
-- **Conflicts:** where `teire.yml` sets the same thing (commit prefix, target branch, PR limit), `teire.yml` wins, and the Dashboard issue says which file decided.
-- **Not applied yet:** reviewers, assignees, milestones and multi-ecosystem groups. They are listed, never silently dropped.
+- **Conflicts:** where `teire.yml` sets the same thing (commit prefix, target branch, PR limit), `teire.yml` wins, and the run's timeline says which file decided.
+- **Not applied:** reviewers, assignees, milestones, labels, schedules and multi-ecosystem groups. Teire opens its own pull requests on its own schedule, so these don't reach the updater's job.
 
 ## Where it runs
 
@@ -89,7 +89,7 @@ The updater runs on Teire's own server, in a separate Docker daemon whose contai
 
 | Boundary | Rule |
 |---|---|
-| Network | The updater sits on a network with no route out. Only Dependabot's proxy reaches the internet, and the host firewall stops it reaching Teire's apps, its database, cloud metadata or any host port |
+| Network | The updater sits on a network with no route out. Only Dependabot's proxy reaches the internet, and the host firewall stops it reaching Teire's apps, its database, cloud metadata and every host port except the job's own event API. Jobs run one at a time, so no job can reach another's |
 | Credentials | A token that can only read this one repository, valid for an hour. The proxy holds it; the updater never does |
 | Images | Dependabot's updater and proxy images, pinned by digest. The CLI checks their build attestations before use |
 | Code execution | Off only when the job carries private-registry credentials and the repository hasn't allowed it, as Dependabot does |
@@ -108,7 +108,6 @@ Some upgrades Dependabot doesn't do, so Teire keeps its own changes for them:
 - pnpm lockfiles older than version 6 (pnpm 7), which the updater's pnpm reader fails on although pnpm reads them;
 - Bun's binary `bun.lockb`, since the updater reads only the text `bun.lock` (Bun 1.1.39 and later);
 - `pylock.toml`;
-- the runtime or build-tool bump a new major needs (Java 17 for Spring Boot 4, for example);
-- overrides for a vulnerable transitive package.
+Two more are planned and not built yet: the runtime or build-tool bump a new major needs (Java 17 for Spring Boot 4, for example), and overrides for a vulnerable transitive package the updater can't move.
 
 Then, for every upgrade, the [verification](/docs/build/verification) runs your own install, typecheck and tests before and after.

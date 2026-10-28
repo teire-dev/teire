@@ -23,6 +23,8 @@ export interface Transaction {
   check?: (files: Record<string, string>) => string | null;
   /** Every package the change moved, the lead included (dependabot-core's updater reports them). */
   moved?: { name: string; from: string | null; to: string | null; removed?: boolean }[];
+  /** Symlinks the change makes (the updater's `symlink_target`), created in the sandbox by `commands`. */
+  links?: { path: string; target: string }[];
   /** The commits between the versions, as dependabot-core's updater listed them (D-13). */
   upstream?: UpstreamCommits;
   fallback?: Transaction;

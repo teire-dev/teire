@@ -131,7 +131,7 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
         return;
       }
       // A person's close dismisses that target (D112); Teire's own closes (superseded, stale) don't.
-      if (artifact.kind === "pr" && (merged || p.sender?.type !== "Bot"))
+      if (artifact.kind === "pr" && (merged || p.sender?.login !== ctx.gh.botLogin))
         await markFindings(db, repo.id, artifact.changeKey, merged ? "fixed" : "dismissed");
       return;
     }

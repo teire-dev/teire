@@ -77,7 +77,7 @@ export function composeDashboard(d: DashboardInput) {
   const open = [...groups].filter(([, list]) => list.some((f) => f.state === "open"));
   // A group the updater refused has its stop issue (keyed by lineage) instead of a "Fix now" box,
   // and a group whose lineage already has a PR (at a capped or fallback target, D103/D71) has that PR.
-  const stopped = (k: string) => issueFor.has(`stop/${lineageKey(k)}`);
+  const stopped = (k: string) => [...issueFor.keys()].some((key) => key.startsWith(`stop/${lineageKey(k)}@`));
   const prLineages = new Set(
     d.artifacts.filter((a) => a.kind === "pr" && a.lineageKey).map((a) => a.lineageKey),
   );

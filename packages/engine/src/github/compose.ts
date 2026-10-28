@@ -313,7 +313,13 @@ function verdictLine(input: FixPullRequestInput) {
 export function composeFixPullRequest(input: FixPullRequestInput): { title: string; body: string } {
   const { run, instance, repo, plan } = input;
   const codeFiles = run.files.filter((f) => !run.transactionFiles.includes(f.path));
-  const advisories = input.records.filter((r) => r.kind === "security-advisory");
+  const advisories = input.records.filter(
+    (r) => r.kind === "security-advisory" && r.applicability.fixedIn.length > 0,
+  );
+  // Advisories with no published fix: the upgrade doesn't fix them, and the PR says so.
+  const unfixed = input.records.filter(
+    (r) => r.kind === "security-advisory" && r.applicability.fixedIn.length === 0,
+  );
   const title = advisories.length
     ? `Upgrade ${instance.name} from ${instance.version} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
     : `Upgrade ${instance.name} from ${instance.version} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
@@ -340,6 +346,10 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       if (!sites.length)
         out.push(
           "The advisories name no function to look for, so Teire cannot rule out that your code reaches the vulnerable path.",
+        );
+      if (unfixed.length)
+        out.push(
+          `Not fixed by this upgrade (no fixed version is published yet): ${unfixed.map((r) => link(r.id.split("/").at(-1) ?? r.id, r.sources[0]?.url)).join(", ")}.`,
         );
     }
     if (sites.length) {

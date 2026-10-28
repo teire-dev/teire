@@ -588,9 +588,22 @@ export async function scanRepo(
     // Fixes paused (D110): the scan and the Dashboard issue are kept current; no run is queued.
     // Paused fixes also keep their PRs as they are.
     if (!repo.fixesPaused && lookupsAnswered(gaps))
-      await closeStalePullRequests(ctx, installation.octokit, repo, sha, assessments).catch((error) =>
-        console.error(`[scan] ${repo.fullName}: stale PRs: ${error}`),
-      );
+      await closeStalePullRequests(
+        ctx,
+        installation.octokit,
+        repo,
+        sha,
+        assessments,
+        // What this scan would still propose (plain bumps have no finding but keep their PR).
+        new Set(
+          assessments.flatMap((a) => {
+            const g = groupKeyOf(a);
+            return g && a.decision?.kind === "upgrade"
+              ? [lineageKey(g, a.purpose === "security" ? "security" : "version")]
+              : [];
+          }),
+        ),
+      ).catch((error) => console.error(`[scan] ${repo.fullName}: stale PRs: ${error}`));
     if (repo.fixesPaused) {
       await syncDashboard(ctx, repoId).catch((error) =>
         console.error(`[scan] ${repo.fullName}: dashboard: ${error}`),
@@ -686,8 +699,10 @@ async function closeStalePullRequests(
   repo: NonNullable<Awaited<ReturnType<typeof getRepo>>>,
   sha: string,
   assessments: { instance: { ecosystem: string; name: string; version: string | null } }[],
+  proposed: ReadonlySet<string>,
 ) {
   const live = await openLineages(ctx.db, repo.id);
+  for (const l of proposed) live.add(l);
   const [owner = "", name = ""] = repo.fullName.split("/");
   for (const a of await openArtifacts(ctx.db, repo.id)) {
     if (a.kind !== "pr" || !a.number || live.has(a.lineageKey ?? lineageKey(a.changeKey))) continue;

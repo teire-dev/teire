@@ -40,6 +40,7 @@ export function resolverTransaction(
     commands: links.map((f) => ["ln", "-sfn", f.content as string, `${VERIFY.workDir}/${f.path}`]),
     readBack: change.files.filter((f) => f.content !== null && f.mode !== "120000").map((f) => f.path),
     moved: change.moved,
+    links: links.map((f) => ({ path: f.path, target: f.content as string })),
     ...(upstream ? { upstream } : {}),
     ...(lockfilePath ? { lockfilePath } : {}),
   };

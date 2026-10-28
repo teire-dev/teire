@@ -44,6 +44,7 @@ import {
 } from "@teire/engine/pipeline";
 import {
   jobSettings,
+  PACKAGE_MANAGER,
   ResolverUnavailableError,
   readDependabotConfig,
   resolverTransaction,
@@ -116,8 +117,10 @@ function dependabotCannotParse(tree: RepoTree, project: { manager: string; root:
  * has one (the format Dependabot reads), else everything below Teire's lowest published fix.
  */
 function securityAdvisories(name: string, records: ChangeV2[], target: string) {
+  // An advisory with no published fix would make the whole job impossible (every version stays
+  // vulnerable to it); it stays out of the job, and the PR says this upgrade doesn't fix it.
   return records
-    .filter((r) => r.kind === "security-advisory")
+    .filter((r) => r.kind === "security-advisory" && r.applicability.fixedIn.length > 0)
     .map((r) => ({
       dependencyName: name,
       affectedVersions: [r.applicability.affectedRange ?? `< ${target}`],
@@ -142,7 +145,7 @@ function belowTargetReason(
   const qualifier = (v: string | null) => v?.match(/^[\d.]+([-.]?[A-Za-z].*)?$/)?.[1] ?? "";
   const cause =
     ecosystem === "maven" && qualifier(target) !== qualifier(from)
-      ? `it keeps a Maven version's qualifier, and ${target} has "${qualifier(target)}" where ${from} has ${qualifier(from) ? `"${qualifier(from)}"` : "none"}`
+      ? `its Maven version finder takes only versions whose suffix matches the installed one (dependabot-core \`suffix_compatible?\`), and ${target} has "${qualifier(target)}" where ${from} has ${qualifier(from) ? `"${qualifier(from)}"` : "none"}`
       : null;
   return [cause ? `${base}: ${cause}` : base, ...warnings].join("; ");
 }
@@ -237,9 +240,16 @@ async function resolverTransactionFor(
     dependabotCannotParse(tree, assessment.project) ||
     (ecosystem === "go" && assessment.decision?.kind === "upgrade" && assessment.decision.isMajor);
   if (keep || !manager || !resolverDecides(ecosystem)) return null;
+  // Every root the same Dependabot package manager covers (npm and Yarn roots share npm_and_yarn).
+  const dependabotManager = PACKAGE_MANAGER[manager];
   const roots = [
     ...new Set(
-      matching.filter((m) => m.project.manager === assessment.project.manager).map((m) => m.project.root),
+      matching
+        .filter((m) => {
+          const other = resolverManager(m.project.manager);
+          return !!other && PACKAGE_MANAGER[other] === dependabotManager;
+        })
+        .map((m) => m.project.root),
     ),
   ];
   const { options, conflicts } = jobSettings(
@@ -293,6 +303,11 @@ async function resolverTransactionFor(
   if (r.kind === "nothing")
     throw new ResolverNothingError(
       [`no update to ${target} (the updater's log has the details)`, ...r.warnings].join("; "),
+    );
+  if (!r.leadVersion)
+    throw new ResolverStopError(
+      "unreported_version",
+      `the updater changed ${r.files.map((f) => f.path).join(", ")} without saying which version of ${packageName} it chose`,
     );
   const bare = (v: string | null) => v?.replace(/^v(?=\d)/, "") ?? null;
   if (bare(r.leadVersion) !== bare(target)) {
@@ -478,6 +493,7 @@ async function packageOutcome(
   let fallback: Outcome["fallback"];
   if (
     result.run.exhausted &&
+    result.run.attempts.length >= 2 &&
     assessment.decision?.kind === "upgrade" &&
     assessment.decision.isMajor &&
     !run.fallbackMajors
@@ -576,7 +592,8 @@ async function openStopIssue(
   groupKey: string,
   reason: string,
 ) {
-  const key = `stop/${run.lineageKey ?? lineageKey(groupKey)}`;
+  // Per target: a later stop in the same lineage (a newer version) gets its own issue.
+  const key = `stop/${run.lineageKey ?? lineageKey(groupKey)}@${groupKey.split("/").at(-1)}`;
   const [owner = "", name = ""] = repo.fullName.split("/");
   const existing = await getArtifact(ctx.db, repo.id, "issue", key);
   if (existing?.state === "open" && existing.number) {
@@ -1043,20 +1060,22 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         await event("pr", "supersede-failed", { number: old.number, error: String(error) });
       }
     }
-    // A named stop in this lineage (an earlier run the updater refused) is settled by this PR.
-    const stop = await getArtifact(db, repo.id, "issue", `stop/${lineage}`);
-    if (stop?.state === "open" && stop.number)
+    // Named stops in this lineage (earlier runs the updater refused) are settled by this PR.
+    for (const stop of (await openArtifacts(db, repo.id)).filter(
+      (a) =>
+        a.kind === "issue" && a.state === "open" && a.number && a.changeKey.startsWith(`stop/${lineage}@`),
+    ))
       try {
         await installation.octokit.rest.issues.createComment({
           owner,
           repo: name,
-          issue_number: stop.number,
+          issue_number: stop.number as number,
           body: `Resolved: #${pr.number} upgrades to \`${groupKey.split("/").at(-1)}\`.`,
         });
         await installation.octokit.rest.issues.update({
           owner,
           repo: name,
-          issue_number: stop.number,
+          issue_number: stop.number as number,
           state: "closed",
           state_reason: "completed",
         });
