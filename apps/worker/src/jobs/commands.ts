@@ -116,7 +116,9 @@ export async function handleComment(ctx: EventContext, p: Payload) {
     case "rescan":
       if (repo.status === "paused") return void (await reply("This repo is paused; `@teire resume` first."));
       await ctx.enqueueScan(repo.id, "command");
-      await reply("Rescanning the default branch; the Dashboard issue updates when it finishes.");
+      await reply(
+        `Rescanning the default branch; ${repo.status === "active" ? "the Dashboard issue" : "the onboarding pull request"} updates when it finishes.`,
+      );
       return;
     case "pause":
       if (repo.status !== "paused") await setRepo(db, repo.id, { status: "paused", pausedFrom: repo.status });

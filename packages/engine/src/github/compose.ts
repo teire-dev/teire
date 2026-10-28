@@ -679,9 +679,12 @@ export function composeOnboarding(input: {
       "| Package | From → to | Projects | What it means here |",
       "|---|---|---|---|",
     );
+    // A name two ecosystems share (`openai` on npm and PyPI) says which one each row is.
+    const shared = (g: UpgradeGroup) =>
+      upgrades.some((o) => o.name === g.name && o.ecosystem !== g.ecosystem);
     for (const g of upgrades.slice(0, 30))
       out.push(
-        `| \`${g.name}\` | ${g.from.join(", ")} → ${g.target} | ${g.projects.map((p) => `\`${p}\``).join(", ")} | ${
+        `| \`${g.name}\`${shared(g) ? ` (${g.ecosystem})` : ""} | ${g.from.join(", ")} → ${g.target} | ${g.projects.map((p) => `\`${p}\``).join(", ")} | ${
           g.verdict === "affected"
             ? `breaks ${g.breakingSites} call site${g.breakingSites === 1 ? "" : "s"}: Teire fixes them and checks the fix in a sandbox before its PR opens`
             : g.verdict === "not_affected"
