@@ -23,7 +23,8 @@
     "./pipeline": "./src/pipeline/index.ts",
     "./config": "./src/config/index.ts",
     "./discover": "./src/discover/index.ts",
-    "./providers": "./src/catalog/providers.ts"
+    "./providers": "./src/catalog/providers.ts",
+    "./resolver": "./src/resolver/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
