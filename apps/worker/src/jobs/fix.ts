@@ -258,6 +258,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     });
     return { cancelled: "paused" };
   }
+  // Fixes paused (`@teire pause-fixes`, D110): scans and the Dashboard issue go on, no run does.
+  if (!dry && repo.fixesPaused) {
+    await updateRun(db, runId, { status: "cancelled", step: "fixes paused", finishedAt: new Date() });
+    await appendEvent(db, runId, "queue", "cancelled", {
+      reason: "fixes are paused for this repository; `@teire resume-fixes` to fix",
+    });
+    return { cancelled: "fixes paused" };
+  }
   const installation = repo.installationId && !dry ? await gh.installation(repo.installationId) : null;
   const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);
 

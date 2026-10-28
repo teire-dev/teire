@@ -68,6 +68,10 @@ export const repos = pgTable(
     ignores: jsonb("ignores").$type<string[]>().notNull().default([]),
     /** The status before `@teire pause`, restored by `resume`. */
     pausedFrom: text("paused_from").$type<RepoStatus>(),
+    /** Why the repo is paused when Teire paused it (`opted_out`, `installation_suspended`), not a person. */
+    pausedReason: text("paused_reason"),
+    /** Scans and the Dashboard issue go on; no fix run starts (`@teire pause-fixes`, D110). */
+    fixesPaused: boolean("fixes_paused").notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

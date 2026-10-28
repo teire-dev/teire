@@ -19,7 +19,7 @@ export { matchesTarget };
 /**
  * `@teire` commands (card C7, plan S09) in comments on any issue or PR of an installed repo:
  * rescan · fix <id> · ignore <id|package|provider> · unignore <id> · rebase · recreate · explain ·
- * config · pause · resume · wrong <reason> · help. Receipt is acknowledged with 👀; the answer is a
+ * config · pause · resume · pause-fixes · resume-fixes · wrong <reason> · help. Receipt is acknowledged with 👀; the answer is a
  * reply. Bots are ignored; people without write access get a note and nothing runs.
  */
 export const HELP = [
@@ -36,6 +36,7 @@ export const HELP = [
   "| `@teire explain` | On a Teire PR or issue: the evidence behind it |",
   "| `@teire config` | The resolved config, with where each value came from |",
   "| `@teire pause` / `@teire resume` | Stop or restart scans and PRs for this repo |",
+  "| `@teire pause-fixes` / `@teire resume-fixes` | Keep scanning and reporting, but start no fix runs (or start them again) |",
   "| `@teire wrong <reason>` | Tell us a finding is a false positive or negative |",
   "| `@teire help` | This list |",
 ].join("\n");
@@ -51,6 +52,8 @@ export const COMMANDS = [
   "config",
   "pause",
   "resume",
+  "pause-fixes",
+  "resume-fixes",
   "wrong",
   "help",
 ] as const;
@@ -125,6 +128,17 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       await ctx.enqueueScan(repo.id, "command");
       await reply("Resumed; rescanning now.");
       return;
+    case "pause-fixes":
+      if (!repo.fixesPaused) await setRepo(db, repo.id, { fixesPaused: true });
+      await reply(
+        "Fixes paused: Teire keeps scanning and updating the Dashboard issue, but starts no fix runs until `@teire resume-fixes`.",
+      );
+      return;
+    case "resume-fixes":
+      if (repo.fixesPaused) await setRepo(db, repo.id, { fixesPaused: false });
+      await ctx.enqueueScan(repo.id, "command");
+      await reply("Fixes resumed; rescanning now, and fix runs start from this scan.");
+      return;
     case "ignore":
     case "unignore": {
       const target = command.args.split(/\s+/)[0] ?? "";
@@ -161,6 +175,8 @@ export async function handleComment(ctx: EventContext, p: Payload) {
         command.name === "fix"
           ? (all.find((f) => matchesTarget(target, f) && f.groupKey)?.groupKey ?? null)
           : artifact?.changeKey || null;
+      if (repo.fixesPaused)
+        return void (await reply("Fixes are paused for this repo; `@teire resume-fixes` first."));
       if (!groupKey)
         return void (await reply(
           command.name === "fix"

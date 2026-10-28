@@ -435,6 +435,13 @@ export async function scanRepo(
     }
     if (status !== repo.status) await setRepo(db, repoId, { status });
     if (status !== "active") return { status };
+    // Fixes paused (D110): the scan and the Dashboard issue are kept current; no run is queued.
+    if (repo.fixesPaused) {
+      await syncDashboard(ctx, repoId).catch((error) =>
+        console.error(`[scan] ${repo.fullName}: dashboard: ${error}`),
+      );
+      return { status, fixes: "paused" };
+    }
 
     // Active: enqueue one run per group, best first (D70 queue: provider changes that already broke
     // the repo outrank majors); the fix job applies the PR caps.

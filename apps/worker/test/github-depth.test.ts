@@ -18,6 +18,14 @@ describe("@teire commands", () => {
       name: "wrong",
       args: "the call is behind a flag",
     });
+    expect(parseCommand("@teire pause-fixes", "teire-bot-dev")).toMatchObject({
+      name: "pause-fixes",
+      known: true,
+    });
+    expect(parseCommand("@teire resume-fixes", "teire-bot-dev")).toMatchObject({
+      name: "resume-fixes",
+      known: true,
+    });
     expect(parseCommand("@teire dance", "teire-bot-dev")).toMatchObject({ name: "help", known: false });
     expect(parseCommand("cc @teirence", "teire-bot-dev")).toBeNull();
     expect(parseCommand("no mention here", "teire-bot-dev")).toBeNull();

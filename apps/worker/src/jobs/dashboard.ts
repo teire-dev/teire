@@ -40,6 +40,7 @@ export interface DashboardInput {
   sha: string | null;
   scannedAt: Date | null;
   status: string;
+  fixesPaused?: boolean;
   webUrl: string | null;
   findings: Awaited<ReturnType<typeof findingsWithChanges>>;
   artifacts: Awaited<ReturnType<typeof openArtifacts>>;
@@ -84,7 +85,7 @@ export function composeDashboard(d: DashboardInput) {
   const sha = d.sha ? `\`${d.sha.slice(0, 7)}\`` : "—";
   const lines = [
     MARKER,
-    `Teire watches every dependency and API this repo uses. Last scan: ${sha}${d.scannedAt ? ` (${d.scannedAt.toISOString().slice(0, 16).replace("T", " ")} UTC)` : ""}${d.status === "paused" ? " · **paused** (`@teire resume`)" : ""}.${d.webUrl ? ` [Open in Teire](${d.webUrl})` : ""}`,
+    `Teire watches every dependency and API this repo uses. Last scan: ${sha}${d.scannedAt ? ` (${d.scannedAt.toISOString().slice(0, 16).replace("T", " ")} UTC)` : ""}${d.status === "paused" ? " · **paused** (`@teire resume`)" : ""}${d.fixesPaused ? " · **fixes paused** (`@teire resume-fixes`)" : ""}.${d.webUrl ? ` [Open in Teire](${d.webUrl})` : ""}`,
     "",
     box("rescan", "now", "Rescan now"),
     "",
@@ -171,6 +172,7 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
     sha: repo.lastScannedSha,
     scannedAt: repo.lastScannedAt,
     status: repo.status,
+    fixesPaused: repo.fixesPaused,
     webUrl: ctx.webUrl,
     findings: await findingsWithChanges(db, repoId),
     artifacts: (await openArtifacts(db, repoId)).filter((a) => a.kind === "pr" || a.kind === "issue"),
