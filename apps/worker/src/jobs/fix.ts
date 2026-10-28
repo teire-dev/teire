@@ -4,6 +4,7 @@ import { RUNS } from "@teire/engine/constants";
 import type { CallSite } from "@teire/engine/contract";
 import type { FixRun } from "@teire/engine/fix";
 import {
+  branchFor,
   commitToBranch,
   HumanCommitsError,
   modelName,
@@ -527,7 +528,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       return { issue: issue.html_url };
     }
 
-    const branch = `teire/${groupKey}`;
+    const branch = branchFor(groupKey);
     // The lock and any manifest the package manager rewrote are among the run's files already.
     const files = fix.files.map((f) => ({ path: f.path, content: f.after }));
     const commit = await commitToBranch({

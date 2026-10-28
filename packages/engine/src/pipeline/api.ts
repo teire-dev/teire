@@ -424,7 +424,7 @@ export function appliedSwaps(files: FileChange[], findings: FindingDraft[]) {
     if (f.verdict !== "affected" || !from) continue;
     for (const site of f.callSites) {
       const file = files.find((x) => x.path === site.file);
-      if (!file) continue;
+      if (!file || file.after === null) continue;
       const before = file.before.split("\n")[site.line - 1] ?? "";
       const k = [...before.matchAll(QUOTED)].findIndex((m) => m[2] === from);
       if (k < 0) continue;

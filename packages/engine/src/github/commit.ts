@@ -11,9 +11,33 @@ export interface FileWrite {
   path: string;
   /** New content; null deletes the file. */
   content: string | null;
+  /** How `content` is encoded: text (default) or base64 for binary files such as `bun.lockb`. */
+  encoding?: "utf-8" | "base64";
+  /** Git file mode when it isn't a plain file: executable, or a symlink (content = its target). */
+  mode?: "100644" | "100755" | "120000";
 }
 
+const base64Of = (f: FileWrite) =>
+  f.encoding === "base64" ? (f.content ?? "") : Buffer.from(f.content ?? "", "utf8").toString("base64");
+
 export class HumanCommitsError extends Error {}
+
+/**
+ * The branch for a PR group (rule 9: `teire/<ecosystem>/<package>/<target>`, `teire/<source>/<id>`),
+ * made a valid git ref. Maven's `group:artifact` and npm's `@scope/name` would otherwise produce refs
+ * git refuses. The cleanup follows Dependabot's `sanitize_ref` (dependabot-core, MIT,
+ * `common/lib/dependabot/pull_request_creator/branch_namer/base.rb`).
+ */
+export function branchFor(groupKey: string) {
+  return `${PULL_REQUESTS.branchPrefix}/${groupKey}`
+    .replace(/:/g, "-")
+    .replace(/@/g, "")
+    .replace(/[^A-Za-z0-9/\-_.(){}]/g, "")
+    .replace(/\/\./g, "/dot-")
+    .replace(/\.{2,}/g, ".")
+    .replace(/\/{2,}/g, "/")
+    .replace(/\.$/, "");
+}
 
 const MUTATION = `mutation($input: CreateCommitOnBranchInput!) {
   createCommitOnBranch(input: $input) { commit { oid url } }
@@ -59,11 +83,13 @@ export async function commitToBranch(input: {
   await resetBranch(octokit, owner, repo, branch, baseSha, input.botLogin);
   const additions = input.files
     .filter((f) => f.content !== null)
-    .map((f) => ({ path: f.path, contents: Buffer.from(f.content ?? "", "utf8").toString("base64") }));
+    .map((f) => ({ path: f.path, contents: base64Of(f) }));
   const deletions = input.files.filter((f) => f.content === null).map((f) => ({ path: f.path }));
   const bytes = additions.reduce((n, a) => n + a.contents.length, 0);
+  // GraphQL commits can't set a file mode, so executables and symlinks take the Git Data API.
+  const plain = input.files.every((f) => !f.mode || f.mode === "100644");
 
-  if (bytes <= PULL_REQUESTS.maxGraphqlCommitBytes) {
+  if (plain && bytes <= PULL_REQUESTS.maxGraphqlCommitBytes) {
     const result = await octokit.graphql<{ createCommitOnBranch: { commit: { oid: string; url: string } } }>(
       MUTATION,
       {
@@ -86,15 +112,10 @@ export async function commitToBranch(input: {
         ? { path: f.path, mode: "100644" as const, type: "blob" as const, sha: null }
         : {
             path: f.path,
-            mode: "100644" as const,
+            mode: f.mode ?? ("100644" as const),
             type: "blob" as const,
             sha: (
-              await octokit.rest.git.createBlob({
-                owner,
-                repo,
-                content: Buffer.from(f.content, "utf8").toString("base64"),
-                encoding: "base64",
-              })
+              await octokit.rest.git.createBlob({ owner, repo, content: base64Of(f), encoding: "base64" })
             ).data.sha,
           },
     ),

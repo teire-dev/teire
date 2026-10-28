@@ -71,6 +71,71 @@ export function changeSummary(title: string, name: string) {
   return title.startsWith(`${name} `) ? title.slice(name.length + 1).replace(/^\S+ /, "") : title;
 }
 
+/**
+ * Upstream text (release notes, advisories, provider pages) made safe for a PR body, following
+ * Dependabot's link and mention sanitiser (dependabot-core, MIT,
+ * `common/lib/dependabot/pull_request_creator/message_builder/link_and_mention_sanitizer.rb`):
+ * - `@user` becomes code with a zero-width space, so no maintainer is pinged;
+ * - links to GitHub issues, PRs and commits go through `redirect.github.com`, so the upstream
+ *   thread gets no back-reference;
+ * - a bare `#123` links to the upstream repo's issue, never to this repo's;
+ * - HTML is shown as text, so a stray `<details>` can't swallow the rest of the body.
+ */
+export function sanitizeUpstream(text: string, upstream?: { owner: string; repo: string } | null) {
+  return text
+    .replace(/</g, "&lt;")
+    .replace(
+      /(^|[\s(])@([a-z0-9]+(?:-[a-z0-9]+)*)(?![\w.-]*@)/gi,
+      (_, pre: string, user: string) => `${pre}\`@\u200B${user}\``,
+    )
+    .replace(
+      /https?:\/\/(?:www\.)?github\.com\/([\w.-]+\/[\w.-]+\/(?:issues|pull|commit|discussions)\/[\w#-]+)/g,
+      "https://redirect.github.com/$1",
+    )
+    .replace(
+      /(^|[\s(])([\w.-]+\/[\w.-]+)#(\d+)\b/g,
+      (_, pre: string, nwo: string, n: string) =>
+        `${pre}[${nwo}#${n}](https://redirect.github.com/${nwo}/issues/${n})`,
+    )
+    .replace(/(^|[\s(])#(\d+)\b/g, (_, pre: string, n: string) =>
+      upstream
+        ? `${pre}[${upstream.owner}/${upstream.repo}#${n}](https://redirect.github.com/${upstream.owner}/${upstream.repo}/issues/${n})`
+        : `${pre}#\u200B${n}`,
+    );
+}
+
+/** The GitHub repo a source URL belongs to, for linking its bare `#123` references. */
+export function upstreamRepoOf(url: string | undefined) {
+  const m = url ? /^https?:\/\/(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)/.exec(url) : null;
+  return m ? { owner: m[1] as string, repo: (m[2] as string).replace(/\.git$/, "") } : null;
+}
+
+/** A quote as a Markdown blockquote: every line prefixed, so a multi-line quote stays inside it. */
+export function blockquote(text: string) {
+  return text
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
+}
+
+/** The last path segment of a URL as a link label, or null when the URL doesn't parse. */
+function urlLabel(url: string) {
+  try {
+    return new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? "source";
+  } catch {
+    return null;
+  }
+}
+
+/** A body cut to GitHub's limit at a block boundary, saying so and where the rest is. */
+export function fitBody(body: string, max: number, runUrl?: string) {
+  if (body.length <= max) return body;
+  const note = `\n\n_Description shortened to fit GitHub's limit${runUrl ? `; the full evidence is on the [run page](${runUrl})` : ""}._`;
+  const cut = body.slice(0, max - note.length);
+  const boundary = cut.lastIndexOf("\n\n");
+  return `${boundary > 0 ? cut.slice(0, boundary) : cut}${note}`;
+}
+
 /** A quoted table row reads as text: `| Oct 23, 2026 | \`gpt-4.1-nano\` | …` → "Oct 23, 2026 · gpt-4.1-nano · …". */
 export function displayQuote(quote: string) {
   if (!quote.trim().startsWith("|")) return quote;
@@ -229,7 +294,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       );
       for (const r of advisories)
         out.push(
-          `- [${r.id.split("/").at(-1)}](${r.sources[0]?.url ?? "#"}) ${escapeCell(r.summary).slice(0, 240)}${r.applicability.fixedIn.length ? ` Fixed in ${r.applicability.fixedIn.join(", ")}.` : ""}`,
+          `- [${r.id.split("/").at(-1)}](${r.sources[0]?.url ?? "#"}) ${sanitizeUpstream(escapeCell(r.summary).slice(0, 240), upstreamRepoOf(r.sources[0]?.url))}${r.applicability.fixedIn.length ? ` Fixed in ${r.applicability.fixedIn.join(", ")}.` : ""}`,
         );
       if (!sites.length)
         out.push(
@@ -252,7 +317,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     } else if (!advisories.length) {
       const c = input.summary.coverage;
       out.push(
-        `No located use of a removed or changed API${c ? ` (${c.filesScanned} files, ${c.resolutionLevel}-resolved, ${c.unresolvedSites} unresolved)` : ""}. This is a plain upgrade, verified in the sandbox.`,
+        `No located use of a removed or changed API${c ? ` (${c.filesScanned} files, ${c.resolutionLevel}-resolved, ${c.unresolvedSites} unresolved)` : ""}. This is a plain upgrade${run.evidence.kind === "verified" ? ", verified in the sandbox" : "; Verification below says what the sandbox showed"}.`,
       );
     }
     const drift = input.summary.annotations.flatMap((f) => f.callSites);
@@ -273,7 +338,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       out.push(`Comparing the public API of ${instance.version} and ${run.target}: ${counts.join("; ")}.`);
     for (const note of input.notes.slice(0, noteCap))
       out.push(
-        `> ${note.quote.slice(0, 400)}${note.quote.length > 400 ? "…" : ""}\n>\n> — [${new URL(note.url).pathname.split("/").at(-1) ?? "notes"}](${note.url})`,
+        `${blockquote(sanitizeUpstream(`${note.quote.slice(0, 400)}${note.quote.length > 400 ? "…" : ""}`, upstreamRepoOf(note.url)))}\n>\n> — ${urlLabel(note.url) ? `[${urlLabel(note.url)}](${note.url})` : "release notes"}`,
       );
 
     // Changes
@@ -327,7 +392,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     const risks: string[] = [];
     for (const r of input.behaviour.slice(0, noteCap))
       risks.push(
-        `${r.summary}${r.sources[0]?.quote ? ` — "${r.sources[0].quote.slice(0, 200)}" ([source](${r.sources[0].url}))` : ""}`,
+        `${sanitizeUpstream(r.summary, upstreamRepoOf(r.sources[0]?.url))}${r.sources[0]?.quote ? ` — "${sanitizeUpstream(r.sources[0].quote.slice(0, 200).replace(/\n/g, " "), upstreamRepoOf(r.sources[0].url))}" ([source](${r.sources[0].url}))` : ""}`,
       );
     if (run.evidence.kind !== "verified") risks.push(run.evidence.reasons.join("; "));
     risks.push(...reviewRisks(run));
@@ -356,7 +421,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     const body = sections(diff, sites, notes);
     if (body.length <= PULL_REQUESTS.bodyMaxChars) return { title, body };
   }
-  return { title, body: sections(false, 1, 0).slice(0, PULL_REQUESTS.bodyMaxChars) };
+  return { title, body: fitBody(sections(false, 1, 0), PULL_REQUESTS.bodyMaxChars, input.runUrl) };
 }
 
 export interface ApiChangePullRequestInput {
@@ -442,7 +507,7 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     out.push("### What changed upstream");
     for (const note of input.notes.slice(0, 8))
       out.push(
-        `> ${escapeCell(displayQuote(note.quote)).slice(0, 400)}\n>\n> — ${note.summary} ([source](${note.url}))`,
+        `${blockquote(sanitizeUpstream(escapeCell(displayQuote(note.quote)).slice(0, 400), upstreamRepoOf(note.url)))}\n>\n> — ${sanitizeUpstream(note.summary, upstreamRepoOf(note.url))} ([source](${note.url}))`,
       );
     out.push("### Changes");
     out.push("| File | Change |", "|---|---|");
@@ -495,7 +560,7 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     const body = sections(diff, sites);
     if (body.length <= PULL_REQUESTS.bodyMaxChars) return { title, body };
   }
-  return { title, body: sections(false, 1).slice(0, PULL_REQUESTS.bodyMaxChars) };
+  return { title, body: fitBody(sections(false, 1), PULL_REQUESTS.bodyMaxChars, input.runUrl) };
 }
 
 export interface OnboardingRow {
@@ -555,9 +620,9 @@ export function composeOnboarding(input: {
       out.push(
         `| \`${r.instance.name}\` | ${r.instance.version} → ${r.target} | ${
           r.verdict === "affected"
-            ? `breaks ${r.breakingSites} call site${r.breakingSites === 1 ? "" : "s"}: Teire fixes them and proves it`
+            ? `breaks ${r.breakingSites} call site${r.breakingSites === 1 ? "" : "s"}: Teire fixes them and checks the fix in a sandbox before its PR opens`
             : r.verdict === "not_affected"
-              ? `not affected${r.coverage ? ` (${r.coverage})` : ""}: verified plain upgrade`
+              ? `not affected${r.coverage ? ` (${r.coverage})` : ""}: plain upgrade, checked in the sandbox before its PR opens`
               : r.verdict === "inconclusive"
                 ? "could not be decided by type; the sandbox decides"
                 : "upgrade checked in the sandbox"
@@ -640,5 +705,8 @@ export function composeOnboarding(input: {
   out.push("### Commands");
   out.push("`@teire rescan` · `@teire pause` · `@teire resume` · `@teire help`");
   out.push(`<sub>Teire${input.scanUrl ? ` · [scan](${input.scanUrl})` : ""}</sub>`);
-  return { title: "Configure Teire", body: joinBlocks(out).slice(0, PULL_REQUESTS.bodyMaxChars) };
+  return {
+    title: "Configure Teire",
+    body: fitBody(joinBlocks(out), PULL_REQUESTS.bodyMaxChars, input.scanUrl),
+  };
 }

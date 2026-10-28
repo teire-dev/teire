@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
@@ -77,7 +77,8 @@ export interface FixInput {
 export interface FileChange {
   path: string;
   before: string;
-  after: string;
+  /** Null when the run deleted the file. */
+  after: string | null;
   patch: string;
 }
 
@@ -341,13 +342,21 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     ): FixRun => {
       const files: FileChange[] = [];
       for (const [path, before] of originals) {
-        const now = read(path);
+        const now = existsSync(join(input.repoDir, path)) ? read(path) : null;
         if (now !== before)
           files.push({
             path,
             before,
             after: now,
-            patch: createTwoFilesPatch(`a/${path}`, `b/${path}`, before, now, "", "", { context: 3 }),
+            patch: createTwoFilesPatch(
+              `a/${path}`,
+              now === null ? "/dev/null" : `b/${path}`,
+              before,
+              now ?? "",
+              "",
+              "",
+              { context: 3 },
+            ),
           });
       }
       return {
