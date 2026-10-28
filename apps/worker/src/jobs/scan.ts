@@ -51,6 +51,7 @@ import {
   getRepo,
   openArtifacts,
   openLineages,
+  recentlySettled,
   recordLlmCall,
   retireUnreported,
   saveInstances,
@@ -643,6 +644,8 @@ export async function scanRepo(
     for (const c of queue) {
       // One PR per group, and nothing a person closed comes back (C6).
       if (await getArtifact(db, repoId, "pr", c.groupKey)) continue;
+      // A target whose run moved, fell back or stopped this week gives the same answer again.
+      if (await recentlySettled(db, repoId, c.groupKey)) continue;
       const { run, created } = await claimRun(db, {
         repoId,
         groupKey: c.groupKey,

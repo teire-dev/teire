@@ -240,6 +240,22 @@ export async function retireUnreported(db: Database, repoId: number, scanId: str
   return rows.length;
 }
 
+/**
+ * Whether a run for this exact target settled elsewhere recently: its target moved (a D103 cap or a
+ * security floor), it fell back a major (D71), or it ended in a named stop. A new commit then doesn't
+ * re-run it from scratch for the same answer; after `days` it is asked again.
+ */
+export async function recentlySettled(db: Database, repoId: number, groupKey: string, days = 7) {
+  const { rows } = await db.execute<{ n: number }>(sql`
+    select count(*)::int as n from runs
+    where repo_id = ${repoId} and kind = 'fix'
+      and idempotency_key like ${`fix:${repoId}:${groupKey}:%`}
+      and created_at > now() - make_interval(days => ${days})
+      and (group_key <> ${groupKey} or step like 'fell back%' or error like 'stopped:%')
+  `);
+  return (rows[0]?.n ?? 0) > 0;
+}
+
 /** Lineages with an open finding: what an open Teire PR in that lineage still answers (C6). */
 export async function openLineages(db: Database, repoId: number) {
   const rows = await db
