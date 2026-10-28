@@ -242,7 +242,11 @@ def validate(body: dict) -> str | None:
             ):
                 return "overlay paths must be relative, inside the checkout and outside .git"
     token = body.get("token")
-    if token is not None and (not isinstance(token, str) or not re.match(r"^gh[sopu]_[A-Za-z0-9]+$", token)):
+    # GitHub's tokens: a gh?_ prefix, then (since 2026) up to a few hundred of [A-Za-z0-9_.-] for
+    # installation tokens (390 characters seen), so the shape is checked, not a fixed length.
+    if token is not None and (
+        not isinstance(token, str) or not re.fullmatch(r"gh[sopu]_[A-Za-z0-9_.\-]{20,2048}", token)
+    ):
         return "token must be a GitHub token"
     return None
 
