@@ -553,7 +553,7 @@ async function runLead(input: FixInput): Promise<FixRun> {
       const run = await base.run("baseline-probe", input.plan.probe, {
         cwd: input.plan.cwd,
         env: input.plan.env,
-        timeoutSec: VERIFY.checkTimeoutSec,
+        timeoutSec: input.plan.checkTimeoutSec ?? VERIFY.checkTimeoutSec,
       });
       log(`baseline: probe exit ${run.exitCode} in ${run.ms} ms`);
       return { side, probe: run.exitCode === 0 ? run.stdout : null };
@@ -799,8 +799,11 @@ async function runLead(input: FixInput): Promise<FixRun> {
         });
       return finish(current.evidence, lastAfter, [], codemods, [], "", false, review);
     }
-    // Without a baseline no edit can be judged, so the agent is not started.
-    if (!baseline.install.ok) return finish(current.evidence, lastAfter, [], codemods, [], "", false);
+    // Without a baseline no edit can be judged, so the agent is not started; nor when a check already
+    // runs past its limit on the unchanged code: no edit can make it pass in time (live walk,
+    // explain-error-plugin: eight attempts against a suite that timed out on the baseline too).
+    if (!baseline.install.ok || baseline.checks.some((c) => c.timedOut))
+      return finish(current.evidence, lastAfter, [], codemods, [], "", false);
 
     // 4. Agent attempts.
     const postCodemod = new Map([...originals.keys()].map((p) => [p, read(p)]));

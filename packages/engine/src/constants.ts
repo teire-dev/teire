@@ -405,6 +405,11 @@ export const VERIFY = {
    */
   jvmInstallTimeoutSec: 1_200,
   checkTimeoutSec: 300,
+  /**
+   * JVM test suites can be slow by design: a Jenkins plugin's JenkinsRule suite ran past 300 s on the
+   * unchanged code (live walk, explain-error-plugin, 2026-10-28).
+   */
+  jvmCheckTimeoutSec: 1_200,
   /** Output kept per command for the classifier and the PR body. */
   outputTailChars: 20_000,
   /** Fetching a repository tarball and streaming it into a sandbox upload (up to `SCAN.maxTarballBytes`). */

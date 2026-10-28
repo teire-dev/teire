@@ -57,7 +57,13 @@ export function decideEvidence(baseline: SideResult, after: SideResult): Evidenc
   });
 
   if ([...baseline.checks, ...after.checks].some((c) => c.timedOut)) {
-    reasons.push("a check hit its time limit");
+    // On the unchanged code it is the repository's own check that is too slow, not the change.
+    const slow = baseline.checks.filter((c) => c.timedOut).map((c) => c.name);
+    reasons.push(
+      slow.length
+        ? `the repository's own ${slow.join(" and ")} ran past its time limit on the unchanged code (${Math.round((baseline.checks.find((c) => c.timedOut)?.ms ?? 0) / 60_000)} min), so it can't judge the change`
+        : "a check hit its time limit",
+    );
     return done("timeout");
   }
   if (!baseline.install.ok) {

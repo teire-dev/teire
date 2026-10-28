@@ -105,6 +105,7 @@ export function detectJvmChecks(tree: RepoTree, project: JvmProject, sandboxRoot
     install: ["teire-jvm", "warmup", project.manager],
     installEnv: env,
     installTimeoutSec: VERIFY.jvmInstallTimeoutSec,
+    checkTimeoutSec: VERIFY.jvmCheckTimeoutSec,
     env,
     checks,
     provenOffline: true,

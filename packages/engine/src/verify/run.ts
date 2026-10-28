@@ -140,7 +140,7 @@ export async function runChecks(
     const run = await session.run(`${side}-${check.name}-${round}`, check.argv, {
       cwd: plan.cwd,
       env: plan.env,
-      timeoutSec: VERIFY.checkTimeoutSec,
+      timeoutSec: plan.checkTimeoutSec ?? VERIFY.checkTimeoutSec,
     });
     // stderr first: compilers write warnings there and runners (cargo, pytest, go, Maven) write
     // results to stdout, so the kept tail shows the results, not the build noise.
@@ -160,7 +160,8 @@ export async function runChecks(
     }
     // `timeout` exits 124; 137 is a kill, a timeout only when it came at the limit (else memory).
     const timedOut =
-      run.exitCode === 124 || (run.exitCode === 137 && run.ms >= VERIFY.checkTimeoutSec * 1000);
+      run.exitCode === 124 ||
+      (run.exitCode === 137 && run.ms >= (plan.checkTimeoutSec ?? VERIFY.checkTimeoutSec) * 1000);
     const result: CheckResult = {
       name: check.name,
       argv: check.argv,

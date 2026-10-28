@@ -78,6 +78,18 @@ const tests = (collected: number, passed: number, failed = 0, skipped = 0) => ({
 });
 
 describe("evidence", () => {
+  it("names the repository's own check when it is too slow on the unchanged code (live walk)", () => {
+    const slow = check("test", 124, { timedOut: true, ms: 306_108 });
+    const e = decideEvidence(
+      side("baseline", [check("typecheck", 0), slow]),
+      side("after", [check("typecheck", 0), slow]),
+    );
+    expect(e.kind).toBe("timeout");
+    expect(e.reasons[0]).toBe(
+      "the repository's own test ran past its time limit on the unchanged code (5 min), so it can't judge the change",
+    );
+  });
+
   it("is verified only when every check passes and the tests were counted", () => {
     const base = side("baseline", [check("typecheck", 0), check("test", 0, { counts: tests(3, 3) })]);
     expect(
