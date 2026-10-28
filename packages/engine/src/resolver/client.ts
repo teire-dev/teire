@@ -68,6 +68,7 @@ export async function resolve(
     repo: input.repo,
     commit: input.commit,
     job: buildJob(input),
+    ...(input.overlay?.length ? { overlay: input.overlay } : {}),
     ...(input.token ? { token: input.token } : {}),
     ...(input.timeoutSec ? { timeoutSec: input.timeoutSec } : {}),
   });

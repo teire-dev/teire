@@ -85,6 +85,36 @@ export function editCargoDependency(
   return null;
 }
 
+/**
+ * The Cargo pre-step (D104): the manifest with only the features `removedFeatures` names dropped
+ * from the dependency's entry, the requirement unchanged. dependabot-core's updater can't drop a
+ * feature a new version removed, so it would stop below that version; given this manifest as its
+ * input, it resolves the target and its returned manifest carries the drop.
+ */
+export function cargoFeatureOverlay(
+  tree: RepoTree,
+  project: RustProject,
+  instance: DependencyInstance,
+  removedFeatures: string[],
+): { path: string; content: string }[] {
+  if (!removedFeatures.length || !instance.direct || !instance.declaredRange) return [];
+  const key = instance.aliasName ?? instance.name;
+  const inherits = new RegExp(`^\\s*${esc(key)}\\s*=\\s*\\{[^}]*workspace\\s*=\\s*true`, "m").test(
+    tree.read(instance.manifestPath) ?? "",
+  );
+  const manifest = inherits ? project.manifest : instance.manifestPath;
+  const before = tree.read(manifest);
+  if (before === null) return [];
+  const after = editCargoDependency(
+    before,
+    key,
+    instance.declaredRange,
+    removedFeatures,
+    inherits ? "workspace" : "",
+  );
+  return after && after !== before ? [{ path: manifest, content: after }] : [];
+}
+
 export function cargoTransaction(
   tree: RepoTree,
   project: RustProject,

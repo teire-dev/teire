@@ -118,6 +118,12 @@ export interface JobInput {
    * Refusing it otherwise makes Dependabot's pip parser fail every job (D-F1).
    */
   privateCredentials?: boolean;
+  /**
+   * Files written over the checkout before the updater runs (Teire's pre-steps, D104): the Cargo
+   * manifest with removed features dropped. Sent beside the job, never in it (the CLI's decoder
+   * rejects unknown keys).
+   */
+  overlay?: { path: string; content: string }[];
   allowExternalCode?: boolean;
   repoPrivate?: boolean;
 }

@@ -10,7 +10,8 @@ fake API (plan, Isolation item 8).
 Standard library only (no packages to install on a production host). Listens on the Coolify
 network's gateway address; every request needs the shared secret.
 
-  POST /jobs       {"job": {...}, "repo": "owner/name", "commit": "<sha>", "token"?: str, "timeoutSec"?: int}
+  POST /jobs       {"job": {...}, "repo": "owner/name", "commit": "<sha>", "token"?: str, "timeoutSec"?: int,
+                    "overlay"?: [{"path": str, "content": str}]}
                    -> 202 {"id"}
   GET  /jobs/<id>  -> {"state": queued|running|done|failed|timeout, ...result}
   GET  /health     -> {"ok": true, "queued": n, "cli": "..."}
@@ -142,6 +143,11 @@ def run(job_id: str) -> None:
     try:
         repo_dir = folder / "repo"
         result["tarballSha256"] = download(spec["repo"], spec["commit"], spec.get("token"), repo_dir)
+        # Teire's pre-steps (D104): files written over the checkout before the updater reads it.
+        for item in spec.get("overlay") or []:
+            target = repo_dir / item["path"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(item["content"])
         job_file = folder / "job.yaml"
         job_file.write_text(json.dumps(spec["job"]))  # JSON is YAML
         manager = spec["job"]["job"]["package-manager"]
@@ -186,6 +192,7 @@ def run(job_id: str) -> None:
     with lock:
         spec.pop("token", None)
         spec.pop("job", None)
+        spec.pop("overlay", None)
         spec.update(result, state=state, finishedAt=time.time())
     log(f"job {job_id} {spec['repo']}@{spec['commit'][:7]} {state} exit={result.get('exitCode')} {result['ms']}ms")
 
@@ -218,6 +225,22 @@ def validate(body: dict) -> str | None:
     # The job is bound to the commit and repository it was sent for (D102).
     if source.get("repo") != repo or source.get("commit") != commit:
         return "job source must name the same repo and commit"
+    overlay = body.get("overlay")
+    if overlay is not None:
+        if not isinstance(overlay, list) or len(overlay) > 20:
+            return "overlay must be a list of at most 20 files"
+        for item in overlay:
+            path = item.get("path") if isinstance(item, dict) else None
+            # Relative, inside the checkout, never .git: the same rule as the paths results return.
+            if (
+                not isinstance(path, str)
+                or not isinstance(item.get("content"), str)
+                or path.startswith("/")
+                or "\x00" in path
+                or any(part in ("", ".", "..", ".git") for part in path.split("/"))
+                or len(item["content"]) > 1_000_000
+            ):
+                return "overlay paths must be relative, inside the checkout and outside .git"
     token = body.get("token")
     if token is not None and (not isinstance(token, str) or not re.match(r"^gh[sopu]_[A-Za-z0-9]+$", token)):
         return "token must be a GitHub token"
@@ -254,7 +277,7 @@ class Handler(BaseHTTPRequestHandler):
         match = re.fullmatch(r"/jobs/([0-9a-f-]{36})", self.path)
         with lock:
             spec = jobs.get(match.group(1)) if match else None
-            value = {k: v for k, v in spec.items() if k not in ("token", "job")} if spec else None
+            value = {k: v for k, v in spec.items() if k not in ("token", "job", "overlay")} if spec else None
         self.reply(200 if value else 404, value or {"error": "no such job"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -283,6 +306,7 @@ class Handler(BaseHTTPRequestHandler):
                 "repo": body["repo"],
                 "commit": body["commit"],
                 "job": body["job"],
+                "overlay": body.get("overlay"),
                 "token": body.get("token"),
                 "timeoutSec": body.get("timeoutSec"),
                 "queuedAt": time.time(),

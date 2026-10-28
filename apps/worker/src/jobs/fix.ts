@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { matchesTarget, readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
-import type { FixRun, Transaction } from "@teire/engine/fix";
+import { cargoFeatureOverlay, type FixRun, type Transaction } from "@teire/engine/fix";
 import {
   branchFor,
   commitToBranch,
@@ -244,6 +244,21 @@ async function resolverTransactionFor(
     config,
   );
   for (const c of conflicts) common.onEvent?.({ step: "transaction", detail: `config: ${c}` });
+  // The Cargo pre-step (D104): features the target removed are dropped from the updater's input.
+  const removedFeatures =
+    ecosystem === "cargo"
+      ? (assessment.diff?.changes ?? [])
+          .filter((c) => c.kind === "removed" && c.path.startsWith("feature:"))
+          .map((c) => c.path.slice("feature:".length))
+      : [];
+  const overlay = removedFeatures.length
+    ? cargoFeatureOverlay(tree, assessment.project as RustProject, assessment.instance, removedFeatures)
+    : [];
+  if (overlay.length)
+    common.onEvent?.({
+      step: "transaction",
+      detail: `features ${target} removed are dropped before the updater runs: ${removedFeatures.join(", ")}`,
+    });
   const resolved = await resolveForRepo(
     ctx,
     repo,
@@ -262,6 +277,7 @@ async function resolverTransactionFor(
             }
           : { kind: "version", dependency: packageName, target },
       ...options,
+      ...(overlay.length ? { overlay } : {}),
       ...(repo.isPrivate ? { repoPrivate: true } : {}),
     },
     { ecosystem, name: packageName },

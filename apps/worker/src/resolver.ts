@@ -35,7 +35,7 @@ export async function resolveForRepo(
   const config = resolverConfigFromEnv();
   if (!config) return null;
   const key = createHash("sha256")
-    .update(JSON.stringify(buildJob(input)))
+    .update(JSON.stringify([buildJob(input), input.overlay ?? []]))
     .digest("hex");
   const [hit] = await ctx.db
     .select()
