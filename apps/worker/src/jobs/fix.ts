@@ -326,6 +326,7 @@ function transitiveRung(ecosystem: Ecosystem, manager: string): string | null {
     return "a `go get` requirement: Go builds with the highest version any module requires";
   if (ecosystem === "pypi" && manager === "uv") return "uv's `override-dependencies`";
   if (ecosystem === "maven" && manager === "gradle") return "a Gradle dependency constraint";
+  if (ecosystem === "maven") return "a `<dependencyManagement>` pin in the root POM";
   return null;
 }
 

@@ -117,6 +117,7 @@ Some upgrades Dependabot doesn't do, so Teire keeps its own changes for them:
   | uv | `override-dependencies` under `[tool.uv]`, after an in-range `uv lock` |
   | Go | `go get module@version`: Go builds with the highest version any module requires |
   | Gradle | a dependency constraint in each module whose lock holds it, then a targeted re-lock |
+  | Maven | a `<dependencyManagement>` pin in the root POM (Maven has no lockfile, so Teire lists transitive versions only where a scan saw them) |
 
   Cargo, Bundler, Poetry, Pipenv and pip-tools have no such override (Cargo's `[patch]` must point to another source than crates.io), so the run stops, quoting the updater and saying why.
 

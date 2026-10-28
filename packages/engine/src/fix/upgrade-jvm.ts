@@ -279,6 +279,60 @@ export function gradleConstraintEdit(
   };
 }
 
+/**
+ * A transitive fix on Maven (S15.7, review R14): a `<dependencyManagement>` entry in the root POM.
+ * Managed versions win Maven's mediation for transitive dependencies, so the fix is used even
+ * where the packages that pull it in ask for less. An existing managed entry is moved instead.
+ */
+export function mavenManagedPin(
+  tree: RepoTree,
+  project: JvmProject,
+  name: string,
+  target: string,
+): ManifestEdit | null {
+  const path = project.manifest;
+  const before = tree.read(path);
+  if (before === null) return null;
+  const [group = "", artifact = ""] = name.split(":");
+  const indent = /\n([ \t]+)<(?:dependencies|properties|modelVersion)>/.exec(before)?.[1] ?? "  ";
+  const entry = (pad: string) =>
+    `${pad}<dependency>\n${pad}${indent}<groupId>${group}</groupId>\n${pad}${indent}<artifactId>${artifact}</artifactId>\n${pad}${indent}<version>${target}</version>\n${pad}</dependency>`;
+  const managed =
+    /<dependencyManagement>\s*<dependencies>([\s\S]*?)<\/dependencies>\s*<\/dependencyManagement>/.exec(
+      before,
+    );
+  let after: string;
+  if (managed) {
+    const block = managed[0];
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const existing = new RegExp(
+      `(<dependency>\\s*<groupId>${esc(group)}</groupId>\\s*<artifactId>${esc(artifact)}</artifactId>\\s*<version>)[^<]*(</version>)`,
+    );
+    const replaced = existing.test(block)
+      ? block.replace(existing, `$1${target}$2`)
+      : block.replace(/(\n?)([ \t]*)<\/dependencies>/, `\n${entry(indent.repeat(3))}$1$2</dependencies>`);
+    after = before.replace(block, replaced);
+  } else {
+    const section = `${indent}<dependencyManagement>\n${indent.repeat(2)}<dependencies>\n${entry(indent.repeat(3))}\n${indent.repeat(2)}</dependencies>\n${indent}</dependencyManagement>\n`;
+    // The project's own `<dependencies>` (at its first indent), not a plugin's or a profile's.
+    const at = before.search(new RegExp(`\\n${indent}<dependencies>`));
+    after =
+      at >= 0
+        ? `${before.slice(0, at + 1)}${section}${before.slice(at + 1)}`
+        : before.replace(/<\/project>/, `${section}</project>`);
+  }
+  return after === before
+    ? null
+    : {
+        path,
+        before,
+        after,
+        from: "",
+        to: target,
+        note: `\`<dependencyManagement>\` pins \`${name}\` to ${target}: the packages that depend on it ask for less`,
+      };
+}
+
 export function jvmTransaction(
   tree: RepoTree,
   project: JvmProject,
@@ -288,7 +342,9 @@ export function jvmTransaction(
   because = `fixes a security advisory in ${instance.name}`,
 ): Transaction {
   if (project.manager === "maven") {
-    const versionEdit = mavenEdit(tree, project, instance, target);
+    const versionEdit = instance.direct
+      ? mavenEdit(tree, project, instance, target)
+      : mavenManagedPin(tree, project, instance.name, target);
     const withJava = javaFloor
       ? withJavaFloor(tree, project, versionEdit ? [versionEdit] : [], javaFloor.version, javaFloor.why)
       : versionEdit

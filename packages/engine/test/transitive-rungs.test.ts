@@ -105,3 +105,33 @@ describe("uv override-dependencies", () => {
     expect(tx.fallback?.commands).toEqual([["uv", "lock", "--upgrade-package", "urllib3"]]);
   });
 });
+
+describe("Maven dependencyManagement pin", () => {
+  const project = { root: ".", manager: "maven", manifest: "pom.xml", modules: [] } as unknown as JvmProject;
+  const pom = (managed = "") =>
+    `<project>\n  <modelVersion>4.0.0</modelVersion>\n${managed}  <dependencies>\n    <dependency>\n      <groupId>org.example</groupId>\n      <artifactId>lib</artifactId>\n      <version>1.0</version>\n    </dependency>\n  </dependencies>\n</project>\n`;
+  const pin = (xml: string) =>
+    jvmTransaction(
+      memoryTree({ "pom.xml": xml }),
+      project,
+      transitive({ manifestPath: "pom.xml" }),
+      "2.9.10.8",
+    );
+
+  it("adds a managed version before <dependencies> when the POM has none", () => {
+    const tx = pin(pom());
+    expect(tx.manifest[0]?.after).toContain(
+      "  <dependencyManagement>\n    <dependencies>\n      <dependency>\n        <groupId>com.fasterxml.jackson.core</groupId>\n        <artifactId>jackson-databind</artifactId>\n        <version>2.9.10.8</version>\n      </dependency>\n    </dependencies>\n  </dependencyManagement>\n  <dependencies>",
+    );
+    expect(tx.check?.({ "pom.xml": tx.manifest[0]?.after ?? "" })).toBeNull();
+  });
+
+  it("moves an existing managed version and keeps the other entries", () => {
+    const managed =
+      "  <dependencyManagement>\n    <dependencies>\n      <dependency>\n        <groupId>com.fasterxml.jackson.core</groupId>\n        <artifactId>jackson-databind</artifactId>\n        <version>2.9.8</version>\n      </dependency>\n      <dependency>\n        <groupId>org.other</groupId>\n        <artifactId>x</artifactId>\n        <version>3.0</version>\n      </dependency>\n    </dependencies>\n  </dependencyManagement>\n";
+    const after = pin(pom(managed)).manifest[0]?.after ?? "";
+    expect(after).toContain("<artifactId>jackson-databind</artifactId>\n        <version>2.9.10.8</version>");
+    expect(after).toContain("<artifactId>x</artifactId>\n        <version>3.0</version>");
+    expect(after.match(/<dependencyManagement>/g)).toHaveLength(1);
+  });
+});
