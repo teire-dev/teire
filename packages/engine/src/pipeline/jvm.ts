@@ -15,7 +15,7 @@ import { deprecationChange } from "../registry/deprecation";
 import { mavenFlavor } from "../registry/maven-version";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { mavenScheme } from "../registry/versions";
-import { jvmSurfaceDiff } from "../surface/jvm";
+import { javaRequirement, jvmSurfaceDiff } from "../surface/jvm";
 import { jvmDocsLookup } from "../surface/jvmdoc";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
@@ -203,6 +203,8 @@ export async function fixJvmDependency(
   const decision = a.decision;
   if (decision?.kind !== "upgrade" || !a.instance.version)
     throw new Error(`${a.instance.name} has no upgrade target`);
+  // The toolchain co-upgrade (S15.10): the Java the target's own metadata says it needs.
+  const javaFloor = await javaRequirement(a.instance.name, decision.to).catch(() => null);
   const target = decision.to;
   const from = a.instance.version;
 
@@ -256,7 +258,20 @@ export async function fixJvmDependency(
     tarball: input.tarball,
     project: a.project,
     plan,
-    transaction: input.transaction ?? jvmTransaction(input.tree, a.project, a.instance, target),
+    transaction:
+      input.transaction ??
+      jvmTransaction(
+        input.tree,
+        a.project,
+        a.instance,
+        target,
+        javaFloor
+          ? {
+              version: javaFloor,
+              why: `${a.instance.name} ${target} needs Java ${javaFloor} (its published Gradle Module Metadata)`,
+            }
+          : undefined,
+      ),
     instance: a.instance,
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],

@@ -21,7 +21,8 @@ Gradle declarations are read from:
 
 - `"group:artifact:version"` strings,
 - `libs.x.y` catalog accessors,
-- configurations from `implementation` and `api` to `kapt` and `ksp`.
+- configurations from `implementation` and `api` to `kapt` and `ksp`,
+- versioned plugins (`id 'org.springframework.boot' version '2.6.3'` and catalog `alias(libs.plugins.x)`), as the plugin's marker coordinate.
 
 Versions come from `gradle.lockfile` when you have one, which also gives the transitive dependencies. Without it, a declared version is treated as a floor. The `mvnw` and `gradlew` wrappers are used when present. A version stays in its flavour: a `-jre` artifact never moves to `-android`.
 
@@ -36,7 +37,8 @@ At scan time your sources are matched through their imports: explicit, wildcard,
 Teire changes only the version text, wherever it lives:
 
 - Maven: the `<version>` tag, the property, or local `dependencyManagement`.
-- Gradle: the coordinate string, the catalog `[versions]` entry (all entries sharing that `version.ref` move together), or a `gradle.properties` variable.
+- Gradle: the coordinate string, the catalog `[versions]` entry (all entries sharing that `version.ref` move together), a `gradle.properties` variable, or a plugin's `version` in the plugins block or the catalog.
+- Java: when the target's published metadata needs a newer Java than the build declares, the same change raises it.
 
 Projects with a `gradle.lockfile` then run `dependencies --update-locks` for that module.
 

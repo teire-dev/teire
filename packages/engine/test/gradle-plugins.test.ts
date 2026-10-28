@@ -49,3 +49,32 @@ describe("Gradle plugins (S18.1)", () => {
     );
   });
 });
+
+import { withJavaFloor } from "../src/fix/upgrade-jvm";
+
+describe("Java co-upgrade (S15.10)", () => {
+  it("raises every Java declaration below the floor, on top of the version edit", () => {
+    const tree = memoryTree({
+      "settings.gradle": "",
+      "build.gradle": `${groovy}sourceCompatibility = '11'\ntargetCompatibility = '11'\n`,
+    });
+    const [project] = readJvmInventory(tree);
+    const boot = project?.instances.find((i) => i.name.startsWith("org.springframework.boot:"));
+    const versionEdits = gradleEdits(tree, project as never, boot as never, "4.0.1");
+    const out = withJavaFloor(tree, project as never, versionEdits, 17, "Spring Boot 4.0.1 needs Java 17");
+    expect(out).toHaveLength(1);
+    expect(out[0]?.after).toContain("sourceCompatibility = '17'");
+    expect(out[0]?.after).toContain("version '4.0.1'");
+    expect(out[0]?.note).toContain("Java 17");
+  });
+
+  it("leaves a newer Java alone and reads Maven's properties", () => {
+    const pom =
+      "<project><properties><java.version>21</java.version><maven.compiler.release>11</maven.compiler.release></properties></project>";
+    const tree = memoryTree({ "pom.xml": pom });
+    const [project] = readJvmInventory(tree);
+    const out = withJavaFloor(tree, project as never, [], 17, "x needs Java 17");
+    expect(out[0]?.after).toContain("<java.version>21</java.version>");
+    expect(out[0]?.after).toContain("<maven.compiler.release>17</maven.compiler.release>");
+  });
+});

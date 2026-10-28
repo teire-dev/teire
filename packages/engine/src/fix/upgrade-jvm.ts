@@ -197,20 +197,73 @@ export function gradleEdits(
   return edits;
 }
 
+/**
+ * The toolchain co-upgrade (S15.10): every Java declaration below `floor` in the project's build
+ * files raised to it (Gradle `sourceCompatibility`/`targetCompatibility`, `JavaVersion.VERSION_n`,
+ * `JavaLanguageVersion.of(n)`; Maven `maven.compiler.release|source|target` and `java.version`),
+ * applied on top of the version edits already planned for the same file.
+ */
+export function withJavaFloor(
+  tree: RepoTree,
+  project: JvmProject,
+  edits: ManifestEdit[],
+  floor: number,
+  why: string,
+): ManifestEdit[] {
+  const raise = (text: string) =>
+    text
+      .replace(
+        /((?:source|target)Compatibility\s*=\s*['"]?)(?:1\.)?(\d+)(['"]?)/g,
+        (m, a: string, n: string, b: string) => (Number(n) < floor ? `${a}${floor}${b}` : m),
+      )
+      .replace(/(JavaVersion\.VERSION_)(?:1_)?(\d+)/g, (m, a: string, n: string) =>
+        Number(n) < floor ? `${a}${floor}` : m,
+      )
+      .replace(/(JavaLanguageVersion\.of\(\s*)(\d+)(\s*\))/g, (m, a: string, n: string, b: string) =>
+        Number(n) < floor ? `${a}${floor}${b}` : m,
+      )
+      .replace(
+        /(<(maven\.compiler\.(?:release|source|target)|java\.version)>\s*)(?:1\.)?(\d+)(\s*<\/\2>)/g,
+        (m, a: string, _tag: string, n: string, b: string) => (Number(n) < floor ? `${a}${floor}${b}` : m),
+      );
+  const out = edits.map((e) => ({ ...e }));
+  const files = new Set([...project.modules.map((m) => m.manifest), project.manifest]);
+  for (const path of files) {
+    const existing = out.find((e) => e.path === path);
+    const base = existing?.after ?? tree.read(path);
+    if (base === null || base === undefined) continue;
+    const after = raise(base);
+    if (after === base) continue;
+    const note = `Java ${floor}: ${why}`;
+    if (existing) {
+      existing.after = after;
+      existing.note = `\`${existing.from}\` → \`${existing.to}\`; ${note}`;
+    } else out.push({ path, before: base, after, from: "", to: `Java ${floor}`, note });
+  }
+  return out;
+}
+
 export function jvmTransaction(
   tree: RepoTree,
   project: JvmProject,
   instance: DependencyInstance,
   target: string,
+  javaFloor?: { version: number; why: string },
 ): Transaction {
   if (project.manager === "maven") {
-    const edit = mavenEdit(tree, project, instance, target);
-    const readBack = edit ? [edit.path] : [instance.manifestPath];
+    const versionEdit = mavenEdit(tree, project, instance, target);
+    const withJava = javaFloor
+      ? withJavaFloor(tree, project, versionEdit ? [versionEdit] : [], javaFloor.version, javaFloor.why)
+      : versionEdit
+        ? [versionEdit]
+        : [];
+    const edit = withJava.find((e) => e.path === versionEdit?.path) ?? null;
+    const readBack = withJava.length ? [...new Set(withJava.map((e) => e.path))] : [instance.manifestPath];
     return {
       describe: edit
-        ? `${edit.path}: ${instance.name} ${edit.from} → ${target} (Maven has no lockfile; the sandbox resolves the new graph)`
+        ? `${edit.path}: ${instance.name} ${edit.from} → ${target}${javaFloor && withJava.length > (versionEdit ? 1 : 0) ? `; Java raised to ${javaFloor.version}` : ""} (Maven has no lockfile; the sandbox resolves the new graph)`
         : `${instance.name}: version not declared in the repo's POMs`,
-      manifest: edit ? [edit] : [],
+      manifest: withJava,
       commands: [],
       readBack,
       check: (files) =>
@@ -219,7 +272,10 @@ export function jvmTransaction(
           : `${instance.name} ${target} is not declared in ${readBack[0]}`,
     };
   }
-  const edits = gradleEdits(tree, project, instance, target);
+  const versionEdits = gradleEdits(tree, project, instance, target);
+  const edits = javaFloor
+    ? withJavaFloor(tree, project, versionEdits, javaFloor.version, javaFloor.why)
+    : versionEdits;
   const locked = project.modules.filter((m) => m.lockfile);
   const readBack = [...new Set([...edits.map((e) => e.path), ...locked.map((m) => m.lockfile as string)])];
   const lockLine = `${instance.name}:${target}=`;

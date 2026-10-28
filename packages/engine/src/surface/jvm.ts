@@ -542,3 +542,38 @@ export async function jvmSurfaceDiff(name: string, from: string, to: string): Pr
     tool: { name: "japicmp", version: JVM.japicmpVersion, noiseFilterVersion: SURFACE.noiseFilterVersion },
   };
 }
+
+/**
+ * The Java a version needs (S15.10), from its Gradle Module Metadata's `org.gradle.jvm.version`: a
+ * plugin marker (`id:id.gradle.plugin`) is followed to the implementation artifact its POM names.
+ * Null when the artifact publishes no metadata.
+ */
+export async function javaRequirement(name: string, version: string): Promise<number | null> {
+  let [group, artifact] = name.split(":") as [string, string];
+  if (artifact === `${group}.gradle.plugin`) {
+    const pom = await fetchArtifact(`${mavenPath(name)}/${version}/${artifact}-${version}.pom`, 1024 * 1024);
+    const dep = pom
+      ? /<dependency>\s*<groupId>([^<]+)<\/groupId>\s*<artifactId>([^<]+)<\/artifactId>/.exec(
+          Buffer.from(pom.body).toString("utf8"),
+        )
+      : null;
+    if (!dep?.[1] || !dep[2]) return null;
+    [group, artifact] = [dep[1], dep[2]];
+  }
+  const module = await fetchArtifact(
+    `${mavenPath(`${group}:${artifact}`)}/${version}/${artifact}-${version}.module`,
+    4 * 1024 * 1024,
+  );
+  if (!module) return null;
+  try {
+    const doc = JSON.parse(Buffer.from(module.body).toString("utf8")) as {
+      variants?: { attributes?: Record<string, unknown> }[];
+    };
+    const javas = (doc.variants ?? [])
+      .map((v) => Number(v.attributes?.["org.gradle.jvm.version"]))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    return javas.length ? Math.max(...javas) : null;
+  } catch {
+    return null;
+  }
+}

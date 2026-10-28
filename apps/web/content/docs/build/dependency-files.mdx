@@ -110,6 +110,6 @@ Some upgrades Dependabot doesn't do, so Teire keeps its own changes for them:
 - `pylock.toml`;
 - a vulnerable transitive package the updater can't move within its parents' ranges: Teire pins the fix with npm `overrides`, pnpm `overrides`, or Yarn and Bun `resolutions`, and reads the new lockfile back. The same rung for the other ecosystems is planned; until then the run stops and says so.
 
-Planned and not built yet: the runtime or build-tool bump a new major needs (Java 17 for Spring Boot 4, for example).
+- the Java a new version needs: when the target's own Gradle Module Metadata asks for a newer Java than the build files declare (Spring Boot 4 asks for 17), the same change raises `sourceCompatibility`, the toolchain or Maven's release to it, and the PR says why. Raising the Gradle wrapper for a plugin that needs a newer Gradle is planned; until then the after side's install says so.
 
 Then, for every upgrade, the [verification](/docs/build/verification) runs your own install, typecheck and tests before and after.
