@@ -113,7 +113,7 @@ Follow the proof yourself on [teire.vercel.app](https://teire.vercel.app):
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset=".github/assets/system-dark.png" />
       <source media="(prefers-color-scheme: light)" srcset=".github/assets/system-light.png" />
-      <img src=".github/assets/system-light.png" width="960" alt="System: developers install the GitHub App and use the web app; GitHub webhooks reach the web app, which writes to a Postgres outbox; the worker claims them, reads registries, provider pages and Tavily, calls Nemotron on Token Factory, verifies in Cloudflare Containers, and writes branches, PRs, check runs and issues back to GitHub." />
+      <img src=".github/assets/system-light.png" width="960" alt="System: developers install the GitHub App and use the web app; GitHub webhooks reach the web app, which writes to a Postgres outbox; the worker claims them, reads registries, provider pages and Tavily, calls Nemotron on Token Factory, runs dependabot-core's updater under gVisor for each upgrade, verifies public repositories on Token Factory Sandboxes and private ones on Cloudflare Containers, and writes branches, PRs, check runs and issues back to GitHub." />
     </picture>
   </a>
 </p>
@@ -134,7 +134,7 @@ Follow the proof yourself on [teire.vercel.app](https://teire.vercel.app):
 
 Model IDs and API URLs are found with ast-grep in JS/TS, Python, Go, Rust, Ruby, Java and Kotlin. ([How Teire works](https://teire.vercel.app/docs/guide/how-it-works))
 
-**Fix.** The upgrade itself goes through your package manager. Deterministic edits come next: a model swap, or, for npm packages, a rename a quoted migration note names. If your checks then pass, the agent never starts. Otherwise Nemotron 3 Ultra works as an agent with six tools (`read_file`, `search`, `edit_file`, `run_check`, `lookup_docs`, `finish`), edits only the files the change reaches and never manifests, lockfiles, config or CI. It has up to 24 steps per attempt and 4 attempts, with a fresh plan after 2 failures. A review pass reads each passing diff for weakened tests or widened validators.
+**Fix.** The manifest and lockfile change comes from **dependabot-core's own updater** (MIT), run on Teire's server under gVisor with no secrets and no route out but its proxy. It decides npm upgrades today; the other ecosystems move to it as each passes on a real fork. Where Dependabot stops, Teire keeps its own change: Go majors, aliased packages, a Cargo feature the new version removed, Gradle locks for one coordinate, an override for a transitive fix, and the Java a new version needs. ([How Teire updates dependency files](https://teire.vercel.app/docs/build/dependency-files)) Deterministic edits come next: a model swap, or, for npm packages, a rename a quoted migration note names. If your checks then pass, the agent never starts. Otherwise Nemotron 3 Ultra works as an agent with six tools (`read_file`, `search`, `edit_file`, `run_check`, `lookup_docs`, `finish`), edits only the files the change reaches and never manifests, lockfiles, config or CI. It has up to 24 steps per attempt and 4 attempts, with a fresh plan after 2 failures. A review pass reads each passing diff for weakened tests or widened validators.
 
 <p align="center">
   <a href="https://teire.vercel.app/docs/guide/how-it-works">
@@ -147,7 +147,7 @@ Model IDs and API URLs are found with ast-grep in JS/TS, Python, Go, Rust, Ruby,
 </p>
 <p align="center"><a href="https://teire.vercel.app/docs/guide/how-it-works">Open the fix loop</a> · <a href=".github/diagrams/readme-fix-loop.mmd">Edit the Mermaid source</a></p>
 
-**Verify.** Two sandboxes start from the same commit, the baseline and the change. Each installs, with only registries reachable, then runs your checks with the network off. Rules decide the evidence, never a model. ([Verification](https://teire.vercel.app/docs/build/verification))
+**Verify.** Two sandboxes start from the same commit, the baseline and the change. Each installs, then runs your checks with the network off. A public repository's run, and every dry run, happens on **Nebius Token Factory Sandboxes**: a microVM per command, images Teire builds inside Token Factory, checks with no network interface at all. A private repository's runs on Cloudflare Containers, with only registries reachable during the install. Rules decide the evidence, never a model. ([Verification](https://teire.vercel.app/docs/build/verification) · [Token Factory Sandboxes](https://teire.vercel.app/docs/build/token-factory-sandboxes))
 
 | Evidence | Opens |
 |---|---|
@@ -164,7 +164,9 @@ Model IDs and API URLs are found with ast-grep in JS/TS, Python, Go, Rust, Ruby,
 | **NVIDIA Nemotron 3 Super** (`nvidia/nemotron-3-super-120b-a12b`) | Failover: takes a role for 10 minutes while Ultra fails, and reruns a failed agent attempt | [`llm/index.ts`](packages/engine/src/llm/index.ts) · [`fix/agent.ts`](packages/engine/src/fix/agent.ts) |
 | **Tavily** | Finds the deprecation pages of a provider Teire has no reader for, limited to its own domains | [`discover/tavily.ts`](packages/engine/src/discover/tavily.ts) |
 | **Context7** | Version-pinned docs for npm packages, behind the agent's `lookup_docs` | [`fix/context7.ts`](packages/engine/src/fix/context7.ts) |
-| **Cloudflare Containers** | The sandbox: one container per side, install with registry-only access, checks with the network off, no secrets inside | [`apps/sandbox`](apps/sandbox) |
+| **Nebius Token Factory Sandboxes** | The verification sandbox for public repositories and dry runs: Teire builds its six images inside Token Factory from its Dockerfiles, then runs the install (network on) and each check (no network interface) as microVMs | [`verify/tokenfactory.ts`](packages/engine/src/verify/tokenfactory.ts) |
+| **dependabot-core** (MIT) | The dependency-file change: its updater, through GitHub's `dependabot` CLI, on a second Docker daemon under gVisor, firewalled, one job at a time | [`apps/resolver`](apps/resolver) · [`resolver/`](packages/engine/src/resolver) |
+| **Cloudflare Containers** | The sandbox for private repositories: one container per side, install with registry-only access, checks with the network off, no secrets inside | [`apps/sandbox`](apps/sandbox) |
 | **GitHub App** | Reads repositories, pushes one `teire/…` branch per fix, opens PRs, check runs and the Dashboard issue, answers `@teire` commands | [`github/`](packages/engine/src/github) · [`jobs/`](apps/worker/src/jobs) |
 
 **Where Token Factory helped.** One OpenAI-compatible endpoint serves all three roles (agent, reader and failover), so moving a role between Ultra and Super is an environment variable, not a code change. Its structured outputs keep every reading machine-checkable before code trusts it. Its public price list lets each pull request carry an exact receipt.
@@ -195,6 +197,10 @@ The required build, in the organisers' words: *"a working software application t
 | Clean repositories (should not be affected) | 6 | none called affected | — |
 
 Super costs 3 to 7 times less per run, but on one case it passed the tests by replacing the model call with a keyword rule. So Ultra writes the fixes and Super is the failover. Every row, with attempts, steps and cost: [Evaluation](https://teire.vercel.app/docs/nemotron/evaluation).
+
+**On a real repository.** [teire-dev/serve-handler#10](https://github.com/teire-dev/serve-handler/pull/10), opened by the installed App on a fork of `vercel/serve-handler`: a transitive `browserslist` had two advisories, dependabot-core's updater couldn't move it within its parents' ranges, so Teire pinned the fix with a Yarn `resolutions` override, and the repo's own 70 tests passed before and after.
+
+**Verification on Token Factory Sandboxes**, one baseline per ecosystem on images built inside Token Factory: npm, Python, Go, Cargo, Bundler and Maven all pass ([measured](https://teire.vercel.app/docs/build/token-factory-sandboxes)).
 
 **Live.** [/trust](https://teire.vercel.app/trust) reads the worker's heartbeat, credits, model routing and spend from the running system.
 
@@ -272,10 +278,11 @@ pnpm typecheck && pnpm lint && pnpm test   # engine, worker and web
 
 ## Honest limits
 
-- **Verification runs on Cloudflare Containers.** Token Factory Sandboxes are only probed, not used.
+- **Token Factory Sandboxes keep a run's images for 180 days and have no call to delete them**, so only public repositories and dry runs verify there; private repositories verify on Cloudflare Containers.
+- **dependabot-core's updater decides npm's dependency files today.** The other five ecosystems use Teire's own manifest and lockfile edits until each passes on a real fork.
 - **Only major upgrades** get an API diff and a line search; minor and patch upgrades are plain bumps the sandbox decides.
 - **Rust, Ruby, and Java/Kotlin at scan time are searched by syntax,** so a repository that doesn't use a change reads "inconclusive", not "not affected".
-- **Model and API fixes are verified in JavaScript/TypeScript or Python projects**; model IDs are found in all seven languages.
+- **Model and API fixes** are detected and verified in all six ecosystems' projects; the evaluation proves them in JavaScript/TypeScript and Python, and the other four languages are not yet proven on a real repository.
 - **Android projects are not supported.**
 - **PyPI packages** get no version-pinned docs lookup for the agent.
 - **Provider parameter and API-version records** don't become findings on their own.

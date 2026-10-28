@@ -16,7 +16,9 @@ flowchart LR
     pages["Provider change pages<br/>OpenAI · Anthropic · Gemini<br/>Token Factory · Stripe · discovered"]
     tavily["Tavily<br/>finds a new provider's notices"]
     tf["Nebius Token Factory<br/>NVIDIA Nemotron 3 Ultra<br/>Super as failover"]
-    sandbox["Sandbox on Cloudflare Containers<br/>install, then your checks<br/>with the network off"]
+    resolver["dependabot-core's updater<br/>under gVisor on Coolify<br/>manifest and lockfile change"]
+    tfsb["Nebius Token Factory Sandboxes<br/>public repos and dry runs<br/>checks with no network"]
+    sandbox["Cloudflare Containers<br/>private repos<br/>checks with the network off"]
   end
 
   dev -->|installs the App| gh
@@ -28,4 +30,6 @@ flowchart LR
   worker -->|quote gate| pages
   worker --> tavily
   worker -->|"read, trace, fix, review"| tf
-  worker -->|baseline and after| sandbox
+  worker -->|"one job per upgrade"| resolver
+  worker -->|"baseline and after"| tfsb
+  worker -->|"baseline and after"| sandbox
