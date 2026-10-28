@@ -241,3 +241,71 @@ export function pythonEnv(pick: ToolchainPick | null): Record<string, string> {
 export function rustToolchainBin(channel: string) {
   return `/usr/local/rustup/toolchains/${channel}-x86_64-unknown-linux-gnu/bin`;
 }
+
+/**
+ * A runtime the repository pins hard and the sandbox can't fall forward from (S14.2, D-48): Python 2
+ * or a `requires-python` no sandbox Python meets, an exact Ruby below 3.2 (rv builds none older),
+ * and a Node the repo's own npm settings refuse to replace (`engine-strict` with `engines.node`
+ * excluding every sandbox major). Soft preferences (CI versions, a `.nvmrc`) fall forward instead,
+ * with a note. The stop quotes the file that asks, in the resolver's wording for the same case.
+ */
+export function unsupportedToolchain(
+  tree: RepoTree,
+  root: string,
+  ecosystem: string,
+): { file: string; asks: string; sandbox: string } | null {
+  if (ecosystem === "pypi") {
+    const pinned = read(tree, root, ".python-version")?.trim().split(/\s+/)[0];
+    if (pinned && /^2(\.|$)/.test(pinned))
+      return {
+        file: ".python-version",
+        asks: `Python ${pinned}`,
+        sandbox: `Python ${PYTHON_VERSIONS.join(", ")}`,
+      };
+    const pyproject = read(tree, root, "pyproject.toml") ?? "";
+    const spec = /^\s*requires-python\s*=\s*["']([^"']+)["']/m.exec(pyproject)?.[1];
+    const range = spec ? pep440ToSemver(spec) : null;
+    if (spec && range && !PYTHON_VERSIONS.some((v) => semver.satisfies(`${v}.0`, range)))
+      return {
+        file: "pyproject.toml",
+        asks: `requires-python "${spec}"`,
+        sandbox: `Python ${PYTHON_VERSIONS.join(", ")}`,
+      };
+  }
+  if (ecosystem === "rubygems") {
+    const dotfile = read(tree, root, ".ruby-version")
+      ?.trim()
+      .replace(/^ruby-/, "");
+    const gemfile = /^\s*ruby\s+["'](\d+\.\d+(?:\.\d+)?)["']/m.exec(read(tree, root, "Gemfile") ?? "")?.[1];
+    const exact = gemfile ?? dotfile;
+    const m = exact ? /^(\d+)\.(\d+)/.exec(exact) : null;
+    if (exact && m && (Number(m[1]) < 3 || (Number(m[1]) === 3 && Number(m[2]) < 2)))
+      return {
+        file: gemfile ? "Gemfile" : ".ruby-version",
+        asks: `Ruby ${exact}`,
+        sandbox: `Ruby ${RUBY_VERSIONS.join(", ")}`,
+      };
+  }
+  if (ecosystem === "npm") {
+    const strict = /^\s*engine-strict\s*=\s*true\s*$/m.test(read(tree, root, ".npmrc") ?? "");
+    let range: string | undefined;
+    try {
+      range = (JSON.parse(read(tree, root, "package.json") ?? "{}") as { engines?: { node?: string } })
+        .engines?.node;
+    } catch {
+      range = undefined;
+    }
+    if (
+      strict &&
+      range &&
+      semver.validRange(range) &&
+      !NODE_MAJORS.some((n) => semver.satisfies(`${n}.0.0`, range as string))
+    )
+      return {
+        file: "package.json (engine-strict)",
+        asks: `engines.node "${range}"`,
+        sandbox: `Node ${NODE_MAJORS.join(", ")}`,
+      };
+  }
+  return null;
+}

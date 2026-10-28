@@ -52,7 +52,7 @@ import {
   updateFor,
 } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
-import { selectBackend } from "@teire/engine/verify";
+import { selectBackend, unsupportedToolchain } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import { markCreditsExhausted, modelWorkBlocked } from "../reliability";
 import { resolveForRepo } from "../resolver";
@@ -155,6 +155,8 @@ class ResolverStopError extends Error {
   constructor(
     readonly type: string,
     message: string,
+    /** Who stopped: the updater's event, or Teire's own check before any work (a pinned runtime). */
+    readonly by: "updater" | "teire" = "updater",
   ) {
     super(message);
   }
@@ -426,6 +428,14 @@ async function packageOutcome(
     .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9));
   const assessment = matching[0];
   if (!assessment) return null;
+  // A runtime the repo pins hard and the sandbox can't fall forward from is a named stop (S14.2).
+  const pinned = unsupportedToolchain(tree, assessment.project.root, ecosystem);
+  if (pinned)
+    throw new ResolverStopError(
+      "tool_version_not_supported",
+      `${pinned.file} asks for ${pinned.asks}, which the sandbox can't run (it has ${pinned.sandbox})`,
+      "teire",
+    );
   const roots = [...new Set(matching.map((a) => a.project.root))];
   const resolved = await resolverTransactionFor(
     ctx,
@@ -1139,7 +1149,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     if (error instanceof ResolverStopError || error instanceof ResolverUnavailableError) {
       const reason =
         error instanceof ResolverStopError
-          ? `dependabot-core's updater stopped (${error.type}): ${error.message}`
+          ? `${error.by === "updater" ? "dependabot-core's updater" : "Teire"} stopped (${error.type}): ${error.message}`
           : `the dependency-file updater was unavailable ${RESOLVER_RETRIES + 1} times: ${error.message}`;
       await updateRun(db, runId, { status: "failed", error: `stopped: ${reason}`, finishedAt: new Date() });
       await event("resolver", "stopped", { reason });
