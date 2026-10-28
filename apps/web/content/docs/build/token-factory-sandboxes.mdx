@@ -46,7 +46,7 @@ Measured on `teire-dev/examples` (2026-10-28), each baseline on its own image bu
 | `ruby-major` | Bundler | 4.9 s | 6/6 tests |
 | `jvm-major` | Maven, JDK 17 | 51.9 s | compile, 4/4 tests |
 
-Limits come from Token Factory's own `whoami` call, never assumed, and Teire keeps to them: an hour per microVM, 50 at a time (spawns wait for a free slot, shared by every run on the worker), 8 image imports at a time, 12 GB per image layer. A failed spawn is not retried, because spawns carry no idempotency key. While a command runs, its output streams from the operation's server-sent events; a run that is cancelled or closed cancels the operations it still has running.
+Limits come from Token Factory's own `whoami` call, never assumed: an hour per microVM, 50 at a time and 8 image imports at a time, which Teire keeps to (spawns and imports wait for a free slot, shared by every run on the worker); `whoami` also reports 12 GB per image layer. Measured from inside a microVM: 4 CPUs, 3.9 GB of memory, a 2 GB `/dev/shm`. A failed spawn is not retried, because spawns carry no idempotency key. Teire follows each command through the operation's server-sent events (a quiet stream is checked against the operation's state); a run that is closed cancels the operations it still has running.
 
 ## What differs from Cloudflare Containers
 

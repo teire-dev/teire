@@ -5,22 +5,23 @@ manager: Cargo (Cargo.toml, Cargo.lock)
 baseline:
   checks: "build: cargo build --workspace --locked --offline; test: cargo test --workspace --locked --offline"
   expected: pass
-  walk_2026_10_28: >-
+  observed_2026_10_28: >-
     no baseline: the committed Cargo.lock is behind Cargo.toml, so `cargo fetch --locked` refused ("cannot update
     the lock file … because --locked was passed"). The upstream's own `cargo build` updates it. Fixed: the install
     retries without --locked only for that refusal and says so; the checks still run --locked against the result.
 models:
   - id: gpt-4-turbo
     status: shut down by OpenAI on 2026-10-23
-    teire: affected; swapped to gpt-5.6-sol; verified PR (S16 done-when, Rust, on GitHub)
+    expected: affected; swapped to gpt-5.6-sol; verified PR (S16 done-when, Rust, on GitHub)
   - id: claude-3-opus-20240229
     status: retired by Anthropic on 2026-01-05
-    teire: affected; swapped to claude-opus-4-8; verified PR
-  - walk_2026_10_28: queued behind the 5-open-PR cap
+    expected: affected; swapped to claude-opus-4-8; verified PR
+  - observed_2026_10_28: queued behind the 5-open-PR cap
 security:
   - packages: aws-sdk-bedrockruntime, aws-lc-sys, aws-sdk-sso, aws-sdk-ssooidc, aws-sdk-sts, aws-smithy-json, h2, rustls, rustls-webpki, time
     resolver: "security_update_not_possible: no version that fixes the advisory satisfies the other requirements"
-    teire: Cargo has no override for a crates.io version ([patch] must point elsewhere), so a named stop quoting the updater (S15.7)
-    walk_2026_10_28: "issues #7–#12, #14–#17"
+    expected: Cargo has no override for a crates.io version ([patch] must point elsewhere), so a named stop quoting the updater (S15.7)
+    observed_2026_10_28: "issues #7–#12, #14–#17"
   - packages: tracing-subscriber 0.3.20, rand 0.8.6, bytes 1.12.1, webpki-roots 1.0.11
-    walk_2026_10_28: "#5, #6, #13 environment_mismatch drafts (the baseline above), #18; re-walk: verified or a draft naming a check"
+    observed_2026_10_28: "#5, #6, #13 environment_mismatch drafts (the baseline above), #18; re-walk: verified or a draft naming a check"
+rewalk_2026_10_28: "observed: the stale-lock fallback installs (both of cargo's phrasings are matched); the repository's own tests fail on the unchanged code too, so #13 is a pre_existing_failure draft"

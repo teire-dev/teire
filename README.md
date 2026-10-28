@@ -184,7 +184,7 @@ The required build, in the organisers' words: _"a working software application t
 
 ## Proof
 
-**The evaluation.** Each case ran the worker's own path end to end, with each model as the agent: fetch, assess, fix, verify in the sandbox. Every case's repository is public as a folder of [teire-dev/examples](https://github.com/teire-dev/examples).
+**The evaluation.** Each case ran the engine's fix path, the one the worker calls, with each model as the agent: fetch, assess, fix, verify in the sandbox. Every case's repository is public as a folder of [teire-dev/examples](https://github.com/teire-dev/examples).
 
 |                                                 | Cases | Nemotron 3 Ultra     | Nemotron 3 Super                           |
 | ----------------------------------------------- | ----- | -------------------- | ------------------------------------------ |

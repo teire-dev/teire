@@ -5,7 +5,7 @@ manager: Maven (pom.xml, Jenkins plugin parent POM), JDK 21
 baseline:
   checks: "typecheck: mvn -o test-compile; test: mvn -o verify (JenkinsRule tests start Jenkins)"
   expected: pass, or a check that hits its time limit named as such
-  walk_2026_10_28: >-
+  observed_2026_10_28: >-
     no baseline: the warm-up ran the whole test suite online and hit the 10-minute install limit twice, reported
     as "the lockfile does not install". Fixed: the warm-up resolves surefire and failsafe with a test filter that
     matches nothing (no test runs), JVM installs get 20 minutes, and a timed-out install is named as one.
@@ -13,11 +13,12 @@ baseline:
 models:
   - id: gemini-2.0-flash
     status: shut down by Google on 2026-06-01
-    teire: affected; swapped to gemini-3.6-flash; verified PR (S16 done-when, Java, on GitHub)
+    expected: affected; swapped to gemini-3.6-flash; verified PR (S16 done-when, Java, on GitHub)
   - id: gpt-4.1-nano, gpt-4-turbo, gpt-3.5-turbo, gpt-5, gpt-5-mini, gpt-5-nano, gpt-5-pro
     status: shut down or dated by OpenAI (2026-10-23; 2026-12-11)
-    teire: affected; one OpenAI PR with every swap
-  - walk_2026_10_28: "#3 (OpenAI) and #4 (Gemini) opened as environment_mismatch drafts (the baseline above)"
+    expected: affected; one OpenAI PR with every swap
+  - observed_2026_10_28: "#3 (OpenAI) and #4 (Gemini) opened as environment_mismatch drafts (the baseline above)"
 upgrades:
   - packages: dev.langchain4j:* 1.22.0 (langchain4j, -open-ai, -google-ai-gemini, -anthropic, -ollama, -bedrock, -http-client-jdk)
-    teire: queued behind the 5-open-PR cap
+    expected: queued behind the 5-open-PR cap
+rewalk_2026_10_28: "observed: the install now passes (warm-up 502 s); the offline mvn -o verify then lacked surefire's JUnit provider. Fixed (the test goal runs online once in the warm-up); proven on Token Factory: the Jenkins suite runs offline and passes. Re-walk pending"

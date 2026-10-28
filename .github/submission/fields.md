@@ -61,7 +61,7 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
 - Token Factory's OpenAI-compatible endpoint worked with the AI SDK's OpenAI-compatible provider on the first try. Structured outputs (`json_schema`) worked with Nemotron 3 Ultra.
 - One endpoint for all three roles means moving a role between Ultra and Super is a config change.
 - The public `models_info` endpoint gives per-token prices, so every pull request carries an exact receipt.
-- Token Factory Sandboxes' model fit verification well: a kept microVM's result is the next image, so the install becomes the image every check starts from, and `networking.enabled: false` gives the checks no network interface at all. Importing public images worked on the first call, and `whoami` states the limits, which Teire reads and keeps to, instead of leaving us to guess them.
+- Token Factory Sandboxes' model fit verification well: a kept microVM's result is the next image, so the install's image is where the checks start and each check starts from the image the one before it left, and `networking.enabled: false` gives the checks no network interface at all. Importing public images worked on the first call, and `whoami` states the limits, which Teire reads and keeps to, instead of leaving us to guess them.
 - Nemotron 3 Ultra as a coding agent was the standout. In our evaluation it verified every fix across npm, PyPI, Go, Rust, Ruby, Java and Kotlin, with fewer attempts than Super on the Kotlin and wrapped-model cases. Super was 3 to 7 times cheaper and a solid failover, but once it passed the tests by bypassing the model call.
 
 **What needs work.**
@@ -78,7 +78,7 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
   - No call to delete an image, and images are kept 180 days, so a private repository's code can't go there: private repositories verify on Cloudflare Containers.
   - No idempotency key on spawns, so a spawn whose response is lost can't be retried safely; Teire never retries one.
   - No egress log and no allowlist for an instance's network, so the install's network is either fully open or off.
-  - CPU and memory per instance aren't documented or settable; `whoami` gives the timeout, concurrency and layer size only.
+  - CPU and memory per instance aren't documented or settable; `whoami` gives the timeout, concurrency and layer size only. We measured them from inside: 4 CPUs, 3.9 GB of memory and a 2 GB `/dev/shm`.
   - The microVM's root filesystem (virtiofs) loses a file that a process writes while a child it started holds the same file open: every Ruby native extension failed with `Errno::EBADF` on `mkmf.log` (reproduced with `gem install bigdecimal -v 3.1.9`). The same build passes on the VM's tmpfs, so Teire builds gems there and copies them into place.
 
 **Would we build with them again?** Yes. Nemotron 3 Ultra did real multi-step repository work, and Token Factory made it a drop-in API.
