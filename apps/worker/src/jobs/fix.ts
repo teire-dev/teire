@@ -691,6 +691,31 @@ async function apiOutcome(
 }
 
 /**
+ * The command's "Started" reply, edited in place with how the run ended (S15.8, R-P5): the PR it
+ * opened, the issue for a person, the fallback, nothing to change, waiting, or the stop's reason.
+ */
+async function updateProgress(
+  ctx: WorkerContext,
+  runId: string,
+  octokit: Awaited<ReturnType<WorkerContext["gh"]["installation"]>>["octokit"] | undefined,
+  line: string,
+) {
+  if (!octokit) return;
+  const comment = (await runEventsOf(ctx.db, runId, "progress")).find((e) => e.type === "comment")?.payload as
+    | { owner: string; repo: string; commentId: number; started: string }
+    | undefined;
+  if (!comment) return;
+  await octokit.rest.issues
+    .updateComment({
+      owner: comment.owner,
+      repo: comment.repo,
+      comment_id: comment.commentId,
+      body: `${comment.started}\n\n${line}`,
+    })
+    .catch(() => undefined);
+}
+
+/**
  * A named stop reaches the repo as an issue (D104): what was asked, the updater's own words and what
  * to do. It is keyed by lineage, so the next run in the lineage that opens a PR closes it, and a
  * person's close is never undone (C6).
@@ -911,6 +936,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     if (!outcome) {
       await updateRun(db, runId, { status: "cancelled", step: "no longer applies", finishedAt: new Date() });
       await event("assess", "cancelled", { reason: "the change no longer applies to this repo" });
+      await updateProgress(
+        ctx,
+        runId,
+        installation?.octokit,
+        "Nothing to do: the change no longer applies at this commit.",
+      );
       return { cancelled: true };
     }
     const { fix, pr: composed, notesReceipt } = outcome;
@@ -1034,6 +1065,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         runId: next.id,
         reason: outcome.fallback.reason,
       });
+      await updateProgress(
+        ctx,
+        runId,
+        installation?.octokit,
+        `The newest major still failed its checks after the agent's attempts; trying ${outcome.fallback.version}${ctx.webUrl ? `: ${ctx.webUrl}/runs/${next.id}` : "."}`,
+      );
       return { fellBack: outcome.fallback.version };
     }
     if (dry) {
@@ -1095,6 +1132,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       await event("pr", "issue", { url: issue.html_url, evidence: fix.evidence.kind });
       // The Dashboard issue links "Needs a human" issues, and this group no longer offers "Fix now".
       await syncDashboard(ctx, repo.id).catch(() => undefined);
+      await updateProgress(ctx, runId, installation?.octokit, `Done: a person is needed, ${issue.html_url}`);
       return { issue: issue.html_url };
     }
 
@@ -1224,6 +1262,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     await syncDashboard(ctx, repo.id).catch((error) =>
       event("dashboard", "failed", { error: String(error) }),
     );
+    await updateProgress(
+      ctx,
+      runId,
+      installation.octokit,
+      `Done: ${pr.url} (${prMode === "draft" ? `draft, ${fix.evidence.kind.replace(/_/g, " ")}` : "verified"}).`,
+    );
     return { pr: pr.url };
   } catch (error) {
     if (error instanceof CreditsExhaustedError) {
@@ -1248,6 +1292,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         });
         await event("resolver", "deferred", { reason: error.message, retry: tries + 1 });
         await ctx.enqueueFix(runId, repo.id, RESOLVER_RETRY_SECONDS * 2 ** tries);
+        await updateProgress(
+          ctx,
+          runId,
+          installation?.octokit,
+          `Waiting: ${error.message}; it tries again by itself.`,
+        );
         return { deferred: error.message };
       }
     }
@@ -1260,6 +1310,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         finishedAt: new Date(),
       });
       await event("resolver", "nothing", { reason });
+      await updateProgress(ctx, runId, installation?.octokit, `Nothing to change: ${reason}.`);
       return { cancelled: true };
     }
     if (error instanceof ResolverStopError || error instanceof ResolverUnavailableError) {
@@ -1270,6 +1321,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       await updateRun(db, runId, { status: "failed", error: `stopped: ${reason}`, finishedAt: new Date() });
       await event("resolver", "stopped", { reason });
       if (!dry && installation) await openStopIssue(ctx, installation.octokit, repo, run, groupKey, reason);
+      await updateProgress(ctx, runId, installation?.octokit, `Stopped: ${reason}.`);
       return { stopped: reason };
     }
     const message =
@@ -1280,6 +1332,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           : String(error);
     await updateRun(db, runId, { status: "failed", error: message, finishedAt: new Date() });
     await event("run", "failed", { error: message });
+    await updateProgress(ctx, runId, installation?.octokit, `Failed: ${message}`);
     if (error instanceof HumanCommitsError) {
       // C6: a person pushed to Teire's branch; their commits are never overwritten.
       const open = await getArtifact(db, repo.id, "pr", groupKey);

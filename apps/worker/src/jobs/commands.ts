@@ -3,6 +3,7 @@ import { describeConfig, matchesTarget, readTeireConfig } from "@teire/engine/co
 import { lineageKey } from "@teire/engine/contract";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import {
+  appendEvent,
   artifactByNumber,
   claimRun,
   findingsWithChanges,
@@ -196,11 +197,18 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       }
       const { run, created, sha } = await startRun(ctx, repo, octokit, groupKey, command.name, by);
       const link = ctx.webUrl ? `: ${ctx.webUrl}/runs/${run.id}` : ".";
-      await reply(
-        created
-          ? `Started (${command.name}) on \`${sha.slice(0, 7)}\`${link}`
-          : `Already running for \`${sha.slice(0, 7)}\`${link}`,
-      );
+      const started = created
+        ? `Started (${command.name}) on \`${sha.slice(0, 7)}\`${link}`
+        : `Already running for \`${sha.slice(0, 7)}\`${link}`;
+      const { data: comment } = await reply(started);
+      // The run edits this comment with how it ended (S15.8, the progress comment).
+      if (created)
+        await appendEvent(db, run.id, "progress", "comment", {
+          owner,
+          repo: name,
+          commentId: comment.id,
+          started,
+        });
       return;
     }
     case "explain": {
