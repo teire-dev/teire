@@ -209,7 +209,18 @@ export async function verifyChange(input: {
       image: input.plan.image,
       ...(input.plan.instance ? { instance: input.plan.instance } : {}),
     });
-  const [base, after] = await Promise.all([open("base"), open("after")]);
+  // Both sides open at once; if one fails, the other is closed rather than left running (stage R review).
+  const [baseOpen, afterOpen] = await Promise.allSettled([open("base"), open("after")]);
+  if (baseOpen.status === "rejected" || afterOpen.status === "rejected") {
+    await Promise.all(
+      [baseOpen, afterOpen].map((s) =>
+        s.status === "fulfilled" ? s.value.close().catch(() => undefined) : null,
+      ),
+    );
+    throw baseOpen.status === "rejected" ? baseOpen.reason : (afterOpen as PromiseRejectedResult).reason;
+  }
+  const base = baseOpen.value;
+  const after = afterOpen.value;
   try {
     const [baseline, afterRun] = await Promise.all([
       runSide(base, input.plan, "baseline", undefined, input.onLog),

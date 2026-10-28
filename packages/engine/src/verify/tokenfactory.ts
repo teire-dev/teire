@@ -25,6 +25,8 @@ const BASE = "https://api.tokenfactory.nebius.com/sandboxes/v1";
 const POLL_MS = 2_000;
 /** Consecutive failed status reads tolerated before an operation counts as lost. */
 const TOKEN_FACTORY_POLL_RETRIES = 8;
+/** A quiet event stream is checked against the operation's state this often. */
+const FOLLOW_IDLE_MS = 20_000;
 /** Plain paths only: Token Factory has no egress interception, so no intercept CA is set. */
 const ENV: Record<string, string> = {
   PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
@@ -236,8 +238,15 @@ export class TokenFactorySandboxes {
 
   /** Upload bytes or a stream of them; returns the file's UUID for `files` mounts. */
   async upload(bytes: Uint8Array | ReadableStream<Uint8Array>): Promise<string> {
-    const { uuid } = await this.#json<{ uuid: string }>("POST", "/files", bytes);
-    return uuid;
+    try {
+      const { uuid } = await this.#json<{ uuid: string }>("POST", "/files", bytes);
+      return uuid;
+    } catch (error) {
+      // Node's fetch reports a failed request body as "fetch failed" with the reason in `cause`
+      // (the tarball's size cap, say): the reason is what the run should say (stage R review).
+      const cause = (error as { cause?: unknown }).cause;
+      throw cause instanceof Error ? new Error(`upload failed: ${cause.message}`) : error;
+    }
   }
 
   /** A file's bytes from an image (null when it isn't there). */
@@ -301,9 +310,11 @@ export class TokenFactorySandboxes {
         ...(request.preserveEnv ? { preserve_env: true } : {}),
       });
       request.onStart?.(uuid);
+      // One deadline for the whole wait: following the events and the polling that confirms the end.
       const maxMs = (timeoutSec + 300) * 1000;
+      const deadline = Date.now() + maxMs;
       await this.follow(uuid, maxMs, request.onLog);
-      op = await this.wait(uuid, maxMs);
+      op = await this.wait(uuid, Math.max(10_000, deadline - Date.now()));
     } finally {
       limits.spawns.give();
     }
@@ -345,9 +356,24 @@ export class TokenFactorySandboxes {
       }
       if (!response.ok || !response.body) return;
       let buffer = "";
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
       try {
-        for await (const chunk of response.body.pipeThrough(new TextDecoderStream())) {
-          buffer += chunk.replace(/\r\n/g, "\n");
+        for (;;) {
+          // A stream that goes quiet is checked against the operation's state, so one that never
+          // sends `completion` can't hold the command past its end.
+          const idle = new Promise<"idle">((r) => setTimeout(() => r("idle"), FOLLOW_IDLE_MS));
+          const next = await Promise.race([reader.read(), idle]);
+          if (next === "idle") {
+            const op = await this.#json<Operation>("GET", `/operations/${operation}`).catch(() => null);
+            if (op && (op.status === "SUCCESS" || op.status === "FAILED" || op.status === "CANCELLED")) {
+              void reader.cancel().catch(() => undefined);
+              return;
+            }
+            continue;
+          }
+          if (next.done) break;
+          // CRLF can split across chunks: normalise after joining.
+          buffer = (buffer + next.value).replace(/\r\n/g, "\n");
           for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) {
             const frame = buffer.slice(0, end);
             buffer = buffer.slice(end + 2);
@@ -357,15 +383,19 @@ export class TokenFactorySandboxes {
                 .filter((l) => l.startsWith(`${name}:`))
                 .map((l) => l.slice(name.length + 1).replace(/^ /, ""))
                 .join("\n");
-            const id = Number(field("id"));
-            if (Number.isFinite(id) && id > since) since = id;
             const type = field("event");
-            if (type === "completion") return;
+            if (type === "completion") {
+              void reader.cancel().catch(() => undefined);
+              return;
+            }
             if (onLog && (type === "stdout" || type === "stderr")) {
               const event = JSON.parse(field("data") || "{}") as { data?: Stream };
               const out = text(event.data);
               if (out) onLog(out);
             }
+            // The id advances only once the frame was read, so a resume never skips it.
+            const id = Number(field("id"));
+            if (Number.isFinite(id) && id > since) since = id;
           }
         }
       } catch {
@@ -488,13 +518,29 @@ export function imageRecipe(dockerfileDir: string) {
 /** One build per recipe at a time in this process (review R11): every session waiting shares it. */
 const building = new Map<string, Promise<string>>();
 
+/** Each base image's imported UUID, read again daily: a base tag that moved (node:24) builds anew. */
+const bases = new Map<string, { uuid: string; at: number }>();
+const BASE_REFRESH_MS = 24 * 60 * 60 * 1000;
+
+async function baseImage(client: TokenFactorySandboxes, ref: string) {
+  const hit = bases.get(ref);
+  if (hit && Date.now() - hit.at < BASE_REFRESH_MS) return hit.uuid;
+  const uuid = await client.importImage(`docker://${ref}`);
+  bases.set(ref, { uuid, at: Date.now() });
+  return uuid;
+}
+
 export function ensureImage(client: TokenFactorySandboxes, name: string, dockerfileDir: string) {
   const recipe = imageRecipe(dockerfileDir);
-  const tag = `teire-${name}:${recipe.hash}`;
-  const pending = building.get(tag);
+  const key = `teire-${name}:${recipe.hash}`;
+  const pending = building.get(key);
   if (pending) return pending;
-  const job = buildImage(client, tag, recipe).finally(() => building.delete(tag));
-  building.set(tag, job);
+  // The tag names the recipe and the base it was built on (stage R review: a moved base tag reused
+  // the old image), so the same recipe on a new base is a new image.
+  const job = baseImage(client, recipe.base)
+    .then((base) => buildImage(client, `${key}-${base.slice(0, 8)}`, recipe, base))
+    .finally(() => building.delete(key));
+  building.set(key, job);
   return job;
 }
 
@@ -502,10 +548,10 @@ async function buildImage(
   client: TokenFactorySandboxes,
   tag: string,
   recipe: ReturnType<typeof imageRecipe>,
+  base: string,
 ) {
   const found = await client.imageByTag(tag);
   if (found) return found;
-  const base = await client.importImage(`docker://${recipe.base}`);
   const files: Record<string, { uuid: string; mode: string }> = {};
   for (const c of recipe.copies)
     files[c.to] = { uuid: await client.upload(readFileSync(c.from)), mode: "0755" };
@@ -544,21 +590,30 @@ export function tokenFactoryBackend(
       const name = (options.image ?? "teire-node").replace(/^teire-/, "");
       let image = await ensureImage(client, name, join(images.dir, name));
       const tarball = await client.upload(await fetchTarball(options.tarball.url, options.tarball.token));
-      const unpack = await client.spawn({
-        image,
-        command: `mkdir -p ${VERIFY.workDir} && tar -xzf /tmp/repo.tar.gz --strip-components=1 -C ${VERIFY.workDir} && rm -f /tmp/repo.tar.gz`,
-        env: ENV,
-        disposable: false,
-        network: false,
-        timeoutSec: 600,
-        files: { "/tmp/repo.tar.gz": { uuid: tarball } },
-      });
+      // Operations this session started that may still run, cancelled on close. An operation leaves
+      // the set only once it finished; one whose wait failed stays, so close can still cancel it.
+      const live = new Set<string>();
+      const track = { onStart: (uuid: string) => void live.add(uuid) };
+      const done = <T extends { op: Operation }>(r: T) => {
+        live.delete(r.op.uuid);
+        return r;
+      };
+      const unpack = await client
+        .spawn({
+          ...track,
+          image,
+          command: `mkdir -p ${VERIFY.workDir} && tar -xzf /tmp/repo.tar.gz --strip-components=1 -C ${VERIFY.workDir} && rm -f /tmp/repo.tar.gz`,
+          env: ENV,
+          disposable: false,
+          network: false,
+          timeoutSec: 600,
+          files: { "/tmp/repo.tar.gz": { uuid: tarball } },
+        })
+        .then(done);
       if (unpack.exitCode !== 0 || !unpack.op.result_image_uuid)
         throw new Error(`unpacking the repository failed: ${unpack.stderr.slice(-400)}`);
       image = unpack.op.result_image_uuid;
       let phase: "install" | "check" = "install";
-      // Operations this session started that may still run, cancelled on close.
-      const live = new Set<string>();
       const { maxTimeoutSec } = await client.limits();
       // Files Teire wrote since the last saved image, mounted into every later spawn.
       const written = new Map<string, { uuid: string; bytes: Uint8Array }>();
@@ -574,15 +629,18 @@ export function tokenFactoryBackend(
         async setPhase(next) {
           if (next === "check" && phase !== "check") {
             // The checks run as the unprivileged user: hand it the checkout and the caches.
-            const chown = await client.spawn({
-              image,
-              command: `chown -R ${CHECK_UID}:${CHECK_UID} ${VERIFY.workDir} /home/teire`,
-              env: ENV,
-              disposable: false,
-              network: false,
-              timeoutSec: 600,
-              files: mounts(),
-            });
+            const chown = await client
+              .spawn({
+                ...track,
+                image,
+                command: `chown -R ${CHECK_UID}:${CHECK_UID} ${VERIFY.workDir} /home/teire`,
+                env: ENV,
+                disposable: false,
+                network: false,
+                timeoutSec: 600,
+                files: mounts(),
+              })
+              .then(done);
             if (chown.op.result_image_uuid) {
               image = chown.op.result_image_uuid;
               written.clear();
@@ -597,9 +655,9 @@ export function tokenFactoryBackend(
             opts.timeoutSec ?? VERIFY.checkTimeoutSec,
             maxTimeoutSec - KILL_AFTER_SEC - PLATFORM_MARGIN_SEC,
           );
-          let operation: string | null = null;
           const r = await client
             .spawn({
+              ...track,
               image,
               command: underTimeout(shellCommand(argv, opts.cwd), seconds),
               env: { ...ENV, ...(opts.env ?? {}) },
@@ -611,21 +669,16 @@ export function tokenFactoryBackend(
               timeoutSec: seconds + KILL_AFTER_SEC + PLATFORM_MARGIN_SEC,
               files: mounts(),
               ...(opts.onLog ? { onLog: opts.onLog } : {}),
-              onStart: (uuid) => {
-                operation = uuid;
-                live.add(uuid);
-              },
             })
-            .finally(() => {
-              if (operation) live.delete(operation);
-            });
+            .then(done);
           if (r.op.result_image_uuid && (r.op.status === "SUCCESS" || !install)) {
             image = r.op.result_image_uuid;
             written.clear();
           }
           return {
             state: "exited",
-            exitCode: r.timedOut ? 124 : (r.exitCode ?? -1),
+            // GNU timeout exits 124 on TERM and 137 when it had to KILL: both are the time limit.
+            exitCode: r.timedOut || (r.exitCode === 137 && r.ms >= seconds * 1000) ? 124 : (r.exitCode ?? -1),
             stdout: r.stdout,
             stderr: r.stderr,
             ms: r.ms,

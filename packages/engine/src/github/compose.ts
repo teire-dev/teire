@@ -4,7 +4,12 @@ import type { MigrationNote } from "../fix/codemods";
 import type { FixRun } from "../fix/run";
 import type { DependencyVerdict, FindingDraft } from "../impact";
 import type { CheckPlan } from "../verify/commands";
+
+/** Evidence reasons as GitHub shows them: redacted and bounded (review R18); the run page keeps them whole. */
+const saidReasons = (reasons: string[]) => reasons.map((r) => forGitHub(r, 400)).join("; ");
+
 import type { SideResult } from "../verify/evidence";
+import { forGitHub } from "./redact";
 
 const ECOSYSTEM_LABEL: Partial<Record<DependencyInstance["ecosystem"], string>> = {
   npm: "JavaScript / TypeScript (npm)",
@@ -209,7 +214,7 @@ function verificationLines(
     out.push(
       `| ${c.name} \`${escapeCell(c.argv.join(" ")).slice(0, 80)}\` | ${cell(run.baseline, c.name)} | ${cell(run.after, c.name)} |`,
     );
-  out.push(`Evidence: **${run.evidence.kind.replace(/_/g, " ")}**. ${run.evidence.reasons.join("; ")}.`);
+  out.push(`Evidence: **${run.evidence.kind.replace(/_/g, " ")}**. ${saidReasons(run.evidence.reasons)}.`);
   // The other projects the change touches, each with its own checks (D94).
   if (run.others?.length) {
     const side = (s: FixRun["baseline"]) =>
@@ -324,7 +329,7 @@ function verdictLine(input: FixPullRequestInput) {
     case "environment_mismatch":
       return `**Draft: environment differs.** ${what}. The sandbox could not reproduce the repo's environment.`;
     default:
-      return `**Needs a human.** ${what}. ${run.evidence.reasons.join("; ")}.`;
+      return `**Needs a human.** ${what}. ${saidReasons(run.evidence.reasons)}.`;
   }
 }
 
@@ -496,7 +501,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       risks.push(
         `${sanitizeUpstream(r.summary, upstreamRepoOf(r.sources[0]?.url))}${r.sources[0]?.quote ? ` — "${sanitizeUpstream(r.sources[0].quote.slice(0, 200).replace(/\n/g, " "), upstreamRepoOf(r.sources[0].url))}" ([source](${r.sources[0].url}))` : ""}`,
       );
-    if (run.evidence.kind !== "verified") risks.push(run.evidence.reasons.join("; "));
+    if (run.evidence.kind !== "verified") risks.push(saidReasons(run.evidence.reasons));
     risks.push(...reviewRisks(run));
     risks.push(
       "Lint, end-to-end and integration suites were not run; dependencies were installed without lifecycle scripts.",
@@ -578,8 +583,8 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     run.evidence.kind === "verified"
       ? `**Verified.** ${what}. The repo's checks pass before and after${test?.counts ? ` (${test.counts.passed}/${test.counts.collected} tests)` : ""}.`
       : PR_MODE_BY_EVIDENCE[run.evidence.kind] === "draft"
-        ? `**Draft: ${run.evidence.kind.replace(/_/g, " ")}.** ${what}. ${run.evidence.reasons.join("; ")}.`
-        : `**Needs a human.** ${what}. ${run.evidence.reasons.join("; ")}.`;
+        ? `**Draft: ${run.evidence.kind.replace(/_/g, " ")}.** ${what}. ${saidReasons(run.evidence.reasons)}.`
+        : `**Needs a human.** ${what}. ${saidReasons(run.evidence.reasons)}.`;
   const sections = (withDiff: boolean, siteCap: number) => {
     const out: string[] = [`<!-- teire:group=${input.groupKey} run=${input.runId} -->`, verdict];
     out.push("### Why this repo");
@@ -640,7 +645,7 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     out.push("### Risks not covered");
     const risks = [
       "Tests run with the network off, so no request reached the provider: the new model's answers were not checked against the live API.",
-      ...(run.evidence.kind !== "verified" ? [run.evidence.reasons.join("; ")] : []),
+      ...(run.evidence.kind !== "verified" ? [saidReasons(run.evidence.reasons)] : []),
       ...reviewRisks(run),
       "Prompts tuned for the old model may need review for the new one's style and output length.",
     ];

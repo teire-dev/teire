@@ -15,12 +15,12 @@ const verifiedRun = {
 } as unknown as FixRun;
 
 describe("other projects", () => {
-  it("an unchecked project makes a verified run unverified, naming the project", () => {
+  it("an unchecked project makes a verified run a draft that names the project (plan R2)", () => {
     const run = withWeakest(verifiedRun, [
       unchecked("go-openai", "go", "couldn't be checked (sandbox did not open)"),
     ]);
-    expect(run.evidence.kind).toBe("unverified");
-    expect(run.evidence.prMode).not.toBe("ready");
+    expect(run.evidence.kind).toBe("environment_mismatch");
+    expect(run.evidence.prMode).toBe("draft");
     expect(run.evidence.reasons[0]).toBe("in `go-openai`: couldn't be checked (sandbox did not open)");
     expect(run.others).toHaveLength(1);
   });

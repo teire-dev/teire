@@ -15,13 +15,21 @@ import { dirname, join } from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
+import { forGitHub } from "../github/redact";
 import type { FindingDraft } from "../impact";
 import type { RepoTree } from "../inventory/tree";
 import type { ModelPrice, TokenFactory } from "../llm";
 import type { VerifyBackend } from "../verify/backend";
 import type { CheckPlan } from "../verify/commands";
 import { decideEvidence, type Evidence, type SideResult } from "../verify/evidence";
-import { type CheckableProject, checkableProjects, planFor, projectOf } from "../verify/projects";
+import {
+  type CheckableProject,
+  checkableProjects,
+  fileEcosystem,
+  PROJECT_MANIFEST,
+  planFor,
+  projectOf,
+} from "../verify/projects";
 import { type Change, runChecks, runSide, type SideRun, type VerifyRun, verifyChange } from "../verify/run";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
@@ -294,6 +302,16 @@ function isSymlink(full: string) {
 
 const MODE_RANK = { ready: 0, draft: 1, issue: 2 } as const;
 
+/** A check plan's sandbox image is its project's ecosystem. */
+const LEAD_ECOSYSTEM: Record<string, CheckableProject["ecosystem"]> = {
+  node: "npm",
+  python: "pypi",
+  go: "go",
+  rust: "cargo",
+  ruby: "rubygems",
+  jvm: "maven",
+};
+
 /**
  * The fix for the lead project, then every other project its final files touch, each checked with
  * its own install, typecheck and tests before and after (D94, "every root verified"): a PR that
@@ -303,30 +321,64 @@ const MODE_RANK = { ready: 0, draft: 1, issue: 2 } as const;
 export async function runFix(input: FixInput): Promise<FixRun> {
   const run = await runLead(input);
   if (run.evidence.prMode === "issue" || !run.files.length) return run;
-  const outside = run.files.some(
-    (f) => input.project.root !== "." && !f.path.startsWith(`${input.project.root}/`),
-  );
-  // Fail closed (review R2): when the projects can't be listed, a change reaching beyond the lead
-  // project is unverified there, never assumed fine.
+  // Fail closed (review R2): when the projects can't be listed, any changed file that isn't plainly
+  // the lead project's (another folder, another ecosystem, or a folder with its own manifest) makes
+  // the change unchecked there, never assumed fine; at the repository root too.
   let projects: CheckableProject[];
   try {
     projects = await checkableProjects(input.repoDir, input.tree);
   } catch (error) {
-    if (!outside) return run;
+    const lead = LEAD_ECOSYSTEM[input.plan.image];
+    const leadRoot = input.project.root;
+    const manifests = input.tree.files().filter((f) => PROJECT_MANIFEST.test(f));
+    const beyond = run.files
+      .map((f) => f.path)
+      .filter((path) => {
+        if (leadRoot !== "." && !path.startsWith(`${leadRoot}/`)) return true;
+        const own = fileEcosystem(path);
+        if (own && lead && own !== lead) return true;
+        // A manifest between the lead's root and the file: a project of its own.
+        return manifests.some((m) => {
+          const dir = m.includes("/") ? m.slice(0, m.lastIndexOf("/")) : ".";
+          return dir !== leadRoot && dir !== "." && path.startsWith(`${dir}/`);
+        });
+      });
+    if (!beyond.length) return run;
     return withWeakest(run, [
       unchecked(
-        ".",
-        "npm",
-        `couldn't list the other projects this change touches (${String(error).slice(0, 200)})`,
+        beyond[0]?.includes("/")
+          ? (beyond[0] as string).slice(0, (beyond[0] as string).lastIndexOf("/"))
+          : ".",
+        fileEcosystem(beyond[0] as string) ?? lead ?? "npm",
+        `couldn't list the projects behind ${beyond
+          .slice(0, 3)
+          .map((p) => `\`${p}\``)
+          .join(", ")} (${forGitHub(String(error), 160)})`,
       ),
     ]);
   }
   const touched = new Map<string, CheckableProject>();
+  const unowned: string[] = [];
   for (const f of run.files) {
     const project = projectOf(projects, f.path);
     if (project && project.root !== input.project.root) touched.set(project.root, project);
+    // A changed file outside the lead with no project to check it in is said, not dropped.
+    else if (!project && input.project.root !== "." && !f.path.startsWith(`${input.project.root}/`))
+      unowned.push(f.path);
   }
-  if (!touched.size) return run;
+  const orphans = unowned.length
+    ? [
+        unchecked(
+          ".",
+          fileEcosystem(unowned[0] as string) ?? LEAD_ECOSYSTEM[input.plan.image] ?? "npm",
+          `no project Teire can check holds ${unowned
+            .slice(0, 3)
+            .map((p) => `\`${p}\``)
+            .join(", ")}`,
+        ),
+      ]
+    : [];
+  if (!touched.size) return orphans.length ? withWeakest(run, orphans) : run;
   // The exact final file set: text as files, everything else (bytes, deletions, modes, links) as writes.
   const files: Record<string, string> = {};
   const writes: NonNullable<Change["writes"]> = [];
@@ -370,7 +422,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       }
     }
     if (!v) {
-      const reason = `couldn't be checked (${failure.slice(0, 200)})`;
+      const reason = `couldn't be checked (${forGitHub(failure, 200)})`;
       input.onEvent?.({ step: "verify", detail: `${name}: ${reason}` });
       results[i] = unchecked(project.root, project.ecosystem, reason);
       return;
@@ -393,10 +445,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       for (let next = queue.shift(); next; next = queue.shift()) await check(next);
     }),
   );
-  return withWeakest(
-    run,
-    results.filter((r): r is OtherProject => !!r),
-  );
+  return withWeakest(run, [...results.filter((r): r is OtherProject => !!r), ...orphans]);
 }
 
 const emptySide = (side: "baseline" | "after"): SideResult => ({
@@ -406,14 +455,17 @@ const emptySide = (side: "baseline" | "after"): SideResult => ({
   deniedHosts: [],
 });
 
-/** A project the change touched that couldn't be checked: unverified, with the reason. */
+/**
+ * A project the change touched that couldn't be checked: the PR opens as a draft that names it and
+ * says why (plan R2: "a draft PR naming it"), never as verified and never silently.
+ */
 export function unchecked(root: string, ecosystem: OtherProject["ecosystem"], reason: string): OtherProject {
   return {
     root,
     ecosystem,
     evidence: {
-      kind: "unverified",
-      prMode: PR_MODE_BY_EVIDENCE.unverified,
+      kind: "environment_mismatch",
+      prMode: PR_MODE_BY_EVIDENCE.environment_mismatch,
       reasons: [reason],
       baseline: null,
       after: null,

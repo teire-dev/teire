@@ -70,6 +70,15 @@ const FILE_ECOSYSTEM: [RegExp, Ecosystem][] = [
   [/(?:^|\/)(?:pom\.xml|[^/]+\.gradle(?:\.kts)?|gradle\.lockfile|[^/]+\.(?:java|kt))$/, "maven"],
 ];
 
+/** The ecosystem a file belongs to by its name, when that is clear. */
+export function fileEcosystem(file: string): Ecosystem | undefined {
+  return FILE_ECOSYSTEM.find(([re]) => re.test(file))?.[1];
+}
+
+/** A file that makes its folder a project of its own. */
+export const PROJECT_MANIFEST =
+  /(?:^|\/)(?:package\.json|pyproject\.toml|setup\.py|Pipfile|requirements\.txt|go\.mod|Cargo\.toml|Gemfile|[^/]+\.gemspec|pom\.xml|build\.gradle(?:\.kts)?)$/;
+
 /**
  * The project a file belongs to: among the roots that contain it, the deepest one in the file's own
  * ecosystem (a root can hold a package.json and a pyproject.toml), else the deepest (review R2).
