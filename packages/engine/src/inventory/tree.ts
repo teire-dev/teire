@@ -68,11 +68,15 @@ export function globMatcher(globs: string[]) {
     if (!/[*?]/.test(glob)) return new RegExp(`^${glob.replace(/[.+^${}()|[\]\\]/g, "\\$&")}(?:/|$)`);
     const body = glob
       .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+      // A trailing `**` is everything beneath; `**/` is any number of folders.
+      .replace(/\*\*$/, "\u0001")
       .replace(/\*\*\/?/g, "\u0000")
       .replace(/\*/g, "[^/]*")
       .replace(/\?/g, "[^/]")
       // biome-ignore lint/suspicious/noControlCharactersInRegex: \u0000 is the placeholder `**/` was swapped for above
-      .replace(/\u0000/g, "(?:.*/)?");
+      .replace(/\u0000/g, "(?:.*/)?")
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: \u0001 is the placeholder a trailing `**` was swapped for above
+      .replace(/\u0001/g, ".*");
     return new RegExp(`^${body}(?:/|$)`);
   });
   return (path: string) => res.some((re) => re.test(path));
