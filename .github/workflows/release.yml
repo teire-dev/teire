@@ -1,0 +1,42 @@
+name: Release
+
+# Publishes teire-cli to npm from a `cli-v<version>` tag with npm Trusted Publishing (plan S21.5,
+# D108): the repository holds no npm token. npm trusts this workflow through GitHub's OIDC token,
+# and, the repository being public, attaches provenance that links the package to this commit.
+# The trusted publisher is set once on npmjs.com: teire-dev / teire / release.yml.
+
+on:
+  push:
+    tags: ["cli-v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - name: The tag names the package's version
+        run: |
+          version=$(node -p "require('./packages/cli/package.json').version")
+          if [ "cli-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match teire-cli $version"
+            exit 1
+          fi
+      - run: pnpm --filter ./packages/cli typecheck
+      - run: pnpm --filter ./packages/cli build
+      - name: The built CLI runs
+        run: test "$(node packages/cli/dist/teire.mjs --version)" = "${GITHUB_REF_NAME#cli-v}"
+      # Trusted Publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1 && npm --version
+      - run: npm publish --access public
+        working-directory: packages/cli
