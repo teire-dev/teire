@@ -69,7 +69,12 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const model = sheet.calls.find((c) => c.purpose === "fix")?.model ?? sheet.calls[0]?.model ?? null;
   const events = sheet.events.map((e) => ({ ...e, at: new Date(e.at) }));
   const execs: Exec[] = sheet.execs.map((x) => ({ ...x, stderrTail: null }));
-  const rows = activityOf(events, execs, active, model);
+  // The first wait runs from when the run was queued to when it started, as the phase strip counts it.
+  const rows = activityOf(events, execs, active, model).map((r, i, all) =>
+    r.step === "queue" && run.startedAt && all.findIndex((x) => x.step === "queue") === i
+      ? { ...r, startedAt: new Date(run.createdAt), endedAt: new Date(run.startedAt) }
+      : r,
+  );
   const spans = traceOf(
     events,
     sheet.execs.map((x) => ({ ...x, createdAt: new Date(x.createdAt) })),
@@ -326,9 +331,10 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
                   <Ledger
                     baseline={baseline}
                     after={after}
-                    evidence={run.evidenceKind ?? "pending"}
+                    evidence={run.evidenceKind}
                     verdict={verification?.reasons?.[0] ?? ""}
                     notCovered={notCovered}
+                    live={!!live && active}
                   />
                 ) : (
                   <p className="text-sm text-ink-3">

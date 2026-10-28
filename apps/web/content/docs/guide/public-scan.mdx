@@ -70,30 +70,31 @@ Nothing is written to GitHub. The run page shows each step live and keeps the pu
   caption="The PR tab: the title and body Teire would open, here for OpenAI's gpt-4.1-nano shutdown, fixed with no model call."
 />
 
-The run page has five tabs:
+The run page is one sheet, live while the run works: it reads the run every second, without a reload.
 
-| Tab | Shows |
+| Part | Shows |
 |---|---|
-| **Timeline** | Every step as it happens, updated each second while the run is live |
-| **Diff** | The code change, file by file |
-| **Verification** | Each check's command and result on the baseline and after |
-| **Receipt** | Model calls summed per model (count, tokens, cost), each sandbox command with its exit code and time, and the total |
-| **The PR** | The pull request (or the "needs a human" issue) Teire would open once installed |
+| **Proof chain** | Changed → Reaches your code → Fixed → Proven → PR, each step done, in progress, not proven, failed or not applicable |
+| **Where the time went** | Queued, the updater, the baseline, the fix, your checks and the PR, as measured |
+| **Trace** | Every sandbox command and model call on one timeline, with a replay button |
+| **Steps** | Each step of the run; open one for the agent's tool calls and every command with its exit code, time and output |
+| **Changes** | The code change, file by file |
+| **The PR** | For a dry run: the pull request (or the "needs a human" issue) Teire would open once installed |
+| **Receipt** | Model calls per model (count, tokens, cost), each sandbox command with its exit code and time, and the total |
+| **Proof** (beside) | Each check before and after, the verdict, what the checks did not cover, and every other project the change touched |
+| **Context** (beside) | The release notes, provider pages and docs lookups the run read |
 
-<Tabs items={["Timeline", "Verification", "Diff", "Receipt"]}>
-<Tab value="Timeline">
-<Shot name="dryrun-go-timeline" alt="The Timeline tab of the Go dry run: 47 timestamped events, from reading the release notes and the go get and go mod tidy transaction to the sandbox checks and agent steps." caption="The Go major dry run as it happened." />
-</Tab>
-<Tab value="Verification">
-<Shot name="dryrun-go-verification" alt="Verification tab: build go build, typecheck go vet and test go test, pass on baseline and after, 4/4 tests." caption="Your checks, before and after, with the network off." />
-</Tab>
-<Tab value="Diff">
-<Shot name="dryrun-go-diff" alt="Diff tab: auth/token.go moved from jwt/v4 StandardClaims to jwt/v5 RegisteredClaims and NumericDate." caption="What Nemotron changed in auth/token.go." />
-</Tab>
-<Tab value="Receipt">
-<Shot name="dryrun-go-receipt" alt="Receipt tab: Nemotron-3-Ultra ×23 calls with tokens and $0.1807, each sandbox command on both sides with exit code and time, and the total." caption="Every model call of the run, priced." />
-</Tab>
-</Tabs>
+<Shot
+  name="run-sheet"
+  alt="Run page for zod 3.25.76 → 4.6.6 on teire-dev/examples: the proof chain all done through PR #30, the time per phase, the trace of the updater, sandbox checks and Nemotron 3 Ultra calls, and the Proof panel with typecheck pass and tests 4/4 before and after, Proven."
+  caption="A fix run on teire-dev/examples, finished: zod 4.6.6, proven with 4/4 tests on both sides, 22 Nemotron 3 Ultra calls for $0.163, on Token Factory Sandboxes."
+/>
+
+<Shot
+  name="run-sheet-steps"
+  alt="The run's Steps, with 'Nemotron 3 Ultra fixed the code' open: 18 tool calls such as reading npm-zod/src/intake.ts, searching z.record, looking up zod v4 ZodError issues in the docs, and editing src/schema.ts and src/intake.ts, each with its time."
+  caption="Each step opens: here the agent's 18 tool calls, from reading the code and looking up zod v4 in the docs to its edits."
+/>
 
 <Callout title="From a report to pull requests">
   Install Teire on the repository and the same changes arrive as pull requests, each verified the same way. See the [Quickstart](/docs/guide/quickstart).

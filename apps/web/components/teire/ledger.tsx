@@ -1,5 +1,5 @@
 import type { TestCounts } from "@teire/engine/contract";
-import { EvidenceChip } from "@/components/teire/status-chip";
+import { EvidenceChip, StatusChip } from "@/components/teire/status-chip";
 import { cn } from "@/lib/utils";
 
 export interface LedgerCheck {
@@ -35,6 +35,7 @@ export function Ledger({
   evidence,
   verdict,
   notCovered,
+  live = false,
   className,
 }: {
   baseline: LedgerCheck[];
@@ -42,6 +43,8 @@ export function Ledger({
   evidence: string | null;
   verdict?: string;
   notCovered: string[];
+  /** The run is still checking: rows fill as each check finishes; no verdict or coverage yet. */
+  live?: boolean;
   className?: string;
 }) {
   const names = [...new Set([...baseline, ...after].map((c) => c.name))];
@@ -87,14 +90,23 @@ export function Ledger({
         </ul>
       )}
       <div className="flex flex-col gap-2 border-t border-rule px-4 pt-3">
-        <p className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
-          <EvidenceChip kind={evidence} />
-          {verdict ? <span className="font-mono">{verdict}</span> : null}
-        </p>
-        <p className="text-xs text-ink-3">
-          <span className="eyebrow mr-1.5">Not covered</span>
-          {notCovered.length ? notCovered.join("; ") : "nothing the checks report as skipped"}
-        </p>
+        {live ? (
+          <p className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
+            <StatusChip tone="signal">Checking</StatusChip>
+            Each check shows as it finishes; the verdict comes when both sides are done.
+          </p>
+        ) : (
+          <>
+            <p className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
+              <EvidenceChip kind={evidence} />
+              {verdict ? <span className="font-mono">{verdict}</span> : null}
+            </p>
+            <p className="text-xs text-ink-3">
+              <span className="eyebrow mr-1.5">Not covered</span>
+              {notCovered.length ? notCovered.join("; ") : "nothing the checks report as skipped"}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
