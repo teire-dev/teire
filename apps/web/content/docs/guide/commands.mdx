@@ -18,6 +18,8 @@ Start a line of a comment with the command, on any issue or pull request in the 
 | `@teire show ignores` | What this repo ignores, from `teire.yml` and from commands |
 | `@teire rebase` | On a Teire PR: re-apply on the current base and verify again |
 | `@teire recreate` | On a Teire PR (even closed): run the fix again from scratch |
+| `@teire reverify` | On a Teire PR: run your checks again on it as it stands, before and after, and set its evidence |
+| `@teire open-draft` | On a Teire "needs a human" issue: open its best diff as a draft PR marked unconfirmed |
 | `@teire explain` | On a Teire PR or issue: the evidence behind it |
 | `@teire config` | The resolved config, with where each value came from |
 | `@teire pause` / `@teire resume` | Stop or restart scans and PRs for this repo |
@@ -42,6 +44,12 @@ Add `major`, `minor` or `patch` to skip only that kind of update, as Dependabot'
 </Accordion>
 <Accordion title="rebase / recreate">
 Both work on a Teire PR or issue. **rebase** reruns the fix on the current base, once per base commit. **recreate** always starts a fresh run, even on a closed PR. Both reset the branch only when every commit on it is Teire's. If someone else pushed to the branch, the run stops and says so on the PR.
+</Accordion>
+<Accordion title="reverify">
+On a Teire PR. Teire checks the PR again as it stands, with no change to its code: the baseline at the commit the PR branched from, the after side at the PR's head, so commits people pushed to the branch count. Every project the PR's files touch runs its own checks. The reply links the run; when it finishes, the PR gets a new **Teire** check run and a comment, and its draft state and evidence label follow the result. It runs under every fix mode, since it changes no code. It is the same as **Re-verify** on the run page.
+</Accordion>
+<Accordion title="open-draft">
+On a Teire "needs a human" issue. Teire opens the run's best diff as a draft PR titled **Unconfirmed**, labelled `unconfirmed` and with the evidence that stopped it, for a person to finish. It follows the fix mode and the PR limits, and refuses, naming the file, when the diff holds a binary file or no longer applies to the commit the run started from. It is the same as **Open draft anyway** on the run page.
 </Accordion>
 <Accordion title="explain">
 On a Teire PR or issue, or with a change named: up to 10 findings, each with its verdict, the reason and up to 5 sites, plus a link to the run with the full evidence.

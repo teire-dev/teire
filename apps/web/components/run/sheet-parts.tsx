@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRight, FileCode2, FilePen, Flag, FlaskConical, Search, SquareTerminal } from "lucide-react";
+import type { LedgerCheck } from "@/components/teire/ledger";
 import type { Phase } from "@/components/teire/phase-strip";
 import type { ActivityRow, Exec } from "@/lib/activity";
 import type { RunSheetData } from "@/lib/run-sheet";
@@ -25,13 +26,68 @@ export function subjectOf(run: RunSheetData["run"]) {
   };
 }
 
+/**
+ * The ledger while a run works: each check's log line ("after: test exit 0 in 2214 ms (70/70
+ * passed)"), the last round per check. The stored checks replace it when the run ends.
+ */
+export function liveLedger(events: RunSheetData["events"]) {
+  const sides: Record<"baseline" | "after", Map<string, LedgerCheck>> = {
+    baseline: new Map(),
+    after: new Map(),
+  };
+  for (const e of events) {
+    const detail = (e.payload as { detail?: unknown } | null)?.detail;
+    const m =
+      typeof detail === "string"
+        ? /^(baseline|after): (typecheck|build|test) exit (-?\d+) in (\d+) ms(?: \((\d+)\/(\d+) passed\))?/.exec(
+            detail,
+          )
+        : null;
+    if (!m) continue;
+    const [, side, name = "", code, ms, passed, collected] = m;
+    const exitCode = Number(code);
+    sides[side as "baseline" | "after"].set(name, {
+      name,
+      argv: [],
+      exitCode,
+      timedOut: exitCode === 124,
+      ms: Number(ms),
+      counts:
+        passed && collected
+          ? {
+              collected: Number(collected),
+              passed: Number(passed),
+              failed: exitCode === 0 ? 0 : Number(collected) - Number(passed),
+              skipped: 0,
+              errors: 0,
+            }
+          : null,
+    });
+  }
+  return { baseline: [...sides.baseline.values()], after: [...sides.after.values()] };
+}
+
 /** Where the run's time went, from its own records (no figure it didn't measure). */
 export function phasesOf(sheet: RunSheetData): Phase[] {
   const { run, events, execs } = sheet;
-  const sum = (phases: string[]) =>
-    execs.filter((x) => phases.includes(x.phase)).reduce((n, x) => n + (x.durationMs ?? 0), 0);
-  const failed = (phases: string[]) =>
-    execs.some((x) => phases.includes(x.phase) && (x.timedOut || (x.exitCode ?? 0) !== 0));
+  // A run's sandbox records are written together when it ends; while it works, the line each command
+  // logs when it finishes ("baseline: test exit 0 in 2214 ms") stands in for them.
+  const logged = (side: "baseline" | "after") =>
+    events.flatMap((e) => {
+      const detail = (e.payload as { detail?: unknown } | null)?.detail;
+      const m =
+        typeof detail === "string" ? /^(baseline|after): .+? exit (-?\d+) in (\d+) ms/.exec(detail) : null;
+      return m && m[1] === side ? [{ ms: Number(m[3]), failed: m[2] !== "0" }] : [];
+    });
+  const recorded = (phases: string[]) => execs.some((x) => phases.includes(x.phase));
+  const sum = (phases: string[], side: "baseline" | "after") =>
+    recorded(phases)
+      ? execs.filter((x) => phases.includes(x.phase)).reduce((n, x) => n + (x.durationMs ?? 0), 0)
+      : logged(side).reduce((n, l) => n + l.ms, 0);
+  const failed = (phases: string[], side: "baseline" | "after") =>
+    recorded(phases)
+      ? execs.some((x) => phases.includes(x.phase) && (x.timedOut || (x.exitCode ?? 0) !== 0))
+      : logged(side).some((l) => l.failed);
   const span = (steps: string[]) => {
     const at = events.filter((e) => steps.includes(e.step)).map((e) => Date.parse(e.at));
     return at.length ? Math.max(...at) - Math.min(...at) : null;
@@ -49,15 +105,21 @@ export function phasesOf(sheet: RunSheetData): Phase[] {
     {
       key: "baseline",
       label: "Baseline",
-      ms: sum(["install_baseline", "baseline"]) || null,
-      state: state(sum(["install_baseline", "baseline"]) || null, failed(["install_baseline", "baseline"])),
+      ms: sum(["install_baseline", "baseline"], "baseline") || null,
+      state: state(
+        sum(["install_baseline", "baseline"], "baseline") || null,
+        failed(["install_baseline", "baseline"], "baseline"),
+      ),
     },
     { key: "fix", label: "Fix", ms: fix, state: state(fix) },
     {
       key: "checks",
       label: "Your checks",
-      ms: sum(["install_after", "after"]) || null,
-      state: state(sum(["install_after", "after"]) || null, failed(["install_after", "after"])),
+      ms: sum(["install_after", "after"], "after") || null,
+      state: state(
+        sum(["install_after", "after"], "after") || null,
+        failed(["install_after", "after"], "after"),
+      ),
     },
     {
       key: "pr",

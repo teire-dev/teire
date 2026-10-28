@@ -33,7 +33,9 @@ import {
 import {
   appendEvent,
   cancelRequest,
+  claimRun,
   claimRunLease,
+  fixInFlight,
   fixModeOf,
   getArtifact,
   getRepo,
@@ -80,6 +82,39 @@ function fileDiff(f: { filename: string; status: string; previous_filename?: str
   return f.patch
     ? `===================================================================\n--- ${from}\n+++ ${to}\n${f.patch}\n`
     : `Binary files ${from} and ${to} differ\n`;
+}
+
+/**
+ * A re-verify run for the group's open PR, queued on the repository's fix queue, or why there can't
+ * be one: the dashboard's Re-verify and `@teire reverify` both start here. It changes no code, so
+ * every fix mode allows it; under Off it is how a PR marked stale-evidence gets current evidence.
+ */
+export async function startReverify(
+  ctx: WorkerContext,
+  repo: Repo,
+  groupKey: string,
+  login: string,
+): Promise<{ run: { id: string }; created: boolean; number: number } | { refused: string }> {
+  const { db } = ctx;
+  if (repo.status === "paused") return { refused: "This repository is paused; resume it first" };
+  const pr = await getArtifact(db, repo.id, "pr", groupKey);
+  if (pr?.state !== "open" || !pr.number) return { refused: "Re-verify works on an open Teire pull request" };
+  const active = await fixInFlight(db, repo.id, groupKey, "reverify");
+  if (active) return { run: active, created: false, number: pr.number };
+  const last = pr.runId ? await getRun(db, pr.runId) : null;
+  const { run } = await claimRun(db, {
+    repoId: repo.id,
+    groupKey,
+    lineageKey: pr.lineageKey ?? last?.lineageKey ?? lineageKey(groupKey),
+    kind: "reverify",
+    status: "queued",
+    fromVersion: last?.fromVersion ?? null,
+    targetVersion: last?.targetVersion ?? null,
+    requestedBy: `reverify:${login}`,
+    idempotencyKey: `reverify:${repo.id}:${groupKey}:${Date.now()}`,
+  });
+  await ctx.enqueueFix(run.id, repo.id);
+  return { run, created: true, number: pr.number };
 }
 
 /**
@@ -147,6 +182,10 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
   const installation = await gh.installation(repo.installationId);
   const { octokit } = installation;
 
+  if (run.status === "failed" || run.status === "running")
+    await event("restart", "attempt", {
+      detail: "the worker running it stopped, so it starts over from the beginning",
+    });
   await update({ status: "running", step: "assess", startedAt: new Date(), error: null });
   const watchCancel = setInterval(
     () =>

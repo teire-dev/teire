@@ -28,12 +28,14 @@ import {
   upgradeMatches,
 } from "../store";
 import type { EventContext } from "./events";
+import { openDraftAnyway, startReverify } from "./reverify";
 
 export { matchesTarget };
 
 /**
  * `@teire` commands (card C7, plan S09) in comments on any issue or PR of an installed repo:
- * rescan · fix <id> · ignore <id|package|provider> · unignore <id> · rebase · recreate · explain ·
+ * rescan · fix <id> · ignore <id|package|provider> · unignore <id> · rebase · recreate · reverify ·
+ * open-draft · explain ·
  * config · pause · resume · pause-fixes · resume-fixes · wrong <reason> · help. Receipt is acknowledged with 👀; the answer is a
  * reply. Bots are ignored; people without write access get a note and nothing runs.
  */
@@ -50,6 +52,8 @@ export const HELP = [
   "| `@teire show ignores` | What this repo ignores, from teire.yml and from commands |",
   "| `@teire rebase` | On a Teire PR: re-apply on the current base and verify again |",
   "| `@teire recreate` | On a Teire PR (even closed): run the fix again from scratch |",
+  "| `@teire reverify` | On a Teire PR: run your checks again on it as it stands, before and after, and set its evidence |",
+  '| `@teire open-draft` | On a Teire "needs a human" issue: open its best diff as a draft PR marked unconfirmed |',
   "| `@teire explain` | On a Teire PR or issue: the evidence behind it |",
   "| `@teire config` | The resolved config, with where each value came from |",
   "| `@teire pause` / `@teire resume` | Stop or restart scans and PRs for this repo |",
@@ -66,6 +70,8 @@ export const COMMANDS = [
   "unignore",
   "rebase",
   "recreate",
+  "reverify",
+  "open-draft",
   "explain",
   "config",
   "pause",
@@ -123,7 +129,7 @@ export async function handleComment(ctx: EventContext, p: Payload) {
     if (!recorded) {
       recorded = true;
       const refusal =
-        /need write access|first\.|^Usage|^I don't know|^No finding|^Fixes are|isn't|works on a Teire PR/.test(
+        /need write access|first\.|^Usage|^I don't know|^No finding|^Fixes are|isn't|works on a Teire PR|^Refused/.test(
           body,
         );
       await recordAction(db, {
@@ -329,6 +335,29 @@ export async function handleComment(ctx: EventContext, p: Payload) {
           started,
         });
       return;
+    }
+    case "reverify": {
+      if (artifact?.kind !== "pr" || !artifact.changeKey)
+        return void (await reply("`@teire reverify` works on a Teire PR."));
+      const begun = await startReverify(ctx, repo, artifact.changeKey, by);
+      if ("refused" in begun) return void (await reply(`Refused: ${begun.refused}.`));
+      const link = ctx.webUrl ? `: ${ctx.webUrl}/runs/${begun.run.id}` : ".";
+      return void (await reply(
+        begun.created
+          ? `Re-verifying #${begun.number} as it stands, before and after${link}`
+          : `Already re-verifying${link}`,
+      ));
+    }
+    case "open-draft": {
+      if (artifact?.kind !== "issue" || !artifact.runId)
+        return void (await reply('`@teire open-draft` works on a Teire "needs a human" issue.'));
+      const outcome = await openDraftAnyway(ctx, repo, octokit, artifact.runId, by);
+      const pr = outcome.links?.find((l) => l.label.startsWith("#"));
+      return void (await reply(
+        outcome.status === "refused"
+          ? `Refused: ${outcome.result}.`
+          : `${outcome.result}${pr?.href ? `: ${pr.href}` : "."}`,
+      ));
     }
     case "explain": {
       const group = artifact?.changeKey || command.args.split(/\s+/)[0] || "";

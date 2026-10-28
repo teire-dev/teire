@@ -61,6 +61,7 @@ const TITLES: Record<string, [live: string, done: string]> = {
   progress: ["Updating the progress comment", "Progress comment"],
   ci: ["Reading the repository's CI", "The repository's CI"],
   run: ["Finishing", "Run"],
+  restart: ["Starting over", "Started over"],
 };
 
 /** Sandbox phases belong to the step that ran them. */

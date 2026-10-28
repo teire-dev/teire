@@ -87,6 +87,7 @@ const STEP_OF: Record<string, ProofStep> = {
 /** What Teire is doing at a step, in the present tense (Factory's grammar), for live rows. */
 export const STEP_DOING: Record<string, string> = {
   queue: "Waiting for its turn",
+  restart: "Starting over",
   assess: "Reading the change",
   notes: "Reading the release notes",
   "read-page": "Reading the provider's page",

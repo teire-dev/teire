@@ -25,7 +25,7 @@ import type { RunSheetData } from "@/lib/run-sheet";
 import { traceOf } from "@/lib/trace";
 import { backendName, cn } from "@/lib/utils";
 import { ShareRun } from "./share-run";
-import { ActivityItem, contextOf, duration, phasesOf, subjectOf } from "./sheet-parts";
+import { ActivityItem, contextOf, duration, liveLedger, phasesOf, subjectOf } from "./sheet-parts";
 
 /** One poll a second while the run works, every five after ten minutes, none while hidden (D122). */
 const FAST_MS = 1000;
@@ -88,8 +88,10 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
     advisory: sheet.reach.advisory,
     artifact: artifact ? { kind: artifact.kind, url: artifact.url, number: artifact.number } : null,
   });
-  const baseline = (verification?.baseline ?? []) as LedgerCheck[];
-  const after = (verification?.after ?? []) as LedgerCheck[];
+  // Until the run stores its checks, the ledger fills from each check's log line as it finishes.
+  const live = verification?.baseline ? null : liveLedger(sheet.events);
+  const baseline = (verification?.baseline ?? live?.baseline ?? []) as LedgerCheck[];
+  const after = (verification?.after ?? live?.after ?? []) as LedgerCheck[];
   const notCovered = notCoveredFrom(baseline, after, verification?.reasons ?? []);
   const test = after.find((c) => c.name === "test")?.counts;
   const testBefore = baseline.find((c) => c.name === "test")?.counts;

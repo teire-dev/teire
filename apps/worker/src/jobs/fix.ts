@@ -1039,8 +1039,20 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     }
     await holdLease();
   };
-  if (run.status === "failed" || run.status === "running")
+  if (run.status === "failed" || run.status === "running") {
     await update({ status: "queued", attempt: run.attempt + 1, error: null });
+    // The run page marks where the earlier attempt ended, so its repeated steps read as a restart.
+    await appendEvent(
+      db,
+      runId,
+      "restart",
+      "attempt",
+      {
+        detail: `attempt ${run.attempt + 1}: the worker running it stopped, so it starts over from the beginning`,
+      },
+      true,
+    );
+  }
   const repo = await getRepo(db, run.repoId);
   // A dry run (C9) works on any public repo: no installation, no GitHub writes, no PR caps.
   const dry = run.kind === "dry_run";

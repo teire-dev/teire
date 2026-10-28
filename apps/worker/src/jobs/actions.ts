@@ -12,9 +12,7 @@ import { forGitHub } from "@teire/engine/github";
 import {
   type ActionRow,
   cancelQueued,
-  claimRun,
   findingsWithChanges,
-  fixInFlight,
   fixModeOf,
   getAction,
   getArtifact,
@@ -34,7 +32,7 @@ import { canWrite, FixesOffError, fixesOffReply, runState, startRun } from "./co
 import { syncDashboard } from "./dashboard";
 import type { EventContext } from "./events";
 import { requesterToken } from "./public";
-import { openDraftAnyway } from "./reverify";
+import { openDraftAnyway, startReverify } from "./reverify";
 
 /**
  * Dashboard actions (S11, the web's repo pages): the `@teire` commands a signed-in person can start
@@ -350,28 +348,15 @@ async function repoAction(
     case "reverify-run": {
       const run = await getRun(db, String(params.runId));
       if (!run?.groupKey || run.repoId !== repo.id) return refused("That run isn't in this repository");
-      if (repo.status === "paused") return refused("This repository is paused; resume it first");
-      const pr = await getArtifact(db, repo.id, "pr", run.groupKey);
-      if (pr?.state !== "open" || !pr.number) return refused("Re-verify works on an open Teire pull request");
-      // It changes no code, so every fix mode allows it: Off's stale evidence is how it gets current.
-      const active = await fixInFlight(db, repo.id, run.groupKey, "reverify");
-      if (active) return { status: "done", result: "Already re-verifying", links: [runLink(active.id)] };
-      const { run: next } = await claimRun(db, {
-        repoId: repo.id,
-        groupKey: run.groupKey,
-        lineageKey: run.lineageKey,
-        kind: "reverify",
-        status: "queued",
-        fromVersion: run.fromVersion,
-        targetVersion: run.targetVersion,
-        requestedBy: `reverify:${login}`,
-        idempotencyKey: `reverify:${repo.id}:${run.groupKey}:${Date.now()}`,
-      });
-      await ctx.enqueueFix(next.id, repo.id);
+      const begun = await startReverify(ctx, repo, run.groupKey, login);
+      if ("refused" in begun) return refused(begun.refused);
+      // Done when that run finishes, with its evidence (settled there).
       return {
         status: "started",
-        result: `Queued: #${pr.number} is checked again as it stands`,
-        links: [runLink(next.id)],
+        result: begun.created
+          ? `Queued: #${begun.number} is checked again as it stands`
+          : "Already re-verifying",
+        links: [runLink(begun.run.id)],
       };
     }
     case "open-draft-anyway":
