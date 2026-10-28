@@ -18,14 +18,14 @@ A model retirement never shows up as a new package version. Your code keeps send
 | Nebius Token Factory | the deprecation notices linked from `docs.tokenfactory.nebius.com/llms.txt` | its API host in your code (it uses the OpenAI SDK) |
 | Stripe | `docs.stripe.com/changelog.md` and each breaking change's page, for the Node.js and Python SDKs | `stripe`; `api.stripe.com` |
 
-These readers parse each page's own tables and headings in code, with nothing inferred. A provider counts as used when one of its SDKs is installed (npm or PyPI) or its API host appears in a URL in your code. Its pages are read then, at most once every 6 hours, shared by every repository. Nothing is read on a schedule.
+These readers parse each page's own tables and headings in code, with nothing inferred. A provider counts as used when one of its SDKs is installed, in any of the six ecosystems, or its API host appears in a URL in your code. Its pages are read then, at most once every 6 hours, shared by every repository. Nothing is read on a schedule.
 
 ## Any other provider
 
 When your code calls an API host that has no reader, Teire **discovers** the provider. It finds hosts in two ways:
 
 1. a URL in your code whose host or path looks like an API (`api.`, `/v1`, `/api`),
-2. an installed npm or PyPI SDK whose published code names an API host on its own domain. Up to 40 SDKs are read per scan, never run.
+2. an installed SDK whose published code names an API host on its own domain: the npm tarball, the PyPI wheel, the Go module zip, the `.crate`, the `.gem` or the Maven `-sources.jar` of the exact version you lock. Up to 40 SDKs are read per scan, as text, never run.
 
 Then it looks for the provider's notices:
 
@@ -102,5 +102,5 @@ A change only appears once a scanned repository depends on it. The same records 
 />
 
 <Callout type="warn" title="Limits">
-  Provider SDKs are recognised in all six ecosystems (Go modules, Maven, RubyGems and Cargo as well as npm and PyPI); discovering an unknown provider's API hosts from its SDK still reads npm and PyPI packages. Model IDs and URLs are found in all seven languages, and a model or API fix is verified with the checks of the project it changed, whatever its ecosystem. Stripe is read for its Node.js and Python SDK sections. Parameter and API-version records don't become findings on their own. The OpenAPI diff matches URLs in your code, not SDK method calls.
+  Provider SDKs are recognised, and an unknown provider's API hosts discovered from its SDK, in all six ecosystems. Model IDs and URLs are found in all seven languages, and a model or API fix is verified with the checks of the project it changed, whatever its ecosystem. Stripe is read for its Node.js and Python SDK sections. Parameter and API-version records don't become findings on their own. The OpenAPI diff matches URLs in your code, not SDK method calls.
 </Callout>

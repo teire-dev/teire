@@ -2,11 +2,12 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { sha256 } from "../catalog/source";
 import { DISCOVERY } from "../constants";
-import type { DependencyInstance } from "../contract";
+import type { DependencyInstance, Ecosystem } from "../contract";
 import type { RegistryOptions } from "../registry/clients";
 import { fetchNpmPackage } from "../surface/npm-package";
 import { fetchPypiWheel } from "../surface/pypi";
 import { isApiEndpoint } from "./domains";
+import { fetchSdkSource, SOURCE_FILE } from "./sdk-sources";
 
 /**
  * What an installed package says about the API it calls (plan S04, D82): an SDK ships its default base
@@ -16,7 +17,7 @@ import { isApiEndpoint } from "./domains";
  * cached per version (published files never change).
  */
 export interface SdkProfile {
-  ecosystem: "npm" | "pypi";
+  ecosystem: Ecosystem;
   name: string;
   version: string;
   /** API hosts in the package's code, most frequent first. */
@@ -28,7 +29,7 @@ export interface SdkProfile {
 
 const URL_LITERAL = /["'`](https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:\/[^"'`\s<>]*)?)["'`]/g;
 const CODE_FILE = { npm: /\.(?:[cm]?js)$/, pypi: /\.py$/ } as const;
-const SKIP = /(?:^|\/)(?:tests?|__tests__|examples?|docs?|node_modules|\.bin)\//;
+const SKIP = /(?:^|\/)(?:tests?|__tests__|examples?|docs?|node_modules|\.bin|testdata|benches|src\/test)\//;
 
 function* walk(dir: string, root = dir): Generator<string> {
   let entries: string[];
@@ -52,18 +53,25 @@ function* walk(dir: string, root = dir): Generator<string> {
 
 /** Counts the API hosts named by string literals in a package's code files. */
 export function apiHostsIn(dir: string, ecosystem: "npm" | "pypi") {
+  function* texts() {
+    for (const file of walk(dir)) {
+      if (!CODE_FILE[ecosystem].test(file) || file.endsWith(".min.js")) continue;
+      try {
+        yield { path: file, text: readFileSync(join(dir, file), "utf8") };
+      } catch {}
+    }
+  }
+  return apiHostsInTexts(texts());
+}
+
+/** The same count over source files already in hand (an SDK read from its registry archive). */
+export function apiHostsInTexts(sources: Iterable<{ path: string; text: string }>) {
   const counts = new Map<string, number>();
   let files = 0;
   let bytes = 0;
-  for (const file of walk(dir)) {
-    if (!CODE_FILE[ecosystem].test(file) || SKIP.test(`${file}`) || file.endsWith(".min.js")) continue;
+  for (const { path, text } of sources) {
+    if (SKIP.test(path)) continue;
     if (files >= DISCOVERY.sdkMaxFiles || bytes >= DISCOVERY.sdkMaxBytes) break;
-    let text: string;
-    try {
-      text = readFileSync(join(dir, file), "utf8");
-    } catch {
-      continue;
-    }
     files++;
     bytes += text.length;
     for (const m of text.matchAll(URL_LITERAL)) {
@@ -129,25 +137,34 @@ export async function sdkProfile(
   options: RegistryOptions & { cacheDir?: string },
 ): Promise<SdkProfile | null> {
   const { ecosystem, name, version } = instance;
-  if ((ecosystem !== "npm" && ecosystem !== "pypi") || !version) return null;
+  if (!version) return null;
   const key = `${ecosystem}:${name}@${version}`;
   const cached = await options.cache.get("sdk-profile", key);
   if (cached) return cached.data as SdkProfile | null;
   let profile: SdkProfile;
   try {
-    const dir =
-      ecosystem === "npm"
-        ? (await fetchNpmPackage(name, version, options)).dir
-        : (await fetchPypiWheel(name, version, options)).dir;
-    const { hosts, files } = apiHostsIn(dir, ecosystem);
-    profile = {
-      ecosystem,
-      name,
-      version,
-      hosts: hosts.slice(0, 8),
-      links: ecosystem === "npm" ? npmLinks(dir) : pypiLinks(dir),
-      filesRead: files,
-    };
+    if (ecosystem === "npm" || ecosystem === "pypi") {
+      const dir =
+        ecosystem === "npm"
+          ? (await fetchNpmPackage(name, version, options)).dir
+          : (await fetchPypiWheel(name, version, options)).dir;
+      const { hosts, files } = apiHostsIn(dir, ecosystem);
+      profile = {
+        ecosystem,
+        name,
+        version,
+        hosts: hosts.slice(0, 8),
+        links: ecosystem === "npm" ? npmLinks(dir) : pypiLinks(dir),
+        filesRead: files,
+      };
+    } else {
+      const source = await fetchSdkSource(ecosystem, name, version);
+      if (!source) return null;
+      const { hosts, files } = apiHostsInTexts(
+        source.files.filter((f) => SOURCE_FILE[ecosystem].test(f.path)),
+      );
+      profile = { ecosystem, name, version, hosts: hosts.slice(0, 8), links: source.links, filesRead: files };
+    }
   } catch {
     // A package Teire cannot read now (no wheel, a network error) says nothing about an API; the next scan tries again.
     return null;

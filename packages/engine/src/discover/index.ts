@@ -98,7 +98,7 @@ export async function providerCandidates(input: {
       (i) =>
         i.direct &&
         i.source === "registry" &&
-        (i.ecosystem === "npm" || i.ecosystem === "pypi") &&
+        // Every ecosystem's SDKs are read (S16.1); scope names differ (Gradle `build`, Bundler groups).
         !["dev", "test", "build"].includes(i.scope) &&
         !i.name.startsWith("@types/") &&
         !knownSdks.has(`${i.ecosystem}:${i.name}`),
