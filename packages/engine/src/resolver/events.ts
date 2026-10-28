@@ -253,14 +253,17 @@ const DEPENDENCY_FILE = new RegExp(
     String.raw`(^|/)requirements/[^/]+\.(txt|in)$`,
     // Go
     String.raw`(^|/)(go\.mod|go\.sum|go\.work|go\.work\.sum)$`,
-    "(^|/)vendor/",
+    // Vendored Go modules, and Bundler's gem cache (review R8: nothing else under vendor/).
+    String.raw`(^|/)vendor/(modules\.txt$|.+\.go$|.+/go\.(mod|sum)$|.+/(LICENSE|NOTICE|PATENTS)[^/]*$)`,
+    String.raw`(^|/)vendor/cache/[^/]+\.gem$`,
     // Cargo
     String.raw`(^|/)(Cargo\.toml|Cargo\.lock)$`,
     // Bundler
     String.raw`(^|/)(Gemfile|Gemfile\.lock|gems\.rb|gems\.locked|[^/]+\.gemspec)$`,
     // Maven and Gradle
     String.raw`(^|/)(pom\.xml|extensions\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties|[^/]+\.versions\.toml|[^/]*\.lockfile|gradlew(\.bat)?)$`,
-    "(^|/)gradle/wrapper/",
+    // The Gradle wrapper's own two files (a wrapper raise), nothing else under gradle/wrapper/.
+    String.raw`(^|/)gradle/wrapper/gradle-wrapper\.(properties|jar)$`,
   ].join("|"),
 );
 

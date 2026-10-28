@@ -19,6 +19,8 @@ import type { JobResult } from "./cloudflare";
 
 const BASE = "https://api.tokenfactory.nebius.com/sandboxes/v1";
 const POLL_MS = 2_000;
+/** Consecutive failed status reads tolerated before an operation counts as lost. */
+const TOKEN_FACTORY_POLL_RETRIES = 8;
 /** Plain paths only: Token Factory has no egress interception, so no intercept CA is set. */
 const ENV: Record<string, string> = {
   PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
@@ -217,8 +219,20 @@ export class TokenFactorySandboxes {
 
   async wait(operation: string, maxMs: number): Promise<Operation> {
     const deadline = Date.now() + maxMs;
+    let misses = 0;
     for (;;) {
-      const op = await this.#json<Operation>("GET", `/operations/${operation}`);
+      // One failed status read (a reset, a 502) must not fail a 25-minute install (review R10): reads
+      // retry with backoff, and only a run of failures past the deadline gives up.
+      let op: Operation;
+      try {
+        op = await this.#json<Operation>("GET", `/operations/${operation}`);
+        misses = 0;
+      } catch (error) {
+        misses++;
+        if (Date.now() > deadline || misses > TOKEN_FACTORY_POLL_RETRIES) throw error;
+        await new Promise((r) => setTimeout(r, POLL_MS * 2 ** Math.min(misses, 5)));
+        continue;
+      }
       if (op.status === "SUCCESS" || op.status === "FAILED" || op.status === "CANCELLED") return op;
       if (Date.now() > deadline) throw new Error(`operation ${operation} still ${op.status}`);
       await new Promise((r) => setTimeout(r, POLL_MS));
@@ -314,9 +328,24 @@ export function imageRecipe(dockerfileDir: string) {
 }
 
 /** The recipe's image in Token Factory: found by tag, else built once and tagged. */
-export async function ensureImage(client: TokenFactorySandboxes, name: string, dockerfileDir: string) {
+/** One build per recipe at a time in this process (review R11): every session waiting shares it. */
+const building = new Map<string, Promise<string>>();
+
+export function ensureImage(client: TokenFactorySandboxes, name: string, dockerfileDir: string) {
   const recipe = imageRecipe(dockerfileDir);
   const tag = `teire-${name}:${recipe.hash}`;
+  const pending = building.get(tag);
+  if (pending) return pending;
+  const job = buildImage(client, tag, recipe).finally(() => building.delete(tag));
+  building.set(tag, job);
+  return job;
+}
+
+async function buildImage(
+  client: TokenFactorySandboxes,
+  tag: string,
+  recipe: ReturnType<typeof imageRecipe>,
+) {
   const found = await client.imageByTag(tag);
   if (found) return found;
   const base = await client.importImage(`docker://${recipe.base}`);

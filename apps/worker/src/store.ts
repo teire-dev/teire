@@ -253,7 +253,8 @@ export async function recentlySettled(db: Database, repoId: number, groupKey: st
     where repo_id = ${repoId} and kind = 'fix'
       and idempotency_key like ${`fix:${repoId}:${groupKey}:%`}
       and created_at > now() - make_interval(days => ${days})
-      and (group_key <> ${groupKey} or step like 'fell back%' or error like 'stopped:%')
+      and (group_key <> ${groupKey} or step like 'fell back%' or error like 'stopped:%'
+        or step in ('nothing to change', 'no longer applies'))
   `);
   return (rows[0]?.n ?? 0) > 0;
 }

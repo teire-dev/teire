@@ -115,7 +115,7 @@ async function mavenSource(name: string, version: string): Promise<SdkSource | n
   for (const base of JVM.mavenMirrors) {
     const host = new URL(base).hostname;
     const jar = await fetchArchive(`${base}/${path}-sources.jar`, host).catch(() => null);
-    if (jar?.status === 404) return null;
+    // A miss at one mirror tries the next (review R9); only every mirror missing means no sources.
     if (jar?.status !== 200) continue;
     const pom = await guardedFetch(`${base}/${path}.pom`, { allowHosts: [host] }).catch(() => null);
     const xml = pom?.status === 200 ? Buffer.from(pom.body).toString("utf8") : "";

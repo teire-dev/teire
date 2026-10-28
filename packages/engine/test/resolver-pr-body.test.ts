@@ -45,6 +45,8 @@ describe("files the updater may return (untrusted events)", () => {
       "requirements/dev.txt",
       "go.sum",
       "vendor/x/y.go",
+      "vendor/modules.txt",
+      "vendor/cache/faraday-2.14.0.gem",
       "Cargo.lock",
       "coal.gemspec",
       "gradle/libs.versions.toml",
@@ -61,6 +63,9 @@ describe("files the updater may return (untrusted events)", () => {
       "scripts/postinstall.sh",
       "Makefile",
       ".npmrc",
+      "vendor/evil.sh",
+      "vendor/bin/run",
+      "gradle/wrapper/evil.sh",
     ])
       expect(isDependencyFile(p), p).toBe(false);
   });

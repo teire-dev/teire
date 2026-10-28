@@ -267,6 +267,19 @@ function resolverManager(manager: string): TeireManager | null {
 /** Which of several roots leads a run: one whose code breaks before one that is unclear or clean. */
 const LEAD_RANK: Record<string, number> = { affected: 3, needs_human: 2, inconclusive: 1, not_affected: 0 };
 
+/**
+ * Bundler explains a failure as a chain of "Because …" clauses; the Ruby floor is the only cause when
+ * every clause of the chain is about Ruby (review R7). Any other incompatibility keeps the stop.
+ */
+export function rubyIsTheOnlyCause(message: string) {
+  const clauses = message
+    .replace(/\s+/g, " ")
+    .split(/(?=\b(?:Because|So, because|And because|Thus,)\b)/)
+    .map((c) => c.trim())
+    .filter((c) => /^(?:Because|So, because|And because|Thus,)/.test(c));
+  return clauses.length > 0 && clauses.every((c) => /\bRuby\b/.test(c));
+}
+
 /** The Ruby a repo pins for a root: `.ruby-version`, else the Gemfile's `ruby "…"`. */
 function repoRuby(tree: RepoTree, root: string) {
   const at = (file: string) => tree.read(root === "." ? file : `${root}/${file}`);
@@ -431,7 +444,7 @@ async function resolverTransactionFor(
   if (r.kind === "stop" && r.type === "dependency_file_not_resolvable" && ecosystem === "rubygems") {
     const assumed = /current Ruby version is = ([\d.]+)/.exec(r.message)?.[1];
     const pinned = repoRuby(tree, assessment.project.root);
-    if (assumed && pinned && pinned !== assumed) {
+    if (assumed && pinned && pinned !== assumed && rubyIsTheOnlyCause(r.message)) {
       common.onEvent?.({
         step: "transaction",
         detail: `dependabot-core's updater resolved with Ruby ${assumed}, the floor of the gemspec's required_ruby_version, and stopped (${r.message.split("\n")[0]}); this repo runs Ruby ${pinned}, so Bundler resolves with it in the sandbox`,
@@ -973,16 +986,13 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   }
 
   // Noise controls before any work (D70): per-repo open PRs and new PRs per hour. They limit new
-  // pull requests, as Dependabot's open-pull-requests-limit does: a run for a lineage that already
-  // has an open PR (rebase, recreate, a base move, a newer target superseding it) is never held back.
+  // pull requests, as Dependabot's open-pull-requests-limit does: a run that refreshes an open PR on
+  // its own branch (rebase, recreate, a base move) is never held back. A newer target opens a new
+  // branch and PR, so it counts (review R5).
   const config = (repo.config as ReturnType<typeof readTeireConfig> | null) ?? null;
   const limits = config?.pullRequests ?? { limit: 5, perHour: 2 };
-  const lineage = run.lineageKey ?? lineageKey(groupKey);
   const refresh =
-    !dry &&
-    (await openArtifacts(db, repo.id)).some(
-      (a) => a.kind === "pr" && (a.changeKey === groupKey || a.lineageKey === lineage),
-    );
+    !dry && (await openArtifacts(db, repo.id)).some((a) => a.kind === "pr" && a.changeKey === groupKey);
   const counts = dry || refresh ? { open: 0, lastHour: 0 } : await prCounts(db, repo.id);
   if (counts.open >= limits.limit || counts.lastHour >= limits.perHour) {
     await updateRun(db, runId, { status: "queued", step: "waiting for the PR limit" });
@@ -1294,12 +1304,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       const existing = await getArtifact(db, repo.id, "issue", groupKey);
       const body = `${composed.body}\n\n<sub>Teire stopped: ${fix.evidence.reasons.join("; ")}</sub>`;
       const issue = existing?.number
-        ? (
+        ? // A closed issue whose change failed again is reopened, not edited out of sight (review R6).
+          (
             await installation.octokit.rest.issues.update({
               owner,
               repo: name,
               issue_number: existing.number,
               body,
+              state: "open",
             })
           ).data
         : (
