@@ -99,6 +99,11 @@ const CASES: Case[] = [
 const API_CASES: { slug: string; group: string }[] = [
   { slug: "teire-dev/examples/py-agent", group: "models/nebius-token-factory" },
   { slug: "teire-dev/examples/ai-web", group: "models/openai" },
+  // The same retirement through each language's OpenAI SDK (S16): Go, Java, Ruby, Rust.
+  { slug: "teire-dev/examples/go-openai", group: "models/openai" },
+  { slug: "teire-dev/examples/java-openai", group: "models/openai" },
+  { slug: "teire-dev/examples/ruby-openai", group: "models/openai" },
+  { slug: "teire-dev/examples/rust-openai", group: "models/openai" },
   // Groq has no hand-written reader: discovery names it after its domain (`groq-com`).
   { slug: "teire-dev/examples/wrapped-models", group: "models/groq-com" },
 ];
@@ -112,7 +117,18 @@ const models = (flag("models") ?? "ultra,super").split(",");
 
 const env = tokenFactoryConfigFromEnv();
 const prices = await fetchModelPrices();
-const { backend, note } = await selectBackend();
+// --backend=tokenfactory verifies on Token Factory Sandboxes, as a public repository's run does.
+const onTokenFactory = args.includes("--backend=tokenfactory");
+const { backend, note } = await selectBackend(
+  onTokenFactory
+    ? {
+        ...process.env,
+        TEIRE_SANDBOX_IMAGES:
+          process.env.TEIRE_SANDBOX_IMAGES ?? `${import.meta.dirname}/../../../apps/sandbox/images`,
+      }
+    : process.env,
+  onTokenFactory ? { isPrivate: false } : undefined,
+);
 const counts = (side: SideResult) =>
   side.checks.map((k) => ({
     name: k.name,
