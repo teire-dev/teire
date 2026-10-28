@@ -4,10 +4,12 @@ import {
   blockquote,
   changeSummary,
   composeHumanIssue,
+  composeOnboarding,
   displayQuote,
   fitBody,
   joinBlocks,
   sanitizeUpstream,
+  upgradeGroups,
 } from "../src/github/compose";
 
 describe("pull request markdown", () => {
@@ -108,5 +110,49 @@ describe("needs-a-human issues", () => {
     expect(body).toContain("no fixed version is published");
     expect(body).toContain("lib/app.rb:12");
     expect(body).toContain("`@teire fix advisory/rubygems/rack/GHSA-x`");
+  });
+});
+
+describe("onboarding upgrades", () => {
+  const row = (dir: string, version: string, verdict: "affected" | "not_affected", sites: number) => ({
+    instance: {
+      ecosystem: "pypi" as const,
+      name: "anthropic",
+      version,
+      direct: true,
+      scope: "runtime" as const,
+      workspace: ".",
+      manifestPath: `${dir}/pyproject.toml`,
+      lockfilePath: `${dir}/uv.lock`,
+      source: "registry" as const,
+      resolvedBy: "lockfile" as const,
+    },
+    target: "1.17.0",
+    majorsBehind: 1,
+    deprecated: null,
+    verdict,
+    breakingSites: sites,
+    coverage: null,
+  });
+
+  it("lists a package once per target across lockfile roots", () => {
+    const groups = upgradeGroups([
+      row("py-major", "0.125.0", "affected", 3),
+      row("py-live", "0.125.0", "not_affected", 0),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      name: "anthropic",
+      from: ["0.125.0"],
+      projects: ["py-major", "py-live"],
+      verdict: "affected",
+      breakingSites: 3,
+    });
+    const { body } = composeOnboarding({
+      repo: { owner: "o", repo: "r" },
+      rows: [row("py-major", "0.125.0", "affected", 3), row("py-live", "0.125.0", "not_affected", 0)],
+    });
+    expect(body.match(/\| `anthropic` \| 0\.125\.0 → 1\.17\.0/g)).toHaveLength(1);
+    expect(body).toContain("across 2 projects");
   });
 });

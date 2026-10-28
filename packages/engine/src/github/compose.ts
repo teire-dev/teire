@@ -588,6 +588,64 @@ pullRequests:
 dashboardIssue: true
 `;
 
+/** The folder holding a dependency's lockfile (or manifest when it has none): one project. */
+function projectOf(r: OnboardingRow) {
+  const file = r.instance.lockfilePath ?? r.instance.manifestPath;
+  const dir = file.includes("/") ? file.slice(0, file.lastIndexOf("/")) : ".";
+  return dir || ".";
+}
+
+export interface UpgradeGroup {
+  ecosystem: string;
+  name: string;
+  target: string;
+  from: string[];
+  projects: string[];
+  verdict: OnboardingRow["verdict"];
+  breakingSites: number;
+  coverage: string | null;
+  majorsBehind: number;
+}
+
+const VERDICT_RANK: Record<string, number> = { affected: 3, inconclusive: 2, not_affected: 1 };
+
+/**
+ * One upgrade per package and target across every lockfile root (rule 9, D94): the PR Teire opens.
+ * A group is "affected" when any root's code breaks; call sites add up across roots.
+ */
+export function upgradeGroups(direct: OnboardingRow[]): UpgradeGroup[] {
+  const groups = new Map<string, UpgradeGroup>();
+  for (const r of direct) {
+    if (!r.target) continue;
+    const key = `${r.instance.ecosystem}/${r.instance.name}/${r.target}`;
+    const g = groups.get(key) ?? {
+      ecosystem: r.instance.ecosystem,
+      name: r.instance.name,
+      target: r.target,
+      from: [],
+      projects: [],
+      verdict: null,
+      breakingSites: 0,
+      coverage: null,
+      majorsBehind: 0,
+    };
+    if (r.instance.version && !g.from.includes(r.instance.version)) g.from.push(r.instance.version);
+    const project = projectOf(r);
+    if (!g.projects.includes(project)) g.projects.push(project);
+    if ((VERDICT_RANK[r.verdict ?? ""] ?? 0) > (VERDICT_RANK[g.verdict ?? ""] ?? 0)) {
+      g.verdict = r.verdict;
+      g.coverage = r.coverage;
+    }
+    g.breakingSites += r.breakingSites;
+    g.majorsBehind = Math.max(g.majorsBehind, r.majorsBehind);
+    groups.set(key, g);
+  }
+  return [...groups.values()].sort(
+    (a, b) =>
+      Number(b.verdict === "affected") - Number(a.verdict === "affected") || b.majorsBehind - a.majorsBehind,
+  );
+}
+
 export function composeOnboarding(input: {
   repo: RepoRef;
   rows: OnboardingRow[];
@@ -603,33 +661,32 @@ export function composeOnboarding(input: {
   const { rows } = input;
   const direct = rows.filter((r) => r.instance.direct);
   const ecosystems = [...new Set(rows.map((r) => r.instance.ecosystem))];
-  const affected = direct.filter((r) => r.verdict === "affected");
-  const upgrades = direct
-    .filter((r) => r.target)
-    .sort(
-      (a, b) =>
-        Number(b.verdict === "affected") - Number(a.verdict === "affected") ||
-        b.majorsBehind - a.majorsBehind,
-    );
+  const upgrades = upgradeGroups(direct);
+  const affected = upgrades.filter((g) => g.verdict === "affected");
+  const projects = new Set(direct.map(projectOf));
   const out: string[] = ["<!-- teire:onboarding -->"];
   out.push(
     `**Teire is ready for \`${input.repo.owner}/${input.repo.repo}\`.** Merge this pull request to turn it on; it only adds \`.github/teire.yml\` with the defaults.`,
   );
   out.push("### What Teire found");
   out.push(
-    `${direct.length} direct dependencies (${rows.length - direct.length} transitive) in ${ecosystems.join(", ")}, at the exact versions your lockfiles pin. ${affected.length} would break this repo's code on upgrade; Teire fixes and verifies those before opening a PR.`,
+    `${direct.length} direct dependencies (${rows.length - direct.length} transitive)${projects.size > 1 ? ` across ${projects.size} projects` : ""} in ${ecosystems.join(", ")}, at the exact versions your lockfiles pin. ${affected.length} upgrade${affected.length === 1 ? "" : "s"} would break this repo's code; Teire fixes and verifies those before opening a PR.`,
   );
   if (upgrades.length) {
     out.push("### Upgrades Teire will open after you merge, in this order");
-    out.push("| Package | From → to | What it means here |", "|---|---|---|");
-    for (const r of upgrades.slice(0, 30))
+    out.push(
+      "One pull request per package; Projects lists every folder that declares it.",
+      "| Package | From → to | Projects | What it means here |",
+      "|---|---|---|---|",
+    );
+    for (const g of upgrades.slice(0, 30))
       out.push(
-        `| \`${r.instance.name}\` | ${r.instance.version} → ${r.target} | ${
-          r.verdict === "affected"
-            ? `breaks ${r.breakingSites} call site${r.breakingSites === 1 ? "" : "s"}: Teire fixes them and checks the fix in a sandbox before its PR opens`
-            : r.verdict === "not_affected"
-              ? `not affected${r.coverage ? ` (${r.coverage})` : ""}: plain upgrade, checked in the sandbox before its PR opens`
-              : r.verdict === "inconclusive"
+        `| \`${g.name}\` | ${g.from.join(", ")} → ${g.target} | ${g.projects.map((p) => `\`${p}\``).join(", ")} | ${
+          g.verdict === "affected"
+            ? `breaks ${g.breakingSites} call site${g.breakingSites === 1 ? "" : "s"}: Teire fixes them and checks the fix in a sandbox before its PR opens`
+            : g.verdict === "not_affected"
+              ? `not affected${g.coverage ? ` (${g.coverage})` : ""}: plain upgrade, checked in the sandbox before its PR opens`
+              : g.verdict === "inconclusive"
                 ? "could not be decided by type; the sandbox decides"
                 : "upgrade checked in the sandbox"
         } |`,
@@ -686,7 +743,7 @@ export function composeOnboarding(input: {
   for (const eco of ecosystems) {
     const list = direct.filter((r) => r.instance.ecosystem === eco);
     out.push(
-      `<details><summary>${ECOSYSTEM_LABEL[eco] ?? eco}: ${list.length} direct</summary>\n\n| Package | Version | Scope | Position |\n|---|---|---|---|`,
+      `<details><summary>${ECOSYSTEM_LABEL[eco] ?? eco}: ${list.length} direct</summary>\n\n| Package | Version | Scope | Project | Position |\n|---|---|---|---|---|`,
     );
     for (const r of list) {
       const chips = [
@@ -699,7 +756,7 @@ export function composeOnboarding(input: {
         r.deprecated !== null ? "deprecated" : null,
       ].filter(Boolean);
       out.push(
-        `| \`${r.instance.name}\` | ${r.instance.version ?? "—"} | ${r.instance.scope} | ${chips.join(" · ") || "up to date"} |`,
+        `| \`${r.instance.name}\` | ${r.instance.version ?? "—"} | ${r.instance.scope} | \`${projectOf(r)}\` | ${chips.join(" · ") || "up to date"} |`,
       );
     }
     out.push("\n</details>");
