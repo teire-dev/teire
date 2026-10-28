@@ -36,7 +36,16 @@ jobs:
       - run: pnpm --filter ./packages/cli build
       - name: The built CLI runs
         run: test "$(node packages/cli/dist/teire.mjs --version)" = "${GITHUB_REF_NAME#cli-v}"
-      # Trusted Publishing needs npm 11.5.1 or later.
-      - run: npm install -g npm@^11.5.1 && npm --version
+      # Trusted Publishing needs npm 11.5.1 or later. npm itself is pinned to one version and its
+      # tarball checked against the registry's sha512 before it is installed (review R19).
+      - name: npm 11.21.0, checked
+        env:
+          NPM_TARBALL: https://registry.npmjs.org/npm/-/npm-11.21.0.tgz
+          NPM_SHA512: Zov8KhamNneiLdELtj5YALtNmJW4L4fCLTzjfpzXG2w6MSHcf0UxgdlK5uloCuksWT+7mGUU7wi79cO6RqivPg==
+        run: |
+          curl -sSfLo "$RUNNER_TEMP/npm.tgz" "$NPM_TARBALL"
+          test "$(openssl dgst -sha512 -binary "$RUNNER_TEMP/npm.tgz" | base64 -w0)" = "$NPM_SHA512"
+          npm install -g "$RUNNER_TEMP/npm.tgz"
+          test "$(npm --version)" = "11.21.0"
       - run: npm publish --access public
         working-directory: packages/cli
