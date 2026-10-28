@@ -26,3 +26,23 @@ export function cancelSignal(): AbortSignal | undefined {
 export function throwIfCancelled() {
   if (scope.getStore()?.aborted) throw new RunCancelledError();
 }
+
+/**
+ * Work shared between runs (a sandbox image build several runs wait on) runs outside any run's
+ * cancel scope (U2 review): one run's cancel must not stop what others are waiting for.
+ */
+export function withoutCancel<T>(work: () => Promise<T>): Promise<T> {
+  return scope.exit(work);
+}
+
+/** A shared promise this run stops waiting for when it is cancelled; the work itself goes on. */
+export function untilCancelled<T>(work: Promise<T>): Promise<T> {
+  const signal = scope.getStore();
+  if (!signal) return work;
+  if (signal.aborted) return Promise.reject(new RunCancelledError());
+  return new Promise<T>((resolve, reject) => {
+    const stop = () => reject(new RunCancelledError());
+    signal.addEventListener("abort", stop, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener("abort", stop));
+  });
+}

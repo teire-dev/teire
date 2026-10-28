@@ -33,6 +33,10 @@ describe("filesFromDiff (Open draft anyway)", () => {
     expect(filesFromDiff("Binary files a/bun.lockb and b/bun.lockb differ\n", read)).toMatchObject({
       error: expect.stringContaining("bun.lockb"),
     });
+    // A binary file's deletion carries no bytes, so it is rebuilt.
+    expect(filesFromDiff("Binary files a/old.bin and /dev/null differ\n", read)).toEqual({
+      files: [{ path: "old.bin", content: null }],
+    });
     expect(filesFromDiff(patch("../etc/passwd", "", "x\n"), read)).toMatchObject({
       error: expect.stringContaining("outside the repository"),
     });

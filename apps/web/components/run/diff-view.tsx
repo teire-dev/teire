@@ -59,11 +59,38 @@ export function DiffView({ patch, maxLines = 400 }: { patch: string | null; maxL
         <span className="text-clear">+{files.reduce((n, f) => n + f.added, 0)}</span>{" "}
         <span className="text-affected">−{files.reduce((n, f) => n + f.removed, 0)}</span>
       </p>
-      {files.map((f) => {
+      {/* The files, by folder, each a jump to its diff (the plan's file tree). */}
+      {files.length > 1 ? (
+        <ul className="flex flex-col gap-0.5 rounded-md bg-sunken p-2 font-mono text-[11px] ring-1 ring-rule ring-inset">
+          {files.map((f, i) => {
+            const at = f.path.lastIndexOf("/");
+            return (
+              <li key={f.path}>
+                <a
+                  href={`#diff-${i}`}
+                  className="flex items-center gap-2 rounded px-1.5 py-0.5 hover:bg-hover"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="text-ink-3">{at > 0 ? f.path.slice(0, at + 1) : ""}</span>
+                    <span className="text-ink">{f.path.slice(at + 1)}</span>
+                  </span>
+                  <span className="text-clear">+{f.added}</span>
+                  <span className="text-affected">−{f.removed}</span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {files.map((f, i) => {
         const shown = f.lines.slice(0, Math.max(0, budget));
         budget -= shown.length;
         return (
-          <div key={f.path} className="overflow-hidden rounded-md border font-mono text-xs">
+          <div
+            key={f.path}
+            id={`diff-${i}`}
+            className="scroll-mt-20 overflow-hidden rounded-md border font-mono text-xs"
+          >
             <div className="flex items-center justify-between gap-3 border-b bg-muted/60 px-3 py-1.5">
               <span className="truncate">{f.path}</span>
               <span className="shrink-0">

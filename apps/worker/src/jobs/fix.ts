@@ -1304,6 +1304,11 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       // Fire-and-forget, so it never throws: a lost lease is noted and the next fenced write stops the run.
       onEvent: (e: { step: string }) => {
         if (leaseLost) return;
+        // What the run read (Context) is recorded, but it isn't a step the run is on.
+        if (e.step === "context") {
+          void appendEvent(db, runId, e.step, "source", e, true).catch(() => undefined);
+          return;
+        }
         lastStep = e.step;
         const said = (e as { detail?: unknown }).detail;
         if (typeof said === "string") lastDetail = said.slice(0, 160);
@@ -1759,7 +1764,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     if (
       !(error instanceof LeaseLostError) &&
       !leaseLost &&
-      (error instanceof RunCancelledError || abort.signal.aborted)
+      // Only this run's own cancel (a person, or Off); a cancel error from anything else is a failure.
+      abort.signal.aborted
     ) {
       // Stopped because a person asked (or fixes turned Off): said on the run, its actions and its
       // progress comment. A run already marked cancelled by someone else keeps their words.

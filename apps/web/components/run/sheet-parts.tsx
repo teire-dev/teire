@@ -1,10 +1,23 @@
 "use client";
 
-import { ChevronRight, FileCode2, FilePen, Flag, FlaskConical, Search, SquareTerminal } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FileCode2,
+  FilePen,
+  Flag,
+  FlaskConical,
+  ListChecks,
+  Search,
+  SquareTerminal,
+} from "lucide-react";
+import { useState } from "react";
 import type { LedgerCheck } from "@/components/teire/ledger";
 import type { Phase } from "@/components/teire/phase-strip";
 import { EvidenceChip, StatusChip, type Tone } from "@/components/teire/status-chip";
-import type { ActivityRow, Exec } from "@/lib/activity";
+import type { ActivityRow, Exec, PlanItem } from "@/lib/activity";
 import { STEP_DOING } from "@/lib/proof";
 import type { RunSheetData } from "@/lib/run-sheet";
 import { backendName, cn } from "@/lib/utils";
@@ -198,16 +211,34 @@ export function ActivityItem({ row, open }: { row: ActivityRow; open: boolean })
                 {l}
               </p>
             ))}
+            {row.plan?.length ? <PlanBlock plan={row.plan} /> : null}
             {row.tools.length ? (
               <ul className="mt-1 flex flex-col gap-1">
                 {row.tools.map((t) => {
                   const Icon = TOOL_ICON[t.tool] ?? SquareTerminal;
                   return (
-                    <li key={t.seq} className="flex items-center gap-2 text-xs">
-                      <Icon className="size-3.5 shrink-0 text-ink-3" aria-hidden />
-                      <span className="min-w-0 flex-1 truncate font-mono text-ink-2">{t.said}</span>
-                      {t.ms ? (
-                        <span className="font-mono text-[11px] text-ink-3">{(t.ms / 1000).toFixed(1)} s</span>
+                    <li key={t.seq} className="flex flex-col gap-1">
+                      <span className="flex items-center gap-2 text-xs">
+                        <Icon className="size-3.5 shrink-0 text-ink-3" aria-hidden />
+                        <span className="min-w-0 flex-1 truncate font-mono text-ink-2">{t.said}</span>
+                        {t.ms ? (
+                          <span className="font-mono text-[11px] text-ink-3">
+                            {(t.ms / 1000).toFixed(1)} s
+                          </span>
+                        ) : null}
+                      </span>
+                      {t.edit ? <MiniDiff removed={t.edit.removed} added={t.edit.added} /> : null}
+                      {t.result?.length ? (
+                        <span className="ml-5 flex flex-wrap gap-x-3 font-mono text-[11px]">
+                          {t.result.map((r) => {
+                            const ok = / exit 0 /.test(r);
+                            return (
+                              <span key={r} className={ok ? "text-ink-2" : "text-broke"}>
+                                {ok ? "✓" : "✕"} {r.replace(/^after: /, "").replace(/ in \d+ ms/, "")}
+                              </span>
+                            );
+                          })}
+                        </span>
                       ) : null}
                     </li>
                   );
@@ -230,11 +261,26 @@ export function Terminal({ exec }: { exec: Exec }) {
   // Tokens in a command line never show (`https://*****@github.com/…`).
   const command = exec.command.replace(/(https?:\/\/)[^\s/@]+@/g, "$1*****@");
   const out = `${exec.stdoutTail ?? ""}${exec.stderrTail ? `\n${exec.stderrTail}` : ""}`.trim();
+  const [copied, setCopied] = useState(false);
   return (
     <details className="group/t mt-1 rounded-md bg-sunken ring-1 ring-rule ring-inset">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-mono text-[11px] [&::-webkit-details-marker]:hidden">
         <span className="text-ink-3">{exec.phase.replace(/_/g, " ")}</span>
         <span className="min-w-0 flex-1 truncate text-ink">$ {command}</span>
+        <button
+          type="button"
+          className="rounded p-0.5 text-ink-3 hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-signal"
+          aria-label={copied ? "Copied" : "Copy the command"}
+          onClick={(e) => {
+            e.preventDefault();
+            void navigator.clipboard.writeText(command).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            });
+          }}
+        >
+          {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
+        </button>
         <span className={ok ? "text-ink-2" : "text-broke"}>
           {exec.timedOut ? "timed out" : `exit ${exec.exitCode}`}
         </span>
@@ -247,24 +293,48 @@ export function Terminal({ exec }: { exec: Exec }) {
   );
 }
 
-/** What the run read to decide (the right column's Context), grouped by where it came from. */
-export function contextOf(sheet: RunSheetData) {
-  const groups: Record<string, string[]> = {
+export interface ContextItem {
+  title: string;
+  url: string | null;
+  quote: string | null;
+}
+
+/**
+ * What the run read to decide (the right column's Context): the release notes, provider pages and
+ * docs answers it recorded as sources, grouped by kind; an older run's docs lookups from its steps.
+ */
+export function contextOf(sheet: RunSheetData): [string, ContextItem[]][] {
+  const groups: Record<string, ContextItem[]> = {
     "Release notes": [],
     "Provider pages": [],
-    "What reaches your code": [],
-    "Docs lookups": [],
+    "Docs answers": [],
   };
+  const kinds: Record<string, string> = {
+    "release-notes": "Release notes",
+    provider: "Provider pages",
+    docs: "Docs answers",
+  };
+  let recorded = false;
   for (const e of sheet.events) {
-    const detail = (e.payload as { detail?: unknown } | null)?.detail;
-    if (typeof detail !== "string") continue;
-    if (e.step === "notes") groups["Release notes"]?.push(detail);
-    else if (e.step === "read-page") groups["Provider pages"]?.push(detail);
-    else if (e.step === "triage" || e.step === "assess" || e.step === "locate")
-      groups["What reaches your code"]?.push(detail);
-    else if (e.step === "agent" && /docs|context7|lookup/i.test(detail)) groups["Docs lookups"]?.push(detail);
+    const source = (
+      e.payload as { source?: { kind?: string; title?: string; url?: string | null; quote?: string } } | null
+    )?.source;
+    if (e.step !== "context" || !source?.kind || !kinds[source.kind]) continue;
+    recorded = true;
+    groups[kinds[source.kind] as string]?.push({
+      title: source.title ?? "",
+      url: source.url ?? null,
+      quote: source.quote ?? null,
+    });
   }
-  return Object.entries(groups).filter(([, lines]) => lines.length);
+  if (!recorded)
+    for (const e of sheet.events) {
+      const detail = (e.payload as { detail?: unknown } | null)?.detail;
+      if (e.step === "agent" && typeof detail === "string")
+        for (const m of detail.matchAll(/lookup_docs\(\{"query":"((?:[^"\\]|\\.)*)"/g))
+          groups["Docs answers"]?.push({ title: m[1] ?? "", url: null, quote: null });
+    }
+  return Object.entries(groups).filter(([, items]) => items.length);
 }
 
 /** The run's state in words, with why it waits or who stopped it. */
@@ -311,6 +381,105 @@ export function RunFacts({ sheet }: { sheet: RunSheetData }) {
       {run.backend ? <span>{backendName(run.backend)}</span> : null}
       {ms !== null ? <span>{duration(ms)}</span> : null}
       <span>{cost > 0 ? `$${cost.toFixed(3)} in model calls` : "no model calls"}</span>
+    </div>
+  );
+}
+
+/** The agent's plan as it last set it (Factory's plan row): counts, done items struck through. */
+function PlanBlock({ plan }: { plan: PlanItem[] }) {
+  const count = (status: PlanItem["status"]) => plan.filter((i) => i.status === status).length;
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md bg-sunken px-3 py-2 ring-1 ring-rule ring-inset">
+      <span className="flex items-center gap-2 font-mono text-[11px] text-ink-3">
+        <ListChecks className="size-3.5" aria-hidden />
+        Plan · {count("done")} done · {count("in_progress")} in progress · {count("pending")} pending
+      </span>
+      <ol className="flex flex-col gap-0.5 pl-5 text-xs">
+        {plan.map((i, n) => (
+          <li
+            // biome-ignore lint/suspicious/noArrayIndexKey: the plan's order is its identity
+            key={n}
+            className={cn(
+              "list-decimal",
+              i.status === "done"
+                ? "text-ink-3 line-through"
+                : i.status === "in_progress"
+                  ? "text-signal"
+                  : "text-ink-2",
+            )}
+          >
+            {i.text}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** An edit's old and new text, a few lines each (the run's full change is under Changes). */
+function MiniDiff({ removed, added }: { removed: string; added: string }) {
+  const lines = (text: string) => text.split("\n").slice(0, 6);
+  return (
+    <pre className="ml-5 overflow-x-auto rounded-md bg-sunken py-1 font-mono text-[11px] leading-5 ring-1 ring-rule ring-inset">
+      {lines(removed).map((l, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a static excerpt; line order is the identity
+        <span key={`r${i}`} className="block bg-affected-soft px-2 text-affected">
+          − {l}
+        </span>
+      ))}
+      {lines(added).map((l, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a static excerpt; line order is the identity
+        <span key={`a${i}`} className="block bg-clear-soft px-2 text-clear">
+          + {l}
+        </span>
+      ))}
+    </pre>
+  );
+}
+
+/**
+ * A finished run's last word (Factory's closing artifact card): what it opened, its evidence, the
+ * tests before and after, and the agent's own summary when it gave one.
+ */
+export function Closing({ sheet }: { sheet: RunSheetData }) {
+  const { run, artifact, verification } = sheet;
+  const finish = [...sheet.events]
+    .reverse()
+    .map(
+      (e) =>
+        e.payload as { calls?: { name: string; input?: { summary?: string } }[]; detail?: string } | null,
+    )
+    .map(
+      (p) =>
+        p?.calls?.find((c) => c.name === "finish")?.input?.summary ??
+        /^finish\(\{"summary":"((?:[^"\\]|\\.)*)/.exec(p?.detail ?? "")?.[1],
+    )
+    .find(Boolean);
+  const test = (side?: { name: string; counts?: { passed: number; collected: number } | null }[]) =>
+    side?.find((c) => c.name === "test")?.counts;
+  const before = test(verification?.baseline);
+  const after = test(verification?.after);
+  if (!artifact && !run.evidenceKind) return null;
+  return (
+    <div className="flex flex-col gap-2 border-t border-rule px-4 py-4">
+      <div className="flex flex-wrap items-center gap-3">
+        {run.evidenceKind ? <EvidenceChip kind={run.evidenceKind} /> : null}
+        {before && after ? (
+          <span className="font-mono text-xs text-ink-2">
+            tests {before.passed}/{before.collected} → {after.passed}/{after.collected}
+          </span>
+        ) : null}
+        {artifact?.url ? (
+          <a
+            href={artifact.url}
+            className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-ink hover:underline"
+          >
+            {artifact.kind === "issue" ? "Issue" : "Pull request"} #{artifact.number}
+            <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        ) : null}
+      </div>
+      {finish ? <p className="text-sm leading-relaxed text-ink-2">{finish.replace(/\\n/g, " ")}</p> : null}
     </div>
   );
 }

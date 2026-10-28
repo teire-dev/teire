@@ -29,6 +29,15 @@ export interface ToolLine {
   said: string;
   ms: number | null;
   costUsd: number | null;
+  /** An edit's old and new text (the mini diff). */
+  edit?: { removed: string; added: string };
+  /** What a `run_check` reported, one line per check (its ledger delta). */
+  result?: string[];
+}
+
+export interface PlanItem {
+  text: string;
+  status: "pending" | "in_progress" | "done";
 }
 
 export interface ActivityRow {
@@ -39,6 +48,8 @@ export interface ActivityRow {
   lines: string[];
   tools: ToolLine[];
   execs: Exec[];
+  /** The agent's plan as it last set it. */
+  plan?: PlanItem[];
   startedAt: Date;
   endedAt: Date;
   costUsd: number;
@@ -102,6 +113,28 @@ export function toolSaid(detail: string): { tool: string; said: string } {
   }
 }
 
+/** A structured tool call (`{name, input}`) in the same words as `toolSaid`. */
+export function callSaid(name: string, input: Record<string, unknown>): string {
+  const s = (k: string) => (typeof input[k] === "string" ? (input[k] as string).replace(/^\.\//, "") : null);
+  const n = (k: string) => (typeof input[k] === "number" ? (input[k] as number) : null);
+  switch (name) {
+    case "read_file":
+      return `Reading ${s("path") ?? "a file"}${n("startLine") ? ` (lines ${n("startLine")}–${n("endLine") ?? "…"})` : ""}`;
+    case "edit_file":
+      return `Editing ${s("path") ?? "a file"}`;
+    case "search":
+      return `Searching ${s("pattern") ?? s("query") ?? ""}`.trim();
+    case "run_check":
+      return "Running your checks";
+    case "lookup_docs":
+      return `Looking up ${s("query") ?? "the docs"}`;
+    case "finish":
+      return "Finished";
+    default:
+      return name;
+  }
+}
+
 function lineOf(e: Event): string | null {
   const p = (e.payload ?? {}) as Record<string, unknown>;
   if (typeof p.detail === "string") return p.detail;
@@ -143,11 +176,44 @@ export function activityOf(
     ? { ...TITLES, agent: [`${name} is fixing the code`, `${name} fixed the code`] }
     : TITLES;
   const rows: ActivityRow[] = [];
+  // A run_check's results are logged while the tool runs, before the agent's step that names it:
+  // they wait on the agent's row and join that tool line (its ledger delta); left over, they are a
+  // check row of their own.
+  let held: { row: ActivityRow; lines: string[]; at: Date; seq: number } | null = null;
+  const flush = () => {
+    if (!held?.lines.length) {
+      held = null;
+      return;
+    }
+    rows.push({
+      key: `check-${held.seq}`,
+      step: "check",
+      title: TITLE.check?.[1] ?? "check",
+      state: held.lines.some((l) => / exit (?!0 )/.test(l)) ? "failed" : "done",
+      lines: held.lines,
+      tools: [],
+      execs: [],
+      startedAt: held.at,
+      endedAt: held.at,
+      costUsd: 0,
+    });
+    held = null;
+  };
   for (const e of events) {
+    // What the run read is the Context tab's, not a step.
+    if (e.step === "context") continue;
+    const p = (e.payload ?? {}) as Record<string, unknown>;
     const last = rows.at(-1);
+    if (e.step === "check" && last?.step === "agent" && typeof p.detail === "string") {
+      held ??= { row: last, lines: [], at: e.at, seq: e.seq };
+      held.lines.push(p.detail);
+      continue;
+    }
+    if (held && e.step !== "agent") flush();
+    const tail = rows.at(-1);
     const row: ActivityRow =
-      last && last.step === e.step
-        ? last
+      tail && tail.step === e.step
+        ? tail
         : {
             key: `${e.step}-${e.seq}`,
             step: e.step,
@@ -160,17 +226,35 @@ export function activityOf(
             endedAt: e.at,
             costUsd: 0,
           };
-    if (row !== last) rows.push(row);
+    if (row !== tail) rows.push(row);
     row.endedAt = e.at;
-    const p = (e.payload ?? {}) as Record<string, unknown>;
     if (typeof p.costUsd === "number") row.costUsd += p.costUsd;
     if (e.step === "agent" && typeof p.detail === "string") {
-      row.tools.push({
-        seq: e.seq,
-        ...toolSaid(p.detail),
-        ms: typeof p.ms === "number" ? p.ms : null,
-        costUsd: typeof p.costUsd === "number" ? p.costUsd : null,
+      const calls = Array.isArray(p.calls)
+        ? (p.calls as { name: string; input: Record<string, unknown> }[])
+        : null;
+      const edits = Array.isArray(p.edits) ? (p.edits as { removed: string; added: string }[]) : [];
+      if (Array.isArray(p.plan)) row.plan = p.plan as PlanItem[];
+      const lines = calls
+        ? calls
+            .filter((c) => c.name !== "update_plan")
+            .map((c) => ({ tool: c.name, said: callSaid(c.name, c.input ?? {}) }))
+        : [toolSaid(p.detail)];
+      let edit = 0;
+      lines.forEach((l, i) => {
+        row.tools.push({
+          seq: e.seq * 100 + i,
+          ...l,
+          // The step's time and cost belong to its first call.
+          ms: i === 0 && typeof p.ms === "number" ? p.ms : null,
+          costUsd: i === 0 && typeof p.costUsd === "number" ? p.costUsd : null,
+          ...(l.tool === "edit_file" && edits[edit] ? { edit: edits[edit++] } : {}),
+          ...(l.tool === "run_check" && held?.lines.length ? { result: held.lines } : {}),
+        });
+        if (l.tool === "run_check" && held) held = null;
       });
+      if (!lines.length && !calls)
+        row.tools.push({ seq: e.seq, ...toolSaid(p.detail), ms: null, costUsd: null });
       continue;
     }
     if (
@@ -182,6 +266,7 @@ export function activityOf(
     const line = lineOf(e);
     if (line && !row.lines.includes(line)) row.lines.push(line);
   }
+  flush();
   // Each sandbox command joins the last row of the step its phase belongs to.
   for (const x of execs) {
     const step = PHASE_STEP[x.phase] ?? x.phase;

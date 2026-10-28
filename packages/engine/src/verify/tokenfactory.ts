@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cancelSignal, RunCancelledError, throwIfCancelled } from "../cancel";
+import { cancelSignal, RunCancelledError, throwIfCancelled, untilCancelled, withoutCancel } from "../cancel";
 import { VERIFY } from "../constants";
 import type { VerifyBackend, VerifySession } from "./backend";
 import type { JobResult } from "./cloudflare";
@@ -514,7 +514,11 @@ export class TokenFactorySandboxes {
       } catch (error) {
         misses++;
         if (Date.now() > deadline || misses > TOKEN_FACTORY_POLL_RETRIES) throw error;
-        await new Promise((r) => setTimeout(r, POLL_MS * 2 ** Math.min(misses, 5)));
+        // The back-off ends with the run's cancel too (U2 review).
+        if (!(await pause(POLL_MS * 2 ** Math.min(misses, 5), cancelSignal()))) {
+          await this.cancel(operation).catch(() => undefined);
+          throw new RunCancelledError();
+        }
         continue;
       }
       if (op.status === "SUCCESS" || op.status === "FAILED" || op.status === "CANCELLED") return op;
@@ -638,9 +642,12 @@ export function ensureImage(client: TokenFactorySandboxes, name: string, dockerf
   if (pending) return pending;
   // The tag names the recipe and the base it was built on (stage R review: a moved base tag reused
   // the old image), so the same recipe on a new base is a new image.
-  const job = baseImage(client, recipe.base)
-    .then((base) => buildImage(client, `${key}-${base.slice(0, 8)}`, recipe, base))
-    .finally(() => building.delete(key));
+  // Built outside the asking run's cancel scope: other runs may be waiting on the same image.
+  const job = withoutCancel(() =>
+    baseImage(client, recipe.base).then((base) =>
+      buildImage(client, `${key}-${base.slice(0, 8)}`, recipe, base),
+    ),
+  ).finally(() => building.delete(key));
   building.set(key, job);
   return job;
 }
@@ -704,7 +711,7 @@ export function tokenFactoryBackend(
     name: "tokenfactory",
     async open(id, options) {
       const name = (options.image ?? "teire-node").replace(/^teire-/, "");
-      let image = await ensureImage(client, name, join(images.dir, name));
+      let image = await untilCancelled(ensureImage(client, name, join(images.dir, name)));
       if (stillPublic && !(await stillPublic().catch(() => false))) throw new RepositoryNotPublicError();
       const tarball = await client.upload(await fetchTarball(options.tarball.url, options.tarball.token));
       // Operations this session started that may still run, cancelled on close. An operation leaves

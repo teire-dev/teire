@@ -325,10 +325,15 @@ async function repoAction(
           cancelledBy: login,
           finishedAt: new Date(),
         });
-        await settleRunActions(db, run.id, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
-          status: "refused",
-          result: `Cancelled by @${login} before it started`,
-        });
+        await settleRunActions(
+          db,
+          run.id,
+          ["fix", "rebase", "refresh", "recreate", "retry-run", "reverify-run"],
+          {
+            status: "refused",
+            result: `Cancelled by @${login} before it started`,
+          },
+        );
         return { status: "done", result: "Cancelled before it started", links: [runLink(run.id)] };
       }
       if (run.status !== "running" && run.status !== "stopping")

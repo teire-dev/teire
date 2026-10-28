@@ -156,17 +156,21 @@ export function proofOfRun(run: RunForProof): Proof {
   const cancelled = !active && run.status === "cancelled" && !evidence;
   // Fixed means a change was committed or proposed (a PR, a draft, a dry run's PR); a run that
   // ended in an issue for a person has none that passed, whatever its evidence (review round 2).
-  const fixed: ProofLink = failedEarly
-    ? { state: "failed", detail: "stopped before a change was verified" }
-    : cancelled
-      ? { state: "not_applicable", detail: "cancelled" }
-      : (progress("fixed") ?? null) !== null
-        ? { state: progress("fixed") as ProofState }
-        : run.prMode === "issue" || run.artifact?.kind === "issue"
-          ? { state: "failed", detail: "no change passed; a person is needed" }
-          : run.prMode === "ready" || run.prMode === "draft" || run.artifact?.kind === "pr"
-            ? { state: "done" }
-            : { state: "pending" };
+  // A re-verify changes no code: the fix is the PR's, unchanged (U2 review).
+  const fixed: ProofLink =
+    run.kind === "reverify"
+      ? { state: progress("fixed") === "pending" ? "pending" : "done", detail: "the PR's code, unchanged" }
+      : failedEarly
+        ? { state: "failed", detail: "stopped before a change was verified" }
+        : cancelled
+          ? { state: "not_applicable", detail: "cancelled" }
+          : (progress("fixed") ?? null) !== null
+            ? { state: progress("fixed") as ProofState }
+            : run.prMode === "issue" || run.artifact?.kind === "issue"
+              ? { state: "failed", detail: "no change passed; a person is needed" }
+              : run.prMode === "ready" || run.prMode === "draft" || run.artifact?.kind === "pr"
+                ? { state: "done" }
+                : { state: "pending" };
 
   const proven: ProofLink = !evidence
     ? { state: progress("proven") ?? (failedEarly || cancelled ? "not_applicable" : "pending") }

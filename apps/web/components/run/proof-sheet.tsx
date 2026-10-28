@@ -21,12 +21,13 @@ import { activityOf, type Exec, modelLabel } from "@/lib/activity";
 import { SPONSORS } from "@/lib/brands";
 import { subjectMark } from "@/lib/marks";
 import { proofOfRun } from "@/lib/proof";
-import type { RunSheetData } from "@/lib/run-sheet";
+import type { RunSheetData, RunSheetTick } from "@/lib/run-sheet";
 import { traceOf } from "@/lib/trace";
 import { backendName, cn } from "@/lib/utils";
 import { ShareRun } from "./share-run";
 import {
   ActivityItem,
+  Closing,
   contextOf,
   duration,
   firstStart,
@@ -53,19 +54,34 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const client = useQueryClient();
   const [opened] = useState(() => Date.now());
   const key = ["run-sheet", initial.run.id];
-  const { data: sheet } = useQuery({
+  const {
+    data: sheet,
+    failureCount,
+    error,
+  } = useQuery({
     queryKey: key,
     initialData: initial,
-    // Only the events after the last one held are fetched; the rest of the run is read whole.
+    // A tick: one query for what moves (the run, its PR, the events after the last held, receipts);
+    // the diff only when it changed. A failed tick keeps the last data and says "Reconnecting…".
     queryFn: async () => {
       const held = client.getQueryData<RunSheetData>(key) ?? initial;
       const after = held.events.at(-1)?.seq ?? 0;
-      const res = await fetch(`/api/runs/${initial.run.id}/sheet?after=${after}`, { cache: "no-store" });
-      if (!res.ok) return held;
-      const next = (await res.json()) as RunSheetData;
+      const res = await fetch(
+        `/api/runs/${initial.run.id}/sheet?after=${after}&diff=${held.run.diff?.length ?? 0}`,
+        { cache: "no-store" },
+      );
+      if (res.status === 404) throw new Error("gone");
+      if (!res.ok) throw new Error("unreachable");
+      const tick = (await res.json()) as RunSheetTick;
       const seen = new Set(held.events.map((e) => e.seq));
-      return { ...next, events: [...held.events, ...next.events.filter((e) => !seen.has(e.seq))] };
+      return {
+        ...held,
+        ...tick,
+        run: { ...tick.run, diff: tick.run.diff !== undefined ? tick.run.diff : held.run.diff },
+        events: [...held.events, ...tick.events.filter((e) => !seen.has(e.seq))],
+      };
     },
+    retry: false,
     // A run's last events land just after its final status (U2 review), so the poll runs a little past it.
     refetchInterval: (q) => {
       const run = q.state.data?.run;
@@ -203,7 +219,11 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
               Re-verify
             </ActionButton>
           ) : null}
-          {sheet.member && !active && run.prMode === "issue" && run.diff ? (
+          {sheet.member &&
+          !active &&
+          run.prMode === "issue" &&
+          run.diff &&
+          !(artifact?.kind === "pr" && artifact.state === "open") ? (
             <ActionButton kind="open-draft-anyway" params={{ runId: run.id }} repo={repo.fullName}>
               Open draft anyway
             </ActionButton>
@@ -247,6 +267,13 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
         </div>
       </section>
 
+      {failureCount > 0 ? (
+        <p className="rounded-lg bg-sunken px-4 py-2 font-mono text-xs text-ink-3" role="status">
+          {error?.message === "gone"
+            ? "This run is no longer visible to you: its repository may have turned private. What's shown is from before."
+            : "Reconnecting… the page keeps what it last read."}
+        </p>
+      ) : null}
       {run.status === "stopping" ? (
         <p className="rounded-lg bg-signal-soft px-4 py-3 text-sm text-signal">
           Stopping: {run.cancelledBy ? `@${run.cancelledBy} asked` : "asked"} during{" "}
@@ -259,7 +286,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
           <p>
             Evidence is from an older base: the base branch moved
             {stale.base ? <span className="font-mono text-xs"> ({stale.base})</span> : null} while fixes are
-            off. Re-verify checks this pull request again as it stands.
+            off. Re-verify checks it merged into the base as it is now.
           </p>
           {sheet.member ? (
             <ActionButton kind="reverify-run" params={{ runId: run.id }} repo={repo.fullName}>
@@ -304,6 +331,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
                 />
               ))}
             </ol>
+            {!active ? <Closing sheet={sheet} /> : null}
           </section>
           {run.diff ? (
             <section className="flex flex-col gap-3">
@@ -461,15 +489,39 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
             </TabsContent>
             <TabsContent value="context" className="flex flex-col gap-3">
               {context.length ? (
-                context.map(([group, lines]) => (
+                context.map(([group, items]) => (
                   <section key={group} className="flex flex-col gap-2 rounded-xl bg-sheet p-4 shadow-card">
                     <span className="eyebrow">
-                      {group} ({lines.length})
+                      {group} ({items.length})
                     </span>
-                    <ul className="flex flex-col gap-1.5">
-                      {lines.slice(0, 12).map((l) => (
-                        <li key={l} className="text-xs leading-relaxed text-ink-2">
-                          {l}
+                    <ul className="flex flex-col gap-3">
+                      {items.slice(0, 12).map((item, i) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: two sources can share a title; order is stable
+                        <li key={`${item.title}-${i}`} className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-ink">
+                            {item.url?.startsWith("https://") ? (
+                              <a
+                                href={item.url}
+                                className="hover:underline"
+                                rel="noreferrer noopener"
+                                target="_blank"
+                              >
+                                {item.title}
+                              </a>
+                            ) : (
+                              item.title
+                            )}
+                          </span>
+                          {item.quote ? (
+                            <details className="group/q">
+                              <summary className="cursor-pointer list-none font-mono text-[11px] text-ink-3 [&::-webkit-details-marker]:hidden">
+                                What it said
+                              </summary>
+                              <blockquote className="mt-1 max-h-48 overflow-auto border-l-2 border-rule pl-2 text-[11px] leading-relaxed whitespace-pre-wrap text-ink-2">
+                                {item.quote}
+                              </blockquote>
+                            </details>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

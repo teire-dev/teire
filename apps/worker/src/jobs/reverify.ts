@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, readFileSync, readlinkSync, statSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { and, eq, inArray, runs, sql } from "@teire/db";
+import { and, eq, inArray, lt, runs, sql } from "@teire/db";
 import { RunCancelledError, withCancel } from "@teire/engine/cancel";
 import { personMayStart, readTeireConfig } from "@teire/engine/config";
 import { PULL_REQUESTS, RUNS, SCAN } from "@teire/engine/constants";
@@ -79,14 +79,19 @@ const MERGEABLE_READS = 5;
 const MERGEABLE_PAUSE_MS = 3_000;
 /** A compare lists at most this many files (GitHub's REST docs); a longer list is cut. */
 const COMPARE_FILE_CAP = 300;
+/** A queued re-verify this old never got its job (the fix queue holds a repository's runs in order). */
+const REVERIFY_QUEUED_STALE_MS = 6 * 3600_000;
 
 /** One file of a compare as the run page's diff reads it (the same shape as a fix run's patches). */
 function fileDiff(f: { filename: string; status: string; previous_filename?: string; patch?: string }) {
   const from = f.status === "added" ? "/dev/null" : `a/${f.previous_filename ?? f.filename}`;
   const to = f.status === "removed" ? "/dev/null" : `b/${f.filename}`;
-  return f.patch
-    ? `===================================================================\n--- ${from}\n+++ ${to}\n${f.patch}\n`
-    : `Binary files ${from} and ${to} differ\n`;
+  if (f.patch)
+    return `===================================================================\n--- ${from}\n+++ ${to}\n${f.patch}\n`;
+  // No patch: a pure rename, or a file GitHub doesn't show (binary or too large).
+  return f.status === "renamed"
+    ? `rename ${from.replace(/^a\//, "")} → ${to.replace(/^b\//, "")}\n`
+    : `Binary or large file ${f.filename}: GitHub shows no patch\n`;
 }
 
 /**
@@ -109,6 +114,24 @@ export async function startReverify(
   // under a lock on the PR's group, so two requests at once can't both start one.
   const begun = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`reverify:${repo.id}:${groupKey}`}))`);
+    // A queued re-verify that never started (its job was lost) gives way after a while (U2 review).
+    await tx
+      .update(runs)
+      .set({
+        status: "failed",
+        step: "never started",
+        error: "its job was lost before it started",
+        finishedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(runs.repoId, repo.id),
+          eq(runs.kind, "reverify"),
+          eq(runs.groupKey, groupKey),
+          eq(runs.status, "queued"),
+          lt(runs.createdAt, new Date(Date.now() - REVERIFY_QUEUED_STALE_MS)),
+        ),
+      );
     const [active] = await tx
       .select({ id: runs.id })
       .from(runs)
@@ -166,6 +189,7 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
   let published = false;
   let cancelledBy: string | null = null;
   let lastStep = "assess";
+  let lastDetail: string | null = null;
   const update = async (fields: Parameters<typeof updateHeldRun>[2]) => {
     if (leaseLost) throw new LeaseLostError();
     if (await updateHeldRun(db, runId, fields)) return;
@@ -222,9 +246,11 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
           if (c && !abort.signal.aborted && !published) {
             cancelledBy = c.by;
             abort.abort();
-            void appendEvent(db, runId, "run", "stopping", { by: c.by, during: lastStep }).catch(
-              () => undefined,
-            );
+            void appendEvent(db, runId, "run", "stopping", {
+              by: c.by,
+              during: lastStep,
+              doing: lastDetail,
+            }).catch(() => undefined);
           }
         })
         .catch(() => undefined),
@@ -377,12 +403,19 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
             runId,
             tarball: tarball(base),
             after: { tarball: tarball(after) },
-            projects: [...touched.values()],
+            // The run's own ecosystem first: its lines fill the ledger live (`npm/zod/4.1.0` → npm).
+            projects: [...touched.values()].sort(
+              (a, b) =>
+                Number(b.ecosystem === groupKey.split("/")[0]) -
+                Number(a.ecosystem === groupKey.split("/")[0]),
+            ),
+            leadFirst: true,
             ...(config.verify.length ? { verify: config.verify } : {}),
             why: merge ? `on #${pr.number} merged into the base` : `on #${pr.number} as its branch stands`,
             onEvent: (e) => {
               if (leaseLost) return;
               lastStep = e.step;
+              lastDetail = e.detail.slice(0, 160);
               void appendEvent(db, runId, e.step, "log", e, true).catch(() => undefined);
             },
           }),
@@ -458,7 +491,9 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
       owner,
       repo: name,
       headSha: head,
-      conclusion: evidence.kind === "verified" ? "success" : "neutral",
+      // Failing checks fail the check run; a draft's evidence is neutral (U2 review).
+      conclusion:
+        evidence.kind === "verified" ? "success" : evidence.prMode === "issue" ? "failure" : "neutral",
       title: `${label}: re-verified at ${head.slice(0, 7)}`,
       summary: saidOnGitHub(evidence.reasons),
       ...(runUrl ? { detailsUrl: runUrl } : {}),
@@ -483,7 +518,9 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
       body: `Re-verified at \`${head.slice(0, 7)}\` for @${by}${merge ? ", merged into the base as it is now" : `, as its branch stands (${pr.mergeable === false ? "it conflicts with the base" : "GitHub didn't say whether it merges"})`}: **${label}**. ${saidOnGitHub(evidence.reasons)}${flipped}${runUrl ? `\n\n[The run](${runUrl})` : ""}`,
     });
     // The PR's evidence is this run's now: its rows and proof chain read from here.
-    await upsertArtifact(db, { ...artifact, headSha: head, runId });
+    // As the PR stands now: a close or merge recorded meanwhile stays (U2 review).
+    const current = await getArtifact(db, repo.id, "pr", groupKey);
+    if (current) await upsertArtifact(db, { ...current, headSha: head, runId });
     await update({
       status: "succeeded",
       step: "done",
@@ -525,7 +562,8 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
     if (
       !(error instanceof LeaseLostError) &&
       !leaseLost &&
-      (error instanceof RunCancelledError || abort.signal.aborted)
+      // Only this run's own cancel; a cancel error from anything else is a failure (U2 review).
+      abort.signal.aborted
     ) {
       const who = cancelledBy ?? (await cancelRequest(db, runId))?.by ?? "a person";
       await updateHeldRun(db, runId, {
