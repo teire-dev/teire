@@ -231,6 +231,12 @@ TEIRE_GITHUB_ORG=your-org node scripts/register-github-app.mjs
 cd apps/sandbox && npx wrangler deploy && npx wrangler secret put TEIRE_SANDBOX_KEY && cd ../..
 # .env.local: TEIRE_SANDBOX_URL=<the Worker URL>, TEIRE_SANDBOX_KEY=<the same key>
 
+# Optional: the dependency updater (dependabot-core under gVisor) on a Linux host with Docker.
+# It installs a second Docker daemon beside yours and checks yours still works; read
+# apps/resolver/THREAT-MODEL.md first. Without it, Teire's own manifest and lockfile edits are used.
+#   sudo apps/resolver/host/install.sh install
+# .env.local: TEIRE_RESOLVER_URL=http://<the host's address>:8787, TEIRE_RESOLVER_SECRET from /etc/teire-resolver/env
+
 pnpm --parallel --filter ./apps/web --filter ./apps/worker dev   # web on :3000, worker on :8080
 npx smee-client --url <SMEE_URL from .env.local> --target http://localhost:3000/api/github/webhooks
 ```

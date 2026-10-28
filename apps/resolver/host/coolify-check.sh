@@ -9,7 +9,15 @@
 # Always Coolify's own daemon, whatever DOCKER_HOST the caller has set.
 export DOCKER_HOST=unix:///var/run/docker.sock
 fail=0
-c=$(docker ps --filter name=birm6kb7aueauhojxxdrtxhb --format "{{.Names}}" | head -1)
+if docker info >/dev/null 2>&1; then echo "docker ok"; else echo "docker FAIL"; fail=1; fi
+if ip -4 addr show docker0 2>/dev/null | grep -q "inet "; then echo "docker0 ok"; else echo "docker0 FAIL"; fail=1; fi
+if ! docker ps --format "{{.Names}}" | grep -qx coolify; then
+  echo "no Coolify on this host: its checks are skipped"
+  exit $fail
+fi
+# An app container Coolify runs (Teire's worker by default): DNS, the internet, Postgres.
+name="${TEIRE_CHECK_CONTAINER:-birm6kb7aueauhojxxdrtxhb}"
+c=$(docker ps --filter "name=$name" --format "{{.Names}}" | head -1)
 if [ -z "$c" ]; then echo "worker FAIL no container"; fail=1; else
 docker exec "$c" node -e '
 const dns=require("dns").promises, net=require("net");
@@ -22,7 +30,6 @@ const dns=require("dns").promises, net=require("net");
 })()' || fail=1
 fi
 if docker exec coolify nc -z -w5 host.docker.internal 22; then echo "coolify ssh ok"; else echo "coolify ssh FAIL"; fail=1; fi
-if ip -4 addr show docker0 2>/dev/null | grep -q "inet "; then echo "docker0 ok"; else echo "docker0 FAIL"; fail=1; fi
 code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/health)
 if [ "$code" = 200 ]; then echo "coolify api ok"; else echo "coolify api FAIL $code"; fail=1; fi
 exit $fail
