@@ -1,6 +1,7 @@
 {
   "_comment": "Pinned by digest (plan D93, S14.1); the CLI verifies each image's attestation before use. Resolved from ghcr.io/dependabot/*:latest on 2026-10-28, CLI v1.97.0. Bump weekly through the smoke suite.",
   "cli": "v1.97.0",
+  "mirror": "ghcr.io/teire-dev",
   "proxy": "ghcr.io/dependabot/proxy@sha256:28df67a345e3d3fea99a053fc5cc37a6bfa39a330e35861fe560ccf1d992ba7c",
   "updaters": {
     "npm_and_yarn": "ghcr.io/dependabot/dependabot-updater-npm@sha256:9b1dace40874286bc77ee8728b0f1f3b3d6cf19dfe36bc1f5a18e046dfaf4075",

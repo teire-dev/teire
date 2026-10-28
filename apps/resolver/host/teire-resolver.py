@@ -103,6 +103,34 @@ def download(repo: str, commit: str, token: str | None, dest: Path) -> str:
     return digest.hexdigest()
 
 
+PULL_FAILED = re.compile(r"pull|manifest unknown|not found|attestation|denied|unauthorized", re.I)
+
+
+def mirror_of(ref: str) -> str | None:
+    """`ghcr.io/dependabot/<name>@sha256:…` in Teire's mirror, if one is configured."""
+    mirror = IMAGES.get("mirror")
+    if not mirror or "@" not in ref:
+        return None
+    repo, digest = ref.split("@", 1)
+    return f"{mirror}/{repo.rsplit('/', 1)[1]}@{digest}"
+
+
+def cli(folder: Path, job_file: Path, repo_dir: Path, timeout: int, env: dict, updater: str, proxy: str):
+    """One `dependabot update` run in its own process group; (state, exit code)."""
+    command = [
+        "dependabot", "update", "-f", str(job_file), "--local", str(repo_dir),
+        "--timeout", f"{timeout}s", "--updater-image", updater, "--proxy-image", proxy,
+    ]
+    with open(folder / "stdout", "wb") as out, open(folder / "stderr", "wb") as err:
+        process = subprocess.Popen(command, stdout=out, stderr=err, env=env, cwd=folder, start_new_session=True)
+        try:
+            return "done", process.wait(timeout=timeout + GRACE)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            return "timeout", None
+
+
 def run(job_id: str) -> None:
     with lock:
         spec = jobs[job_id]
@@ -128,22 +156,24 @@ def run(job_id: str) -> None:
         if spec.get("token"):
             # A per-run token for one repository with contents:read (D106): release notes, Go metadata.
             env["LOCAL_GITHUB_ACCESS_TOKEN"] = spec["token"]
-        command = [
-            "dependabot", "update", "-f", str(job_file), "--local", str(repo_dir),
-            "--timeout", f"{timeout}s",
-            "--updater-image", IMAGES["updaters"][manager],
-            "--proxy-image", IMAGES["proxy"],
-        ]
-        with open(folder / "stdout", "wb") as out, open(folder / "stderr", "wb") as err:
-            process = subprocess.Popen(command, stdout=out, stderr=err, env=env, cwd=folder, start_new_session=True)
-            try:
-                result["exitCode"] = process.wait(timeout=timeout + GRACE)
-                state = "done"
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-                result["exitCode"] = None
-                state = "timeout"
+        updater, proxy = IMAGES["updaters"][manager], IMAGES["proxy"]
+        state, result["exitCode"] = cli(folder, job_file, repo_dir, timeout, env, updater, proxy)
+        stderr = (folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace")
+        # Upstream images unreachable or deleted (the run never started): the same digests from
+        # Teire's mirror, whose attestations the CLI verifies the same way (R-P27).
+        if (
+            state == "done"
+            and result["exitCode"] != 0
+            and not (folder / "stdout").stat().st_size
+            and PULL_FAILED.search(stderr)
+            and mirror_of(updater)
+        ):
+            log(f"job {job_id}: upstream images failed; retrying from the mirror")
+            clean_daemon()
+            state, result["exitCode"] = cli(
+                folder, job_file, repo_dir, timeout, env, mirror_of(updater), mirror_of(proxy)
+            )
+            result["mirror"] = True
         result["events"] = (folder / "stdout").read_bytes()[:MAX_EVENTS].decode("utf-8", "replace")
         result["stderrTail"] = (folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace")
     except Exception as error:  # noqa: BLE001 - every failure becomes the job's named state
