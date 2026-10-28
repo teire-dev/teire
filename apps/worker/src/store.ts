@@ -8,6 +8,7 @@ import {
   feedback,
   findings,
   gte,
+  inArray,
   installations,
   isNull,
   llmCalls,
@@ -261,12 +262,19 @@ export async function recentlySettled(db: Database, repoId: number, groupKey: st
  * this, every push would queue the group a second time (the run key carries the commit).
  */
 export async function fixInFlight(db: Database, repoId: number, groupKey: string) {
-  const { rows } = await db.execute<{ n: number }>(sql`
-    select count(*)::int as n from runs
-    where repo_id = ${repoId} and kind = 'fix' and group_key = ${groupKey}
-      and status in ('queued', 'running')
-  `);
-  return (rows[0]?.n ?? 0) > 0;
+  const [run] = await db
+    .select()
+    .from(runs)
+    .where(
+      and(
+        eq(runs.repoId, repoId),
+        eq(runs.kind, "fix"),
+        eq(runs.groupKey, groupKey),
+        inArray(runs.status, ["queued", "running"]),
+      ),
+    )
+    .limit(1);
+  return run ?? null;
 }
 
 /** Lineages with an open finding: what an open Teire PR in that lineage still answers (C6). */

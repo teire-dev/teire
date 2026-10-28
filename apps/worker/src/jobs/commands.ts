@@ -7,6 +7,7 @@ import {
   artifactByNumber,
   claimRun,
   findingsWithChanges,
+  fixInFlight,
   getArtifact,
   getRepo,
   recordFeedback,
@@ -405,6 +406,11 @@ export async function startRun(
       requestedBy: `${reason}:${by}`,
       idempotencyKey: `${reason}:${repo.id}:${groupKey}:${sha}${fresh ? `:${Date.now()}` : ""}`,
     });
+  // `fix` while a run for the group is queued or running (a scan's, a tick's) answers with that run.
+  if (reason === "fix") {
+    const pending = await fixInFlight(ctx.db, repo.id, groupKey);
+    if (pending) return { run: pending, created: false, sha };
+  }
   // Asking again after a run on this commit failed or was cancelled starts a new attempt; a queued,
   // running or finished run is the answer already.
   let { run, created } = await claim(reason === "recreate");
