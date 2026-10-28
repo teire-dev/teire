@@ -12,7 +12,9 @@ import {
   sandboxExecs,
   sql,
   userInstallations,
+  webhookDeliveries,
 } from "@teire/db";
+import { maskSecrets } from "@teire/engine/redact";
 import { visibleRun } from "./access";
 import { database } from "./db";
 import { reachKey, reachOf } from "./reach";
@@ -111,6 +113,18 @@ export interface RunSheetData {
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
+/**
+ * What a run page shows, with credentials masked (U2 review): a public repository's run is open to
+ * anyone, and command output can print a token. Output, reasons, events and errors all pass here.
+ */
+function masked<T>(value: T): T {
+  if (typeof value === "string") return maskSecrets(value) as T;
+  if (Array.isArray(value)) return value.map(masked) as T;
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, masked(v)])) as T;
+  return value;
+}
+
 export async function runSheet(id: string, after = 0): Promise<RunSheetData | null> {
   const row = await visibleRun(id);
   if (!row) return null;
@@ -188,7 +202,7 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
       evidenceKind: run.evidenceKind,
       prMode: run.prMode,
       backend: run.backend,
-      error: run.error,
+      error: run.error ? maskSecrets(run.error) : null,
       costUsd: run.costUsd,
       diff: run.diff,
       cancelledBy: run.cancelledBy,
@@ -206,23 +220,23 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
           runId: artifact.runId,
         }
       : null,
-    verification: (run.verification as RunSheetData["verification"]) ?? null,
+    verification: masked((run.verification as RunSheetData["verification"]) ?? null),
     events: events.map((e) => ({
       seq: e.seq,
       at: e.at.toISOString(),
       step: e.step,
       type: e.type,
-      payload: e.payload,
+      payload: masked(e.payload),
     })),
     execs: execs.map((x) => ({
       id: String(x.id),
       phase: x.phase,
-      command: x.command,
+      command: maskSecrets(x.command),
       exitCode: x.exitCode,
       timedOut: x.timedOut,
       durationMs: x.durationMs,
       backend: x.backend,
-      stdoutTail: x.stdoutTail,
+      stdoutTail: x.stdoutTail ? maskSecrets(x.stdoutTail) : null,
       createdAt: x.createdAt.toISOString(),
     })),
     calls: calls.map((c) => ({
@@ -241,4 +255,18 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
     report: report?.id ?? null,
     member,
   };
+}
+
+/**
+ * A dry run asked for but not yet a run (the page opens before the worker creates it): its request in
+ * the outbox, with the reason if the worker couldn't take it. Null when no such request exists.
+ */
+export async function dryRunRequest(id: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) return null;
+  const [row] = await database()
+    .select({ error: webhookDeliveries.error, processedAt: webhookDeliveries.processedAt })
+    .from(webhookDeliveries)
+    .where(eq(webhookDeliveries.guid, `teire-dry-run-${id}`))
+    .limit(1);
+  return row ? { error: row.error ? maskSecrets(row.error) : null, processed: !!row.processedAt } : null;
 }

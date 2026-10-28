@@ -1038,6 +1038,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       }
     }
     await holdLease();
+    // A cancel that landed while the lease renewed still stops it: the caller marks the run published
+    // right after this returns, with nothing awaited in between (U2 review).
+    if (!published && abort.signal.aborted) throw new RunCancelledError();
   };
   if (run.status === "failed" || run.status === "running") {
     await update({ status: "queued", attempt: run.attempt + 1, error: null });
@@ -1474,6 +1477,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         baseline: fix.baseline.checks,
         after: fix.after.checks,
         reasons: fix.evidence.reasons,
+        // Files that aren't plain (a symlink, an executable), so "Open draft anyway" publishes them as
+        // the run left them; the diff carries only their text (U2 review).
+        modes: Object.fromEntries(fix.files.filter((f) => f.mode).map((f) => [f.path, f.mode])),
         // Every other project the change touched, each with its own checks (D94): the run page's
         // proof panel lists them with their own ledger rows.
         others: (fix.others ?? []).map((o) => ({

@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy, Globe, Lock, Share2 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +16,16 @@ import {
  * Share a run (plan revision 3.3, U2, Factory's share dialog): its link with copy, and who can open
  * it: anyone for a public repository, people with access to the installation for a private one.
  */
-export function ShareRun({ runId, isPrivate }: { runId: string; isPrivate: boolean }) {
+export function ShareRun({
+  runId,
+  isPrivate,
+  rerun,
+}: {
+  runId: string;
+  isPrivate: boolean;
+  /** The secondary action: run it again in the way this run allows (Factory's share dialog). */
+  rerun?: ReactNode;
+}) {
   const [copied, setCopied] = useState(false);
   const url = typeof window === "undefined" ? `/runs/${runId}` : `${window.location.origin}/runs/${runId}`;
   return (
@@ -60,6 +69,7 @@ export function ShareRun({ runId, isPrivate }: { runId: string; isPrivate: boole
             ? "People with access to this installation can open it."
             : "Anyone with the link can open it: the repository is public."}
         </p>
+        {rerun ? <div className="flex justify-end border-t border-rule pt-3">{rerun}</div> : null}
       </DialogContent>
     </Dialog>
   );

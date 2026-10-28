@@ -3,9 +3,11 @@
 import { ChevronRight, FileCode2, FilePen, Flag, FlaskConical, Search, SquareTerminal } from "lucide-react";
 import type { LedgerCheck } from "@/components/teire/ledger";
 import type { Phase } from "@/components/teire/phase-strip";
+import { EvidenceChip, StatusChip, type Tone } from "@/components/teire/status-chip";
 import type { ActivityRow, Exec } from "@/lib/activity";
+import { STEP_DOING } from "@/lib/proof";
 import type { RunSheetData } from "@/lib/run-sheet";
-import { cn } from "@/lib/utils";
+import { backendName, cn } from "@/lib/utils";
 
 /** "45s", "3m 12s": whole seconds first, so 119.6 s reads "2m 0s". */
 export const duration = (ms: number | null) => {
@@ -67,6 +69,11 @@ export function liveLedger(events: RunSheetData["events"]) {
   return { baseline: [...sides.baseline.values()], after: [...sides.after.values()] };
 }
 
+/** When the run's work first began: its first "started" event, else its recorded start. */
+export function firstStart(sheet: RunSheetData) {
+  return sheet.events.find((e) => e.step === "assess" && e.type === "started")?.at ?? sheet.run.startedAt;
+}
+
 /** Where the run's time went, from its own records (no figure it didn't measure). */
 export function phasesOf(sheet: RunSheetData): Phase[] {
   const { run, events, execs } = sheet;
@@ -93,7 +100,8 @@ export function phasesOf(sheet: RunSheetData): Phase[] {
     return at.length ? Math.max(...at) - Math.min(...at) : null;
   };
   const active = run.status === "running" || run.status === "stopping";
-  const queued = run.startedAt ? Date.parse(run.startedAt) - Date.parse(run.createdAt) : null;
+  const began = firstStart(sheet);
+  const queued = began ? Date.parse(began) - Date.parse(run.createdAt) : null;
   const updater = span(["resolver"]);
   const fix = span(["codemod", "agent", "replan"]);
   const pr = events.find((e) => e.step === "pr");
@@ -257,4 +265,52 @@ export function contextOf(sheet: RunSheetData) {
     else if (e.step === "agent" && /docs|context7|lookup/i.test(detail)) groups["Docs lookups"]?.push(detail);
   }
   return Object.entries(groups).filter(([, lines]) => lines.length);
+}
+
+/** The run's state in words, with why it waits or who stopped it. */
+function statusOf(run: RunSheetData["run"]): { label: string; tone: Tone } {
+  switch (run.status) {
+    case "queued":
+      return run.step && run.step !== "queued"
+        ? { label: `Queued: ${run.step}`, tone: "attention" }
+        : { label: "Queued", tone: "neutral" };
+    case "running":
+      return { label: STEP_DOING[run.step ?? ""] ?? "Running", tone: "signal" };
+    case "stopping":
+      return { label: run.cancelledBy ? `Stopping for @${run.cancelledBy}` : "Stopping", tone: "signal" };
+    case "succeeded":
+      return { label: "Finished", tone: "neutral" };
+    case "cancelled":
+      return {
+        label: run.cancelledBy
+          ? `Cancelled by @${run.cancelledBy}`
+          : `Cancelled: ${run.step ?? "no reason recorded"}`,
+        tone: "neutral",
+      };
+    default:
+      return run.prMode === "issue"
+        ? { label: "Needs a person", tone: "broke" }
+        : { label: run.step === "interrupted" ? "Interrupted: it starts over" : "Failed", tone: "broke" };
+  }
+}
+
+/**
+ * The header's facts (plan revision 3.3, U2): state, evidence, where it ran, how long and what the
+ * models cost; the PR or issue is the header's own button.
+ */
+export function RunFacts({ sheet }: { sheet: RunSheetData }) {
+  const { run } = sheet;
+  const status = statusOf(run);
+  const began = firstStart(sheet);
+  const ms = began ? Date.parse(run.finishedAt ?? new Date().toISOString()) - Date.parse(began) : null;
+  const cost = Number(run.costUsd);
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11px] text-ink-3">
+      <StatusChip tone={status.tone}>{status.label}</StatusChip>
+      {run.evidenceKind ? <EvidenceChip kind={run.evidenceKind} /> : null}
+      {run.backend ? <span>{backendName(run.backend)}</span> : null}
+      {ms !== null ? <span>{duration(ms)}</span> : null}
+      <span>{cost > 0 ? `$${cost.toFixed(3)} in model calls` : "no model calls"}</span>
+    </div>
+  );
 }

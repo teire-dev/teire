@@ -25,12 +25,22 @@ import type { RunSheetData } from "@/lib/run-sheet";
 import { traceOf } from "@/lib/trace";
 import { backendName, cn } from "@/lib/utils";
 import { ShareRun } from "./share-run";
-import { ActivityItem, contextOf, duration, liveLedger, phasesOf, subjectOf } from "./sheet-parts";
+import {
+  ActivityItem,
+  contextOf,
+  duration,
+  firstStart,
+  liveLedger,
+  phasesOf,
+  RunFacts,
+  subjectOf,
+} from "./sheet-parts";
 
 /** One poll a second while the run works, every five after ten minutes, none while hidden (D122). */
 const FAST_MS = 1000;
 const SLOW_MS = 5000;
 const SLOW_AFTER_MS = 10 * 60_000;
+const FINAL_EVENTS_MS = 15_000;
 
 const ACTIVE = new Set(["queued", "running", "stopping"]);
 
@@ -56,12 +66,12 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
       const seen = new Set(held.events.map((e) => e.seq));
       return { ...next, events: [...held.events, ...next.events.filter((e) => !seen.has(e.seq))] };
     },
-    refetchInterval: (q) =>
-      ACTIVE.has(q.state.data?.run.status ?? "")
-        ? Date.now() - opened > SLOW_AFTER_MS
-          ? SLOW_MS
-          : FAST_MS
-        : false,
+    // A run's last events land just after its final status (U2 review), so the poll runs a little past it.
+    refetchInterval: (q) => {
+      const run = q.state.data?.run;
+      if (ACTIVE.has(run?.status ?? "")) return Date.now() - opened > SLOW_AFTER_MS ? SLOW_MS : FAST_MS;
+      return run?.finishedAt && Date.now() - Date.parse(run.finishedAt) < FINAL_EVENTS_MS ? FAST_MS : false;
+    },
   });
 
   const { run, repo, artifact, verification } = sheet;
@@ -69,17 +79,20 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const model = sheet.calls.find((c) => c.purpose === "fix")?.model ?? sheet.calls[0]?.model ?? null;
   const events = sheet.events.map((e) => ({ ...e, at: new Date(e.at) }));
   const execs: Exec[] = sheet.execs.map((x) => ({ ...x, stderrTail: null }));
-  // The first wait runs from when the run was queued to when it started, as the phase strip counts it.
+  // When work first began: a restarted run's `startedAt` is its latest start, so its first attempt
+  // would fold into the wait (U2 review).
+  const began = firstStart(sheet);
+  // The first wait runs from when the run was queued to when work began, as the phase strip counts it.
   const rows = activityOf(events, execs, active, model).map((r, i, all) =>
-    r.step === "queue" && run.startedAt && all.findIndex((x) => x.step === "queue") === i
-      ? { ...r, startedAt: new Date(run.createdAt), endedAt: new Date(run.startedAt) }
+    r.step === "queue" && began && all.findIndex((x) => x.step === "queue") === i
+      ? { ...r, startedAt: new Date(run.createdAt), endedAt: new Date(began) }
       : r,
   );
   const spans = traceOf(
     events,
     sheet.execs.map((x) => ({ ...x, createdAt: new Date(x.createdAt) })),
     sheet.calls.map((c) => ({ ...c, createdAt: new Date(c.createdAt) })),
-    run.startedAt ? new Date(run.startedAt) : null,
+    began ? new Date(began) : null,
   );
   const traceEnd = Math.max(1000, ...spans.map((s) => s.end));
   const subject = subjectOf(run);
@@ -163,6 +176,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
                 </span>
               ))}
             </div>
+            <RunFacts sheet={sheet} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -194,7 +208,27 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
               Open draft anyway
             </ActionButton>
           ) : null}
-          <ShareRun runId={run.id} isPrivate={repo.isPrivate} />
+          <ShareRun
+            runId={run.id}
+            isPrivate={repo.isPrivate}
+            rerun={
+              !sheet.member || active ? (
+                dry && sheet.report ? (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={`/scan/${sheet.report}`}>Dry-run again from the report</a>
+                  </Button>
+                ) : null
+              ) : artifact?.kind === "pr" && artifact.state === "open" ? (
+                <ActionButton kind="reverify-run" params={{ runId: run.id }} repo={repo.fullName}>
+                  Re-run its checks
+                </ActionButton>
+              ) : (run.status === "failed" || run.status === "cancelled") && run.kind === "fix" ? (
+                <ActionButton kind="retry-run" params={{ runId: run.id }} repo={repo.fullName}>
+                  Run it again
+                </ActionButton>
+              ) : null
+            }
+          />
           {artifact?.url ? (
             <Button size="sm" asChild>
               <a href={artifact.url}>
@@ -368,14 +402,22 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
                   <span className="eyebrow">Other projects the change touched</span>
                   <ul className="flex flex-col gap-3">
                     {verification.others.map((o) => (
-                      <li key={`${o.ecosystem}:${o.root}`} className="flex flex-col gap-1.5">
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="font-mono text-xs text-ink">
-                            {o.root === "." ? "(root)" : o.root}
-                          </span>
-                          <EvidenceChip kind={o.evidence} />
+                      <li key={`${o.ecosystem}:${o.root}`} className="flex flex-col gap-2">
+                        <span className="font-mono text-xs text-ink">
+                          {o.root === "." ? "(root)" : o.root} · {o.ecosystem}
                         </span>
-                        {o.reasons[0] ? <span className="text-xs text-ink-3">{o.reasons[0]}</span> : null}
+                        {/* Each project its own ledger rows (D94), even one that couldn't be checked. */}
+                        <Ledger
+                          baseline={o.baseline as LedgerCheck[]}
+                          after={o.after as LedgerCheck[]}
+                          evidence={o.evidence}
+                          verdict={o.reasons[0] ?? ""}
+                          notCovered={notCoveredFrom(
+                            o.baseline as LedgerCheck[],
+                            o.after as LedgerCheck[],
+                            o.reasons,
+                          )}
+                        />
                       </li>
                     ))}
                   </ul>

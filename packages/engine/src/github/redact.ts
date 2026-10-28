@@ -8,27 +8,12 @@ const MAX_CHARS = 300;
  * The run page shows the full message to the people who can see the run.
  */
 export function forGitHub(message: string, max = MAX_CHARS): string {
-  const text = message
-    // A service's response body: keep the call and its status, drop what it said (to the end of
-    // that line, so a cause appended after it survives).
-    .replace(/(→ \d{3}):[^\n]*/g, "$1")
-    .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, "***")
-    .replace(/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+/=-]{12,}/gi, "$1 ***")
-    .replace(/(https?:\/\/)[^\s/@]+@/g, "$1***@")
-    // Credentials in a query string or written as `name=value` / `name: value`.
-    .replace(
-      /([?&](?:access_token|token|api_?key|key|secret|password|sig|signature|auth)=)[^&\s#]+/gi,
-      "$1***",
-    )
-    // Any name that says it holds a credential (`GITHUB_TOKEN=…`, `authorization: …`, `x-api-key=…`),
-    // whatever else the name says. A word like "token: expired" in prose loses its value too; on
-    // GitHub that is the safer mistake.
-    .replace(
-      /\b([\w.-]*(?:token|secret|passw(?:or)?d|pwd|api[_-]?key|access[_-]?key|private[_-]?key|auth(?:orization)?|credential|cookie|session[_-]?id|signature)[\w.-]*["']?\s*[=:]\s*["']?)(?!\*\*\*)[^\s"',;&]+/gi,
-      "$1***",
-    )
-    .replace(/\b(?:sk|pk|rk|nvapi|xox[abp])[-_][A-Za-z0-9_-]{16,}\b/g, "***")
-    .replace(/\baiproject-[a-z0-9]+\b/g, "<project>")
+  const text = maskSecrets(
+    message
+      // A service's response body: keep the call and its status, drop what it said (to the end of
+      // that line, so a cause appended after it survives).
+      .replace(/(→ \d{3}):[^\n]*/g, "$1"),
+  )
     // Sandbox and operation ids, but not the id in a run's own link.
     .replace(/(?<!\/runs\/)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "<id>")
     // The worker's checkouts, caches and image folders; paths inside the repository stay, and so
@@ -40,4 +25,34 @@ export function forGitHub(message: string, max = MAX_CHARS): string {
     .replace(/\s+/g, " ")
     .trim();
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/**
+ * Credentials taken out of any text, its lines and spacing kept (U2 review): command output, events
+ * and errors on a run page anyone may read for a public repository. Tokens, `Bearer …`, a URL's
+ * user part, credentials in a query string or written as `name=value` / `name: value`, provider
+ * keys, cloud access keys, private key blocks and the Token Factory project id.
+ */
+export function maskSecrets(text: string): string {
+  return (
+    text
+      .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, "***")
+      .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|npm_[A-Za-z0-9]{30,})\b/g, "***")
+      .replace(/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+/=-]{12,}/gi, "$1 ***")
+      .replace(/(https?:\/\/)[^\s/@]+@/g, "$1***@")
+      .replace(
+        /([?&](?:access_token|token|api_?key|key|secret|password|sig|signature|auth)=)[^&\s#]+/gi,
+        "$1***",
+      )
+      // Any name that says it holds a credential (`GITHUB_TOKEN=…`, `authorization: …`, `x-api-key=…`),
+      // whatever else the name says. A word like "token: expired" in prose loses its value too; for a
+      // page anyone can read that is the safer mistake.
+      .replace(
+        /\b([\w.-]*(?:token|secret|passw(?:or)?d|pwd|api[_-]?key|access[_-]?key|private[_-]?key|auth(?:orization)?|credential|cookie|session[_-]?id|signature)[\w.-]*["']?[ \t]*[=:][ \t]*["']?)(?!\*\*\*)[^\s"',;&]+/gi,
+        "$1***",
+      )
+      .replace(/\b(?:sk|pk|rk|nvapi|xox[abp])[-_][A-Za-z0-9_-]{16,}\b/g, "***")
+      .replace(/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, "***")
+      .replace(/\baiproject-[a-z0-9]+\b/g, "<project>")
+  );
 }

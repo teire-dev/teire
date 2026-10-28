@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forGitHub } from "../src/github/redact";
+import { forGitHub, maskSecrets } from "../src/github/redact";
 
 // Review R18: errors reach GitHub without service bodies, ids, tokens or the worker's paths.
 describe("forGitHub", () => {
@@ -55,5 +55,23 @@ describe("forGitHub", () => {
     expect(out).not.toMatch(/s3cr3tvalue|abc123def|k9k9k9|dXNlcjpwYXNz|zzz/);
     expect(out).toContain("authorization=***");
     expect(out).toContain("GITHUB_TOKEN=***");
+  });
+});
+
+describe("maskSecrets (run page output)", () => {
+  it("masks credentials and keeps the output's lines", () => {
+    const out = [
+      "PASS src/a.test.ts",
+      "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123",
+      "fetching https://user:hunter2@registry.example.com/pkg",
+      "AWS key AKIAABCDEFGHIJKLMNOP in env",
+      "Authorization: Bearer abcdefghijklmnop",
+      "  3 passed",
+    ].join("\n");
+    const masked = maskSecrets(out);
+    expect(masked.split("\n")).toHaveLength(6);
+    expect(masked).not.toMatch(/ghp_|hunter2|AKIAABCD|abcdefghijklmnop/);
+    expect(masked).toContain("PASS src/a.test.ts");
+    expect(masked).toContain("  3 passed");
   });
 });

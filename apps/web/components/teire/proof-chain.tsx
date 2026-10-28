@@ -88,7 +88,10 @@ export function ProofChain({ proof, className }: { proof: Proof; className?: str
               {s.label}
             </span>
             <span
-              className={cn("max-w-full truncate px-1 font-mono text-[11px]", tone(s.key, link.state))}
+              className={cn(
+                "line-clamp-2 max-w-full px-0.5 font-mono text-[10px] break-words sm:line-clamp-1 sm:px-1 sm:text-[11px]",
+                tone(s.key, link.state),
+              )}
               aria-hidden
             >
               {link.detail ?? PROOF_STATE_LABEL[link.state]}

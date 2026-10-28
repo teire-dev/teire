@@ -6,7 +6,7 @@ import { Suspense } from "react";
 import { AppProviders } from "@/components/app/providers";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ProofSheet } from "@/components/run/proof-sheet";
-import { runSheet } from "@/lib/run-sheet";
+import { dryRunRequest, runSheet } from "@/lib/run-sheet";
 
 export const metadata: Metadata = { title: "Run", robots: { index: false } };
 
@@ -29,7 +29,11 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
   const { id } = await params;
   await connection();
   const sheet = await runSheet(id);
-  if (!sheet) return <Pending id={id} />;
+  if (!sheet) {
+    // A dry run just asked for has no run yet; anything else is missing, or private to its members.
+    const request = await dryRunRequest(id);
+    return request && !request.error ? <Pending id={id} /> : <NoRun error={request?.error ?? null} />;
+  }
   return (
     <AppProviders>
       <ProofSheet initial={sheet} />
@@ -60,13 +64,32 @@ function Pending({ id }: { id: string }) {
       </p>
       <p className="text-sm text-muted-foreground">
         The worker is picking it up. This page turns into the live run as soon as it starts: the fix, then
-        your own checks before and after in a sandbox. If nothing appears within two minutes, the run id{" "}
-        <span className="font-mono">{id.slice(0, 8)}</span> may not exist, or this run is on a private
-        repository you cannot see.{" "}
+        your own checks before and after in a sandbox. Run <span className="font-mono">{id.slice(0, 8)}</span>
+        .{" "}
         <Link href="/scan" className="text-link hover:underline">
           Back to public scans
         </Link>
         .
+      </p>
+    </section>
+  );
+}
+
+function NoRun({ error }: { error: string | null }) {
+  return (
+    <section className="mx-auto flex w-full max-w-xl flex-col gap-3 rounded-xl bg-sheet p-6 shadow-card">
+      <h1 className="text-lg font-semibold">{error ? "The dry run couldn't start" : "No run here"}</h1>
+      <p className="text-sm text-ink-2">
+        {error ??
+          "This run doesn't exist, or it is on a private repository: its runs open for people with access to the installation, once signed in."}
+      </p>
+      <p className="flex gap-4 text-sm">
+        <Link href="/signin" className="text-link hover:underline">
+          Sign in
+        </Link>
+        <Link href="/scan" className="text-link hover:underline">
+          Scan a public repository
+        </Link>
       </p>
     </section>
   );

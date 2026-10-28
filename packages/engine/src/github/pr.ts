@@ -104,6 +104,8 @@ export async function setPullRequestEvidence(input: {
   repo: string;
   number: number;
   evidence: keyof typeof PR_MODE_BY_EVIDENCE;
+  /** The base as it is now wasn't checked (a conflicting PR): `stale-evidence` stays. */
+  keepStale?: boolean;
 }): Promise<{ draft: boolean; was: boolean }> {
   const { octokit, owner, repo } = input;
   const { data: pr } = await octokit.rest.pulls.get({ owner, repo, pull_number: input.number });
@@ -116,7 +118,13 @@ export async function setPullRequestEvidence(input: {
       { id: pr.node_id },
     );
   const labels = draft ? [input.evidence.replace(/_/g, "-")] : [];
-  await dropStaleLabels(octokit, owner, repo, pr, labels);
+  await dropStaleLabels(
+    octokit,
+    owner,
+    repo,
+    pr,
+    input.keepStale ? [...labels, STALE_EVIDENCE_LABEL] : labels,
+  );
   if (labels.length)
     await octokit.rest.issues
       .addLabels({ owner, repo, issue_number: pr.number, labels })

@@ -1,6 +1,7 @@
-import { existsSync, lstatSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, statSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
+import { and, eq, inArray, runs, sql } from "@teire/db";
 import { RunCancelledError, withCancel } from "@teire/engine/cancel";
 import { personMayStart, readTeireConfig } from "@teire/engine/config";
 import { PULL_REQUESTS, RUNS, SCAN } from "@teire/engine/constants";
@@ -33,9 +34,7 @@ import {
 import {
   appendEvent,
   cancelRequest,
-  claimRun,
   claimRunLease,
-  fixInFlight,
   fixModeOf,
   getArtifact,
   getRepo,
@@ -75,6 +74,12 @@ const EVIDENCE_LABEL: Record<string, string> = {
   timeout: "Timed out",
 };
 
+/** GitHub works out a PR's mergeability after a push: read it this many times, this far apart. */
+const MERGEABLE_READS = 5;
+const MERGEABLE_PAUSE_MS = 3_000;
+/** A compare lists at most this many files (GitHub's REST docs); a longer list is cut. */
+const COMPARE_FILE_CAP = 300;
+
 /** One file of a compare as the run page's diff reads it (the same shape as a fix run's patches). */
 function fileDiff(f: { filename: string; status: string; previous_filename?: string; patch?: string }) {
   const from = f.status === "added" ? "/dev/null" : `a/${f.previous_filename ?? f.filename}`;
@@ -99,28 +104,51 @@ export async function startReverify(
   if (repo.status === "paused") return { refused: "This repository is paused; resume it first" };
   const pr = await getArtifact(db, repo.id, "pr", groupKey);
   if (pr?.state !== "open" || !pr.number) return { refused: "Re-verify works on an open Teire pull request" };
-  const active = await fixInFlight(db, repo.id, groupKey, "reverify");
-  if (active) return { run: active, created: false, number: pr.number };
   const last = pr.runId ? await getRun(db, pr.runId) : null;
-  const { run } = await claimRun(db, {
-    repoId: repo.id,
-    groupKey,
-    lineageKey: pr.lineageKey ?? last?.lineageKey ?? lineageKey(groupKey),
-    kind: "reverify",
-    status: "queued",
-    fromVersion: last?.fromVersion ?? null,
-    targetVersion: last?.targetVersion ?? null,
-    requestedBy: `reverify:${login}`,
-    idempotencyKey: `reverify:${repo.id}:${groupKey}:${Date.now()}`,
+  // One re-verify per PR at a time (U2 review): the check for one in flight and the insert happen
+  // under a lock on the PR's group, so two requests at once can't both start one.
+  const begun = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`reverify:${repo.id}:${groupKey}`}))`);
+    const [active] = await tx
+      .select({ id: runs.id })
+      .from(runs)
+      .where(
+        and(
+          eq(runs.repoId, repo.id),
+          eq(runs.kind, "reverify"),
+          eq(runs.groupKey, groupKey),
+          inArray(runs.status, ["queued", "running", "stopping"]),
+        ),
+      )
+      .limit(1);
+    if (active) return { run: active, created: false };
+    const [run] = await tx
+      .insert(runs)
+      .values({
+        repoId: repo.id,
+        groupKey,
+        lineageKey: pr.lineageKey ?? last?.lineageKey ?? lineageKey(groupKey),
+        kind: "reverify",
+        status: "queued",
+        fromVersion: last?.fromVersion ?? null,
+        targetVersion: last?.targetVersion ?? null,
+        requestedBy: `reverify:${login}`,
+        idempotencyKey: `reverify:${repo.id}:${groupKey}:${Date.now()}`,
+      })
+      .returning({ id: runs.id });
+    return { run: run as { id: string }, created: true };
   });
+  if (!begun.created) return { ...begun, number: pr.number };
+  const run = begun.run;
   await ctx.enqueueFix(run.id, repo.id);
   return { run, created: true, number: pr.number };
 }
 
 /**
  * Re-verify (U2): an open Teire PR checked again as it stands, both sides, its code unchanged. The
- * baseline is the merge base and the after side is the PR's head itself, so what is checked is
- * exactly what would merge, a person's commits on the branch included. Every project the PR's files
+ * after side is GitHub's test merge of the PR into its base as the base is now, and the baseline is
+ * that base, so what is checked is exactly what would merge, a person's commits on the branch
+ * included; a PR that doesn't merge cleanly is checked as its branch stands and says so. Every project the PR's files
  * touch is checked with its own commands; the weakest evidence decides. The result goes on the PR:
  * a check run on the head, the draft state and evidence label, and a comment. A run of its own, so
  * its page shows it live and Cancel stops it like any run.
@@ -216,20 +244,42 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
   );
   let dir: string | null = null;
   try {
-    const { data: pr } = await octokit.rest.pulls.get({ owner, repo: name, pull_number: artifact.number });
+    // What would merge (U2 review): GitHub's test merge of the PR into its base as the base is now,
+    // checked against the base tip, its first parent. A PR GitHub can't merge (a conflict, or no
+    // answer after a few reads) is checked as its branch stands, against the commit it branched
+    // from, and says so.
+    let pr = (await octokit.rest.pulls.get({ owner, repo: name, pull_number: artifact.number })).data;
+    for (let i = 0; i < MERGEABLE_READS && pr.state === "open" && pr.mergeable === null; i++) {
+      await new Promise((r) => setTimeout(r, MERGEABLE_PAUSE_MS));
+      pr = (await octokit.rest.pulls.get({ owner, repo: name, pull_number: artifact.number })).data;
+    }
     if (pr.state !== "open") return await stop("not open", `#${pr.number} is no longer open`);
     const head = pr.head.sha;
+    const merge =
+      pr.mergeable && pr.merge_commit_sha
+        ? await octokit.rest.repos
+            .getCommit({ owner, repo: name, ref: pr.merge_commit_sha })
+            .then(({ data }) =>
+              data.parents.length === 2 && data.parents[1]?.sha === head
+                ? { sha: data.sha, base: data.parents[0]?.sha as string }
+                : null,
+            )
+            .catch(() => null)
+        : null;
     const { data: cmp } = await octokit.rest.repos.compareCommitsWithBasehead({
       owner,
       repo: name,
-      basehead: `${pr.base.sha}...${head}`,
+      basehead: merge ? `${merge.base}...${merge.sha}` : `${pr.base.sha}...${head}`,
     });
-    const base = cmp.merge_base_commit.sha;
+    const base = merge ? merge.base : cmp.merge_base_commit.sha;
+    const after = merge ? merge.sha : head;
     const changed = cmp.files ?? [];
     if (!changed.length) return await stop("nothing to check", `#${pr.number} changes no files`);
     await update({ step: "verify", baseSha: base, headSha: head, diff: changed.map(fileDiff).join("\n") });
     await event("assess", "started", {
-      detail: `#${pr.number} at ${head.slice(0, 7)}: ${changed.length} file${changed.length === 1 ? "" : "s"} over ${base.slice(0, 7)}`,
+      detail: merge
+        ? `#${pr.number} at ${head.slice(0, 7)} merged into the base as it is now (${base.slice(0, 7)}): ${changed.length} file${changed.length === 1 ? "" : "s"}`
+        : `#${pr.number} at ${head.slice(0, 7)} as its branch stands, over ${base.slice(0, 7)}: GitHub ${pr.mergeable === false ? "reports a conflict with the base" : "didn't say whether it merges"}`,
     });
 
     // The backend follows the repository's visibility now (D107, review R1); its size as for a fix run.
@@ -242,7 +292,7 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
         `${repo.fullName} is ${Math.round(now.sizeKb / 1024)} MB; Teire verifies repositories up to ${SCAN.maxRepoKb / 1024} MB`,
       );
     const token = await installation.token();
-    const checkout = await withCancel(abort.signal, () => fetchRepoTarball(owner, name, head, { token }));
+    const checkout = await withCancel(abort.signal, () => fetchRepoTarball(owner, name, after, { token }));
     dir = checkout.dir;
     // The PR's own files decide the projects and their commands (a toolchain the PR raised included).
     const orgText = await readOrgConfig(octokit, owner);
@@ -270,7 +320,18 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
         .slice(0, 3)
         .map((p) => `\`${p}\``)
         .join(", ");
-    // Fail closed, as a fix run does (review R2): a file no project holds is unchecked, never fine.
+    // Fail closed, as a fix run does (review R2): a file no project holds is unchecked, never fine;
+    // so is a file list GitHub cut short (a compare lists at most 300 files).
+    const capped =
+      changed.length >= COMPARE_FILE_CAP
+        ? [
+            unchecked(
+              ".",
+              fileEcosystem(paths[0] ?? "") ?? "npm",
+              `GitHub lists only ${COMPARE_FILE_CAP} of the files #${pr.number} changes, so projects behind the rest couldn't be found`,
+            ),
+          ]
+        : [];
     const orphans: OtherProject[] = listFailure
       ? [
           unchecked(
@@ -315,10 +376,10 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
             backend,
             runId,
             tarball: tarball(base),
-            after: { tarball: tarball(head) },
+            after: { tarball: tarball(after) },
             projects: [...touched.values()],
             ...(config.verify.length ? { verify: config.verify } : {}),
-            why: `on #${pr.number} as it stands`,
+            why: merge ? `on #${pr.number} merged into the base` : `on #${pr.number} as its branch stands`,
             onEvent: (e) => {
               if (leaseLost) return;
               lastStep = e.step;
@@ -328,7 +389,7 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
         )
       : [];
     if (abort.signal.aborted) throw new RunCancelledError();
-    const all = [...checked, ...orphans];
+    const all = [...checked, ...orphans, ...capped];
     // The lead is the project in the run's own ecosystem (`npm/zod/4.1.0` → npm), else the first.
     const lead = all.find((p) => p.ecosystem === groupKey.split("/")[0]) ?? all[0];
     if (!lead) return await stop("nothing to check", `no project in #${pr.number} could be checked`);
@@ -369,12 +430,29 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
         }
     });
 
-    // The result on GitHub: nothing after a cancel; from here a cancel is too late.
+    // The result on GitHub, only for the PR as it was checked (U2 review): still open, the same head
+    // and, for a merge check, the same base. Nothing after a cancel; from here a cancel is too late.
     if (abort.signal.aborted) throw new RunCancelledError();
     await holdLease();
+    if (abort.signal.aborted) throw new RunCancelledError();
+    const nowPr = (await octokit.rest.pulls.get({ owner, repo: name, pull_number: pr.number })).data;
+    const moved =
+      nowPr.state !== "open"
+        ? `#${pr.number} was closed during the check`
+        : nowPr.head.sha !== head
+          ? `#${pr.number}'s branch moved to ${nowPr.head.sha.slice(0, 7)} during the check`
+          : merge && nowPr.base.sha !== merge.base
+            ? `the base moved to ${nowPr.base.sha.slice(0, 7)} during the check`
+            : null;
+    if (moved)
+      return await stop(
+        "changed during the check",
+        `${moved}; nothing was changed on GitHub. Re-verify again`,
+      );
     published = true;
     const label = EVIDENCE_LABEL[evidence.kind] ?? evidence.kind;
     const runUrl = ctx.webUrl ? `${ctx.webUrl}/runs/${runId}` : null;
+    // The check run is the evidence on the commit: if GitHub doesn't take it, nothing else changes.
     await publishCheckRun({
       octokit,
       owner,
@@ -385,22 +463,24 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
       summary: saidOnGitHub(evidence.reasons),
       ...(runUrl ? { detailsUrl: runUrl } : {}),
       sites: [],
-    }).catch((error) => event("pr", "check-run-failed", { error: String(error) }));
+    });
     await holdLease();
+    // A branch checked as it stands (a conflict) keeps `stale-evidence`: today's base wasn't checked.
     const state = await setPullRequestEvidence({
       octokit,
       owner,
       repo: name,
       number: pr.number,
       evidence: evidence.kind,
+      keepStale: !merge,
     });
-    const moved = state.draft === state.was ? "" : state.draft ? " Now a draft." : " Ready for review.";
+    const flipped = state.draft === state.was ? "" : state.draft ? " Now a draft." : " Ready for review.";
     await holdLease();
     await octokit.rest.issues.createComment({
       owner,
       repo: name,
       issue_number: pr.number,
-      body: `Re-verified at \`${head.slice(0, 7)}\` for @${by}: **${label}**. ${saidOnGitHub(evidence.reasons)}${moved}${runUrl ? `\n\n[The run](${runUrl})` : ""}`,
+      body: `Re-verified at \`${head.slice(0, 7)}\` for @${by}${merge ? ", merged into the base as it is now" : `, as its branch stands (${pr.mergeable === false ? "it conflicts with the base" : "GitHub didn't say whether it merges"})`}: **${label}**. ${saidOnGitHub(evidence.reasons)}${flipped}${runUrl ? `\n\n[The run](${runUrl})` : ""}`,
     });
     // The PR's evidence is this run's now: its rows and proof chain read from here.
     await upsertArtifact(db, { ...artifact, headSha: head, runId });
@@ -432,8 +512,9 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
       evidence: evidence.kind,
       draft: state.draft,
       was: state.was,
+      merged: !!merge,
     });
-    await settle({ status: "done", result: `${label}${moved}` });
+    await settle({ status: "done", result: `${label}${flipped}` });
     await settleRunActions(db, runId, ["cancel-run"], {
       status: "refused",
       result: `Too late to stop: the result was already on #${pr.number}`,
@@ -525,110 +606,139 @@ export async function openDraftAnyway(
 
   const [owner = "", name = ""] = repo.fullName.split("/");
   const installation = await gh.installation(repo.installationId as number);
-  const checkout = await fetchRepoTarball(owner, name, run.baseSha, { token: await installation.token() });
-  try {
+  const token = await installation.token();
+  const target = config?.pullRequests?.targetBranch || repo.defaultBranch;
+  const tip = (await octokit.rest.repos.getBranch({ owner, repo: name, branch: target })).data.commit.sha;
+  // The run's own file modes (a symlink, an executable) where it recorded them (U2 review); else a
+  // file keeps the mode it has at the base.
+  const modes = (run.verification as { modes?: Record<string, "100755" | "120000"> } | null)?.modes ?? null;
+  const rebuildAt = async (sha: string) => {
+    const checkout = await fetchRepoTarball(owner, name, sha, { token });
     const at = (path: string) => join(checkout.dir, path);
-    const rebuilt = filesFromDiff(run.diff, (path) =>
-      existsSync(at(path)) && !lstatSync(at(path)).isSymbolicLink() ? readFileSync(at(path), "utf8") : null,
+    const rebuilt = filesFromDiff(run.diff as string, (path) => {
+      if (!existsSync(at(path)) && !lstatSync(at(path), { throwIfNoEntry: false })) return null;
+      // A symlink's diff is the diff of its target.
+      return lstatSync(at(path)).isSymbolicLink() ? readlinkSync(at(path)) : readFileSync(at(path), "utf8");
+    });
+    const files =
+      "error" in rebuilt
+        ? []
+        : rebuilt.files.map((f) => {
+            const mode =
+              f.content === null
+                ? undefined
+                : (modes?.[f.path] ??
+                  (existsSync(at(f.path)) && statSync(at(f.path)).mode & 0o111
+                    ? ("100755" as const)
+                    : undefined));
+            return { path: f.path, content: f.content, ...(mode ? { mode } : {}) };
+          });
+    await rm(checkout.dir, { recursive: true, force: true });
+    return { sha, error: "error" in rebuilt ? rebuilt.error : null, files };
+  };
+  // On the base as it is now when the run's diff still applies there; else on the commit the run
+  // started from, said in the PR.
+  let built = await rebuildAt(tip);
+  if (built.error && tip !== run.baseSha) built = await rebuildAt(run.baseSha);
+  if (built.error)
+    return refused(
+      `Teire can't open it: ${built.error}. Comment \`@teire recreate\` on the issue to start over`,
     );
-    if ("error" in rebuilt)
-      return refused(
-        `Teire can't open it: ${rebuilt.error}. Comment \`@teire recreate\` on the issue to start over`,
-      );
-    // An executable keeps its bit (gradlew); everything else is a plain file.
-    const files = rebuilt.files.map((f) => ({
-      path: f.path,
-      content: f.content,
-      ...(f.content !== null && existsSync(at(f.path)) && statSync(at(f.path)).mode & 0o111
-        ? { mode: "100755" as const }
-        : {}),
-    }));
-
-    // The issue carries the PR Teire would have opened: its title and body.
-    const issue = await getArtifact(db, repo.id, "issue", groupKey);
-    const fromIssue = issue?.number
-      ? (await octokit.rest.issues.get({ owner, repo: name, issue_number: issue.number })).data
-      : null;
-    const subject = (fromIssue?.title ?? "").replace(/^Teire needs a human:\s*/i, "") || groupKey;
-    const title = `Unconfirmed: ${subject}`;
-    const reasons = ((run.verification as { reasons?: string[] } | null)?.reasons ?? []).filter(Boolean);
-    const evidenceLabel = (run.evidenceKind ?? "unverified").replace(/_/g, "-");
-    const runUrl = ctx.webUrl ? `${ctx.webUrl}/runs/${run.id}` : undefined;
-    const earlier = (fromIssue?.body ?? "").replace(/\n*<sub>Teire stopped:[\s\S]*?<\/sub>\s*$/, "");
-    const body = fitBody(
-      [
-        `> [!WARNING]\n> **Unconfirmed.** Teire's checks did not prove this change. @${login} opened it as a draft from the run's best diff, to finish by hand.${reasons.length ? `\n> Teire stopped: ${saidOnGitHub(reasons)}` : ""}`,
-        earlier,
-        `${issue?.number ? `From #${issue.number}. ` : ""}${runUrl ? `[The run](${runUrl}) has the evidence.` : ""}`,
-      ]
-        .filter((b) => b.trim())
-        .join("\n\n"),
-      PULL_REQUESTS.bodyMaxChars,
-      runUrl,
-    );
-    const branch = branchFor(groupKey);
-    const commit = await commitToBranch({
-      octokit,
-      owner,
-      repo: name,
-      branch,
-      baseSha: run.baseSha,
-      botLogin: gh.botLogin,
-      headline: `${config?.pullRequests?.commitMessage?.prefix ?? ""}${title}`,
-      body: `Unconfirmed: ${saidOnGitHub(reasons) || "Teire's checks did not prove it"}`,
-      files,
-    });
-    const pr = await openOrUpdatePullRequest({
-      octokit,
-      owner,
-      repo: name,
-      branch,
-      base: config?.pullRequests?.targetBranch || repo.defaultBranch,
-      title,
-      body,
-      draft: true,
-      labels: ["teire", "unconfirmed", evidenceLabel, ...(config?.pullRequests?.labels ?? [])],
-    });
-    await publishCheckRun({
-      octokit,
-      owner,
-      repo: name,
-      headSha: commit.oid,
-      conclusion: "neutral",
-      title: `Unconfirmed: ${(run.evidenceKind ?? "unverified").replace(/_/g, " ")}`,
-      summary: saidOnGitHub(reasons) || "Teire's checks did not prove this change.",
-      ...(runUrl ? { detailsUrl: runUrl } : {}),
-      sites: [],
-    }).catch(() => undefined);
-    await upsertArtifact(db, {
-      repoId: repo.id,
-      kind: "pr",
-      changeKey: groupKey,
-      lineageKey: run.lineageKey ?? lineageKey(groupKey),
-      number: pr.number,
-      branch,
-      headSha: commit.oid,
-      state: "open",
-      url: pr.url,
-      runId: run.id,
-    });
-    if (issue?.number)
-      await octokit.rest.issues
-        .createComment({
-          owner,
-          repo: name,
-          issue_number: issue.number,
-          body: `@${login} opened #${pr.number} as a draft from this run's best diff: unconfirmed, Teire's checks did not prove it.`,
-        })
-        .catch(() => undefined);
-    await appendEvent(db, run.id, "pr", "draft-anyway", { url: pr.url, number: pr.number, by: login });
-    await syncDashboard(ctx, repo.id).catch(() => undefined);
+  const files = built.files;
+  const onOldBase = built.sha !== tip;
+  // The issue carries the PR Teire would have opened: its title and body.
+  const issue = await getArtifact(db, repo.id, "issue", groupKey);
+  const fromIssue = issue?.number
+    ? (await octokit.rest.issues.get({ owner, repo: name, issue_number: issue.number })).data
+    : null;
+  const subject = (fromIssue?.title ?? "").replace(/^Teire needs a human:\s*/i, "") || groupKey;
+  const title = `Unconfirmed: ${subject}`;
+  const reasons = ((run.verification as { reasons?: string[] } | null)?.reasons ?? []).filter(Boolean);
+  const evidenceLabel = (run.evidenceKind ?? "unverified").replace(/_/g, "-");
+  const runUrl = ctx.webUrl ? `${ctx.webUrl}/runs/${run.id}` : undefined;
+  const earlier = (fromIssue?.body ?? "").replace(/\n*<sub>Teire stopped:[\s\S]*?<\/sub>\s*$/, "");
+  const body = fitBody(
+    [
+      `> [!WARNING]\n> **Unconfirmed.** Teire's checks did not prove this change. @${login} opened it as a draft from the run's best diff, to finish by hand.${reasons.length ? `\n> Teire stopped: ${saidOnGitHub(reasons)}` : ""}`,
+      earlier,
+      `${issue?.number ? `From #${issue.number}. ` : ""}${onOldBase ? `Built on \`${built.sha.slice(0, 7)}\`, the commit the run started from: its diff no longer applies to the base as it is now. ` : ""}${runUrl ? `[The run](${runUrl}) has the evidence.` : ""}`,
+    ]
+      .filter((b) => b.trim())
+      .join("\n\n"),
+    PULL_REQUESTS.bodyMaxChars,
+    runUrl,
+  );
+  // Re-read right before writing (U2 review): fixes turned Off, or a PR opened meanwhile.
+  const fresh = await getRepo(db, repo.id);
+  const modeNow = fresh ? await fixModeOf(db, fresh) : mode;
+  if (!personMayStart(modeNow)) return refused(fixesOffReply(modeNow));
+  const openNow = await getArtifact(db, repo.id, "pr", groupKey);
+  if (openNow?.state === "open" && openNow.number)
     return {
       status: "done",
-      result: `Opened #${pr.number} as an unconfirmed draft`,
-      links: [{ label: `#${pr.number}`, href: pr.url }, runLink],
+      result: `Already open: #${openNow.number}`,
+      links: [{ label: `#${openNow.number}`, href: openNow.url ?? "" }],
     };
-  } finally {
-    await rm(checkout.dir, { recursive: true, force: true });
-  }
+  const branch = branchFor(groupKey);
+  const commit = await commitToBranch({
+    octokit,
+    owner,
+    repo: name,
+    branch,
+    baseSha: built.sha,
+    botLogin: gh.botLogin,
+    headline: `${config?.pullRequests?.commitMessage?.prefix ?? ""}${title}`,
+    body: `Unconfirmed: ${saidOnGitHub(reasons) || "Teire's checks did not prove it"}`,
+    files,
+  });
+  const pr = await openOrUpdatePullRequest({
+    octokit,
+    owner,
+    repo: name,
+    branch,
+    base: config?.pullRequests?.targetBranch || repo.defaultBranch,
+    title,
+    body,
+    draft: true,
+    labels: ["teire", "unconfirmed", evidenceLabel, ...(config?.pullRequests?.labels ?? [])],
+  });
+  await publishCheckRun({
+    octokit,
+    owner,
+    repo: name,
+    headSha: commit.oid,
+    conclusion: "neutral",
+    title: `Unconfirmed: ${(run.evidenceKind ?? "unverified").replace(/_/g, " ")}`,
+    summary: saidOnGitHub(reasons) || "Teire's checks did not prove this change.",
+    ...(runUrl ? { detailsUrl: runUrl } : {}),
+    sites: [],
+  }).catch(() => undefined);
+  await upsertArtifact(db, {
+    repoId: repo.id,
+    kind: "pr",
+    changeKey: groupKey,
+    lineageKey: run.lineageKey ?? lineageKey(groupKey),
+    number: pr.number,
+    branch,
+    headSha: commit.oid,
+    state: "open",
+    url: pr.url,
+    runId: run.id,
+  });
+  if (issue?.number)
+    await octokit.rest.issues
+      .createComment({
+        owner,
+        repo: name,
+        issue_number: issue.number,
+        body: `@${login} opened #${pr.number} as a draft from this run's best diff: unconfirmed, Teire's checks did not prove it.`,
+      })
+      .catch(() => undefined);
+  await appendEvent(db, run.id, "pr", "draft-anyway", { url: pr.url, number: pr.number, by: login });
+  await syncDashboard(ctx, repo.id).catch(() => undefined);
+  return {
+    status: "done",
+    result: `Opened #${pr.number} as an unconfirmed draft`,
+    links: [{ label: `#${pr.number}`, href: pr.url }, runLink],
+  };
 }

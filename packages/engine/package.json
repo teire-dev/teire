@@ -23,6 +23,7 @@
     "./fix": "./src/fix/index.ts",
     "./notes": "./src/notes/index.ts",
     "./github": "./src/github/index.ts",
+    "./redact": "./src/github/redact.ts",
     "./pipeline": "./src/pipeline/index.ts",
     "./config": "./src/config/index.ts",
     "./discover": "./src/discover/index.ts",
