@@ -46,7 +46,7 @@ MAX_EVENTS = 128 * 1024 * 1024
 MAX_EXTRACTED = 4 * 1024 * 1024 * 1024  # bytes a checkout may unpack to (a compressed bomb stops here)
 MAX_MEMBERS = 300_000
 # Credentials that must never leave the service in events or logs: GitHub tokens of every kind.
-SECRET = re.compile(r"\b(?:gh[opsu]_[A-Za-z0-9_.\-]{20,}|github_pat_[A-Za-z0-9_]{20,})")
+CREDENTIAL = re.compile(r"\b(?:gh[opsu]_[A-Za-z0-9_.\-]{20,}|github_pat_[A-Za-z0-9_]{20,})")
 CLI_TIMEOUT = 1200  # the CLI's own --timeout (plan: 20 minutes)
 GRACE = 300  # then the process group is killed
 KEEP_RESULTS = 2 * 3600
@@ -85,7 +85,7 @@ def redact(text: str, token: str | None) -> str:
     """Events and logs leave the service without credentials (threat 11)."""
     if token:
         text = text.replace(token, "[redacted]")
-    return SECRET.sub("[redacted]", text)
+    return CREDENTIAL.sub("[redacted]", text)
 
 
 def local_image(ref: str) -> str:
