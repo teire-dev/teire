@@ -135,7 +135,11 @@ export function uvOverrideEdit(
   name: string,
   target: string,
 ): ManifestEdit | null {
-  const path = project.root === "." ? "pyproject.toml" : `${project.root}/pyproject.toml`;
+  // uv reads `[tool.uv]` only at the workspace root, the folder of the `uv.lock` a member shares,
+  // and ignores it in members (uv docs, "Configuration files"; review R15).
+  const lock = project.lockfile;
+  const root = lock ? (lock.includes("/") ? lock.slice(0, lock.lastIndexOf("/")) : ".") : project.root;
+  const path = root === "." ? "pyproject.toml" : `${root}/pyproject.toml`;
   const before = tree.read(path);
   if (before === null) return null;
   const entry = `"${name}>=${target}"`;

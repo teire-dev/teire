@@ -93,6 +93,17 @@ describe("uv override-dependencies", () => {
     );
   });
 
+  it("writes to the workspace root, where uv reads [tool.uv], not to the member", () => {
+    const member = { root: "packages/api", manager: "uv", lockfile: "uv.lock" } as unknown as PyProject;
+    const tree = memoryTree({
+      "pyproject.toml": '[tool.uv.workspace]\nmembers = ["packages/*"]\n',
+      "packages/api/pyproject.toml": head,
+    });
+    const e = uvOverrideEdit(tree, member, "urllib3", "2.2.2");
+    expect(e?.path).toBe("pyproject.toml");
+    expect(e?.after).toContain('[tool.uv]\noverride-dependencies = ["urllib3>=2.2.2"]');
+  });
+
   it("is the fallback when the in-range uv lock can't reach the fix", () => {
     const tx = pyTransaction(
       memoryTree({ "pyproject.toml": head, "uv.lock": "" }),
