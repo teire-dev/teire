@@ -31,6 +31,7 @@ import {
   projectOf,
 } from "../verify/projects";
 import { type Change, runChecks, runSide, type SideRun, type VerifyRun, verifyChange } from "../verify/run";
+import { RepositoryNotPublicError, TarballTooLargeError } from "../verify/tokenfactory";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
 import { type InstallTriage, type Review, reviewFix, triageInstall } from "./review";
@@ -409,17 +410,21 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         plan: planFor(project, input.verify),
         change: { files, writes },
       });
-    // One retry for a sandbox that didn't open; a second failure is a result, not an omission.
+    // One retry for a sandbox that didn't open; a second failure is a result, not an omission. A
+    // tarball over the cap or a repository no longer public is the answer already (review round 2).
     let v: VerifyRun | null = null;
     let failure = "";
     try {
       v = await attempt();
-    } catch {
-      try {
-        v = await attempt();
-      } catch (error) {
-        failure = String(error);
-      }
+    } catch (first) {
+      if (first instanceof TarballTooLargeError || first instanceof RepositoryNotPublicError)
+        failure = String(first);
+      else
+        try {
+          v = await attempt();
+        } catch (error) {
+          failure = String(error);
+        }
     }
     if (!v) {
       const reason = `couldn't be checked (${forGitHub(failure, 200)})`;

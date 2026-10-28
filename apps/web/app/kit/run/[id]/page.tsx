@@ -23,29 +23,28 @@ import { ProofChain } from "@/components/teire/proof-chain";
 import { EvidenceChip } from "@/components/teire/status-chip";
 import { AgentTrace } from "@/components/ui/agent-trace";
 import { Button } from "@/components/ui/button";
-import { type ActivityRow, activityOf, type Exec } from "@/lib/activity";
+import { type ActivityRow, activityOf, type Exec, modelLabel } from "@/lib/activity";
 import { SPONSORS } from "@/lib/brands";
-import { type KitRun, kitRun, kitShell, requireKit } from "@/lib/kit";
+import { type KitRun, kitRun, kitRunAt, kitShell, requireKit } from "@/lib/kit";
 import { subjectMark } from "@/lib/marks";
 import { traceOf } from "@/lib/trace";
 import { backendName, cn } from "@/lib/utils";
 
 export const metadata = { title: "Run" };
 
-export default function KitRunPage({ params }: PageProps<"/kit/run/[id]">) {
+export default function KitRunPage({ params, searchParams }: PageProps<"/kit/run/[id]">) {
   return (
     <Suspense fallback={<div className="m-8 h-96 animate-pulse rounded-xl bg-sheet shadow-card" />}>
-      <RunSheet params={params} />
+      <RunSheet params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-const duration = (ms: number | null) =>
-  ms === null
-    ? "—"
-    : ms < 60_000
-      ? `${Math.round(ms / 1000)}s`
-      : `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
+const duration = (ms: number | null) => {
+  if (ms === null) return "—";
+  const s = Math.round(ms / 1000);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+};
 
 /** The run's subject: a package and its versions, or the models a swap replaces. */
 function subjectOf(run: KitRun["run"]) {
@@ -96,22 +95,31 @@ function phasesOf(data: KitRun): Phase[] {
     {
       key: "pr",
       label: data.artifact?.kind === "issue" ? "Issue" : "PR",
-      ms: pr ? 600 : null,
+      ms: null,
       state: pr ? "done" : active ? "pending" : "skipped",
     },
   ];
 }
 
-async function RunSheet({ params }: { params: PageProps<"/kit/run/[id]">["params"] }) {
+async function RunSheet({
+  params,
+  searchParams,
+}: {
+  params: PageProps<"/kit/run/[id]">["params"];
+  searchParams: PageProps<"/kit/run/[id]">["searchParams"];
+}) {
   const { id } = await params;
+  const { at } = await searchParams;
   await connection();
   await requireKit();
-  const [data, shell] = await Promise.all([kitRun(id), kitShell()]);
-  if (!data) return <p className="p-8 text-sm text-ink-3">No public run with that id.</p>;
+  const [found, shell] = await Promise.all([kitRun(id), kitShell()]);
+  if (!found) return <p className="p-8 text-sm text-ink-3">No public run with that id.</p>;
+  // `?at=<seq>`: the run as it stood at that event, shown live (a replay of its own records).
+  const data = typeof at === "string" && /^\d+$/.test(at) ? kitRunAt(found, Number(at)) : found;
   const { run, repo, artifact, events, execs, calls, verification, proof } = data;
   const active = run.status === "queued" || run.status === "running";
   const subject = subjectOf(run);
-  const rows = activityOf(events, execs as Exec[], active);
+  const rows = activityOf(events, execs as Exec[], active, data.model);
   const baseline = (verification?.baseline ?? []) as LedgerCheck[];
   const after = (verification?.after ?? []) as LedgerCheck[];
   const ms = run.startedAt ? (run.finishedAt ?? new Date()).getTime() - run.startedAt.getTime() : null;
@@ -126,6 +134,7 @@ async function RunSheet({ params }: { params: PageProps<"/kit/run/[id]">["params
 
   return (
     <KitShell
+      system={shell.system}
       account={shell.account}
       repos={shell.repos}
       crumbs={[
@@ -169,11 +178,12 @@ async function RunSheet({ params }: { params: PageProps<"/kit/run/[id]">["params
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" disabled={active}>
+            {/* A composition: Re-verify and Share work on the run page (U1 actions, U2). */}
+            <Button variant="outline" size="sm" disabled title="Composition: Re-verify works on the run page">
               <RotateCcw data-icon="inline-start" />
               Re-verify
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled title="Composition: Share works on the run page">
               <Share2 data-icon="inline-start" />
               Share
             </Button>
@@ -207,7 +217,8 @@ async function RunSheet({ params }: { params: PageProps<"/kit/run/[id]">["params
                 spans={spans}
                 duration={traceEnd}
                 runId={run.id.slice(0, 8)}
-                model="Nemotron 3 Ultra"
+                model={modelLabel(data.model) ?? undefined}
+                live={active}
                 defaultTime={traceEnd}
                 autoPlay={false}
                 speed={Math.max(1, traceEnd / 8000)}
@@ -312,7 +323,9 @@ async function RunSheet({ params }: { params: PageProps<"/kit/run/[id]">["params
                     alt="NVIDIA"
                     className="h-3.5"
                   />
-                  <span className="text-xs text-ink-2">Nemotron · {calls.length} calls</span>
+                  <span className="text-xs text-ink-2">
+                    {modelLabel(data.model) ?? "Models"} · {calls.length} calls
+                  </span>
                 </span>
                 <span className="font-mono text-xs text-ink">${Number(run.costUsd).toFixed(3)}</span>
               </div>

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterAll, describe, expect, it } from "vitest";
-import { extractTarGz, safeJoin } from "../src/inventory/archive";
+import { ArchiveLimitError, extractTar, extractTarGz, safeJoin } from "../src/inventory/archive";
 import { readJsInventory } from "../src/inventory/js";
 import { directoryTree } from "../src/inventory/tree";
 
@@ -100,6 +100,29 @@ describe("safe extraction", () => {
     expect(report.files).toBe(1);
     expect(report.skipped.map((s) => s.reason).sort()).toEqual(["link", "unsafe-path"]);
     expect(directoryTree(dest).read("package.json")).toBe('{"name":"x"}');
+  });
+
+  // Review round 2: metadata and skipped bytes count, a truncated skip fails, absolute names are refused.
+  it("counts metadata entries and every expanded byte against the limits", async () => {
+    const pax = (i: number) =>
+      tarEntry(`PaxHeaders/${i}`, `20 comment=x${String(i).padStart(4, "0")}\n`, "x");
+    const many = Buffer.concat([...Array.from({ length: 8 }, (_, i) => pax(i)), Buffer.alloc(1024)]);
+    await expect(extractTar(many, dest, { maxEntries: 5 })).rejects.toThrow(/header entries/);
+    const big = Buffer.concat([tarEntry("repo/big.bin", "x".repeat(4000)), Buffer.alloc(1024)]);
+    await expect(extractTar(big, dest, { maxFileBytes: 1000, maxExpandedBytes: 2048 })).rejects.toThrow(
+      ArchiveLimitError,
+    );
+  });
+
+  it("refuses an archive that ends inside a skipped entry, and absolute names", async () => {
+    const truncated = tarEntry("repo/big.bin", "x".repeat(4000)).subarray(0, 512 + 600);
+    await expect(extractTar(truncated, dest, { maxFileBytes: 1000 })).rejects.toThrow(/ends inside an entry/);
+    const report = await extractTar(
+      Buffer.concat([tarEntry("/etc/passwd", "root"), tarEntry("../up/x", "y"), Buffer.alloc(1024)]),
+      dest,
+    );
+    expect(report.files).toBe(0);
+    expect(report.skipped.map((s) => s.reason)).toEqual(["unsafe-path", "unsafe-path"]);
   });
 
   it("joins only inside the root", () => {

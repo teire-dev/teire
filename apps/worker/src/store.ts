@@ -328,15 +328,16 @@ export async function claimRun(db: Database, values: typeof runs.$inferInsert) {
 export const WORKER_ID = `${hostname()}:${process.pid}:${Date.now().toString(36)}`;
 
 /**
- * Takes the run for this worker unless another worker is working it now (a fresh heartbeat on a
- * running run): during a deploy the old and new containers overlap, and the boot sweep retries jobs
- * the old one still holds, so without this one run could open sandboxes and push twice.
+ * Takes the run for this worker unless another worker holds it now (a fresh heartbeat, whatever the
+ * run's status: a run claimed and still `queued` is held too, review round 2). During a deploy the
+ * old and new containers overlap, and the boot sweep retries jobs the old one still holds, so without
+ * this one run could open sandboxes and push twice. A run that waits (deferred) is released.
  */
 export async function claimRunLease(db: Database, runId: string, leaseMs: number) {
   const { rows } = await db.execute<{ id: string }>(sql`
     update runs set worker_id = ${WORKER_ID}, heartbeat_at = now()
     where id = ${runId}
-      and (status <> 'running' or worker_id is null or worker_id = ${WORKER_ID}
+      and (worker_id is null or worker_id = ${WORKER_ID}
         or heartbeat_at is null or heartbeat_at < now() - make_interval(secs => ${leaseMs / 1000}))
     returning id
   `);
@@ -390,6 +391,16 @@ export async function updateRun(db: Database, id: string, fields: Partial<typeof
     .update(runs)
     .set({ ...fields, heartbeatAt: new Date() })
     .where(eq(runs.id, id));
+}
+
+/** Updates a run only while this worker holds its lease; false when another worker has taken it. */
+export async function updateHeldRun(db: Database, id: string, fields: Partial<typeof runs.$inferInsert>) {
+  const rows = await db
+    .update(runs)
+    .set({ ...fields, heartbeatAt: new Date() })
+    .where(and(eq(runs.id, id), eq(runs.workerId, WORKER_ID)))
+    .returning({ id: runs.id });
+  return rows.length > 0;
 }
 
 /** Appends to a run's event log; `seq` is assigned in the database so writers never collide. */

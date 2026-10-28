@@ -14,6 +14,7 @@ import {
   runs,
   sandboxExecs,
   sql,
+  systemState,
   userInstallations,
 } from "@teire/db";
 import { notFound } from "next/navigation";
@@ -45,18 +46,51 @@ export async function canSeeKit(userId: string | null) {
 
 type Verification = { baseline?: LedgerCheck[]; after?: LedgerCheck[]; reasons?: string[] } | null;
 
-/** Located call sites for a change group in a repository; null for a group the scan never located. */
-async function sitesOf(repoId: number, groupKey: string | null) {
-  if (!groupKey) return null;
-  const rows = await database()
-    .select({ callSites: findings.callSites, verdict: findings.verdict })
-    .from(findings)
-    .where(and(eq(findings.repoId, repoId), eq(findings.groupKey, groupKey)));
-  if (!rows.length) return null;
-  const located = rows.filter((r) => Array.isArray(r.callSites));
-  if (!located.length) return null;
-  return located.reduce((n, r) => n + (r.callSites as unknown[]).length, 0);
+/** What reaches the code for one change group: located call sites (affected findings only), and
+ * whether it is a security advisory (whose reach is the installed version, not a call site). */
+export interface Reach {
+  sites: number | null;
+  advisory: boolean;
 }
+
+/**
+ * Reach for many (repository, group) pairs in one query (review round 2: no query per row). Sites
+ * count only findings that reach the code; a group the scan located but that reaches nothing is 0;
+ * a group never located (a plain bump) is null.
+ */
+async function reachOf(pairs: { repoId: number; groupKey: string | null }[]) {
+  const wanted = pairs.filter((p): p is { repoId: number; groupKey: string } => !!p.groupKey);
+  const out = new Map<string, Reach>();
+  if (!wanted.length) return out;
+  const rows = await database()
+    .select({
+      repoId: findings.repoId,
+      groupKey: findings.groupKey,
+      callSites: findings.callSites,
+      verdict: findings.verdict,
+      cls: findings.class,
+    })
+    .from(findings)
+    .where(
+      and(
+        inArray(findings.repoId, [...new Set(wanted.map((p) => p.repoId))]),
+        inArray(findings.groupKey, [...new Set(wanted.map((p) => p.groupKey))]),
+      ),
+    );
+  for (const r of rows) {
+    const key = `${r.repoId}:${r.groupKey}`;
+    const reach = out.get(key) ?? { sites: null, advisory: false };
+    const located = Array.isArray(r.callSites) ? (r.callSites as unknown[]).length : null;
+    if (r.verdict === "affected") {
+      if (r.cls === "security") reach.advisory = true;
+      if (located !== null) reach.sites = (reach.sites ?? 0) + located;
+    } else if (located !== null && reach.sites === null) reach.sites = 0;
+    out.set(key, reach);
+  }
+  return out;
+}
+
+const reachKey = (repoId: number, groupKey: string | null) => `${repoId}:${groupKey}`;
 
 const checksLine = (v: Verification) => {
   const t = v?.after?.find((c) => c.name === "test")?.counts;
@@ -68,15 +102,17 @@ const checksLine = (v: Verification) => {
 export async function kitRun(id: string) {
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const db = database();
+  // The kit's installation only, as every list in it (review round 2).
   const [row] = await db
     .select({ run: runs, repo: repos })
     .from(runs)
     .innerJoin(repos, eq(repos.id, runs.repoId))
-    .where(eq(runs.id, id))
+    .innerJoin(installations, eq(installations.id, repos.installationId))
+    .where(and(eq(runs.id, id), eq(installations.accountLogin, KIT_ACCOUNT)))
     .limit(1);
   if (!row || row.repo.isPrivate) return null;
   const { run, repo } = row;
-  const [[artifact], events, execs, calls, sites] = await Promise.all([
+  const [[artifact], events, execs, calls, reach] = await Promise.all([
     db
       .select()
       .from(artifacts)
@@ -85,9 +121,10 @@ export async function kitRun(id: string) {
     db.select().from(runEvents).where(eq(runEvents.runId, run.id)).orderBy(asc(runEvents.seq)),
     db.select().from(sandboxExecs).where(eq(sandboxExecs.runId, run.id)).orderBy(asc(sandboxExecs.createdAt)),
     db.select().from(llmCalls).where(eq(llmCalls.runId, run.id)).orderBy(asc(llmCalls.createdAt)),
-    sitesOf(repo.id, run.groupKey),
+    reachOf([{ repoId: repo.id, groupKey: run.groupKey }]),
   ]);
   const verification = run.verification as Verification;
+  const { sites, advisory } = reach.get(reachKey(repo.id, run.groupKey)) ?? { sites: null, advisory: false };
   const proof = proofOfRun({
     kind: run.kind,
     status: run.status,
@@ -95,13 +132,68 @@ export async function kitRun(id: string) {
     evidenceKind: run.evidenceKind,
     prMode: run.prMode,
     sites,
+    advisory,
     artifact: artifact ? { kind: artifact.kind, url: artifact.url, number: artifact.number } : null,
     ...(checksLine(verification) ? { checks: checksLine(verification) as string } : {}),
   });
-  return { run, repo, artifact: artifact ?? null, events, execs, calls, sites, verification, proof };
+  // The agent's model as the calls recorded it, not a name typed into the page.
+  const model = calls.find((c) => c.purpose === "fix")?.model ?? calls[0]?.model ?? null;
+  return {
+    run,
+    repo,
+    artifact: (artifact ?? null) as typeof artifact | null,
+    events,
+    execs,
+    calls,
+    sites,
+    advisory,
+    verification,
+    proof,
+    model,
+  };
 }
 
 export type KitRun = NonNullable<Awaited<ReturnType<typeof kitRun>>>;
+
+/**
+ * The run as it stood at one of its events (`?at=<seq>` on the kit's run page): the live state, from
+ * the run's own records up to that moment (review round 2: a live composition without waiting for a
+ * run). Nothing later shows: no evidence, no PR, no command or model call after it.
+ */
+export function kitRunAt(data: KitRun, seq: number): KitRun {
+  const events = data.events.filter((e) => e.seq <= seq);
+  const at = events.at(-1)?.at ?? data.run.startedAt ?? data.run.createdAt;
+  const before = (d: Date) => d.getTime() <= at.getTime();
+  const step = events.at(-1)?.step ?? "assess";
+  const run = {
+    ...data.run,
+    status: "running" as const,
+    step,
+    evidenceKind: null,
+    prMode: null,
+    verification: null,
+    finishedAt: null,
+  };
+  return {
+    ...data,
+    run,
+    events,
+    execs: data.execs.filter((x) => before(x.createdAt)),
+    calls: data.calls.filter((c) => before(c.createdAt)),
+    artifact: null,
+    verification: null,
+    proof: proofOfRun({
+      kind: run.kind,
+      status: "running",
+      step,
+      evidenceKind: null,
+      prMode: null,
+      sites: data.sites,
+      advisory: data.advisory,
+      artifact: null,
+    }),
+  };
+}
 
 /** A row in any list of runs or PRs: enough for the subject, the chain and the evidence. */
 export interface RunRow {
@@ -132,51 +224,67 @@ async function rowsOf(where: ReturnType<typeof and>, limit: number): Promise<Run
     .orderBy(desc(runs.updatedAt))
     .limit(limit);
   const ids = rows.map((r) => r.run.id);
-  const arts = ids.length ? await db.select().from(artifacts).where(inArray(artifacts.runId, ids)) : [];
-  return Promise.all(
-    rows.map(async ({ run, repo, repoId }) => {
-      const art = arts.find((a) => a.runId === run.id);
-      const v = run.verification as Verification;
-      return {
-        id: run.id,
-        repo,
-        groupKey: run.groupKey,
-        from: run.fromVersion,
-        to: run.targetVersion,
+  const [arts, reach] = await Promise.all([
+    ids.length ? db.select().from(artifacts).where(inArray(artifacts.runId, ids)) : [],
+    reachOf(rows.map((r) => ({ repoId: r.repoId, groupKey: r.run.groupKey }))),
+  ]);
+  return rows.map(({ run, repo, repoId }) => {
+    const art = arts.find((a) => a.runId === run.id);
+    const v = run.verification as Verification;
+    const { sites, advisory } = reach.get(reachKey(repoId, run.groupKey)) ?? { sites: null, advisory: false };
+    return {
+      id: run.id,
+      repo,
+      groupKey: run.groupKey,
+      from: run.fromVersion,
+      to: run.targetVersion,
+      status: run.status,
+      step: run.step,
+      evidence: run.evidenceKind,
+      backend: run.backend,
+      finishedAt: run.finishedAt,
+      startedAt: run.startedAt,
+      createdAt: run.createdAt,
+      pr: art ? { number: art.number, url: art.url, kind: art.kind } : null,
+      proof: proofOfRun({
+        kind: run.kind,
         status: run.status,
         step: run.step,
-        evidence: run.evidenceKind,
-        backend: run.backend,
-        finishedAt: run.finishedAt,
-        startedAt: run.startedAt,
-        createdAt: run.createdAt,
-        pr: art ? { number: art.number, url: art.url, kind: art.kind } : null,
-        proof: proofOfRun({
-          kind: run.kind,
-          status: run.status,
-          step: run.step,
-          evidenceKind: run.evidenceKind,
-          prMode: run.prMode,
-          sites: await sitesOf(repoId, run.groupKey),
-          artifact: art ? { kind: art.kind, url: art.url, number: art.number } : null,
-          ...(checksLine(v) ? { checks: checksLine(v) as string } : {}),
-        }),
-      };
-    }),
-  );
+        evidenceKind: run.evidenceKind,
+        prMode: run.prMode,
+        sites,
+        advisory,
+        artifact: art ? { kind: art.kind, url: art.url, number: art.number } : null,
+        ...(checksLine(v) ? { checks: checksLine(v) as string } : {}),
+      }),
+    };
+  });
 }
+
+/** How many runs match, under the same rules as `rowsOf` (a figure always counts its own list). */
+async function countRuns(where: ReturnType<typeof and>) {
+  const [row] = await database()
+    .select({ n: sql<number>`count(*)::int` })
+    .from(runs)
+    .innerJoin(repos, eq(repos.id, runs.repoId))
+    .innerJoin(installations, eq(installations.id, repos.installationId))
+    .where(and(eq(installations.accountLogin, KIT_ACCOUNT), eq(repos.isPrivate, false), where));
+  return row?.n ?? 0;
+}
+
+/** Runs that need a person: a draft or an issue in the last week, or a stop. */
+const NEEDS_YOU = and(
+  sql`${runs.finishedAt} > now() - interval '7 days'`,
+  sql`(${runs.evidenceKind} in ('environment_mismatch','needs_live_access','needs_local_service','typecheck_only','pre_existing_failure','regression','timeout','unverified') or (${runs.status} = 'failed' and ${runs.error} like 'stopped:%'))`,
+);
 
 /** The Overview's sections, most urgent first (plan revision 3.3, "Overview"). */
 export async function kitOverview() {
   const db = database();
-  const [needsYou, openPrs, live, recent, deadlines, repoRows] = await Promise.all([
-    rowsOf(
-      and(
-        sql`${runs.finishedAt} > now() - interval '7 days'`,
-        sql`(${runs.evidenceKind} in ('environment_mismatch','needs_live_access','needs_local_service','typecheck_only','regression','timeout','unverified') or (${runs.status} = 'failed' and ${runs.error} like 'stopped:%'))`,
-      ),
-      8,
-    ),
+  const [needsYou, needsYouCount, liveCount, openPrs, live, recent, deadlines, repoRows] = await Promise.all([
+    rowsOf(NEEDS_YOU, 8),
+    countRuns(NEEDS_YOU),
+    countRuns(eq(runs.status, "running")),
     rowsOf(
       and(
         eq(runs.status, "succeeded"),
@@ -201,6 +309,7 @@ export async function kitOverview() {
       .where(
         and(
           eq(installations.accountLogin, KIT_ACCOUNT),
+          eq(repos.isPrivate, false),
           eq(findings.verdict, "affected"),
           sql`${changes.deadline} > now() - interval '30 days'`,
         ),
@@ -220,7 +329,7 @@ export async function kitOverview() {
         pausedReason: repos.pausedReason,
         lastScannedAt: repos.lastScannedAt,
         languages: repos.languages,
-        affected: sql<number>`(select count(*)::int from findings f where f.repo_id = ${repos.id} and f.verdict = 'affected')`,
+        affected: sql<number>`(select count(distinct f.group_key)::int from findings f where f.repo_id = ${repos.id} and f.verdict = 'affected')`,
         openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
         live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status = 'running')`,
       })
@@ -256,17 +365,16 @@ export async function kitOverview() {
       return { repo: row.full_name, said, unresolved: c.unresolvedSites ?? 0 };
     })
     .filter((g) => g.said.length);
+  // Every figure counts the same public repositories of the installation its lists show (round 2).
   const [counts] = (
-    await db.execute<{ proven: number; drafts: number; open: number; reaching: number }>(sql`
+    await db.execute<{ proven: number; open: number; reaching: number }>(sql`
       select
         (select count(*)::int from artifacts a join runs r on r.id = a.run_id join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
-          where i.account_login = ${KIT_ACCOUNT} and a.kind = 'pr' and a.state = 'open' and r.evidence_kind = 'verified') as proven,
-        (select count(*)::int from artifacts a join runs r on r.id = a.run_id join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
-          where i.account_login = ${KIT_ACCOUNT} and a.state = 'open' and (r.evidence_kind is distinct from 'verified')) as drafts,
+          where i.account_login = ${KIT_ACCOUNT} and not p.is_private and a.kind = 'pr' and a.state = 'open' and r.evidence_kind = 'verified') as proven,
         (select count(*)::int from artifacts a join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
-          where i.account_login = ${KIT_ACCOUNT} and a.kind = 'pr' and a.state = 'open') as open,
+          where i.account_login = ${KIT_ACCOUNT} and not p.is_private and a.kind = 'pr' and a.state = 'open') as open,
         (select count(distinct f.group_key)::int from findings f join repos p on p.id = f.repo_id join installations i on i.id = p.installation_id
-          where i.account_login = ${KIT_ACCOUNT} and f.verdict = 'affected') as reaching`)
+          where i.account_login = ${KIT_ACCOUNT} and not p.is_private and f.verdict = 'affected') as reaching`)
   ).rows;
   return {
     needsYou,
@@ -279,7 +387,7 @@ export async function kitOverview() {
       fixMode: repoFixMode({ config, fixMode, fullName: r.fullName }, { defaultFixMode, securityFixMode }),
     })),
     gaps,
-    counts: counts ?? { proven: 0, drafts: 0, open: 0, reaching: 0 },
+    counts: { ...(counts ?? { proven: 0, open: 0, reaching: 0 }), needsYou: needsYouCount, live: liveCount },
   };
 }
 
@@ -293,8 +401,8 @@ export async function kitRepo(fullName: string) {
       securityFixMode: installations.securityFixMode,
     })
     .from(repos)
-    .leftJoin(installations, eq(installations.id, repos.installationId))
-    .where(eq(repos.fullName, fullName))
+    .innerJoin(installations, eq(installations.id, repos.installationId))
+    .where(and(eq(repos.fullName, fullName), eq(installations.accountLogin, KIT_ACCOUNT)))
     .limit(1);
   const repo = row?.repo;
   if (!row || !repo || repo.isPrivate) return null;
@@ -344,7 +452,20 @@ export async function kitShell() {
       ),
     )
     .orderBy(asc(repos.fullName));
+  // The worker's heartbeat, as /trust reads it: the status line says what it says, never a literal.
+  const [worker] = await db.select().from(systemState).where(eq(systemState.key, "worker")).limit(1);
+  const at = (worker?.value as { at?: string } | undefined)?.at;
+  const quietMin = at ? Math.floor((Date.now() - Date.parse(at)) / 60_000) : null;
   return {
+    system: {
+      alive: quietMin !== null && quietMin < 5,
+      label:
+        quietMin === null
+          ? "No worker heartbeat yet"
+          : quietMin < 5
+            ? "Worker running"
+            : `Worker quiet ${quietMin} min`,
+    },
     account: { login: account?.login ?? KIT_ACCOUNT, avatarUrl: account?.avatarUrl ?? null },
     repos: list.map((r) => ({
       fullName: r.fullName,

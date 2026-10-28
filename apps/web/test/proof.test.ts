@@ -55,4 +55,24 @@ describe("proofOfRun", () => {
       "not_applicable",
     ]);
   });
+
+  it("a queued run has nothing live; an issue is not a fix; a cancelled run proves nothing (round 2)", () => {
+    expect(
+      states(run({ status: "queued", step: null, evidenceKind: null, artifact: null, prMode: null })),
+    ).toEqual(["done", "pending", "pending", "pending", "pending"]);
+    const issue = proofOfRun(
+      run({
+        status: "failed",
+        evidenceKind: "regression",
+        prMode: "issue",
+        artifact: { kind: "issue", url: null, number: 9 },
+      }),
+    );
+    expect([issue.fixed.state, issue.proven.state]).toEqual(["failed", "failed"]);
+    expect(
+      states(
+        run({ status: "cancelled", step: "fixes off", evidenceKind: null, artifact: null, prMode: null }),
+      ).slice(2),
+    ).toEqual(["not_applicable", "not_applicable", "not_applicable"]);
+  });
 });

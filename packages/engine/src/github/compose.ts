@@ -273,10 +273,23 @@ function receiptLines(
 
 /** Problems the review of the passing diff still saw: stated, never hidden, and never a score. */
 function reviewRisks(run: FixRun) {
-  return (run.review?.problems ?? []).map(
-    (p) =>
-      `Review (${modelName(run.review?.model ?? "")}) of \`${p.file}\`: ${escapeCell(p.problem).slice(0, 300)}`,
-  );
+  return [
+    ...sandboxNotes(run),
+    ...(run.review?.problems ?? []).map(
+      (p) =>
+        `Review (${modelName(run.review?.model ?? "")}) of \`${p.file}\`: ${escapeCell(p.problem).slice(0, 300)}`,
+    ),
+  ];
+}
+
+/** What the sandbox did differently from the repository as committed (review round 2). */
+function sandboxNotes(run: FixRun) {
+  const notes: string[] = [];
+  if (run.baseline.install.output.includes("teire: Cargo.lock is behind Cargo.toml"))
+    notes.push(
+      "The committed `Cargo.lock` was behind `Cargo.toml`, so both sides were checked on the lock `cargo build` brings up to date, not the committed one.",
+    );
+  return notes;
 }
 
 /** What the review questioned and the checks answered: kept, with the evidence. */
@@ -327,7 +340,8 @@ function verdictLine(input: FixPullRequestInput) {
     case "needs_local_service":
       return `**Draft: needs a local service.** ${what}. Tests need a database or cache the sandbox does not run.`;
     case "environment_mismatch":
-      return `**Draft: environment differs.** ${what}. The sandbox could not reproduce the repo's environment.`;
+      // Also a project of the change that couldn't be checked at all (review round 2): the reasons say which.
+      return `**Draft: not everything could be checked.** ${what}. ${saidReasons(run.evidence.reasons)}.`;
     default:
       return `**Needs a human.** ${what}. ${saidReasons(run.evidence.reasons)}.`;
   }
@@ -350,10 +364,10 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     const out: string[] = [`<!-- teire:group=${input.groupKey} run=${input.runId} -->`, verdictLine(input)];
     if (input.fallbackFrom)
       out.push(
-        `**Why ${run.target}, not ${input.fallbackFrom.version}.** Teire tried ${input.fallbackFrom.version} first; the repo's checks still failed after the agent's attempts (${sanitizeUpstream(input.fallbackFrom.reason, null)}), so this PR moves to the newest version of the previous major.`,
+        `**Why ${run.target}, not ${input.fallbackFrom.version}.** Teire tried ${input.fallbackFrom.version} first; the repo's checks still failed after the agent's attempts (${sanitizeUpstream(forGitHub(input.fallbackFrom.reason, 400), null)}), so this PR moves to the newest version of the previous major.`,
       );
     if (input.targetMax?.name === instance.name)
-      out.push(`**Why ${run.target}.** ${sanitizeUpstream(input.targetMax.reason, null)}.`);
+      out.push(`**Why ${run.target}.** ${sanitizeUpstream(forGitHub(input.targetMax.reason, 400), null)}.`);
 
     // Why this repo
     const sites = input.summary.breaking.flatMap((f) => f.callSites.map((s) => ({ s, f })));

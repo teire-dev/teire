@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LiveDot } from "@/components/teire/live-dot";
-import { ProofGlyphs } from "@/components/teire/proof-chain";
+import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { EvidenceChip } from "@/components/teire/status-chip";
 import type { RunRow } from "@/lib/kit";
 
@@ -33,7 +33,7 @@ export function RunRowItem({ row, href }: { row: RunRow; href: string }) {
     <li>
       <Link
         href={href}
-        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 hover:bg-hover focus-visible:bg-hover focus-visible:outline-none sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
       >
         <span className="flex min-w-0 flex-col">
           <span className="flex min-w-0 items-center gap-2">

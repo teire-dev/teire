@@ -15,7 +15,8 @@
  * Primary actions are ink. shadcn's and the earlier status names alias onto these, so every page
  * keeps working while it is rebuilt.
  */
-@custom-variant dark (&:is(.dark *));
+/* Dark inside `.dark`, except inside a region pinned `.light` within it (the kit's side-by-side boards). */
+@custom-variant dark (&:where(.dark, .dark *):not(:where(.dark .light, .dark .light *)));
 
 @theme inline {
   --color-canvas: var(--canvas);

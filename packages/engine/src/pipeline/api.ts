@@ -346,16 +346,22 @@ export function planModelSwaps(
   const edits: CodemodEdit[] = [];
   for (const { file, line, swaps } of byLine.values()) {
     let text: string;
+    let whole: string;
     try {
-      text = readFileSync(join(repoDir, file), "utf8").split("\n")[line - 1] ?? "";
+      whole = readFileSync(join(repoDir, file), "utf8");
+      text = whole.split("\n")[line - 1] ?? "";
     } catch {
       continue;
     }
+    // A line that is one entry of a list of models (a catalogue the repo offers) is not swapped when
+    // the file already lists the replacement: that would list it twice; the agent decides (round 2).
+    const listEntry = /^\s*["'`][^"'`]+["'`]\s*,?\s*$/.test(text);
     let after = text;
     const applied: string[] = [];
     // Right to left, so earlier columns stay valid.
     for (const s of [...swaps].sort((a, b) => b.column - a.column)) {
       if (after.slice(s.column, s.column + s.from.length) !== s.from) continue;
+      if (listEntry && ['"', "'", "`"].some((q) => whole.includes(`${q}${s.to}${q}`))) continue;
       after = after.slice(0, s.column) + s.to + after.slice(s.column + s.from.length);
       applied.push(`${s.from} → ${s.to}`);
     }
@@ -372,9 +378,16 @@ export function planModelSwaps(
   return [...edits, ...expectationSwaps(repoDir, edits)];
 }
 
-/** An equality assertion just before a quoted value: `eq("`, `toBe("`, `assertEquals("`, `Equal(t, "`, `== "`. */
+/**
+ * An equality assertion just before a quoted value: `eq("`, `toBe("`, `assertEquals("`, `Equal(t, "`,
+ * minitest's `assert_equal "`, `== "`, and Go's `if got != "` (the test fails unless they are
+ * equal). A negated one (`not_to eq`, `.not.toBe`, `assert_not_equal`, Python's `assert x != "`)
+ * keeps its value: moving it would assert the opposite (review round 2).
+ */
 const EXPECTATION =
-  /(?:\beql?|\bequal|toBe|toEqual|toStrictEqual|toHaveBeenCalledWith|assertEquals?|assert_eq!?|assertEqual|isEqualTo|Equalf?\(\s*t\s*,|==|!=)\s*\(?\s*["'`]$/;
+  /(?:\beql?|\bequal|assert_equal|toBe|toEqual|toStrictEqual|toHaveBeenCalledWith|assertEquals?|assert_eq!?|assertEqual|isEqualTo|Equalf?\(\s*t\s*,|==|!=)\s*\(?\s*["'`]$/;
+const NEGATED =
+  /\bnot_to\b|\bto_not\b|\.not\.|\.not\(|assert_not_equal|refute_equal|assertNotEquals?|assert_ne!|isNotEqualTo|NotEqualf?\(|\bassert\b[^=]*!=/;
 const TEST_PATH =
   /(?:^|\/)(?:spec|specs|test|tests|__tests__)\/|(?:_spec|_test|\.test|\.spec|Test|Tests)\.[a-z]+$|(?:^|\/)test_[^/]+\.py$/;
 const SKIP_DIRS = new Set([
@@ -463,7 +476,8 @@ export function expectationSwaps(repoDir: string, swaps: CodemodEdit[]): Codemod
           const needle = `${q}${from}${q}`;
           let at = after.indexOf(needle);
           while (at >= 0) {
-            if (EXPECTATION.test(after.slice(0, at + 1))) {
+            const lead = after.slice(0, at + 1);
+            if (EXPECTATION.test(lead) && !NEGATED.test(lead)) {
               after = `${after.slice(0, at + 1)}${to}${after.slice(at + 1 + from.length)}`;
               applied.push(`${from} → ${to}`);
             }

@@ -64,6 +64,8 @@ export interface AgentTraceProps extends React.ComponentProps<"div"> {
   rowHeight?: number;
   /** Called when a row is activated. The playhead also seeks to that span's start. */
   onSpanSelect?: (span: TraceSpan) => void;
+  /** The run is still going: its last recorded span is not its end, so it never reads "Completed". */
+  live?: boolean;
 }
 
 interface LaidSpan extends TraceSpan {
@@ -189,7 +191,7 @@ export const TraceSpanRow = React.memo(function TraceSpanRow({
                 lastP: 1,
                 lastState: settled,
                 lastMeta: metaText(span, 1, showTokens),
-                lastDur: formatMs(span.dur),
+                lastDur: span.dur === 0 ? "" : formatMs(span.dur),
               }
             : null,
         );
@@ -296,7 +298,7 @@ export const TraceSpanRow = React.memo(function TraceSpanRow({
             span.status === "error" ? "text-destructive" : "text-foreground/70",
           )}
         >
-          {formatMs(span.dur)}
+          {span.dur === 0 ? "" : formatMs(span.dur)}
         </span>
       </div>
     </div>
@@ -330,6 +332,7 @@ export function AgentTrace({
   labelWidth = 200,
   rowHeight = 34,
   onSpanSelect,
+  live = false,
   className,
   style,
   ref,
@@ -362,9 +365,9 @@ export function AgentTrace({
 
   // The loop reads props through this ref, so knobs apply live without restarting it. Written in an
   // effect rather than during render: effects still run before the browser paints the next frame.
-  const opts = React.useRef({ loop, speed, holdMs, showTokens, total });
+  const opts = React.useRef({ loop, speed, holdMs, showTokens, total, live });
   useIsomorphicLayoutEffect(() => {
-    opts.current = { loop, speed, holdMs, showTokens, total };
+    opts.current = { loop, speed, holdMs, showTokens, total, live };
   });
 
   const registerRow = React.useCallback((index: number, handle: RowHandle | null) => {
@@ -407,7 +410,8 @@ export function AgentTrace({
           if (row.status) row.status.textContent = statusWord(span, state);
           row.lastState = state;
         }
-        const dur = state === "queued" ? "" : formatMs(span.dur * p);
+        // An instant (a PR opened, an event without a measured length) shows no duration.
+        const dur = state === "queued" || span.dur === 0 ? "" : formatMs(span.dur * p);
         if (row.dur && dur !== row.lastDur) {
           row.dur.textContent = dur;
           row.lastDur = dur;
@@ -424,7 +428,7 @@ export function AgentTrace({
         clockRef.current.textContent = `${(t / 1000).toFixed(2)}s / ${(o.total / 1000).toFixed(2)}s`;
       // The chip describes the run at the playhead, not the transport: at 6.4s of a 10.4s run the
       // agent was still working, whether or not the replay happens to be paused.
-      const runState = t >= o.total ? "complete" : "running";
+      const runState = t >= o.total && !o.live ? "complete" : "running";
       if (runState !== lastRun) {
         root.dataset.run = runState;
         if (statusRef.current)
@@ -641,7 +645,7 @@ export function AgentTrace({
           ref={statusRef}
           className="border-border text-muted-foreground ml-auto shrink-0 rounded-full border px-2 py-0.5 font-mono text-[11px] leading-4"
         >
-          Completed
+          {live ? "Running" : "Completed"}
         </span>
       </div>
 

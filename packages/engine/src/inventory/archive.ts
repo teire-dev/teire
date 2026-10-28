@@ -13,6 +13,8 @@ export interface ExtractLimits {
   maxEntries: number;
   maxFileBytes: number;
   maxTotalBytes: number;
+  /** Everything read once decompressed, skipped entries and metadata included. */
+  maxExpandedBytes: number;
   /** Leading path components to drop (GitHub tarballs wrap everything in `<owner>-<repo>-<sha>/`). */
   stripComponents: number;
 }
@@ -33,6 +35,7 @@ export const DEFAULT_LIMITS: ExtractLimits = {
   maxEntries: SCAN.maxFiles,
   maxFileBytes: SCAN.maxFileBytes,
   maxTotalBytes: SCAN.maxExtractedBytes,
+  maxExpandedBytes: SCAN.maxExpandedBytes,
   stripComponents: 1,
 };
 
@@ -101,6 +104,11 @@ class ByteQueue {
     }
     return this.#length >= n;
   }
+  /** Stops reading: the source is told to finish, so a download behind it is cancelled. */
+  async close() {
+    if (!this.#done) await this.#source.return?.();
+    this.#done = true;
+  }
   /** The next `n` bytes as one array (call `has(n)` first). */
   take(n: number) {
     const out = new Uint8Array(n);
@@ -116,11 +124,11 @@ class ByteQueue {
     this.#length -= n;
     return out;
   }
-  /** Drops `n` bytes without keeping them (entries Teire skips). */
+  /** Drops `n` bytes without keeping them (entries Teire skips); false when the stream ends first. */
   async skip(n: number) {
     let left = n;
     while (left > 0) {
-      if (!this.#length && !(await this.has(1))) return;
+      if (!this.#length && !(await this.has(1))) return false;
       const head = this.#chunks[0] as Uint8Array;
       const k = Math.min(left, head.byteLength);
       if (k === head.byteLength) this.#chunks.shift();
@@ -128,6 +136,7 @@ class ByteQueue {
       this.#length -= k;
       left -= k;
     }
+    return true;
   }
 }
 
@@ -147,79 +156,100 @@ export async function extractTarStream(
   const report: ExtractReport = { files: 0, bytes: 0, skipped: [] };
   const queue = new ByteQueue(source);
   let entries = 0;
+  // Metadata entries (pax, long names) are counted on their own: a real tarball has at most one per
+  // entry, plus its global header (review round 2).
+  let metaEntries = 0;
+  let expanded = 0;
   let longName: string | null = null;
   let pax: Record<string, string> = {};
 
-  while (await queue.has(BLOCK)) {
-    const header = queue.take(BLOCK);
-    if (header.every((b) => b === 0)) break;
-    const size = readOctal(header, 124, 12);
-    const type = String.fromCharCode(header[156] ?? 0);
-    const padded = Math.ceil(size / BLOCK) * BLOCK;
-    const read = async () => {
-      if (!(await queue.has(padded))) throw new ArchiveLimitError("archive ends inside an entry");
-      return queue.take(padded).subarray(0, size);
-    };
+  try {
+    while (await queue.has(BLOCK)) {
+      const header = queue.take(BLOCK);
+      if (header.every((b) => b === 0)) break;
+      const size = readOctal(header, 124, 12);
+      const type = String.fromCharCode(header[156] ?? 0);
+      const padded = Math.ceil(size / BLOCK) * BLOCK;
+      expanded += BLOCK + padded;
+      if (expanded > limits.maxExpandedBytes)
+        throw new ArchiveLimitError(`archive expands past ${limits.maxExpandedBytes} bytes`);
+      const read = async () => {
+        if (!(await queue.has(padded))) throw new ArchiveLimitError("archive ends inside an entry");
+        return queue.take(padded).subarray(0, size);
+      };
 
-    if (type === "g" || type === "x" || type === "L") {
-      if (size > MAX_META_BYTES) throw new ArchiveLimitError("archive header entry too large");
+      if (type === "g" || type === "x" || type === "L") {
+        if (size > MAX_META_BYTES) throw new ArchiveLimitError("archive header entry too large");
+        if (++metaEntries > limits.maxEntries + 1)
+          throw new ArchiveLimitError(`archive has more than ${limits.maxEntries} header entries`);
+        const data = await read();
+        if (type === "g") {
+          const global = parsePax(data);
+          if (global.comment) report.comment = global.comment;
+        } else if (type === "x") pax = parsePax(data);
+        else longName = readString(data, 0, data.length);
+        continue;
+      }
+
+      const prefix = readString(header, 345, 155);
+      const rawName =
+        pax.path ??
+        longName ??
+        (prefix ? `${prefix}/${readString(header, 0, 100)}` : readString(header, 0, 100));
+      pax = {};
+      longName = null;
+      if (++entries > limits.maxEntries)
+        throw new ArchiveLimitError(`archive has more than ${limits.maxEntries} entries`);
+
+      const name = strip(rawName, limits.stripComponents);
+      const target = name ? safeJoin(dest, name) : null;
+      // A skipped entry is read past to its end; an archive that ends inside one is refused like any
+      // other truncated archive (review round 2).
+      const skip = async (reason?: ExtractReport["skipped"][number]["reason"], path = name) => {
+        if (reason) report.skipped.push({ path, reason });
+        if (!(await queue.skip(padded))) throw new ArchiveLimitError("archive ends inside an entry");
+      };
+      // An absolute name or one that climbs (`../`) is refused before the wrapper folder is stripped,
+      // so stripping can't turn it into an ordinary path.
+      if (rawName.startsWith("/") || rawName.split("/").includes("..")) {
+        await skip("unsafe-path", rawName);
+        continue;
+      }
+      if (!name) {
+        await skip();
+        continue;
+      }
+      if (!target) {
+        await skip("unsafe-path", rawName);
+        continue;
+      }
+      if (type === "5") {
+        await mkdir(target, { recursive: true });
+        await skip();
+        continue;
+      }
+      if (type === "1" || type === "2") {
+        await skip("link");
+        continue;
+      }
+      if (type !== "0" && type !== "\0" && type !== "7") {
+        await skip("special");
+        continue;
+      }
+      if (size > limits.maxFileBytes) {
+        await skip("too-large");
+        continue;
+      }
+      report.bytes += size;
+      if (report.bytes > limits.maxTotalBytes)
+        throw new ArchiveLimitError(`archive expands past ${limits.maxTotalBytes} bytes`);
       const data = await read();
-      if (type === "g") {
-        const global = parsePax(data);
-        if (global.comment) report.comment = global.comment;
-      } else if (type === "x") pax = parsePax(data);
-      else longName = readString(data, 0, data.length);
-      continue;
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, data, { mode: 0o644 });
+      report.files++;
     }
-
-    const prefix = readString(header, 345, 155);
-    const rawName =
-      pax.path ??
-      longName ??
-      (prefix ? `${prefix}/${readString(header, 0, 100)}` : readString(header, 0, 100));
-    pax = {};
-    longName = null;
-    if (++entries > limits.maxEntries)
-      throw new ArchiveLimitError(`archive has more than ${limits.maxEntries} entries`);
-
-    const name = strip(rawName, limits.stripComponents);
-    const target = name ? safeJoin(dest, name) : null;
-    const skip = (reason?: ExtractReport["skipped"][number]["reason"], path = name) => {
-      if (reason) report.skipped.push({ path, reason });
-      return queue.skip(padded);
-    };
-    if (!name) {
-      await skip();
-      continue;
-    }
-    if (!target) {
-      await skip("unsafe-path", rawName);
-      continue;
-    }
-    if (type === "5") {
-      await mkdir(target, { recursive: true });
-      await skip();
-      continue;
-    }
-    if (type === "1" || type === "2") {
-      await skip("link");
-      continue;
-    }
-    if (type !== "0" && type !== "\0" && type !== "7") {
-      await skip("special");
-      continue;
-    }
-    if (size > limits.maxFileBytes) {
-      await skip("too-large");
-      continue;
-    }
-    report.bytes += size;
-    if (report.bytes > limits.maxTotalBytes)
-      throw new ArchiveLimitError(`archive expands past ${limits.maxTotalBytes} bytes`);
-    const data = await read();
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, data, { mode: 0o644 });
-    report.files++;
+  } finally {
+    await queue.close();
   }
   return report;
 }
@@ -256,5 +286,12 @@ export async function extractTarGzStream(
   const gunzip = createGunzip();
   const input = Readable.from(source);
   input.on("error", (error) => gunzip.destroy(error));
-  return extractTarStream(input.pipe(gunzip), dest, limits);
+  try {
+    return await extractTarStream(input.pipe(gunzip), dest, limits);
+  } finally {
+    // An extractor that stopped (a limit, a bad entry) cancels the download behind it at once,
+    // instead of leaving it to the fetch's timeout (review round 2).
+    input.destroy();
+    gunzip.destroy();
+  }
 }

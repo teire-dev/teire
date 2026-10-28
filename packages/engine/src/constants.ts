@@ -127,6 +127,11 @@ export const SCAN = {
   /** Total bytes written when extracting one archive. */
   maxExtractedBytes: 1024 * 1024 * 1024,
   /**
+   * Total bytes read out of one archive once decompressed: headers, metadata and entries skipped as
+   * well as written ones (review round 2), so a gzip bomb stops here, not after reading it all.
+   */
+  maxExpandedBytes: 2 * 1024 * 1024 * 1024,
+  /**
    * GitHub's `size` (KB) above which a repository isn't sent to a sandbox: public scans refuse it and
    * fix runs stop before any work (review R17); the tarball and its install would not fit.
    */

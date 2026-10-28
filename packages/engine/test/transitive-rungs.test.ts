@@ -153,4 +153,17 @@ describe("Maven dependencyManagement pin", () => {
     expect(after.match(/<dependencyManagement>/g)).toHaveLength(2);
     expect(after.indexOf("jackson-databind")).toBeLessThan(after.indexOf("<profiles>"));
   });
+
+  it("finds the section at any indent, matches an entry in any element order, and reads back what Maven resolves (round 2)", () => {
+    const managed =
+      "    <dependencyManagement>\n      <dependencies>\n        <dependency>\n          <artifactId>jackson-databind</artifactId>\n          <groupId>com.fasterxml.jackson.core</groupId>\n          <scope>runtime</scope>\n          <version>2.9.8</version>\n        </dependency>\n      </dependencies>\n    </dependencyManagement>\n";
+    const tx = pin(pom(managed));
+    const after = tx.manifest[0]?.after ?? "";
+    expect(after.match(/<dependencyManagement>/g)).toHaveLength(1);
+    expect(after.match(/jackson-databind/g)).toHaveLength(1);
+    expect(after).toContain("<scope>runtime</scope>\n          <version>2.9.10.8</version>");
+    const command = tx.commands[0]?.join(" ") ?? "";
+    expect(command).toContain("dependency:tree -Dincludes=com.fasterxml.jackson.core:jackson-databind");
+    expect(command).toContain("com\\.fasterxml\\.jackson\\.core:jackson-databind:[^:]+:2\\.9\\.10\\.8(:|$)");
+  });
 });

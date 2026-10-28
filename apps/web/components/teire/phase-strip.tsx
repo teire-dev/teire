@@ -7,14 +7,14 @@ export interface Phase {
   state: "done" | "live" | "failed" | "skipped" | "pending";
 }
 
-const seconds = (ms: number | null) =>
-  ms === null
-    ? "—"
-    : ms < 1000
-      ? `${ms}ms`
-      : ms < 60_000
-        ? `${(ms / 1000).toFixed(1)}s`
-        : `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
+/** Rounded to whole seconds before minutes are taken, so 119.6 s reads "2m 0s", never "1m 60s". */
+export const seconds = (ms: number | null) => {
+  if (ms === null) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+};
 
 /**
  * Where a run's time went, one cell per phase (fal's request timing, adapted): queued, the updater,

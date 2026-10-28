@@ -27,6 +27,16 @@ const POLL_MS = 2_000;
 const TOKEN_FACTORY_POLL_RETRIES = 8;
 /** A quiet event stream is checked against the operation's state this often. */
 const FOLLOW_IDLE_MS = 20_000;
+
+/** A frame's JSON, or null when the service sent something else. */
+function safeJson<T>(raw: string): T | null {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
 /** Plain paths only: Token Factory has no egress interception, so no intercept CA is set. */
 const ENV: Record<string, string> = {
   PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
@@ -245,6 +255,8 @@ export class TokenFactorySandboxes {
       // Node's fetch reports a failed request body as "fetch failed" with the reason in `cause`
       // (the tarball's size cap, say): the reason is what the run should say (stage R review).
       const cause = (error as { cause?: unknown }).cause;
+      // A size cap keeps its type, so the run doesn't try the same upload again.
+      if (cause instanceof TarballTooLargeError) throw cause;
       throw cause instanceof Error ? new Error(`upload failed: ${cause.message}`) : error;
     }
   }
@@ -288,10 +300,11 @@ export class TokenFactorySandboxes {
     stderr: string;
     ms: number;
   }> {
-    const started = Date.now();
     const limits = await this.limits();
     const timeoutSec = Math.min(request.timeoutSec, limits.maxTimeoutSec);
     await limits.spawns.take();
+    // Timed from the spawn itself, not the wait for a slot: "137 at the limit" compares with it.
+    const started = Date.now();
     let op: Operation;
     try {
       const { uuid } = await this.#json<{ uuid: string }>("POST", "/instances", {
@@ -357,12 +370,20 @@ export class TokenFactorySandboxes {
       if (!response.ok || !response.body) return;
       let buffer = "";
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      // One read is pending at a time: a quiet spell keeps waiting on the same read, so no frame is
+      // taken by a read whose answer was abandoned (review round 2).
+      let pending: ReturnType<typeof reader.read> | null = null;
       try {
         for (;;) {
           // A stream that goes quiet is checked against the operation's state, so one that never
           // sends `completion` can't hold the command past its end.
-          const idle = new Promise<"idle">((r) => setTimeout(() => r("idle"), FOLLOW_IDLE_MS));
-          const next = await Promise.race([reader.read(), idle]);
+          pending ??= reader.read();
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const idle = new Promise<"idle">((r) => {
+            timer = setTimeout(() => r("idle"), FOLLOW_IDLE_MS);
+          });
+          const next = await Promise.race([pending, idle]);
+          clearTimeout(timer);
           if (next === "idle") {
             const op = await this.#json<Operation>("GET", `/operations/${operation}`).catch(() => null);
             if (op && (op.status === "SUCCESS" || op.status === "FAILED" || op.status === "CANCELLED")) {
@@ -371,6 +392,7 @@ export class TokenFactorySandboxes {
             }
             continue;
           }
+          pending = null;
           if (next.done) break;
           // CRLF can split across chunks: normalise after joining.
           buffer = (buffer + next.value).replace(/\r\n/g, "\n");
@@ -389,8 +411,9 @@ export class TokenFactorySandboxes {
               return;
             }
             if (onLog && (type === "stdout" || type === "stderr")) {
-              const event = JSON.parse(field("data") || "{}") as { data?: Stream };
-              const out = text(event.data);
+              // A frame that isn't JSON is skipped, not retried: its id still advances below.
+              const event = safeJson<{ data?: Stream }>(field("data") || "{}");
+              const out = text(event?.data);
               if (out) onLog(out);
             }
             // The id advances only once the frame was read, so a resume never skips it.
@@ -579,6 +602,9 @@ async function buildImage(
  * is uploaded once and unpacked into /work in a non-disposable VM.
  */
 /** The repository is no longer confirmed public: nothing of it goes to Token Factory. */
+/** A tarball over the size Teire sends to a sandbox: a result, not something to try again. */
+export class TarballTooLargeError extends Error {}
+
 export class RepositoryNotPublicError extends Error {
   constructor() {
     super("the repository is no longer confirmed public, so it isn't sent to Token Factory Sandboxes");
@@ -611,6 +637,8 @@ export function tokenFactoryBackend(
         live.delete(r.op.uuid);
         return r;
       };
+      // A session that fails to open is never returned, so nothing else could cancel its unpack: it is
+      // cancelled here (review round 2).
       const unpack = await client
         .spawn({
           ...track,
@@ -622,7 +650,11 @@ export function tokenFactoryBackend(
           timeoutSec: 600,
           files: { "/tmp/repo.tar.gz": { uuid: tarball } },
         })
-        .then(done);
+        .then(done)
+        .catch(async (error: unknown) => {
+          await Promise.all([...live].map((uuid) => client.cancel(uuid).catch(() => undefined)));
+          throw error;
+        });
       if (unpack.exitCode !== 0 || !unpack.op.result_image_uuid)
         throw new Error(`unpacking the repository failed: ${unpack.stderr.slice(-400)}`);
       image = unpack.op.result_image_uuid;

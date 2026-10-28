@@ -60,8 +60,11 @@ export function KitShell({
   crumbs,
   children,
   aside,
+  system,
 }: {
   account: { login: string; avatarUrl: string | null };
+  /** The worker's heartbeat, read from the database (never a literal). */
+  system?: { alive: boolean; label: string };
   repos: ShellRepo[];
   crumbs: { label: string; href?: string }[];
   children: React.ReactNode;
@@ -78,10 +81,13 @@ export function KitShell({
               Teire
             </span>
           </div>
+          {/* A composition: the switcher works in the app shell (U1), so here it is marked not wired. */}
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-lg p-1.5 text-left ring-1 ring-rule ring-inset hover:bg-hover"
-            aria-label={`Installation: ${account.login}. Switch installation`}
+            disabled
+            title="Composition: switching installations works in the app"
+            className="flex w-full items-center gap-2 rounded-lg p-1.5 text-left ring-1 ring-rule ring-inset disabled:cursor-default"
+            aria-label={`Installation: ${account.login}`}
           >
             {account.avatarUrl ? (
               // biome-ignore lint/performance/noImgElement: a GitHub avatar, 20px
@@ -173,8 +179,11 @@ export function KitShell({
           </SidebarMenu>
           <div className="flex items-center justify-between px-2 text-[11px] text-ink-3 group-data-[collapsible=icon]:hidden">
             <Link href="/trust" className="flex items-center gap-1.5 hover:text-ink">
-              <span className="size-1.5 rounded-full bg-proven" aria-hidden />
-              All systems running
+              <span
+                className={cn("size-1.5 rounded-full", system?.alive ? "bg-proven" : "bg-broke")}
+                aria-hidden
+              />
+              {system?.label ?? "System status"}
             </Link>
             <ThemeToggle />
           </div>
@@ -199,7 +208,9 @@ export function KitShell({
           </nav>
           <button
             type="button"
-            className="ml-auto hidden h-8 w-64 items-center gap-2 rounded-md bg-sheet px-2.5 text-xs text-ink-3 ring-1 ring-rule ring-inset hover:ring-rule-strong md:flex"
+            disabled
+            title="Composition: ⌘K works in the app"
+            className="ml-auto hidden h-8 w-64 items-center gap-2 rounded-md bg-sheet px-2.5 text-xs text-ink-3 ring-1 ring-rule ring-inset md:flex disabled:cursor-default"
           >
             <Search className="size-3.5" aria-hidden />
             Jump to a repo, run or change…

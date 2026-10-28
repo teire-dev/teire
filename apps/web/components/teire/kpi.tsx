@@ -3,6 +3,9 @@
 import NumberTicker from "@/components/ui/number-ticker";
 import { cn } from "@/lib/utils";
 
+/** The count-up, kept stable so a re-render doesn't restart it. */
+const COUNT = { duration: 1.1, ease: [0.22, 1, 0.36, 1] } as const;
+
 /** One number that matters, counted up on arrival; the label is a mono eyebrow, nothing more. */
 export function Kpi({
   label,
@@ -22,7 +25,7 @@ export function Kpi({
         <NumberTicker
           from={0}
           target={value}
-          transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+          transition={COUNT}
           className={cn(
             "font-mono text-4xl leading-none font-medium tracking-tight tabular-nums",
             { ink: "text-ink", proven: "text-proven", attention: "text-attention", signal: "text-signal" }[

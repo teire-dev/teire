@@ -299,31 +299,41 @@ export function mavenManagedPin(
   const indent = /\n([ \t]+)<(?:dependencies|properties|modelVersion)>/.exec(before)?.[1] ?? "  ";
   const entry = (pad: string) =>
     `${pad}<dependency>\n${pad}${indent}<groupId>${group}</groupId>\n${pad}${indent}<artifactId>${artifact}</artifactId>\n${pad}${indent}<version>${target}</version>\n${pad}</dependency>`;
-  // The project's own section, at its first indent: never a profile's, which sits deeper (stage R
-  // review); comments between the tags are allowed.
-  const gap = String.raw`(?:\s|<!--[\s\S]*?-->)*`;
-  const managed = new RegExp(
-    `\\n${indent}<dependencyManagement>${gap}<dependencies>([\\s\\S]*?)</dependencies>${gap}</dependencyManagement>`,
-  ).exec(before);
+  // The project's own sections, found in a copy where comments, profiles and the build section are
+  // blanked to the same length (round 2: at any indent, never a profile's, which pins only when that
+  // profile is active).
+  const own = mask(before, [
+    /<!--[\s\S]*?-->/g,
+    /<profiles>[\s\S]*?<\/profiles>/g,
+    /<build>[\s\S]*?<\/build>/g,
+  ]);
+  const managed =
+    /<dependencyManagement>\s*<dependencies>([\s\S]*?)<\/dependencies>\s*<\/dependencyManagement>/.exec(own);
   let after: string;
   if (managed) {
-    const block = managed[0];
-    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const existing = new RegExp(
-      `(<dependency>\\s*<groupId>${esc(group)}</groupId>\\s*<artifactId>${esc(artifact)}</artifactId>\\s*<version>)[^<]*(</version>)`,
-    );
-    const replaced = existing.test(block)
-      ? block.replace(existing, `$1${target}$2`)
-      : block.replace(/(\n?)([ \t]*)<\/dependencies>/, `\n${entry(indent.repeat(3))}$1$2</dependencies>`);
-    after = before.replace(block, replaced);
+    const bodyStart = managed.index + managed[0].indexOf("<dependencies>") + "<dependencies>".length;
+    const bodyEnd = bodyStart + (managed[1] ?? "").length;
+    const body = before.slice(bodyStart, bodyEnd);
+    // Each managed `<dependency>`, whatever the order of its elements (scope, type and exclusions
+    // may sit between them): the one for this package gets the target as its version.
+    let moved = false;
+    const replaced = body.replace(/<dependency>[\s\S]*?<\/dependency>/g, (dep) => {
+      const tag = (t: string) => new RegExp(`<${t}>\\s*([^<]*?)\\s*</${t}>`).exec(dep)?.[1];
+      if (moved || tag("groupId") !== group || tag("artifactId") !== artifact) return dep;
+      moved = true;
+      return /<version>[^<]*<\/version>/.test(dep)
+        ? dep.replace(/<version>[^<]*<\/version>/, `<version>${target}</version>`)
+        : dep.replace(/(\s*)<\/dependency>$/, `$1${indent}<version>${target}</version>$1</dependency>`);
+    });
+    const next = moved ? replaced : body.replace(/(\n?)([ \t]*)$/, `\n${entry(indent.repeat(3))}$1$2`);
+    after = before.slice(0, bodyStart) + next + before.slice(bodyEnd);
   } else {
     const section = `${indent}<dependencyManagement>\n${indent.repeat(2)}<dependencies>\n${entry(indent.repeat(3))}\n${indent.repeat(2)}</dependencies>\n${indent}</dependencyManagement>\n`;
-    // The project's own `<dependencies>` (at its first indent), not a plugin's or a profile's.
-    const at = before.search(new RegExp(`\\n${indent}<dependencies>`));
-    after =
-      at >= 0
-        ? `${before.slice(0, at + 1)}${section}${before.slice(at + 1)}`
-        : before.replace(/<\/project>/, `${section}</project>`);
+    // Before the project's own `<dependencies>`, not a plugin's or a profile's.
+    const deps = /\n[ \t]*<dependencies>/.exec(own);
+    after = deps
+      ? `${before.slice(0, deps.index + 1)}${section}${before.slice(deps.index + 1)}`
+      : before.replace(/<\/project>\s*$/, `${section}</project>\n`);
   }
   return after === before
     ? null
@@ -335,6 +345,28 @@ export function mavenManagedPin(
         to: target,
         note: `\`<dependencyManagement>\` pins \`${name}\` to ${target}: the packages that depend on it ask for less`,
       };
+}
+
+/** `text` with every match of `patterns` replaced by spaces of the same length (offsets stay valid). */
+function mask(text: string, patterns: RegExp[]) {
+  return patterns.reduce((out, re) => out.replace(re, (m) => m.replace(/[^\n]/g, " ")), text);
+}
+
+/**
+ * The version Maven resolves for a managed transitive pin, checked in the sandbox (review R14,
+ * round 2): the edit being in the POM is not proof the build uses it. `dependency:tree` names
+ * `group:artifact:type:version:scope`; the transaction fails unless it shows the target.
+ */
+export function mavenResolvedCheck(name: string, target: string): string[] | null {
+  const [group = "", artifact = ""] = name.split(":");
+  const coordinate = /^[\w.-]+$/;
+  if (!coordinate.test(group) || !coordinate.test(artifact) || !/^[\w.+-]+$/.test(target)) return null;
+  const esc = (s: string) => s.replace(/\./g, "\\.");
+  return [
+    "sh",
+    "-c",
+    `rm -f /tmp/teire-tree.txt && teire-jvm maven -q dependency:tree -Dincludes=${group}:${artifact} -DoutputFile=/tmp/teire-tree.txt -DappendOutput=true && grep -Eq '${esc(group)}:${esc(artifact)}:[^:]+:${esc(target)}(:|$)' /tmp/teire-tree.txt || { echo "Maven resolves ${group}:${artifact} to:"; grep -Eh '${esc(group)}:${esc(artifact)}:' /tmp/teire-tree.txt; exit 1; }`,
+  ];
 }
 
 export function jvmTransaction(
@@ -356,12 +388,13 @@ export function jvmTransaction(
         : [];
     const edit = withJava.find((e) => e.path === versionEdit?.path) ?? null;
     const readBack = withJava.length ? [...new Set(withJava.map((e) => e.path))] : [instance.manifestPath];
+    const resolved = !instance.direct && edit ? mavenResolvedCheck(instance.name, target) : null;
     return {
       describe: edit
         ? `${edit.path}: ${instance.name} ${edit.from} → ${target}${javaFloor && withJava.length > (versionEdit ? 1 : 0) ? `; Java raised to ${javaFloor.version}` : ""} (Maven has no lockfile; the sandbox resolves the new graph)`
         : `${instance.name}: version not declared in the repo's POMs`,
       manifest: withJava,
-      commands: [],
+      commands: resolved ? [resolved] : [],
       readBack,
       check: (files) =>
         edit && (files[edit.path] ?? "").includes(target)

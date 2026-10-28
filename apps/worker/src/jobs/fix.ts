@@ -51,6 +51,7 @@ import {
   repoInstances,
 } from "@teire/engine/pipeline";
 import {
+  GRADLE_WRAPPER_FILE,
   isDependencyFile,
   jobSettings,
   PACKAGE_MANAGER,
@@ -59,6 +60,7 @@ import {
   resolverTransaction,
   type TeireManager,
   updateFor,
+  wrapperRaiseOnly,
 } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
 import { selectBackend, unsupportedToolchain } from "@teire/engine/verify";
@@ -80,7 +82,8 @@ import {
   renewLease,
   runEventsOf,
   setRepo,
-  updateRun,
+  updateHeldRun,
+  type updateRun,
   upsertArtifact,
 } from "../store";
 import { fixesOffReply, readOrgConfig } from "./commands";
@@ -288,10 +291,19 @@ export function rubyIsTheOnlyCause(message: string) {
     .map((c) => c.trim())
     .filter((c) => /^(?:Because|So, because|And because|Thus,)/.test(c));
   if (!clauses.length || !clauses.every((c) => /\bRuby\b/.test(c))) return false;
-  // A clause can name Ruby and still carry a gem conflict (stage R review): two constraints on the
-  // same gem, or gems found incompatible with each other, mean Ruby isn't the only cause.
+  // A clause can name Ruby and still carry a gem conflict (stage R review, round 2): the chain must
+  // end at the running Ruby, and nothing in it may be a gem conflict in any of Bundler's wordings
+  // (two constraints on one gem, incompatible or conflicting gems, a forbidden, missing or unknown
+  // gem, a requirement derived on a gem rather than on Ruby). Anything unrecognised keeps the stop.
   const text = clauses.join(" ");
+  if (!/\bcurrent Ruby version is\b/.test(text)) return false;
   if (/\b(?!Ruby\b)[\w.-]+ is incompatible with\b/.test(text)) return false;
+  if (
+    /\b(?:conflicts? with|is forbidden|no versions? of|doesn't exist|could not be found|is unknown|requires (?!Ruby\b))/i.test(
+      text,
+    )
+  )
+    return false;
   const constraints = new Map<string, Set<string>>();
   for (const m of text.matchAll(/depends on ([\w.-]+) ([<>=~!]+ ?[\w.-]+)/g)) {
     const [, gem = "", req = ""] = m;
@@ -499,6 +511,15 @@ async function resolverTransactionFor(
       "unexpected_file",
       `the updater's change includes files that aren't dependency files (${unexpected.slice(0, 5).join(", ")}); Teire doesn't commit them`,
     );
+  // The wrapper's jar and scripts come back only with a Gradle version raise in its properties.
+  if (r.files.some((f) => GRADLE_WRAPPER_FILE.test(f.path))) {
+    const props = r.files.find((f) => f.path.endsWith("gradle/wrapper/gradle-wrapper.properties"));
+    if (!props || !wrapperRaiseOnly(tree.read(props.path) ?? null, props.content))
+      throw new ResolverStopError(
+        "unexpected_file",
+        "the updater changed the Gradle wrapper beyond its distribution version; Teire doesn't commit that",
+      );
+  }
   if (!r.leadVersion)
     throw new ResolverStopError(
       "unreported_version",
@@ -863,8 +884,8 @@ async function apiOutcome(
   };
 }
 
-/** How stale a repository's "public" may be before Token Factory gets another upload from it. */
-const VISIBILITY_RECHECK_MS = 60_000;
+/** Evidence reasons as GitHub shows them: each redacted and shortened (review R18). */
+const saidOnGitHub = (reasons: string[]) => reasons.map((r) => forGitHub(r, 400)).join("; ");
 
 /** A stop issue quotes more of the updater than a progress line does. */
 const STOP_REASON_CHARS = 1500;
@@ -961,14 +982,28 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // worker dies (the boot sweep and the reaper), so nothing is queued here; a deferral queued under
   // the repository's singleton key could be dropped silently (stage R review).
   if (!(await claimRunLease(db, runId, RUNS.leaseMs))) return { skipped: "another worker holds this run" };
+  // Every write about this run is fenced by its lease (stage R round 2): once another worker holds it,
+  // this one writes nothing more to the run or to GitHub. Run updates check the holder in the same
+  // statement; each GitHub write renews the lease first.
+  let leaseLost = false;
+  const lost = () => {
+    leaseLost = true;
+    return new LeaseLostError();
+  };
+  const update = async (fields: Parameters<typeof updateRun>[2]) => {
+    if (leaseLost || !(await updateHeldRun(db, runId, fields))) throw lost();
+  };
+  const holdLease = async () => {
+    if (leaseLost || !(await renewLease(db, runId))) throw lost();
+  };
   if (run.status === "failed" || run.status === "running")
-    await updateRun(db, runId, { status: "queued", attempt: run.attempt + 1, error: null });
+    await update({ status: "queued", attempt: run.attempt + 1, error: null });
   const repo = await getRepo(db, run.repoId);
   // A dry run (C9) works on any public repo: no installation, no GitHub writes, no PR caps.
   const dry = run.kind === "dry_run";
   if (!repo || (!dry && !repo.installationId) || !run.groupKey || !run.targetVersion || !run.baseSha) {
     // Recorded on the run, so it shows as failed instead of waiting in the queue forever.
-    await updateRun(db, runId, {
+    await update({
       status: "failed",
       step: "incomplete",
       error: `run ${runId} is incomplete: ${!repo ? "the repository is gone" : !dry && !repo.installationId ? "Teire is no longer installed on it" : "it has no group, target or base commit"}`,
@@ -981,7 +1016,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const [owner = "", name = ""] = repo.fullName.split("/");
   // A paused repo gets no PRs ("no scans or PRs until resume"), whatever started the run.
   if (!dry && repo.status === "paused") {
-    await updateRun(db, runId, { status: "cancelled", step: "repository paused", finishedAt: new Date() });
+    await update({ status: "cancelled", step: "repository paused", finishedAt: new Date() });
     await appendEvent(db, runId, "queue", "cancelled", {
       reason: "the repository is paused; resume it to fix",
     });
@@ -991,14 +1026,22 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // Dashboard issue go on. Ask first lets runs already queued finish (nothing new starts on its own).
   const mode = dry ? null : await fixModeOf(db, repo);
   if (mode?.mode === "off") {
-    await updateRun(db, runId, { status: "cancelled", step: "fixes off", finishedAt: new Date() });
+    await update({ status: "cancelled", step: "fixes off", finishedAt: new Date() });
     await appendEvent(db, runId, "queue", "cancelled", {
       reason: fixesOffReply(mode),
     });
     return { cancelled: "fixes off" };
   }
   const installation = repo.installationId && !dry ? await gh.installation(repo.installationId) : null;
-  const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);
+  const event = (step: string, type: string, payload: object) => {
+    if (leaseLost) throw new LeaseLostError();
+    return appendEvent(db, runId, step, type, payload);
+  };
+  // The run's progress comment on GitHub, edited in place; only while this worker holds the run.
+  const progress = async (text: string) => {
+    await holdLease();
+    await updateProgress(ctx, runId, installation?.octokit, text);
+  };
   // D107 (review R1): the backend follows the repository's visibility now, read from GitHub just
   // before it is chosen, never the stored flag; an answer GitHub didn't give counts as private. A
   // dry run is for public repositories only, so one whose repository went private is refused.
@@ -1012,7 +1055,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       privateNow === null
         ? "GitHub didn't say whether the repository is still public; dry runs are for public repositories only"
         : "the repository is no longer public; dry runs are for public repositories only";
-    await updateRun(db, runId, {
+    await update({
       status: "failed",
       step: "not public",
       error: reason,
@@ -1024,7 +1067,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // The same size rule as public scans (review R17): a repository this large isn't sent to a sandbox.
   if (now.sizeKb !== null && now.sizeKb > SCAN.maxRepoKb) {
     const reason = `${repo.fullName} is ${Math.round(now.sizeKb / 1024)} MB; Teire verifies repositories up to ${SCAN.maxRepoKb / 1024} MB`;
-    await updateRun(db, runId, {
+    await update({
       status: "failed",
       step: "too large",
       error: reason,
@@ -1050,7 +1093,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const counted = dry || refresh ? { open: 0, lastHour: 0 } : await prCounts(db, repo.id);
   const counts = { ...counted, open: Math.max(0, counted.open - (supersedes ? 1 : 0)) };
   if (counts.open >= limits.limit || counts.lastHour >= limits.perHour) {
-    await updateRun(db, runId, { status: "queued", step: "waiting for the PR limit" });
+    await update({ status: "queued", step: "waiting for the PR limit", workerId: null });
     await event("queue", "deferred", { open: counts.open, lastHour: counts.lastHour, limits });
     await ctx.enqueueFix(runId, repo.id, DEFER_SECONDS);
     return { deferred: true };
@@ -1059,18 +1102,17 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // Money and the model service decide whether model work may start (S10).
   const blocked = await modelWorkBlocked(db);
   if (blocked) {
-    await updateRun(db, runId, { status: "queued", step: "waiting for the model budget" });
+    await update({ status: "queued", step: "waiting for the model budget", workerId: null });
     await event("queue", "deferred", { reason: blocked });
     await ctx.enqueueFix(runId, repo.id, BUDGET_RETRY_SECONDS);
     return { deferred: blocked };
   }
 
   // A run resumed after a deferral (credits, the updater) starts clean: the old reason is history.
-  await updateRun(db, runId, { status: "running", step: "assess", startedAt: new Date(), error: null });
+  await update({ status: "running", step: "assess", startedAt: new Date(), error: null });
   // A heartbeat while the run works, so the reaper can tell a long sandbox step from a dead worker.
   // It renews only this worker's lease: if another worker took the run (this one was paused past the
   // lease), the run stops before writing anything to GitHub (stage R review).
-  let leaseLost = false;
   const heartbeat = setInterval(
     () =>
       void renewLease(db, runId)
@@ -1080,9 +1122,6 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         .catch(() => undefined),
     RUNS.heartbeatEveryMs,
   );
-  const holdLease = async () => {
-    if (leaseLost || !(await renewLease(db, runId))) throw new LeaseLostError();
-  };
   await event("assess", "started", { group: groupKey, from: run.fromVersion, target: run.targetVersion });
   // A dry run reads GitHub as the person who asked (their own rate limit), anonymously without it.
   const token = installation ? await installation.token() : (requester ?? undefined);
@@ -1102,16 +1141,21 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const tf = createTokenFactory(tokenFactoryConfigFromEnv());
     const prices = await fetchModelPrices().catch(() => undefined);
     // D107: public repositories and dry runs verify on Token Factory Sandboxes; private ones on Cloudflare.
-    // Read again before every upload to Token Factory (review R1), at most once a minute: a repository
-    // made private during the run stops reaching it. Anything but a confirmed "public" is private.
-    let seen = { at: Date.now(), isPrivate: privateNow };
-    const stillPublic = async () => {
-      if (Date.now() - seen.at > VISIBILITY_RECHECK_MS)
-        seen = {
-          at: Date.now(),
-          isPrivate: (await githubRepoNow(owner, name, installation?.octokit ?? null, requester)).isPrivate,
-        };
-      return seen.isPrivate === false;
+    // Read again right before every upload to Token Factory (review R1, round 2): a repository made
+    // private during the run stops reaching it. Uploads that ask at the same moment share one read;
+    // no answer is reused once it has returned. Anything but a confirmed "public" is private.
+    let reading: Promise<boolean> | null = null;
+    const stillPublic = () => {
+      reading ??= githubRepoNow(owner, name, installation?.octokit ?? null, requester)
+        .then(async (r) => {
+          // The repository row follows too, so its run pages stop being public (review round 2).
+          if (r.isPrivate === true && !repo.isPrivate) await setRepo(db, repo.id, { isPrivate: true });
+          return r.isPrivate === false;
+        })
+        .finally(() => {
+          reading = null;
+        });
+      return reading;
     };
     const { backend, note } = await selectBackend(process.env, {
       isPrivate: dry ? false : (privateNow ?? true),
@@ -1151,12 +1195,18 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         ...(token ? { githubToken: token } : {}),
         context7Key: process.env.CONTEXT7_API_KEY,
       },
+      // Fire-and-forget, so it never throws: a lost lease is noted and the next fenced write stops the run.
       onEvent: (e: { step: string }) => {
-        void event(e.step, "log", e);
-        void updateRun(db, runId, { step: e.step });
+        if (leaseLost) return;
+        void appendEvent(db, runId, e.step, "log", e).catch(() => undefined);
+        void updateHeldRun(db, runId, { step: e.step })
+          .then((held) => {
+            if (!held) leaseLost = true;
+          })
+          .catch(() => undefined);
       },
     };
-    await updateRun(db, runId, { step: "fix", backend: backend.name });
+    await update({ step: "fix", backend: backend.name });
     // A fallback run (D71) carries the newer major it replaces, written when it was queued.
     const fallbackFrom = (await runEventsOf(db, runId, "fallback")).find((e) => e.type === "from")?.payload as
       | { version: string; reason: string }
@@ -1181,7 +1231,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         );
     if (outcome?.groupKey && outcome.groupKey !== groupKey) {
       await event("transaction", "target-moved", { from: run.targetVersion, to: outcome.targetVersion });
-      await updateRun(db, runId, {
+      await update({
         groupKey: outcome.groupKey,
         targetVersion: outcome.targetVersion ?? run.targetVersion,
         lineageKey: lineageKey(outcome.groupKey),
@@ -1189,19 +1239,16 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       groupKey = outcome.groupKey;
     }
     if (!outcome) {
-      await updateRun(db, runId, { status: "cancelled", step: "no longer applies", finishedAt: new Date() });
+      await update({ status: "cancelled", step: "no longer applies", finishedAt: new Date() });
       await event("assess", "cancelled", { reason: "the change no longer applies to this repo" });
-      await updateProgress(
-        ctx,
-        runId,
-        installation?.octokit,
-        "Nothing to do: the change no longer applies at this commit.",
-      );
+      await progress("Nothing to do: the change no longer applies at this commit.");
       return { cancelled: true };
     }
     const { fix, pr: composed, notesReceipt } = outcome;
 
-    // Receipts: every model call and every sandbox command.
+    // Receipts: every model call and every sandbox command, written only by the worker that holds
+    // the run, so a run never shows another worker's calls and costs (review round 2).
+    await holdLease();
     if (notesReceipt)
       await recordLlmCall(db, {
         runId,
@@ -1339,7 +1386,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         });
         await ctx.enqueueFix(next.id, repo.id);
       }
-      await updateRun(db, runId, {
+      await update({
         ...runFields,
         status: "cancelled",
         step: `fell back to ${outcome.fallback.version}`,
@@ -1350,17 +1397,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         runId: next.id,
         reason: outcome.fallback.reason,
       });
-      await updateProgress(
-        ctx,
-        runId,
-        installation?.octokit,
+      await progress(
         `The newest major still failed its checks after the agent's attempts; trying ${outcome.fallback.version}${ctx.webUrl ? `: ${ctx.webUrl}/runs/${next.id}` : "."}`,
       );
       return { fellBack: outcome.fallback.version };
     }
     if (dry) {
       // The PR Teire would open, kept on the run for the report page; nothing is written to GitHub.
-      await updateRun(db, runId, {
+      await update({
         ...runFields,
         status: prMode === "issue" ? "failed" : "succeeded",
         step: prMode === "issue" ? "needs a human" : "dry run complete",
@@ -1382,7 +1426,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     if (prMode === "issue") {
       // No usable result: a "needs a human" issue with the evidence and the best diff.
       const existing = await getArtifact(db, repo.id, "issue", groupKey);
-      const body = `${composed.body}\n\n<sub>Teire stopped: ${fix.evidence.reasons.join("; ")}</sub>`;
+      // Every reason that reaches GitHub is redacted and shortened (review R18, round 2); the run
+      // page keeps the full text.
+      const body = `${composed.body}\n\n<sub>Teire stopped: ${saidOnGitHub(fix.evidence.reasons)}</sub>`;
       const issue = existing?.number
         ? // A closed issue whose change failed again is reopened, not edited out of sight (review R6).
           (
@@ -1412,7 +1458,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         url: issue.html_url,
         runId,
       });
-      await updateRun(db, runId, {
+      await update({
         ...runFields,
         status: "failed",
         step: "needs a human",
@@ -1420,8 +1466,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       });
       await event("pr", "issue", { url: issue.html_url, evidence: fix.evidence.kind });
       // The Dashboard issue links "Needs a human" issues, and this group no longer offers "Fix now".
+      await holdLease();
       await syncDashboard(ctx, repo.id).catch(() => undefined);
-      await updateProgress(ctx, runId, installation?.octokit, `Done: a person is needed, ${issue.html_url}`);
+      await progress(`Done: a person is needed, ${issue.html_url}`);
       return { issue: issue.html_url };
     }
 
@@ -1443,9 +1490,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       baseSha: run.baseSha,
       botLogin: gh.botLogin,
       headline: `${config?.pullRequests?.commitMessage?.prefix ?? ""}${composed.title}`,
-      body: `${fix.evidence.kind === "verified" ? "Verified" : "Draft"}: ${fix.evidence.reasons.join("; ")}`,
+      body: `${fix.evidence.kind === "verified" ? "Verified" : "Draft"}: ${saidOnGitHub(fix.evidence.reasons)}`,
       files,
     });
+    await holdLease();
     const pr = await openOrUpdatePullRequest({
       octokit: installation.octokit,
       owner,
@@ -1463,6 +1511,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         ...(config?.pullRequests?.labels ?? []),
       ],
     });
+    await holdLease();
     await publishCheckRun({
       octokit: installation.octokit,
       owner,
@@ -1470,7 +1519,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       headSha: commit.oid,
       conclusion: fix.evidence.kind === "verified" ? "success" : "neutral",
       title: `${fix.evidence.kind.replace(/_/g, " ")}: ${outcome.checkTitle}`,
-      summary: fix.evidence.reasons.join("; "),
+      summary: saidOnGitHub(fix.evidence.reasons),
       ...(ctx.webUrl ? { detailsUrl: `${ctx.webUrl}/runs/${runId}` } : {}),
       sites: outcome.sites,
     }).catch((error) => event("pr", "check-run-failed", { error: String(error) }));
@@ -1492,6 +1541,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     for (const old of await openArtifacts(db, repo.id)) {
       if (old.kind !== "pr" || old.lineageKey !== lineage || old.changeKey === groupKey || !old.number)
         continue;
+      await holdLease();
       try {
         await installation.octokit.rest.issues.createComment({
           owner,
@@ -1518,7 +1568,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         a.state === "open" &&
         a.number &&
         (a.changeKey === `stop/${lineage}` || a.changeKey.startsWith(`stop/${lineage}@`)),
-    ))
+    )) {
+      await holdLease();
       try {
         await installation.octokit.rest.issues.createComment({
           owner,
@@ -1537,7 +1588,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       } catch (error) {
         await event("pr", "stop-close-failed", { number: stop.number, error: String(error) });
       }
-    await updateRun(db, runId, {
+    }
+    await update({
       ...runFields,
       status: "succeeded",
       step: "done",
@@ -1549,31 +1601,30 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       number: pr.number,
       draft: prMode === "draft",
     });
+    await holdLease();
     await syncDashboard(ctx, repo.id).catch((error) =>
       event("dashboard", "failed", { error: String(error) }),
     );
-    await updateProgress(
-      ctx,
-      runId,
-      installation.octokit,
+    await progress(
       `Done: ${pr.url} (${prMode === "draft" ? `draft, ${fix.evidence.kind.replace(/_/g, " ")}` : "verified"}).`,
     );
     return { pr: pr.url };
   } catch (error) {
     if (error instanceof LeaseLostError) {
       // Nothing more is written from here: the run belongs to the worker that took it.
-      await event("run", "lease-lost", { worker: "this worker was paused past its lease" }).catch(
-        () => undefined,
-      );
+      await appendEvent(db, runId, "run", "lease-lost", {
+        worker: "this worker was paused past its lease",
+      }).catch(() => undefined);
       return { skipped: "lease lost" };
     }
     if (error instanceof CreditsExhaustedError) {
       // Not this run's fault: it waits, and every other run waits, until credits are back.
       await markCreditsExhausted(db, error.message);
-      await updateRun(db, runId, {
+      await update({
         status: "queued",
         step: "waiting for Token Factory credits",
         error: error.message,
+        workerId: null,
       });
       await event("queue", "deferred", { reason: error.message });
       await ctx.enqueueFix(runId, repo.id, BUDGET_RETRY_SECONDS);
@@ -1582,32 +1633,28 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     if (error instanceof ResolverUnavailableError) {
       const tries = (await runEventsOf(db, runId, "resolver")).filter((e) => e.type === "deferred").length;
       if (tries < RESOLVER_RETRIES) {
-        await updateRun(db, runId, {
+        await progress(`Waiting: ${forGitHub(error.message)}; it tries again by itself.`);
+        await update({
           status: "queued",
           step: "waiting for the dependency-file updater",
           error: error.message,
+          workerId: null,
         });
         await event("resolver", "deferred", { reason: error.message, retry: tries + 1 });
         await ctx.enqueueFix(runId, repo.id, RESOLVER_RETRY_SECONDS * 2 ** tries);
-        await updateProgress(
-          ctx,
-          runId,
-          installation?.octokit,
-          `Waiting: ${forGitHub(error.message)}; it tries again by itself.`,
-        );
         return { deferred: error.message };
       }
     }
     if (error instanceof ResolverNothingError) {
       const reason = `dependabot-core's updater: ${error.message}`;
-      await updateRun(db, runId, {
+      await update({
         status: "cancelled",
         step: "nothing to change",
         error: reason,
         finishedAt: new Date(),
       });
       await event("resolver", "nothing", { reason });
-      await updateProgress(ctx, runId, installation?.octokit, `Nothing to change: ${forGitHub(reason)}.`);
+      await progress(`Nothing to change: ${forGitHub(reason)}.`);
       return { cancelled: true };
     }
     if (error instanceof ResolverStopError || error instanceof ResolverUnavailableError) {
@@ -1615,11 +1662,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         error instanceof ResolverStopError
           ? `${error.by === "updater" ? "dependabot-core's updater" : "Teire"} stopped (${error.type}): ${error.message}`
           : `the dependency-file updater was unavailable ${RESOLVER_RETRIES + 1} times: ${error.message}`;
-      await updateRun(db, runId, { status: "failed", error: `stopped: ${reason}`, finishedAt: new Date() });
+      await update({ status: "failed", error: `stopped: ${reason}`, finishedAt: new Date() });
       await event("resolver", "stopped", { reason });
       // The updater's own words are quoted (D104), redacted and shortened for GitHub (review R18);
       // only while this worker still holds the run.
-      if (!dry && installation && !leaseLost)
+      if (!dry && installation) {
+        await holdLease();
         await openStopIssue(
           ctx,
           installation.octokit,
@@ -1628,7 +1676,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           groupKey,
           forGitHub(reason, STOP_REASON_CHARS),
         );
-      await updateProgress(ctx, runId, installation?.octokit, `Stopped: ${forGitHub(reason)}.`);
+      }
+      await progress(`Stopped: ${forGitHub(reason)}.`);
       return { stopped: reason };
     }
     const message =
@@ -1637,14 +1686,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         : error instanceof Error
           ? error.message
           : String(error);
-    await updateRun(db, runId, { status: "failed", error: message, finishedAt: new Date() });
+    await update({ status: "failed", error: message, finishedAt: new Date() });
     await event("run", "failed", { error: message });
     // GitHub gets the short, redacted reason; the run page keeps the whole message (review R18).
-    await updateProgress(ctx, runId, installation?.octokit, `Failed: ${forGitHub(message)}`);
+    await progress(`Failed: ${forGitHub(message)}`);
     if (error instanceof HumanCommitsError) {
       // C6: a person pushed to Teire's branch; their commits are never overwritten.
       const open = await getArtifact(db, repo.id, "pr", groupKey);
-      if (open?.number && open.state === "open")
+      if (open?.number && open.state === "open" && (await renewLease(db, runId)))
         await installation?.octokit.rest.issues
           .createComment({
             owner,

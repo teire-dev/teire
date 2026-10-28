@@ -100,9 +100,12 @@ export function DeadlineTimeline({ deadlines }: { deadlines: Deadline[] }) {
           const lane = lanes.get(p.id) ?? 0;
           const repos = Math.max(...p.items.map((d) => d.repos));
           return (
-            <div
+            // A pin is a focusable button that names what it holds, so the detail isn't hover-only (round 2).
+            <button
+              type="button"
               key={p.id}
-              className="group absolute -translate-x-1/2 animate-enter"
+              aria-label={`${p.items.map((d) => d.title).join("; ")}: ${passed ? `${-days} days ago` : `in ${days} days`}, ${repos} repo${repos === 1 ? "" : "s"}`}
+              className="group absolute -translate-x-1/2 animate-enter cursor-default rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
               style={{
                 left: x(p.date.getTime()),
                 bottom: `${40 + lane * 64}px`,
@@ -131,7 +134,7 @@ export function DeadlineTimeline({ deadlines }: { deadlines: Deadline[] }) {
               <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 font-mono text-[10px] whitespace-nowrap text-ink-2">
                 {SHORT.format(p.date)}
               </span>
-              <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-60 -translate-x-1/2 rounded-lg bg-ink p-2.5 text-xs text-sheet shadow-float group-hover:block">
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-60 -translate-x-1/2 rounded-lg bg-ink p-2.5 text-xs text-sheet shadow-float group-hover:block group-focus-visible:block">
                 {p.items.map((d) => (
                   <span key={d.id} className="block truncate font-medium">
                     {d.title}
@@ -141,7 +144,7 @@ export function DeadlineTimeline({ deadlines }: { deadlines: Deadline[] }) {
                   {passed ? `${-days} days ago` : `in ${days} days`} · {repos} repo{repos === 1 ? "" : "s"}
                 </span>
               </span>
-            </div>
+            </button>
           );
         })}
       </div>

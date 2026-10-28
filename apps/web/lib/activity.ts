@@ -44,7 +44,7 @@ export interface ActivityRow {
   costUsd: number;
 }
 
-const TITLE: Record<string, [live: string, done: string]> = {
+const TITLES: Record<string, [live: string, done: string]> = {
   queue: ["Waiting for its turn", "Queued"],
   assess: ["Assessing the change", "Assessed the change"],
   resolver: ["dependabot-core's updater is changing the dependency files", "dependabot-core's updater"],
@@ -52,7 +52,7 @@ const TITLE: Record<string, [live: string, done: string]> = {
   codemod: ["Making the deterministic edits", "Deterministic edits"],
   install: ["Installing in the sandbox", "Installed in the sandbox"],
   baseline: ["Running your checks on the unchanged repository", "Baseline: your checks before the change"],
-  agent: ["Nemotron 3 Ultra is fixing the code", "Nemotron 3 Ultra fixed the code"],
+  agent: ["The agent is fixing the code", "The agent fixed the code"],
   replan: ["Planning again", "Planned again"],
   check: ["Running your checks after the change", "Your checks after the change"],
   review: ["Reviewing the diff", "Reviewed the diff"],
@@ -119,7 +119,28 @@ function lineOf(e: Event): string | null {
 }
 
 /** The rows, in order; the last one is live while the run is. */
-export function activityOf(events: Event[], execs: Exec[], active: boolean): ActivityRow[] {
+/**
+ * A model's name as people say it, from the id the calls recorded (`nvidia/Nemotron-3-Ultra-550b-a55b`
+ * → "Nemotron 3 Ultra"); any other id is shown without its vendor prefix.
+ */
+export function modelLabel(model: string | null | undefined) {
+  if (!model) return null;
+  const id = model.replace(/^[\w.-]+\//, "");
+  const nemotron = /^Nemotron-(\d+)-(Ultra|Super|Nano)\b/i.exec(id);
+  return nemotron ? `Nemotron ${nemotron[1]} ${nemotron[2]}` : id;
+}
+
+export function activityOf(
+  events: Event[],
+  execs: Exec[],
+  active: boolean,
+  model?: string | null,
+): ActivityRow[] {
+  // The agent is named by the model its calls recorded (review round 2), never typed in.
+  const name = modelLabel(model);
+  const TITLE: typeof TITLES = name
+    ? { ...TITLES, agent: [`${name} is fixing the code`, `${name} fixed the code`] }
+    : TITLES;
   const rows: ActivityRow[] = [];
   for (const e of events) {
     const last = rows.at(-1);

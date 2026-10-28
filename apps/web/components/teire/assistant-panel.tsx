@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/logo";
-import { ProofGlyphs } from "@/components/teire/proof-chain";
+import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { EvidenceChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
 import type { Proof } from "@/lib/proof";
@@ -40,15 +40,27 @@ export function AssistantPanel({ context, turn }: { context: string; turn: Assis
       <header className="flex items-center gap-2 border-b border-rule px-3 py-2.5">
         <LogoMark className="size-6" />
         <span className="text-sm font-medium text-ink">Ask Teire</span>
+        {/* A composition from the run's records; the assistant itself is U4 (review round 2). */}
+        <span className="rounded-full bg-sunken px-1.5 py-0.5 font-mono text-[10px] text-ink-3 ring-1 ring-rule ring-inset">
+          preview
+        </span>
         <span className="ml-1 flex min-w-0 items-center gap-1 rounded-full bg-signal-soft px-2 py-0.5 font-mono text-[11px] text-signal">
           <span className="truncate">{context}</span>
           <X className="size-3 shrink-0" aria-label="Remove context" />
         </span>
         <span className="ml-auto flex items-center text-ink-3">
-          {[Plus, History, PanelRightClose].map((Icon, i) => (
+          {(
+            [
+              [Plus, "New thread"],
+              [History, "History"],
+              [PanelRightClose, "Close the panel"],
+            ] as const
+          ).map(([Icon, label]) => (
             <button
-              key={Icon.displayName ?? i}
+              key={label}
               type="button"
+              aria-label={label}
+              title={label}
               className="rounded-md p-1.5 hover:bg-hover hover:text-ink"
             >
               <Icon className="size-4" aria-hidden />
@@ -100,8 +112,10 @@ export function AssistantPanel({ context, turn }: { context: string; turn: Assis
             <span className="text-sm text-ink">{turn.action.effect}</span>
             <span className="font-mono text-[11px] text-ink-3">{turn.action.scope}</span>
             <span className="flex gap-2">
-              <Button size="sm">Confirm</Button>
-              <Button size="sm" variant="ghost">
+              <Button size="sm" disabled title="Preview: confirming acts once the assistant ships (U4)">
+                Confirm
+              </Button>
+              <Button size="sm" variant="ghost" disabled>
                 Cancel
               </Button>
             </span>
@@ -117,10 +131,18 @@ export function AssistantPanel({ context, turn }: { context: string; turn: Assis
           ))}
         </div>
         <span className="flex items-center gap-1 text-ink-3">
-          {[ThumbsUp, ThumbsDown, RotateCcw].map((Icon, i) => (
+          {(
+            [
+              [ThumbsUp, "Helpful"],
+              [ThumbsDown, "Not helpful"],
+              [RotateCcw, "Ask again"],
+            ] as const
+          ).map(([Icon, label]) => (
             <button
-              key={Icon.displayName ?? i}
+              key={label}
               type="button"
+              aria-label={label}
+              title={label}
               className="rounded-md p-1 hover:bg-hover hover:text-ink"
             >
               <Icon className="size-3.5" aria-hidden />

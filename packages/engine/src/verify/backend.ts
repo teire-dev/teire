@@ -6,7 +6,7 @@ import {
   type JobResult,
   sandboxConfigFromEnv,
 } from "./cloudflare";
-import { tokenFactoryBackend, tokenFactorySandboxConfigFromEnv } from "./tokenfactory";
+import { TarballTooLargeError, tokenFactoryBackend, tokenFactorySandboxConfigFromEnv } from "./tokenfactory";
 
 /**
  * Where checks run (card C5, D41/D49). Cloudflare Containers by default; Token Factory Sandboxes
@@ -124,7 +124,7 @@ export function byteCap(max: number) {
       seen += chunk.byteLength;
       if (seen > max)
         controller.error(
-          new Error(
+          new TarballTooLargeError(
             `the repository's tarball is over ${Math.round(max / 1024 / 1024)} MB, the most Teire sends to a sandbox`,
           ),
         );

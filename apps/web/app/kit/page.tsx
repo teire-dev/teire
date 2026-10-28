@@ -5,12 +5,41 @@ import { Suspense } from "react";
 import { EmptyState } from "@/components/teire/empty-state";
 import { Ledger, type LedgerCheck, notCoveredFrom } from "@/components/teire/ledger";
 import { LiveDot } from "@/components/teire/live-dot";
-import { ProofChain, ProofGlyphs } from "@/components/teire/proof-chain";
+import { ProofChain } from "@/components/teire/proof-chain";
+import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { EvidenceChip, StatusChip } from "@/components/teire/status-chip";
 import { Surface } from "@/components/teire/surface";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandShortcut,
+} from "@/components/ui/command";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { kitRun, kitRuns, requireKit } from "@/lib/kit";
 import { cn } from "@/lib/utils";
@@ -48,6 +77,8 @@ async function Kit() {
   const draft = runs.find((r) => r.evidence && r.evidence !== "verified" && r.pr);
   const live = runs.find((r) => r.status === "running");
   const sample = verified ? await kitRun(verified.id) : null;
+  // A moment while the agent or the checks were working, for the replayed live run.
+  const liveAt = sample?.events.find((e) => e.step === "agent" || e.step === "check")?.seq ?? null;
   const baseline = (sample?.verification?.baseline ?? []) as LedgerCheck[];
   const after = (sample?.verification?.after ?? []) as LedgerCheck[];
 
@@ -149,6 +180,95 @@ async function Kit() {
         </div>
       </Surface>
 
+      <Surface eyebrow="Table" flush>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Run</TableHead>
+              <TableHead>Chain</TableHead>
+              <TableHead className="text-right">Evidence</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {runs.slice(0, 4).map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="max-w-48 truncate font-mono text-xs">{r.groupKey ?? r.repo}</TableCell>
+                <TableCell>
+                  <ProofGlyphs proof={r.proof} />
+                </TableCell>
+                <TableCell className="text-right">
+                  {r.evidence ? (
+                    <EvidenceChip kind={r.evidence} />
+                  ) : (
+                    <StatusChip tone="neutral">{r.status}</StatusChip>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Surface>
+
+      <Surface eyebrow="Command, dialog, sheet">
+        <div className="flex flex-col gap-3">
+          {/* The palette inline (⌘K opens it as a dialog in the app shell). */}
+          <Command className="rounded-lg ring-1 ring-rule">
+            <CommandInput placeholder="Jump to a repo, run or change…" />
+            <CommandList>
+              <CommandEmpty>Nothing matches.</CommandEmpty>
+              <CommandGroup heading="Runs">
+                {runs.slice(0, 3).map((r) => (
+                  <CommandItem key={r.id} value={`${r.repo} ${r.groupKey ?? ""}`}>
+                    <span className="truncate">{r.groupKey ?? r.repo}</span>
+                    <CommandShortcut>{r.repo.split("/")[1]}</CommandShortcut>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+          <div className="flex flex-wrap gap-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                  Confirm an action
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Set fix mode to Ask first?</DialogTitle>
+                  <DialogDescription>
+                    Teire stops starting fixes on its own in teire-dev/nlsh. Security fixes still start.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline" size="sm">
+                      Cancel
+                    </Button>
+                  </DialogClose>
+                  <DialogClose asChild>
+                    <Button size="sm">Set Ask first</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button size="sm" variant="outline">
+                  Open a side sheet
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Ask Teire</SheetTitle>
+                  <SheetDescription>On a phone the assistant opens as a full-height sheet.</SheetDescription>
+                </SheetHeader>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+      </Surface>
+
       <Surface eyebrow="Empty and loading" flush>
         <EmptyState
           title="No open pull requests"
@@ -181,13 +301,18 @@ async function Kit() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="eyebrow">U0 · Kit</span>
-          <h1 className="heading text-2xl">Primitives, light and dark, on real runs</h1>
+          <h1 className="display text-[56px] leading-none">Kit</h1>
+          <p className="text-sm text-ink-2">Primitives, light and dark, on real runs</p>
         </div>
         <nav className="flex flex-wrap gap-3 text-sm">
           {[
             ["Overview", "/kit/overview"],
             ["Repository + Ask Teire", "/kit/repo/teire-dev/bristow"],
             ["Run proof sheet", verified ? `/kit/run/${verified.id}` : "/kit/runs"],
+            [
+              "The same run, live (replayed)",
+              verified && liveAt ? `/kit/run/${verified.id}?at=${liveAt}` : "/kit/runs",
+            ],
             ["Runs", "/kit/runs"],
           ].map(([label, href]) => (
             <Link key={href} href={href} className="entity-link text-ink-2">

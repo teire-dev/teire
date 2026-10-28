@@ -47,4 +47,13 @@ describe("forGitHub", () => {
       "POST /files → 500 then the retry timed out",
     );
   });
+
+  it("hides values under any credential-named key, in either form (review round 2)", () => {
+    const out = forGitHub(
+      "registry said authorization=s3cr3tvalue; GITHUB_TOKEN=abc123def; x-api-key: k9k9k9; Authorization: Basic dXNlcjpwYXNzd29yZA==; NPM_AUTH_TOKEN='zzz'",
+    );
+    expect(out).not.toMatch(/s3cr3tvalue|abc123def|k9k9k9|dXNlcjpwYXNz|zzz/);
+    expect(out).toContain("authorization=***");
+    expect(out).toContain("GITHUB_TOKEN=***");
+  });
 });

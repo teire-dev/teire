@@ -28,4 +28,20 @@ And because current Ruby version is = 3.0.7 and sinatra requires Ruby >= 3.2.0,
   and current Ruby version is = 3.0.7, version solving has failed.`;
     expect(rubyIsTheOnlyCause(message)).toBe(false);
   });
+
+  it("refuses Ruby next to a conflict in other words, and a chain that doesn't end at the running Ruby (round 2)", () => {
+    expect(
+      rubyIsTheOnlyCause(`Because every version of rails conflicts with sinatra
+  and current Ruby version is = 3.0.7, version solving has failed.`),
+    ).toBe(false);
+    expect(
+      rubyIsTheOnlyCause(`Because every version of a depends on b >= 2 and b >= 2 requires c >= 4,
+  a requires Ruby >= 3.2 and c >= 4, version solving has failed.`),
+    ).toBe(false);
+    expect(
+      rubyIsTheOnlyCause(
+        `Because every version of bristow requires Ruby >= 3.2.0, version solving has failed.`,
+      ),
+    ).toBe(false);
+  });
 });

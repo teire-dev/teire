@@ -1,9 +1,9 @@
 import type { TraceSpan } from "@/components/ui/agent-trace";
-import { toolSaid } from "./activity";
+import { modelLabel, toolSaid } from "./activity";
 
 /**
  * A run as a waterfall (the run page's trace): every span is a real record, placed on the run's own
- * clock. Sandbox commands end when they were recorded and last their measured duration; the updater
+ * clock, with no length it didn't measure (review round 2): what has none is an instant. Sandbox commands end when they were recorded and last their measured duration; the updater
  * runs from its start to its done event; each agent attempt holds its tool calls (their measured
  * milliseconds); review calls and the PR close it.
  */
@@ -48,6 +48,8 @@ export function traceOf(events: EventIn[], execs: ExecIn[], calls: CallIn[], sta
     ...execs.map((x) => x.createdAt.getTime() - (x.durationMs ?? 0)),
   ];
   const t0 = startedAt?.getTime() ?? (times.length ? Math.min(...times) : Date.now());
+  // The agent's name from the model its calls recorded.
+  const agent = modelLabel(calls.find((c) => c.purpose === "fix")?.model) ?? "agent";
   const rel = (t: number) => Math.max(0, t - t0);
   const spans: TraceSpan[] = [];
 
@@ -62,7 +64,7 @@ export function traceOf(events: EventIn[], execs: ExecIn[], calls: CallIn[], sta
       label: "dependabot-core updater",
       kind: "agent",
       start: rel(first.at.getTime()),
-      end: Math.max(rel(last.at.getTime()), rel(first.at.getTime()) + 400),
+      end: rel(last.at.getTime()),
       ...(stop ? { status: "error" as const } : {}),
       detail: stop ? "stopped" : "files changed",
     });
@@ -82,7 +84,7 @@ export function traceOf(events: EventIn[], execs: ExecIn[], calls: CallIn[], sta
       label: `${side} · ${what}`.replace(/ \(.*\)$/, "").slice(0, 48),
       kind: "tool",
       start: Math.max(0, end - Number(ms)),
-      end: Math.max(end, end - Number(ms) + 200),
+      end,
       ...(code !== "0" ? { status: "error" as const } : {}),
       detail: `exit ${code}`,
     });
@@ -96,7 +98,7 @@ export function traceOf(events: EventIn[], execs: ExecIn[], calls: CallIn[], sta
         label: `${PHASE[x.phase] ?? x.phase} · ${x.command}`.slice(0, 48),
         kind: "tool",
         start: Math.max(0, end - ms),
-        end: Math.max(end, end - ms + 200),
+        end,
         ...(x.timedOut || (x.exitCode ?? 0) !== 0 ? { status: "error" as const } : {}),
         detail: x.timedOut ? "timed out" : `exit ${x.exitCode}`,
       });
@@ -114,12 +116,13 @@ export function traceOf(events: EventIn[], execs: ExecIn[], calls: CallIn[], sta
     }
     if (e.step !== "agent" || typeof p.detail !== "string") continue;
     const end = rel(e.at.getTime());
-    const ms = typeof p.ms === "number" ? p.ms : 500;
+    // A tool call's own length when it was measured; otherwise the attempt starts at its first record.
+    const ms = typeof p.ms === "number" ? p.ms : 0;
     if (!current) {
       attempt++;
       current = {
         id: `attempt-${attempt}`,
-        label: "Nemotron 3 Ultra",
+        label: agent,
         kind: "agent",
         start: Math.max(0, end - ms),
         end,
@@ -137,13 +140,13 @@ export function traceOf(events: EventIn[], execs: ExecIn[], calls: CallIn[], sta
 
   for (const c of calls.filter((x) => x.purpose === "review")) {
     const end = rel(c.createdAt.getTime());
-    const ms = c.latencyMs ?? 800;
+    const ms = c.latencyMs ?? 0;
     spans.push({
       id: `call-${c.id}`,
       label: "review",
       kind: "model",
       start: Math.max(0, end - ms),
-      end: Math.max(end, end - ms + 200),
+      end,
       tokens: c.tokensIn + c.tokensOut,
       detail: c.model.replace(/^nvidia\//, ""),
     });
@@ -156,8 +159,9 @@ export function traceOf(events: EventIn[], execs: ExecIn[], calls: CallIn[], sta
       id: "pr",
       label: pr.type === "issue" ? "issue" : "pull request",
       kind: "io",
+      // An instant: the event says when it was opened, not how long it took.
       start: at,
-      end: at + 600,
+      end: at,
       detail: pr.type,
     });
   }

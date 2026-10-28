@@ -33,7 +33,7 @@ describe("upstream commits from the updater's PR body (D-13)", () => {
   });
 });
 
-import { isDependencyFile } from "../src/resolver/events";
+import { isDependencyFile, wrapperRaiseOnly } from "../src/resolver/events";
 
 describe("files the updater may return (untrusted events)", () => {
   it("takes manifests, lockfiles, vendored folders and wrapper files", () => {
@@ -75,6 +75,21 @@ describe("files the updater may return (untrusted events)", () => {
         moved: ["com.google.guava:guava"],
       }),
     ).toBe(false);
+  });
+  it("takes only the job's own ecosystem's files, and the wrapper only for a Gradle raise (round 2)", () => {
+    expect(isDependencyFile("package.json", { ecosystem: "go", moved: [] })).toBe(false);
+    expect(isDependencyFile("pom.xml", { ecosystem: "npm", moved: [] })).toBe(false);
+    expect(isDependencyFile("go.sum", { ecosystem: "go", moved: [] })).toBe(true);
+    expect(isDependencyFile("gradlew", { ecosystem: "maven", moved: ["com.google.guava:guava"] })).toBe(
+      false,
+    );
+    const before =
+      "distributionBase=GRADLE_USER_HOME\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-bin.zip\n";
+    const raise = before.replace("8.5", "8.14.3");
+    expect(wrapperRaiseOnly(before, raise)).toBe(true);
+    expect(wrapperRaiseOnly(before, `${raise}zipStorePath=elsewhere\n`)).toBe(false);
+    expect(wrapperRaiseOnly(before, before.replace("services.gradle.org", "evil.example"))).toBe(false);
+    expect(wrapperRaiseOnly(before, before)).toBe(false);
   });
   it("refuses workflows, sources and scripts", () => {
     for (const p of [

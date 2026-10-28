@@ -21,6 +21,7 @@ async function Runs() {
   const [rows, shell] = await Promise.all([kitRuns(), kitShell()]);
   return (
     <KitShell
+      system={shell.system}
       account={shell.account}
       repos={shell.repos}
       crumbs={[{ label: shell.account.login, href: "/kit/overview" }, { label: "Runs" }]}

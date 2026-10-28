@@ -239,46 +239,79 @@ export function resultOf(
 }
 
 /**
- * The files dependabot-core's updaters write: manifests, lockfiles, workspace and wrapper files,
- * and vendored dependency folders. The updater runs repository code, so its events are untrusted;
- * any other path (a workflow, a source file, a script) is refused rather than committed.
+ * The files dependabot-core's updaters write, per ecosystem: manifests, lockfiles and workspace
+ * files. The updater runs repository code, so its events are untrusted: a job may return only its own
+ * ecosystem's files (review round 2: a Go job can't bring back a `package.json`), and any other path
+ * (a workflow, a source file, a script) is refused rather than committed.
  */
-const DEPENDENCY_FILE = new RegExp(
-  [
-    // npm, Yarn, pnpm, Bun
-    String.raw`(^|/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|\.yarnrc\.yml|\.pnp\.c?js|\.pnp\.loader\.mjs|pnpm-lock\.yaml|pnpm-workspace\.yaml|bun\.lockb?)$`,
-    String.raw`(^|/)\.yarn/(cache|releases|plugins|sdks|patches|versions)/`,
-    // Python
-    String.raw`(^|/)(requirements[^/]*\.(txt|in)|[^/]+\.in|constraints[^/]*\.txt|pyproject\.toml|poetry\.lock|uv\.lock|pylock\.toml|Pipfile|Pipfile\.lock|setup\.py|setup\.cfg|pdm\.lock)$`,
-    String.raw`(^|/)requirements/[^/]+\.(txt|in)$`,
-    // Go
-    String.raw`(^|/)(go\.mod|go\.sum|go\.work|go\.work\.sum)$`,
-    // Cargo
-    String.raw`(^|/)(Cargo\.toml|Cargo\.lock)$`,
-    // Bundler
-    String.raw`(^|/)(Gemfile|Gemfile\.lock|gems\.rb|gems\.locked|[^/]+\.gemspec)$`,
-    // Maven and Gradle
-    String.raw`(^|/)(pom\.xml|extensions\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties|[^/]+\.versions\.toml|[^/]*\.lockfile|gradlew(\.bat)?)$`,
-  ].join("|"),
+const DEPENDENCY_FILES: Record<Ecosystem, RegExp> = {
+  npm: new RegExp(
+    [
+      String.raw`(^|/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|\.yarnrc\.yml|\.pnp\.c?js|\.pnp\.loader\.mjs|pnpm-lock\.yaml|pnpm-workspace\.yaml|bun\.lockb?)$`,
+      String.raw`(^|/)\.yarn/(cache|releases|plugins|sdks|patches|versions)/`,
+    ].join("|"),
+  ),
+  pypi: new RegExp(
+    [
+      String.raw`(^|/)(requirements[^/]*\.(txt|in)|[^/]+\.in|constraints[^/]*\.txt|pyproject\.toml|poetry\.lock|uv\.lock|pylock\.toml|Pipfile|Pipfile\.lock|setup\.py|setup\.cfg|pdm\.lock)$`,
+      String.raw`(^|/)requirements/[^/]+\.(txt|in)$`,
+    ].join("|"),
+  ),
+  go: /(^|\/)(go\.mod|go\.sum|go\.work|go\.work\.sum)$/,
+  cargo: /(^|\/)(Cargo\.toml|Cargo\.lock)$/,
+  rubygems: /(^|\/)(Gemfile|Gemfile\.lock|gems\.rb|gems\.locked|[^/]+\.gemspec)$/,
+  // Maven and Gradle (one Teire ecosystem)
+  maven:
+    /(^|\/)(pom\.xml|extensions\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|gradle\.properties|[^/]+\.versions\.toml|[^/]*\.lockfile)$/,
+};
+const ANY_DEPENDENCY_FILE = new RegExp(
+  Object.values(DEPENDENCY_FILES)
+    .map((r) => r.source)
+    .join("|"),
 );
+
+/** The Gradle wrapper: its properties, its jar and the two scripts that start it. */
+export const GRADLE_WRAPPER_FILE =
+  /(?:^|\/)(?:gradle\/wrapper\/gradle-wrapper\.(?:properties|jar)|gradlew(?:\.bat)?)$/;
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * A file the updater may write for this change (review R8, stage R review): the dependency files
- * above for any ecosystem; under `vendor/`, only what belongs to a module or gem the change moved
- * (Go vendors every file of a package: `.s`, `.c`, embedded data); the Gradle wrapper's two files
- * only when the change moved Gradle itself.
+ * A file the updater may write for this change (review R8, stage R review): the job's own
+ * ecosystem's dependency files; under `vendor/`, only what belongs to a module or gem the change
+ * moved (Go vendors every file of a package: `.s`, `.c`, embedded data); the Gradle wrapper only
+ * when the change moved Gradle itself (and `wrapperRaiseOnly` then checks what changed).
  */
 export function isDependencyFile(path: string, change?: { ecosystem?: string; moved?: string[] }) {
-  if (DEPENDENCY_FILE.test(path)) return true;
+  const own = change?.ecosystem ? DEPENDENCY_FILES[change.ecosystem as Ecosystem] : ANY_DEPENDENCY_FILE;
+  if (own?.test(path)) return true;
   const moved = change?.moved ?? [];
   const vendor = /(?:^|\/)vendor\/(.+)$/.exec(path)?.[1];
   if (vendor && change?.ecosystem === "go")
     return vendor === "modules.txt" || moved.some((m) => vendor.startsWith(`${m}/`));
   if (vendor && change?.ecosystem === "rubygems")
     return moved.some((g) => new RegExp(`^cache/${escapeRegex(g)}-[^/]+\\.gem$`).test(vendor));
-  if (/(?:^|\/)gradle\/wrapper\/gradle-wrapper\.(?:properties|jar)$/.test(path))
+  if (GRADLE_WRAPPER_FILE.test(path))
     return change?.ecosystem === "maven" && moved.some((m) => /(?:^|:)gradle(?:-wrapper)?$/.test(m));
   return false;
+}
+
+/**
+ * Whether a wrapper change is only a Gradle version raise (review round 2: an event naming Gradle
+ * as moved is no proof): the properties file changes, and only its distribution URL and checksum.
+ */
+export function wrapperRaiseOnly(before: string | null, after: string | null) {
+  if (before === null || after === null || before === after) return false;
+  const lines = (text: string) =>
+    text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#"));
+  const kept = (text: string) => lines(text).filter((l) => !/^distribution(?:Url|Sha256Sum)\s*=/.test(l));
+  return (
+    JSON.stringify(kept(before)) === JSON.stringify(kept(after)) &&
+    lines(after).some((l) =>
+      /^distributionUrl\s*=\s*https\\?:\/\/services\.gradle\.org\/distributions\//.test(l),
+    )
+  );
 }

@@ -5,10 +5,11 @@ import {
   animate,
   motion,
   useMotionValue,
+  useReducedMotion,
   useTransform,
   type ValueAnimationTransition,
 } from "motion/react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -45,25 +46,30 @@ const NumberTicker = forwardRef<NumberTickerRef, NumberTickerProps>(
     },
     ref,
   ) => {
-    const count = useMotionValue(from);
+    // Teire: a reader who asked for less motion gets the number, not the count (review round 2); a
+    // new target counts to the new value instead of keeping the first one.
+    const reduce = useReducedMotion();
+    const count = useMotionValue(reduce ? target : from);
     const rounded = useTransform(count, (latest) => Math.round(latest));
-    const [controls, setControls] = useState<AnimationPlaybackControls | null>(null);
+    const controls = useRef<AnimationPlaybackControls | null>(null);
 
     // Function to start the animation
     const startAnimation = useCallback(() => {
-      if (controls) controls.stop();
+      controls.current?.stop();
       onStart?.();
-
+      if (reduce) {
+        count.set(target);
+        onComplete?.();
+        return;
+      }
       count.set(from);
-
-      const newControls = animate(count, target, {
+      controls.current = animate(count, target, {
         ...transition,
         onComplete: () => {
           onComplete?.();
         },
       });
-      setControls(newControls);
-    }, []);
+    }, [reduce, count, from, target, transition, onStart, onComplete]);
 
     // Expose the startAnimation function via ref
     useImperativeHandle(ref, () => ({
@@ -74,8 +80,8 @@ const NumberTicker = forwardRef<NumberTickerRef, NumberTickerProps>(
       if (autoStart) {
         startAnimation();
       }
-      return () => controls?.stop();
-    }, [autoStart]);
+      return () => controls.current?.stop();
+    }, [autoStart, startAnimation]);
 
     return (
       <motion.span className={cn(className)} {...props}>

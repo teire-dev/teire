@@ -12,7 +12,7 @@ import { Suspense } from "react";
 import { AssistantPanel, type AssistantTurn } from "@/components/teire/assistant-panel";
 import { KitShell } from "@/components/teire/kit-shell";
 import { Mark, MarkStack } from "@/components/teire/mark";
-import { ProofGlyphs } from "@/components/teire/proof-chain";
+import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { RunRowItem } from "@/components/teire/run-row";
 import { StatusChip, type Tone } from "@/components/teire/status-chip";
 import { Surface } from "@/components/teire/surface";
@@ -123,6 +123,7 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
 
   return (
     <KitShell
+      system={shell.system}
       account={shell.account}
       repos={shell.repos}
       crumbs={[{ label: shell.account.login, href: "/kit/overview" }, { label: name }]}
@@ -147,7 +148,8 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
               </h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm">
+              {/* A composition: these act in the app (U1 actions); here they are marked not wired. */}
+              <Button variant="outline" size="sm" disabled title="Composition: Rescan works in the app">
                 <RefreshCw data-icon="inline-start" />
                 Rescan
               </Button>
@@ -164,6 +166,8 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
             <ToggleGroup
               type="single"
               defaultValue={mode}
+              disabled
+              title="Composition: the fix mode is set in the app"
               aria-label="Fix mode"
               className="rounded-lg bg-sunken p-0.5 ring-1 ring-rule ring-inset"
             >
@@ -317,16 +321,21 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
                         </a>
                       </Button>
                     ) : (
-                      <Button size="sm">
+                      <Button size="sm" disabled title="Composition: Fix now works in the app">
                         <Wrench data-icon="inline-start" />
                         Fix now
                       </Button>
                     )}
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" disabled title="Composition: Ignore works in the app">
                       Ignore
                       <ChevronDown data-icon="inline-end" />
                     </Button>
-                    <Button size="sm" variant="ghost">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled
+                      title="Composition: Explain opens Ask Teire (U4)"
+                    >
                       <MessageCircleQuestion data-icon="inline-start" />
                       Explain
                     </Button>

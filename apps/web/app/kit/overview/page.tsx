@@ -7,12 +7,13 @@ import { KitShell } from "@/components/teire/kit-shell";
 import { Kpi } from "@/components/teire/kpi";
 import { LiveRun } from "@/components/teire/live-run";
 import { Mark, MarkStack } from "@/components/teire/mark";
-import { ProofGlyphs } from "@/components/teire/proof-chain";
+import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
 import { kitOverview, kitShell, type RunRow, requireKit } from "@/lib/kit";
 import { providerLogo } from "@/lib/logos";
 import { languageMarks, subjectMark } from "@/lib/marks";
+import { STEP_DOING } from "@/lib/proof";
 
 export const metadata = { title: "Overview" };
 
@@ -29,23 +30,6 @@ const subjectOf = (r: Pick<RunRow, "groupKey">) => {
   return head === "models" || head === "api" ? (rest[0] ?? head) : rest.slice(0, -1).join("/");
 };
 
-/** What Teire is doing at a step, in the present tense (Factory's grammar). */
-const DOING: Record<string, string> = {
-  queue: "Waiting for its turn",
-  assess: "Reading the change",
-  resolver: "Updating the dependency files",
-  transaction: "Applying the change",
-  fix: "Applying the change",
-  codemod: "Making the deterministic edits",
-  agent: "Nemotron is fixing the code",
-  install: "Installing in the sandbox",
-  baseline: "Checking the unchanged repo",
-  check: "Running your checks",
-  verify: "Weighing the evidence",
-  review: "Reviewing the diff",
-  pr: "Opening the pull request",
-};
-
 /** What a row that needs a person should offer: one action, named for what it does. */
 function needOf(r: RunRow): { chip: React.ReactNode; action: { label: string; icon: typeof RotateCcw } } {
   if (r.evidence === "regression")
@@ -53,10 +37,16 @@ function needOf(r: RunRow): { chip: React.ReactNode; action: { label: string; ic
       chip: <StatusChip tone="broke">Regression</StatusChip>,
       action: { label: "See why", icon: Search },
     };
+  // An issue for a person is not a draft (round 2): it opened no PR to re-verify.
+  if (r.pr?.kind === "issue")
+    return {
+      chip: <StatusChip tone="attention">Needs a person</StatusChip>,
+      action: { label: "Open run", icon: Search },
+    };
   if (r.evidence && r.evidence !== "verified")
     return {
       chip: <StatusChip tone="attention">Draft</StatusChip>,
-      action: { label: "Re-verify", icon: RotateCcw },
+      action: { label: "Open run", icon: RotateCcw },
     };
   return { chip: <StatusChip tone="broke">Stopped</StatusChip>, action: { label: "See why", icon: Search } };
 }
@@ -80,6 +70,7 @@ async function Overview() {
 
   return (
     <KitShell
+      system={shell.system}
       account={shell.account}
       repos={shell.repos}
       crumbs={[{ label: shell.account.login }, { label: "Overview" }]}
@@ -87,17 +78,17 @@ async function Overview() {
       <div className="mx-auto flex max-w-6xl flex-col gap-8">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <h1 className="heading text-3xl text-ink">Overview</h1>
-          {data.live.length ? (
+          {data.counts.live ? (
             <span className="flex items-center gap-2 rounded-full bg-signal-soft px-3 py-1 text-xs text-signal">
               <span className="size-1.5 rounded-full bg-signal animate-live" />
-              Teire is working on {data.live.length}
+              Teire is working on {data.counts.live}
             </span>
           ) : null}
         </header>
 
         <section className="grid animate-enter grid-cols-2 gap-px overflow-hidden rounded-xl bg-rule shadow-card lg:grid-cols-4">
           <Kpi label="Proven, ready to merge" value={data.counts.proven} tone="proven" />
-          <Kpi label="Needs you" value={data.counts.drafts} tone="attention" />
+          <Kpi label="Needs you" value={data.counts.needsYou} tone="attention" />
           <Kpi label="Open pull requests" value={data.counts.open} />
           <Kpi label="Changes reaching code" value={data.counts.reaching} />
         </section>
@@ -107,7 +98,7 @@ async function Overview() {
             <div className="flex items-center justify-between">
               <h2 className="eyebrow">Needs you</h2>
               <Link href="/kit/runs" className="flex items-center gap-1 text-xs text-ink-2 hover:text-ink">
-                All {data.counts.drafts} <ArrowUpRight className="size-3" />
+                All {data.counts.needsYou} <ArrowUpRight className="size-3" />
               </Link>
             </div>
             <ul className="flex flex-col gap-2">
@@ -154,7 +145,7 @@ async function Overview() {
                     brand={subjectMark(r.groupKey)}
                     repo={r.repo.split("/")[1] ?? r.repo}
                     subject={subjectOf(r)}
-                    doing={`${DOING[r.step ?? "queue"] ?? "Working"}…`}
+                    doing={`${STEP_DOING[r.step ?? "queue"] ?? "Working"}…`}
                     startedAt={r.startedAt?.toISOString() ?? null}
                   />
                 ))

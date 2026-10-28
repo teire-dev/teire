@@ -13,15 +13,18 @@ export function forGitHub(message: string, max = MAX_CHARS): string {
     // that line, so a cause appended after it survives).
     .replace(/(→ \d{3}):[^\n]*/g, "$1")
     .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, "***")
-    .replace(/\b(Bearer|token)\s+[A-Za-z0-9._~+/=-]{12,}/gi, "$1 ***")
+    .replace(/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+/=-]{12,}/gi, "$1 ***")
     .replace(/(https?:\/\/)[^\s/@]+@/g, "$1***@")
     // Credentials in a query string or written as `name=value` / `name: value`.
     .replace(
       /([?&](?:access_token|token|api_?key|key|secret|password|sig|signature|auth)=)[^&\s#]+/gi,
       "$1***",
     )
+    // Any name that says it holds a credential (`GITHUB_TOKEN=…`, `authorization: …`, `x-api-key=…`),
+    // whatever else the name says. A word like "token: expired" in prose loses its value too; on
+    // GitHub that is the safer mistake.
     .replace(
-      /\b((?:password|passwd|secret|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key)["']?\s*[=:]\s*["']?)[^\s"',;&]+/gi,
+      /\b([\w.-]*(?:token|secret|passw(?:or)?d|pwd|api[_-]?key|access[_-]?key|private[_-]?key|auth(?:orization)?|credential|cookie|session[_-]?id|signature)[\w.-]*["']?\s*[=:]\s*["']?)(?!\*\*\*)[^\s"',;&]+/gi,
       "$1***",
     )
     .replace(/\b(?:sk|pk|rk|nvapi|xox[abp])[-_][A-Za-z0-9_-]{16,}\b/g, "***")

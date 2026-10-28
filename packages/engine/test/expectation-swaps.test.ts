@@ -66,4 +66,20 @@ describe("expectationSwaps", () => {
       "tests/test_provider.py:1",
     ]);
   });
+
+  it("leaves negated assertions alone and reads minitest's assert_equal (round 2)", () => {
+    const dir = repo({
+      "lib/bristow/providers/anthropic.rb": 'def default_model\n  "claude-3-5-sonnet-20241022"\nend\n',
+      "test/anthropic_test.rb": [
+        'assert_equal "claude-3-5-sonnet-20241022", provider.default_model',
+        'refute_equal "claude-3-5-sonnet-20241022", other.default_model',
+        'expect(other.model).not_to eq("claude-3-5-sonnet-20241022")',
+        'assert_not_equal("claude-3-5-sonnet-20241022", other.model)',
+      ].join("\n"),
+      "tests/test_anthropic.py": 'assert other.model != "claude-3-5-sonnet-20241022"\n',
+    });
+    const edits = expectationSwaps(dir, [swap("lib/bristow/providers/anthropic.rb", 2)]);
+    expect(edits.map((e) => e.line)).toEqual([1]);
+    expect(edits[0]?.after).toBe('assert_equal "claude-sonnet-5-5", provider.default_model');
+  });
 });
