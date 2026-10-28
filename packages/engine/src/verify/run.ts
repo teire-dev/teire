@@ -120,7 +120,9 @@ export async function runChecks(
       env: plan.env,
       timeoutSec: VERIFY.checkTimeoutSec,
     });
-    const raw = run.stdout + run.stderr;
+    // stderr first: compilers write warnings there and runners (cargo, pytest, go, Maven) write
+    // results to stdout, so the kept tail shows the results, not the build noise.
+    const raw = run.stderr + run.stdout;
     // Go reports tests as JSON events: counted from those, shown as the plain text they carry.
     const output = goJsonToText(raw);
     let counts = null;

@@ -25,6 +25,8 @@ use_ruby() {
   [ -n "$bin" ] || { echo "teire-ruby: rv installed nothing for $want"; return 3; }
   # Later commands get a fixed PATH: put this Ruby's executables first in it.
   for f in "$(dirname "$bin")"/*; do ln -sf "$f" "/usr/local/sbin/$(basename "$f")"; done
+  # bash remembers where it found ruby, gem and bundle before the switch.
+  hash -r
   ruby -v
 }
 

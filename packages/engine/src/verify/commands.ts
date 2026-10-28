@@ -199,7 +199,8 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
       source,
       ...(extra ? { reportPath } : {}),
     });
-    notes.push(`test: \`${script}\` also lints; Teire runs its test runner \`${runner.join(" ")}\``);
+    const note = `test: \`${script}\` also lints; Teire runs its test runner \`${runner.join(" ")}\``;
+    if (!notes.includes(note)) notes.push(note);
   };
 
   // 1. CI: scripts the workflows run through the package manager.

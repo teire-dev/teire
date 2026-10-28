@@ -25,6 +25,9 @@ const LOCAL_SERVICE_PORTS: Record<string, string> = {
 
 const NETWORK =
   /\b(EAI_AGAIN|ENOTFOUND|getaddrinfo|ETIMEDOUT|ECONNRESET|fetch failed|x-teire-egress|403 Forbidden.*denied)\b/;
+/** A test reading a credential the sandbox never has (`KeyError: 'OPENAI_API_KEY'`): live access. */
+const CREDENTIAL =
+  /KeyError: '[A-Z0-9_]*(?:API_KEY|_TOKEN|_SECRET)[A-Z0-9_]*'|\b[A-Z0-9_]*(?:API_KEY|_TOKEN)\b[^\n]{0,40}\b(?:is not set|not set|missing|must be set|environment variable)|api_key client option must be set/;
 const ENVIRONMENT = [
   /The engine "node" is incompatible/,
   /Unsupported engine/,
@@ -54,5 +57,8 @@ export function classifyFailure(output: string, deniedHosts: string[]): Classifi
       hosts: deniedHosts,
       details: deniedHosts.length ? [] : ["network error in output"],
     };
+  const credential = CREDENTIAL.exec(output)?.[0];
+  if (credential)
+    return { cause: "needs_live_access", hosts: [], details: [`needs a credential: ${credential}`] };
   return { cause: null, hosts: [], details: [] };
 }

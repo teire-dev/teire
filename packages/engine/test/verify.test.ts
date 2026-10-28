@@ -124,6 +124,13 @@ describe("evidence", () => {
     expect(classifyFailure("was compiled against a different Node.js version", []).cause).toBe(
       "environment_mismatch",
     );
+    expect(
+      classifyFailure("FAILED tests/test_cli_prompt.py::test_x - KeyError: 'OPENAI_API_KEY'", []),
+    ).toMatchObject({
+      cause: "needs_live_access",
+      details: ["needs a credential: KeyError: 'OPENAI_API_KEY'"],
+    });
+    expect(classifyFailure("KeyError: 'name'", []).cause).toBeNull();
   });
 });
 
