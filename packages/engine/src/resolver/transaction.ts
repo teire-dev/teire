@@ -1,6 +1,7 @@
 import { VERIFY } from "../constants";
 import type { Transaction } from "../fix/transaction";
 import type { ResolverResult } from "./events";
+import { upstreamFromPrBody } from "./pr-body";
 
 /**
  * The resolver's change as the fix loop's transaction (plan S15.1): the dependency files exactly as
@@ -19,6 +20,7 @@ export function resolverTransaction(
   const text = change.files.filter((f) => f.content !== null && !f.encoding && f.mode !== "120000");
   const links = change.files.filter((f) => f.mode === "120000" && f.content !== null);
   const lockfilePath = change.files.find((f) => f.content !== null && LOCKFILE.test(f.path))?.path;
+  const upstream = upstreamFromPrBody(change.body);
   return {
     describe: `dependabot-core's updater: ${
       change.moved
@@ -38,6 +40,7 @@ export function resolverTransaction(
     commands: links.map((f) => ["ln", "-sfn", f.content as string, `${VERIFY.workDir}/${f.path}`]),
     readBack: change.files.filter((f) => f.content !== null && f.mode !== "120000").map((f) => f.path),
     moved: change.moved,
+    ...(upstream ? { upstream } : {}),
     ...(lockfilePath ? { lockfilePath } : {}),
   };
 }

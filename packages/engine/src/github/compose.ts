@@ -380,6 +380,25 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
         `${blockquote(sanitizeUpstream(`${note.quote.slice(0, 400)}${note.quote.length > 400 ? "…" : ""}`, upstreamRepoOf(note.url)))}\n>\n> — ${link(urlLabel(note.url) ?? "release notes", note.url)}`,
       );
 
+    // The commits between the versions, as dependabot-core's updater listed them (D-13).
+    if (run.upstream) {
+      const { commits, more, compare } = run.upstream;
+      if (commits.length) {
+        out.push(`Commits between ${instance.version} and ${run.target}:`);
+        out.push(
+          commits
+            .map(
+              (c) => `- ${link(`\`${c.sha}\``, c.url)} ${sanitizeUpstream(c.message, upstreamRepoOf(c.url))}`,
+            )
+            .join("\n"),
+        );
+      }
+      if (compare || more)
+        out.push(
+          `${more ? `and ${more} more; ` : ""}${compare ? link("compare the versions", compare) : ""}`.trim(),
+        );
+    }
+
     // Changes
     out.push("### Changes");
     out.push("| File | Change |", "|---|---|");

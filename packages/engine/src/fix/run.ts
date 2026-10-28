@@ -116,6 +116,8 @@ export interface FixRun {
   transactionFiles: string[];
   /** Packages the transaction moved besides the lead (co-upgrades, D-10). */
   moved: NonNullable<Transaction["moved"]>;
+  /** Upstream commits between the versions (D-13), when the updater listed them. */
+  upstream: Transaction["upstream"] | null;
   files: FileChange[];
   codemods: CodemodEdit[];
   attempts: FixAttempt[];
@@ -439,6 +441,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         lockfile,
         transactionFiles: [...transactionFiles].filter((p) => !editedSince(p)),
         moved: (input.transaction.moved ?? []).filter((m) => m.name !== input.instance?.name),
+        upstream: input.transaction.upstream ?? null,
         files,
         codemods,
         attempts,

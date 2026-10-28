@@ -1,4 +1,5 @@
 import { VERIFY } from "../constants";
+import type { UpstreamCommits } from "../resolver/pr-body";
 import type { VerifySession } from "../verify/backend";
 import type { CheckPlan } from "../verify/commands";
 import { prepareSide, type SideRun } from "../verify/run";
@@ -22,6 +23,8 @@ export interface Transaction {
   check?: (files: Record<string, string>) => string | null;
   /** Every package the change moved, the lead included (dependabot-core's updater reports them). */
   moved?: { name: string; from: string | null; to: string | null; removed?: boolean }[];
+  /** The commits between the versions, as dependabot-core's updater listed them (D-13). */
+  upstream?: UpstreamCommits;
   fallback?: Transaction;
 }
 
