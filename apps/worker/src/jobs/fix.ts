@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { AFFECTED_RANGES_SEPARATOR, stillAffected } from "@teire/engine/advisories";
-import { matchesTarget, readTeireConfig, type TeireConfig } from "@teire/engine/config";
+import { matchesTarget, readTeireConfig, type TeireConfig, updateIgnores } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
 import { cargoFeatureOverlay, type FixRun, type Transaction, withGradleLocks } from "@teire/engine/fix";
@@ -452,6 +452,7 @@ async function packageOutcome(
   const assessOptions = {
     cache,
     cooldownDays: config.upgrades.cooldownDays,
+    ignoreUpdates: updateIgnores(config.ignore),
     onlyPackage: packageName,
     ...(cap ? { targetMax: { name: packageName, version: cap.version, reason: cap.reason } } : {}),
     ...(cap?.floor ? { targetFloor: { name: packageName, version: cap.version } } : {}),

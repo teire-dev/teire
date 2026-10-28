@@ -95,6 +95,19 @@ describe("target policy", () => {
     expect(withTargetMax(policy(), "zod", cap).max).toBeUndefined();
   });
 
+  it("ignoring major updates for a package still proposes its newest minor (D112)", () => {
+    const options = { ignoreUpdates: [{ name: "openai", types: ["major" as const] }] };
+    const d = chooseTarget(
+      openai,
+      "4.20.0",
+      withTargetMax(policy({ minAgeMinutes: () => 0 }), "openai", options),
+      npmScheme,
+    );
+    expect(d).toMatchObject({ kind: "upgrade", isMajor: false });
+    expect(d.kind === "upgrade" && d.to.startsWith("4.")).toBe(true);
+    expect(d.skipped.find((s) => s.reason === "pinned")?.detail).toContain("major updates are ignored");
+  });
+
   it("never proposes pre-releases from a stable version", () => {
     const d = chooseTarget(openai, "4.0.0-beta.11", policy({ allowPrerelease: true }), npmScheme);
     expect(d.kind).toBe("upgrade");

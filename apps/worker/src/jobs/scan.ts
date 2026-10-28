@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises";
 import { type Database, sql } from "@teire/db";
 import { osvAdvisoryIds } from "@teire/engine/advisories";
-import { readTeireConfig, type TeireConfig } from "@teire/engine/config";
+import { readTeireConfig, type TeireConfig, updateIgnores } from "@teire/engine/config";
 import { ECOSYSTEMS, lineageKey } from "@teire/engine/contract";
 import {
   commitToBranch,
@@ -216,6 +216,7 @@ export async function assessCheckout(
     : await assessJsRepo(dir, tree, {
         cache,
         cooldownDays: config.upgrades.cooldownDays,
+        ignoreUpdates: updateIgnores(config.ignore),
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
       });
@@ -224,6 +225,7 @@ export async function assessCheckout(
     : await assessPyRepo(dir, tree, {
         cache,
         cooldownDays: config.upgrades.cooldownDays,
+        ignoreUpdates: updateIgnores(config.ignore),
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
       });
@@ -232,6 +234,7 @@ export async function assessCheckout(
     : await assessGoRepo(dir, tree, {
         cache,
         cooldownDays: config.upgrades.cooldownDays,
+        ignoreUpdates: updateIgnores(config.ignore),
         ...auth,
         surfaceDiff: (oldPath, f, newPath, t) =>
           cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () => goSurfaceDiff(oldPath, f, newPath, t)),
@@ -241,6 +244,7 @@ export async function assessCheckout(
     : await assessRustRepo(dir, tree, {
         cache,
         cooldownDays: config.upgrades.cooldownDays,
+        ignoreUpdates: updateIgnores(config.ignore),
         ...auth,
         surfaceDiff: (n, f, t) =>
           cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
@@ -252,6 +256,7 @@ export async function assessCheckout(
     : await assessRubyRepo(dir, tree, {
         cache,
         cooldownDays: config.upgrades.cooldownDays,
+        ignoreUpdates: updateIgnores(config.ignore),
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
       });
@@ -260,6 +265,7 @@ export async function assessCheckout(
     : await assessJvmRepo(dir, tree, {
         cache,
         cooldownDays: config.upgrades.cooldownDays,
+        ignoreUpdates: updateIgnores(config.ignore),
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
       });

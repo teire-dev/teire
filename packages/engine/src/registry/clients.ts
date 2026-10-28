@@ -186,6 +186,8 @@ export interface RegistryOptions {
    * updater could resolve, when that is above the lowest one published.
    */
   targetFloor?: { name: string; version: string };
+  /** Update types a repository ignores per package (`@teire ignore <package> major`, D112). */
+  ignoreUpdates?: { name: string; types: ("major" | "minor" | "patch")[] }[];
   /** Majors below the newest to target (D71: one lower after two failed verifications). */
   fallbackMajors?: number;
 }

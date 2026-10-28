@@ -33,6 +33,8 @@ export const HELP = [
   "| `@teire fix <change or package>` | Start a fix run now (also: tick “Fix now” in the Dashboard issue) |",
   "| `@teire ignore <change, package or provider:name>` | Stop reporting it; closes its open PR |",
   "| `@teire unignore <change, package or provider:name>` | Report it again |",
+  "| `@teire ignore <package> major\\|minor\\|patch` | Skip that kind of update for the package (on a Teire PR: `@teire ignore major`); newer minors or patches still come |",
+  "| `@teire show ignores` | What this repo ignores, from teire.yml and from commands |",
   "| `@teire rebase` | On a Teire PR: re-apply on the current base and verify again |",
   "| `@teire recreate` | On a Teire PR (even closed): run the fix again from scratch |",
   "| `@teire explain` | On a Teire PR or issue: the evidence behind it |",
@@ -57,6 +59,7 @@ export const COMMANDS = [
   "pause-fixes",
   "resume-fixes",
   "wrong",
+  "show",
   "help",
 ] as const;
 export type CommandName = (typeof COMMANDS)[number];
@@ -147,12 +150,56 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       await ctx.enqueueScan(repo.id, "command");
       await reply("Fixes resumed; rescanning now, and fix runs start from this scan.");
       return;
+    case "show": {
+      if (!/^ignores\b/.test(command.args.trim())) return void (await reply("Usage: `@teire show ignores`"));
+      // The config as the last scan resolved it; the command-made entries are listed apart.
+      const fromCommands = (repo.ignores as string[] | null) ?? [];
+      const fromConfig = ((repo.config as { ignore?: string[] } | null)?.ignore ?? []).filter(
+        (i) => !fromCommands.includes(i),
+      );
+      const list = (items: string[]) => (items.length ? items.map((i) => `- \`${i}\``).join("\n") : "- none");
+      return void (await reply(
+        `**From teire.yml**\n${list(fromConfig)}\n\n**From \`@teire ignore\`**\n${list(fromCommands)}`,
+      ));
+    }
     case "ignore":
     case "unignore": {
-      const target = command.args.split(/\s+/)[0] ?? "";
+      const words = command.args.split(/\s+/).filter(Boolean);
+      const type = words.find((w) => /^(major|minor|patch)$/.test(w));
+      let target = words.find((w) => !/^(major|minor|patch)$/.test(w)) ?? "";
+      // On a Teire PR, `@teire ignore major` names the PR's package (D112).
+      if (!target && type && artifact?.kind === "pr" && artifact.changeKey) {
+        const parts = artifact.changeKey.split("/");
+        target = `${parts[0]}:${parts.slice(1, -1).join("/")}`;
+      }
       if (!target)
-        return void (await reply(`Usage: \`@teire ${command.name} <change id, package or provider:name>\``));
+        return void (await reply(
+          `Usage: \`@teire ${command.name} <change id, package or provider:name>\`, or \`@teire ${command.name} <package> major|minor|patch\``,
+        ));
       const on = command.name === "ignore";
+      if (type) {
+        await setIgnore(db, repo.id, `${target}@${type}`, on);
+        // Asked on the Teire PR it names: that PR's update is the one being declined, so it closes.
+        if (on && artifact?.kind === "pr" && artifact.state === "open" && artifact.number) {
+          await octokit.rest.issues.createComment({
+            owner,
+            repo: name,
+            issue_number: artifact.number,
+            body: `Closed: @${by} ignored ${type} updates of \`${target}\`.`,
+          });
+          await octokit.rest.pulls.update({
+            owner,
+            repo: name,
+            pull_number: artifact.number,
+            state: "closed",
+          });
+        }
+        return void (await reply(
+          on
+            ? `Ignoring ${type} updates of \`${target}\`; other updates still come.`
+            : `${type[0]?.toUpperCase()}${type.slice(1)} updates of \`${target}\` come again.`,
+        ));
+      }
       await setIgnore(db, repo.id, target, on);
       const n = await setFindingsState(db, repo.id, (f) => matchesTarget(target, f), on ? "ignored" : "open");
       // Ignoring closes the open PR for it (C6: "Ignore this change").

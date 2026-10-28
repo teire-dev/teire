@@ -347,6 +347,19 @@ export function describeConfig(config: TeireConfig) {
  * id, its group, its package (`openai` or `npm:openai`), a provider (`provider:groq`) or a group's
  * parent. The worker and the CLI share it, so a local scan hides what the dashboard hides.
  */
+/**
+ * The update types ignored per package (D112): `ignore` entries like `npm:minimatch@major` or
+ * `minimatch@minor`, from teire.yml or `@teire ignore <package> major|minor|patch`.
+ */
+export function updateIgnores(ignore: string[]) {
+  const byName = new Map<string, ("major" | "minor" | "patch")[]>();
+  for (const entry of ignore) {
+    const m = /^(?:[a-z]+:)?(.+)@(major|minor|patch)$/.exec(entry.trim());
+    if (m?.[1] && m[2]) byName.set(m[1], [...(byName.get(m[1]) ?? []), m[2] as "major" | "minor" | "patch"]);
+  }
+  return [...byName].map(([name, types]) => ({ name, types }));
+}
+
 export function matchesTarget(
   target: string,
   f: { changeId: string; dependencyKey: string; groupKey: string | null },

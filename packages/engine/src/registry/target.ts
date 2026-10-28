@@ -28,16 +28,33 @@ export interface TargetPolicy {
    * far (D103), so the target becomes it and is diffed again.
    */
   max?: { version: string; reason: string };
+  /** Update types the repository ignores for this package (`@teire ignore <package> major`, D112). */
+  ignoreUpdates?: ("major" | "minor" | "patch")[];
+}
+
+/** Dependabot's update types: leaving the caret range is major; otherwise a new minor, or a patch. */
+function updateType(scheme: VersionScheme, from: string, to: string): "major" | "minor" | "patch" {
+  if (scheme.breaking(from, to)) return "major";
+  const minor = (v: string) => v.replace(/^v/, "").split(/[.+-]/).slice(0, 2).join(".");
+  return minor(from) === minor(to) ? "patch" : "minor";
 }
 
 /** The policy capped for one package, when the options carry a cap for it (D103). */
 export function withTargetMax(
   policy: TargetPolicy,
   name: string,
-  options: { targetMax?: { name: string; version: string; reason: string } },
+  options: {
+    targetMax?: { name: string; version: string; reason: string };
+    ignoreUpdates?: { name: string; types: ("major" | "minor" | "patch")[] }[];
+  },
 ): TargetPolicy {
   const cap = options.targetMax;
-  return cap && cap.name === name ? { ...policy, max: { version: cap.version, reason: cap.reason } } : policy;
+  const ignored = (options.ignoreUpdates ?? []).filter((i) => i.name === name).flatMap((i) => i.types);
+  return {
+    ...policy,
+    ...(cap && cap.name === name ? { max: { version: cap.version, reason: cap.reason } } : {}),
+    ...(ignored.length ? { ignoreUpdates: [...new Set(ignored)] } : {}),
+  };
 }
 
 export type SkipReason =
@@ -151,7 +168,14 @@ export function chooseTarget(
   const eligible: VersionInfo[] = [];
   const newer = info.versions.filter((v) => scheme.compare(v.version, current) > 0).reverse();
   for (const v of newer) {
-    const why = reasonFor(v, scheme, policy, defaultVersion, true);
+    const kind = policy.ignoreUpdates?.length ? updateType(scheme, current, v.version) : null;
+    const why =
+      kind && policy.ignoreUpdates?.includes(kind)
+        ? {
+            reason: "pinned" as const,
+            detail: `${kind} updates are ignored for this package (\`@teire ignore … ${kind}\`)`,
+          }
+        : reasonFor(v, scheme, policy, defaultVersion, true);
     if (!why) {
       eligible.push(v);
       continue;

@@ -14,6 +14,8 @@ Start a line of a comment with the command, on any issue or pull request in the 
 | `@teire fix <change or package>` | Start a fix run now (also: tick "Fix now" in the Dashboard issue) |
 | `@teire ignore <change, package or provider:name>` | Stop reporting it; closes its open PR |
 | `@teire unignore <change, package or provider:name>` | Report it again |
+| `@teire ignore <package> major\|minor\|patch` | Skip that kind of update for the package; on a Teire PR, `@teire ignore major` names its package and closes it |
+| `@teire show ignores` | What this repo ignores, from `teire.yml` and from commands |
 | `@teire rebase` | On a Teire PR: re-apply on the current base and verify again |
 | `@teire recreate` | On a Teire PR (even closed): run the fix again from scratch |
 | `@teire explain` | On a Teire PR or issue: the evidence behind it |
@@ -34,6 +36,8 @@ Finds the first finding that matches the target and starts its fix run on the cu
 </Accordion>
 <Accordion title="ignore / unignore <target>">
 The target can be a change ID, a package (`openai` or `npm:openai`), a provider (`provider:groq-com`), or a group such as `models/openai`. Ignoring marks the matching findings ignored and closes each matching open PR with a comment. The ignore is stored on the repository and survives rescans. `unignore` reopens the findings.
+
+Add `major`, `minor` or `patch` to skip only that kind of update, as Dependabot's update-type ignores do: `@teire ignore openai major` keeps proposing the newest `openai` minor or patch, and a person closing a Teire PR declines that one version only. On a Teire PR, `@teire ignore major` needs no package name and closes the PR. `@teire unignore openai major` brings majors back.
 </Accordion>
 <Accordion title="rebase / recreate">
 Both work on a Teire PR or issue. **rebase** reruns the fix on the current base, once per base commit. **recreate** always starts a fresh run, even on a closed PR. Both reset the branch only when every commit on it is Teire's. If someone else pushed to the branch, the run stops and says so on the PR.
