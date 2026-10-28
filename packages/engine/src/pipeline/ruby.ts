@@ -242,7 +242,7 @@ export async function fixRubyDependency(
     ),
     onEvent: input.onEvent,
   });
-  const groupKey = `gem/${a.instance.name}/${target}`;
+  const groupKey = `rubygems/${a.instance.name}/${target}`;
   const pr = composeFixPullRequest({
     repo: input.repo,
     runId: input.runId,

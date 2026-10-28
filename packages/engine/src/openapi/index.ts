@@ -164,7 +164,8 @@ export async function assessOpenApi(input: {
     if (h.kind === "url" && h.host && h.path && h.path !== "/" && isApiEndpoint(h.host, h.path))
       byHost.set(h.host, [...(byHost.get(h.host) ?? []), h]);
 
-  for (const [host, hits] of byHost) {
+  // One host's failure (a GitHub outage, a spec that will not parse) skips that host, not the scan.
+  const assessHost = async (host: string, hits: LiteralHit[]) => {
     const declared = input.options.declared?.find((d) => d.host === host);
     const domain = registrableDomain(host);
     const use = input.providers.find(
@@ -174,7 +175,7 @@ export async function assessOpenApi(input: {
     );
     if (!use && !declared) {
       out.notes.push(`${host}: no provider SDK names where its API description lives`);
-      continue;
+      return;
     }
     const provider = use?.provider ?? { slug: slugify(host), name: host, apiVersionHeader: undefined };
     const declaredAt = declared ? githubSpecLocation(declared.specUrl) : null;
@@ -182,17 +183,17 @@ export async function assessOpenApi(input: {
       out.notes.push(
         `${host}: teire.yml specUrl must be a GitHub file URL, so its history gives the revisions`,
       );
-      continue;
+      return;
     }
     const owner = declaredAt || !use ? null : await sdkOwner(use.provider, input.options);
     const location: SpecLocation | null =
       declaredAt ?? (owner ? await findSpec(owner, host, input.options) : null);
     if (!location) {
       out.notes.push(`${host}: no API description found${owner ? ` in github.com/${owner}` : ""}`);
-      continue;
+      return;
     }
     const head = await specRevision(location, input.options);
-    if (!head) continue;
+    if (!head) return;
     const headText = await specText(head.url);
     const headSpec = (
       location.path.endsWith(".json") ? JSON.parse(headText) : YAML.parse(headText)
@@ -200,7 +201,7 @@ export async function assessOpenApi(input: {
     const index = indexSpec(headSpec);
     if (index.hosts.length && !index.hosts.includes(host)) {
       out.notes.push(`${host}: ${location.repo}/${location.path} describes ${index.hosts.join(", ")}`);
-      continue;
+      return;
     }
     // The operations this repo's URLs reach, and the sites that reach each.
     const reached = new Map<string, { op: SpecOperation; sites: LiteralHit[] }>();
@@ -213,7 +214,7 @@ export async function assessOpenApi(input: {
       }
     if (!reached.size) {
       out.notes.push(`${host}: no call matches an operation in ${location.repo}/${location.path}`);
-      continue;
+      return;
     }
 
     // The repo's position on this API: the version it pins, else when its calls were last written.
@@ -235,12 +236,12 @@ export async function assessOpenApi(input: {
     }
     if (!baseDate) {
       out.notes.push(`${host}: no pinned API version and no history for the calling files`);
-      continue;
+      return;
     }
     const base = await specRevision(location, input.options, baseDate);
     if (!base || base.sha === head.sha) {
       out.notes.push(`${host}: ${location.repo}/${location.path} unchanged since ${baseDate.slice(0, 10)}`);
-      continue;
+      return;
     }
 
     const diffKey = `${location.repo}:${location.path}:${base.sha}..${head.sha}:${OPENAPI.oasdiff.version}`;
@@ -352,6 +353,12 @@ export async function assessOpenApi(input: {
     out.notes.push(
       `${host}: ${location.repo}/${location.path} ${base.sha.slice(0, 7)} (${position}) → ${head.sha.slice(0, 7)} (${latest}): ${items.length} breaking item(s), ${out.findings.length} on operations this repo calls`,
     );
-  }
+  };
+  for (const [host, hits] of byHost)
+    await assessHost(host, hits).catch((error: unknown) => {
+      out.notes.push(
+        `${host}: OpenAPI comparison failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
   return out;
 }

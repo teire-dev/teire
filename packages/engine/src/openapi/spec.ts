@@ -83,8 +83,12 @@ export async function findSpec(
   const key = `${owner.toLowerCase()}:${host}`;
   const cached = await options.cache.get("openapi", key);
   const now = options.now ?? new Date();
-  if (cached && now.getTime() - Date.parse(cached.fetchedAt) < OPENAPI.repoFreshForMs)
-    return cached.data as SpecLocation | null;
+  if (cached && now.getTime() - Date.parse(cached.fetchedAt) < OPENAPI.repoFreshForMs) {
+    // Stored as `{ found }` so "searched, nothing there" is a value (the column is NOT NULL); older
+    // rows hold the location itself.
+    const data = cached.data as { found?: SpecLocation | null } | SpecLocation | null;
+    return data && "found" in data ? (data.found ?? null) : ((data as SpecLocation | null) ?? null);
+  }
   const q = encodeURIComponent(`org:${owner} ${OPENAPI.repoQuery}`);
   const search = await github<{
     items: { full_name: string; name: string; archived: boolean; default_branch: string }[];
@@ -109,13 +113,15 @@ export async function findSpec(
       break;
     }
   }
-  await options.cache.put("openapi", key, {
-    etag: null,
-    lastModified: null,
-    bodyHash: sha256(JSON.stringify(found)),
-    data: found,
-    fetchedAt: now.toISOString(),
-  });
+  // A failed search (rate limit, outage) is not an answer: only a search that ran is remembered.
+  if (search)
+    await options.cache.put("openapi", key, {
+      etag: null,
+      lastModified: null,
+      bodyHash: sha256(JSON.stringify(found)),
+      data: { found },
+      fetchedAt: now.toISOString(),
+    });
   return found;
 }
 

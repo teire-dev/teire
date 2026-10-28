@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import { readTeireConfig } from "@teire/engine/config";
+import { matchesTarget, readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
 import type { CallSite } from "@teire/engine/contract";
 import type { FixRun } from "@teire/engine/fix";
@@ -11,7 +11,7 @@ import {
   publishCheckRun,
 } from "@teire/engine/github";
 import type { JvmProject, PyProject, RepoTree, RubyProject, RustProject } from "@teire/engine/inventory";
-import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
+import { directoryTree, fetchRepoTarball, scopedTree } from "@teire/engine/inventory";
 import {
   CreditsExhaustedError,
   createTokenFactory,
@@ -55,6 +55,7 @@ import {
   updateRun,
   upsertArtifact,
 } from "../store";
+import { readOrgConfig } from "./commands";
 import { syncDashboard } from "./dashboard";
 import { pageReader, storedProviderChanges } from "./providers";
 import { requesterToken } from "./public";
@@ -91,6 +92,7 @@ async function packageOutcome(
   run: { groupKey: string; targetVersion: string; fromVersion: string | null },
   repoDir: string,
   tree: RepoTree,
+  config: TeireConfig,
   token: string | undefined,
   common: Common,
 ): Promise<Outcome | null> {
@@ -102,7 +104,7 @@ async function packageOutcome(
   const cache = postgresRegistryCache(ctx.db);
   const assessOptions = {
     cache,
-    cooldownDays: readTeireConfig(tree).upgrades.cooldownDays,
+    cooldownDays: config.upgrades.cooldownDays,
     onlyPackage: packageName,
     ...(token ? { githubToken: token } : {}),
     surfaceDiff: (n: string, f: string, t: string) =>
@@ -132,10 +134,23 @@ async function packageOutcome(
             : ecosystem === "maven"
               ? await assessJvmRepo(repoDir, tree, assessOptions)
               : await assessJsRepo(repoDir, tree, assessOptions);
-  const assessment = (assessments as Assessment<AssessedProject>[]).find(
-    (a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion,
-  );
+  // Every lockfile root that declares the package at this target. The most urgent leads; the run
+  // names the others (one PR per package per repo, D94; the resolver edits them all from S15).
+  const matching = (assessments as Assessment<AssessedProject>[])
+    .filter((a) => a.decision?.kind === "upgrade" && a.decision.to === run.targetVersion)
+    // `@teire ignore` and teire.yml `ignore` apply to the run as they do to the scan (C8).
+    .filter(
+      (a) => !a.findings.length || a.findings.some((f) => !config.ignore.some((t) => matchesTarget(t, f))),
+    )
+    .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9));
+  const assessment = matching[0];
   if (!assessment) return null;
+  const roots = [...new Set(matching.map((a) => a.project.root))];
+  if (roots.length > 1)
+    common.onEvent?.({
+      step: "transaction",
+      detail: `${roots.length} lockfile roots declare ${packageName} at ${run.targetVersion} (${roots.join(", ")}); this run edits ${assessment.project.root}`,
+    });
   const result =
     ecosystem === "pypi"
       ? await fixPyDependency({ ...common, assessment: assessment as unknown as Assessment<PyProject> })
@@ -185,6 +200,7 @@ async function apiOutcome(
   run: { groupKey: string },
   repoDir: string,
   tree: RepoTree,
+  config: TeireConfig,
   common: Common,
 ): Promise<Outcome | null> {
   const {
@@ -200,9 +216,11 @@ async function apiOutcome(
       githubToken: common.options.githubToken,
       repo: { owner: common.repo.owner, name: common.repo.repo, sha: common.repo.baseSha },
     },
-    declared: readTeireConfig(tree).sources,
+    declared: config.sources,
   });
-  const group = findings.filter((f) => f.groupKey === run.groupKey);
+  const group = findings
+    .filter((f) => f.groupKey === run.groupKey)
+    .filter((f) => !config.ignore.some((t) => matchesTarget(t, f)));
   if (!group.some((f) => f.verdict === "affected")) return null;
   const records = read.filter((r) => group.some((f) => f.changeId === r.id));
   const slug = records[0]?.subject.provider;
@@ -302,7 +320,15 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   try {
     const checkout = await fetchRepoTarball(owner, name, run.baseSha, token ? { token } : {});
     dir = checkout.dir;
-    const tree = directoryTree(checkout.dir);
+    // The scan's own config: the repo's file over `<org>/teire-config` over defaults, plus
+    // `@teire ignore` targets, and the same scoped tree (C8).
+    const orgText = installation ? await readOrgConfig(installation.octokit, owner) : null;
+    const runConfig = readTeireConfig(
+      directoryTree(checkout.dir),
+      orgText ? { orgText, orgFile: `${owner}/teire-config/teire.yml` } : {},
+    );
+    runConfig.ignore = [...new Set([...runConfig.ignore, ...((repo.ignores as string[] | null) ?? [])])];
+    const tree = scopedTree(directoryTree(checkout.dir), runConfig);
     const tf = createTokenFactory(tokenFactoryConfigFromEnv());
     const prices = await fetchModelPrices().catch(() => undefined);
     const { backend, note } = await selectBackend();
@@ -347,12 +373,13 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     };
     await updateRun(db, runId, { step: "fix", backend: backend.name });
     const outcome = isApi
-      ? await apiOutcome(ctx, { groupKey }, checkout.dir, tree, common)
+      ? await apiOutcome(ctx, { groupKey }, checkout.dir, tree, runConfig, common)
       : await packageOutcome(
           ctx,
           { groupKey, targetVersion: run.targetVersion, fromVersion: run.fromVersion },
           checkout.dir,
           tree,
+          runConfig,
           token,
           common,
         );
