@@ -102,6 +102,12 @@ export const RUNS = {
   /** Runs without a heartbeat for this long are failed by the reaper. */
   staleAfterMs: 10 * 60 * 1000,
   heartbeatEveryMs: 15 * 1000,
+  /**
+   * Fix runs the worker takes at once, each from a different repository (the queue keeps one per
+   * repository in order). Each holds two sandboxes (Token Factory allows 50 per project) and up to
+   * about 1 GB of the worker's 4 GB while it diffs an API; the resolver service queues its own jobs.
+   */
+  fixConcurrency: 3,
   /** The run page polls this often while a run is active. */
   pollEveryMs: 1000,
 } as const;

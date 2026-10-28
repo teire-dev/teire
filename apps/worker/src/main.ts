@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { createDb, createLocalDb, runMigrations, sql, tlsOptions } from "@teire/db";
+import { RUNS } from "@teire/engine/constants";
 import { createGitHubApp, githubAppConfigFromEnv } from "@teire/engine/github";
 import { CreditsExhaustedError } from "@teire/engine/llm";
 import { PgBoss } from "pg-boss";
@@ -154,15 +155,19 @@ async function main() {
         }
       },
     );
-    await boss.work<{ runId: string }>(QUEUES.fix, async (jobs) => {
-      for (const job of jobs) {
-        try {
-          console.log("[fix]", job.data.runId, JSON.stringify(await fixRun(ctx, job.data.runId)));
-        } catch (error) {
-          console.error("[fix] failed", job.data.runId, error);
+    await boss.work<{ runId: string }>(
+      QUEUES.fix,
+      { localConcurrency: RUNS.fixConcurrency },
+      async (jobs) => {
+        for (const job of jobs) {
+          try {
+            console.log("[fix]", job.data.runId, JSON.stringify(await fixRun(ctx, job.data.runId)));
+          } catch (error) {
+            console.error("[fix] failed", job.data.runId, error);
+          }
         }
-      }
-    });
+      },
+    );
     await boss.work<{ publicScanId: string }>(QUEUES.public, async (jobs) => {
       for (const job of jobs) {
         try {
