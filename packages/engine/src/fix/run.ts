@@ -22,7 +22,7 @@ import type { VerifyBackend } from "../verify/backend";
 import type { CheckPlan } from "../verify/commands";
 import { decideEvidence, type Evidence, type SideResult } from "../verify/evidence";
 import { type CheckableProject, checkableProjects, planFor, projectOf } from "../verify/projects";
-import { runChecks, runSide, type SideRun, verifyChange } from "../verify/run";
+import { type Change, runChecks, runSide, type SideRun, type VerifyRun, verifyChange } from "../verify/run";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
 import { type InstallTriage, type Review, reviewFix, triageInstall } from "./review";
@@ -302,36 +302,79 @@ const MODE_RANK = { ready: 0, draft: 1, issue: 2 } as const;
  */
 export async function runFix(input: FixInput): Promise<FixRun> {
   const run = await runLead(input);
-  if (run.evidence.prMode === "issue") return run;
-  const text = run.files.filter((f) => f.after !== null && !f.encoding);
-  if (!text.length) return run;
-  const projects = await checkableProjects(input.repoDir, input.tree).catch(() => []);
-  const touched = new Map<string, (typeof projects)[number]>();
+  if (run.evidence.prMode === "issue" || !run.files.length) return run;
+  const outside = run.files.some(
+    (f) => input.project.root !== "." && !f.path.startsWith(`${input.project.root}/`),
+  );
+  // Fail closed (review R2): when the projects can't be listed, a change reaching beyond the lead
+  // project is unverified there, never assumed fine.
+  let projects: CheckableProject[];
+  try {
+    projects = await checkableProjects(input.repoDir, input.tree);
+  } catch (error) {
+    if (!outside) return run;
+    return withWeakest(run, [
+      unchecked(
+        ".",
+        "npm",
+        `couldn't list the other projects this change touches (${String(error).slice(0, 200)})`,
+      ),
+    ]);
+  }
+  const touched = new Map<string, CheckableProject>();
   for (const f of run.files) {
     const project = projectOf(projects, f.path);
     if (project && project.root !== input.project.root) touched.set(project.root, project);
   }
   if (!touched.size) return run;
-  const files = Object.fromEntries(text.map((f) => [f.path, f.after as string]));
+  // The exact final file set: text as files, everything else (bytes, deletions, modes, links) as writes.
+  const files: Record<string, string> = {};
+  const writes: NonNullable<Change["writes"]> = [];
+  for (const f of run.files) {
+    if (f.after === null) writes.push({ path: f.path, bytes: null });
+    else if (f.encoding === "base64")
+      writes.push({
+        path: f.path,
+        bytes: Buffer.from(f.after, "base64"),
+        ...(f.mode ? { mode: f.mode } : {}),
+      });
+    else if (f.mode) writes.push({ path: f.path, bytes: Buffer.from(f.after, "utf8"), mode: f.mode });
+    else files[f.path] = f.after;
+  }
   const queue = [...touched.values()].map((project, i) => ({ project, i }));
-  const results: (OtherProject | null)[] = [];
+  const results: OtherProject[] = [];
   const check = async ({ project, i }: (typeof queue)[number]) => {
     const name = project.root === "." ? "/" : project.root;
     input.onEvent?.({
       step: "verify",
       detail: `checking ${name} (${project.ecosystem}), which this change also touches`,
     });
-    const v = await verifyChange({
-      backend: input.backend,
-      runId: sandboxId(input.runId, randomBytes(3).toString("hex"), `p${i + 1}`),
-      tarball: input.tarball,
-      plan: planFor(project, input.verify),
-      change: { files },
-    }).catch((error: unknown) => {
-      input.onEvent?.({ step: "verify", detail: `${name}: not checked (${String(error).slice(0, 200)})` });
-      return null;
-    });
-    if (!v) return;
+    const attempt = () =>
+      verifyChange({
+        backend: input.backend,
+        runId: sandboxId(input.runId, randomBytes(3).toString("hex"), `p${i + 1}`),
+        tarball: input.tarball,
+        plan: planFor(project, input.verify),
+        change: { files, writes },
+      });
+    // One retry for a sandbox that didn't open; a second failure is a result, not an omission.
+    let v: VerifyRun | null = null;
+    let failure = "";
+    try {
+      v = await attempt();
+    } catch {
+      try {
+        v = await attempt();
+      } catch (error) {
+        failure = String(error);
+      }
+    }
+    if (!v) {
+      const reason = `couldn't be checked (${failure.slice(0, 200)})`;
+      input.onEvent?.({ step: "verify", detail: `${name}: ${reason}` });
+      results[i] = unchecked(project.root, project.ecosystem, reason);
+      return;
+    }
     input.onEvent?.({
       step: "verify",
       detail: `${name}: ${v.evidence.kind.replace(/_/g, " ")} — ${v.evidence.reasons.join("; ")}`,
@@ -350,7 +393,39 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       for (let next = queue.shift(); next; next = queue.shift()) await check(next);
     }),
   );
-  const others = results.filter((r): r is OtherProject => !!r);
+  return withWeakest(
+    run,
+    results.filter((r): r is OtherProject => !!r),
+  );
+}
+
+const emptySide = (side: "baseline" | "after"): SideResult => ({
+  side,
+  install: { ok: false, exitCode: -1, ms: 0, output: "" },
+  checks: [],
+  deniedHosts: [],
+});
+
+/** A project the change touched that couldn't be checked: unverified, with the reason. */
+export function unchecked(root: string, ecosystem: OtherProject["ecosystem"], reason: string): OtherProject {
+  return {
+    root,
+    ecosystem,
+    evidence: {
+      kind: "unverified",
+      prMode: PR_MODE_BY_EVIDENCE.unverified,
+      reasons: [reason],
+      baseline: null,
+      after: null,
+      classified: null,
+    },
+    baseline: emptySide("baseline"),
+    after: emptySide("after"),
+  };
+}
+
+/** The weakest evidence across the lead and the other projects decides; its reasons name the project. */
+export function withWeakest(run: FixRun, others: OtherProject[]): FixRun {
   const weakest = [...others].sort((a, b) => MODE_RANK[b.evidence.prMode] - MODE_RANK[a.evidence.prMode])[0];
   const evidence =
     weakest && MODE_RANK[weakest.evidence.prMode] > MODE_RANK[run.evidence.prMode]

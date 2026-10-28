@@ -58,7 +58,7 @@ Rule 8 sorts out why both sides failed:
 
 ## When a change touches several projects
 
-One pull request can change several projects: a package locked in two folders of a monorepo, or a retired model swapped in a TypeScript service and a Go one. The project the change breaks runs the fix and its checks first. Then every other project the final files touch installs and runs its own checks, before and after, in its own sandboxes with its own toolchain. The weakest result decides the pull request, and the Verification section lists each project with its before and after.
+One pull request can change several projects: a package locked in two folders of a monorepo, or a retired model swapped in a TypeScript service and a Go one. The project the change breaks runs the fix and its checks first. Then every other project the final files touch installs and runs its own checks, before and after, in its own sandboxes with its own toolchain. A project that can't be checked (its sandbox didn't open, twice) counts as unverified rather than being left out. The weakest result decides the pull request, the Verification section lists each project with its before and after, and the receipt lists every project's commands.
 
 ## When the newest major won't pass
 

@@ -57,13 +57,32 @@ export async function checkableProjects(repoDir: string, tree: RepoTree): Promis
   ];
 }
 
-/** The project a file belongs to: the deepest root that contains it. */
-export function projectOf<P extends { root: string }>(projects: P[], file: string): P | null {
-  return (
-    projects
-      .filter((p) => p.root === "." || file.startsWith(`${p.root}/`))
-      .sort((a, b) => b.root.length - a.root.length)[0] ?? null
-  );
+/** The ecosystem a file belongs to by its name, when that is clear. */
+const FILE_ECOSYSTEM: [RegExp, Ecosystem][] = [
+  [/(?:^|\/)(?:package(?:-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|[^/]+\.[cm]?[jt]sx?)$/, "npm"],
+  [
+    /(?:^|\/)(?:pyproject\.toml|uv\.lock|poetry\.lock|Pipfile(?:\.lock)?|requirements[^/]*\.(?:txt|in)|[^/]+\.py)$/,
+    "pypi",
+  ],
+  [/(?:^|\/)(?:go\.(?:mod|sum|work)|[^/]+\.go)$/, "go"],
+  [/(?:^|\/)(?:Cargo\.(?:toml|lock)|[^/]+\.rs)$/, "cargo"],
+  [/(?:^|\/)(?:Gemfile(?:\.lock)?|[^/]+\.(?:gemspec|rb))$/, "rubygems"],
+  [/(?:^|\/)(?:pom\.xml|[^/]+\.gradle(?:\.kts)?|gradle\.lockfile|[^/]+\.(?:java|kt))$/, "maven"],
+];
+
+/**
+ * The project a file belongs to: among the roots that contain it, the deepest one in the file's own
+ * ecosystem (a root can hold a package.json and a pyproject.toml), else the deepest (review R2).
+ */
+export function projectOf<P extends { root: string; ecosystem?: string }>(
+  projects: P[],
+  file: string,
+): P | null {
+  const containing = projects
+    .filter((p) => p.root === "." || file.startsWith(`${p.root}/`))
+    .sort((a, b) => b.root.length - a.root.length);
+  const ecosystem = FILE_ECOSYSTEM.find(([re]) => re.test(file))?.[1];
+  return (ecosystem && containing.find((p) => p.ecosystem === ecosystem)) || containing[0] || null;
 }
 
 /** The plan for a project, with `teire.yml` `verify` overrides applied. */

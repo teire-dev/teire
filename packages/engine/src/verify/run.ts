@@ -17,6 +17,12 @@ export interface Change {
   lockfile?: string[];
   /** Repo-relative lockfile path to read back after regeneration. */
   lockfilePath?: string;
+  /**
+   * Changes that aren't text writes, so another project's after side gets the exact final file set
+   * (review R2): bytes (a binary lockfile), a deletion (null), an executable (100755) or a symlink
+   * (120000, whose bytes are the link's target).
+   */
+  writes?: { path: string; bytes: Uint8Array | null; mode?: "100755" | "120000" }[];
 }
 
 export interface SideRun extends SideResult {
@@ -55,6 +61,22 @@ export async function prepareSide(
   if (change) {
     for (const [path, content] of Object.entries(change.files))
       await session.writeFile(`${VERIFY.workDir}/${path}`, encoder.encode(content));
+    let n = 0;
+    for (const w of change.writes ?? []) {
+      const target = `${VERIFY.workDir}/${w.path}`;
+      const argv =
+        w.bytes === null
+          ? ["rm", "-f", target]
+          : w.mode === "120000"
+            ? ["ln", "-sfn", decoder.decode(w.bytes), target]
+            : null;
+      if (argv) await session.run(`${side}-write-${++n}`, argv, { timeoutSec: 60 });
+      else if (w.bytes) {
+        await session.writeFile(target, w.bytes);
+        if (w.mode === "100755")
+          await session.run(`${side}-write-${++n}`, ["chmod", "+x", target], { timeoutSec: 60 });
+      }
+    }
     if (change.lockfile) {
       const run = await session.run(`${side}-lockfile`, change.lockfile, {
         cwd: plan.cwd,

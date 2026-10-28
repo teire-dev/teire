@@ -1157,6 +1157,36 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         });
     }
 
+    // Every other project the change touched is on the receipt too, its commands named by folder (review R2).
+    for (const other of fix.others ?? [])
+      for (const [phase, side] of [
+        ["baseline", other.baseline],
+        ["after", other.after],
+      ] as const) {
+        const folder = `[${other.root === "." ? "/" : other.root}] `;
+        if (side.install.ms || side.install.output)
+          await recordSandboxExec(db, {
+            runId,
+            backend: backend.name,
+            phase: phase === "baseline" ? "install_baseline" : "install_after",
+            command: `${folder}install`,
+            exitCode: side.install.exitCode,
+            durationMs: side.install.ms,
+            stdoutTail: side.install.output.slice(-4000),
+          });
+        for (const c of side.checks)
+          await recordSandboxExec(db, {
+            runId,
+            backend: backend.name,
+            phase,
+            command: `${folder}${c.argv.join(" ")}`,
+            exitCode: c.exitCode,
+            timedOut: c.timedOut,
+            durationMs: c.ms,
+            stdoutTail: c.output.slice(-4000),
+          });
+      }
+
     const prMode = fix.evidence.prMode;
     const models = [...new Set([notesReceipt?.model, ...fix.attempts.map((a) => a.model)].filter(Boolean))];
     const runFields = {
