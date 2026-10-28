@@ -351,7 +351,7 @@ export const sandboxExecs = pgTable(
     runId: uuid("run_id").notNull(),
     backend: text("backend").notNull(),
     phase: text("phase")
-      .$type<"install_baseline" | "baseline" | "upgrade" | "install_after" | "after" | "retry">()
+      .$type<"install_baseline" | "baseline" | "upgrade" | "install_after" | "after" | "retry" | "resolve">()
       .notNull(),
     sandboxId: text("sandbox_id"),
     jobId: text("job_id"),
@@ -364,6 +364,28 @@ export const sandboxExecs = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("sandbox_execs_run_idx").on(t.runId)],
+);
+
+/**
+ * What a resolver job returned (plan S14.3), by the hash of its job document, which names the
+ * repository and commit: the same job on the same commit is not run twice within a day.
+ */
+export const resolverResults = pgTable(
+  "resolver_results",
+  {
+    key: text("key").primaryKey(),
+    repoId: githubId("repo_id").notNull(),
+    commit: text("commit").notNull(),
+    /** The tarball the job ran on (D102). */
+    tarballSha256: text("tarball_sha256"),
+    state: text("state").notNull(),
+    exitCode: integer("exit_code"),
+    durationMs: integer("duration_ms"),
+    /** The typed result (`ResolverResult`): files, moved dependencies, or the named stop. */
+    result: jsonb("result").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("resolver_results_repo_idx").on(t.repoId)],
 );
 
 export type ArtifactKind = "pr" | "issue" | "dashboard" | "onboarding";
