@@ -816,10 +816,18 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const installation = repo.installationId && !dry ? await gh.installation(repo.installationId) : null;
   const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);
 
-  // Noise controls before any work (D70): per-repo open PRs and new PRs per hour.
+  // Noise controls before any work (D70): per-repo open PRs and new PRs per hour. They limit new
+  // pull requests, as Dependabot's open-pull-requests-limit does: a run for a lineage that already
+  // has an open PR (rebase, recreate, a base move, a newer target superseding it) is never held back.
   const config = (repo.config as ReturnType<typeof readTeireConfig> | null) ?? null;
   const limits = config?.pullRequests ?? { limit: 5, perHour: 2 };
-  const counts = dry ? { open: 0, lastHour: 0 } : await prCounts(db, repo.id);
+  const lineage = run.lineageKey ?? lineageKey(groupKey);
+  const refresh =
+    !dry &&
+    (await openArtifacts(db, repo.id)).some(
+      (a) => a.kind === "pr" && (a.changeKey === groupKey || a.lineageKey === lineage),
+    );
+  const counts = dry || refresh ? { open: 0, lastHour: 0 } : await prCounts(db, repo.id);
   if (counts.open >= limits.limit || counts.lastHour >= limits.perHour) {
     await updateRun(db, runId, { status: "queued", step: "waiting for the PR limit" });
     await event("queue", "deferred", { open: counts.open, lastHour: counts.lastHour, limits });

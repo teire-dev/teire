@@ -1,10 +1,10 @@
 ---
 title: Evaluation
-description: Twelve upgrades across six ecosystems, three model retirements and six clean repositories, each run end to end with Nemotron 3 Ultra and Nemotron 3 Super. Every fix was verified, with no false positives.
+description: Twelve upgrades across six ecosystems, model retirements in all six languages and six clean repositories, each run end to end with Nemotron 3 Ultra and Nemotron 3 Super. Every fix was verified, with no false positives.
 icon: FlaskConical
 ---
 
-Each case runs the worker's own path. Teire fetches the repository, assesses it (registries, API diff, locate), runs the fix with each model as the agent, and verifies in the Cloudflare sandbox, the repository's own checks before and after. Every repository is public in [github.com/teire-dev](https://github.com/teire-dev), with tests that pass on the old version. For the model retirements, the tests fail because the old model is gone.
+Each case runs the worker's own path. Teire fetches the repository, assesses it (registries, API diff, locate), runs the fix with each model as the agent, and verifies in a sandbox, the repository's own checks before and after: Cloudflare Containers for the first rounds, Token Factory Sandboxes for the four model retirements in Go, Java, Ruby and Rust. Every repository is public as a folder of [teire-dev/examples](https://github.com/teire-dev/examples), with tests that pass on the old version. For the model retirements, the tests fail because the old model is gone.
 
 The columns read evidence · attempts · agent steps · model cost.
 
@@ -32,6 +32,12 @@ The columns read evidence · attempts · agent steps · model cost.
 | demo-ai-web | OpenAI retired `gpt-4.1-nano` → `gpt-5.6-luna`, via the AI SDK | 5 | verified · no agent: a deterministic swap · $0 | the same |
 | demo-wrapped-models | Groq retired two Llama models, kept in a tier registry | 11 | verified · 1 · 12 · $0.095 | verified · 2 · 48 · $0.059 |
 | demo-py-agent | Token Factory retired `nvidia/Llama-3_1-Nemotron-Ultra-253B-v1` | 1 | verified · 1 · 10 · $0.041 | verified by the checks, rejected on reading (below) |
+| go-openai | OpenAI retired `gpt-4.1-nano` → `gpt-5.6-luna`, via `openai-go` v3 | 1 | verified · deterministic swap, diff reviewed · $0.002 | not run |
+| java-openai | the same, via `openai-java` on Maven | 1 | verified · deterministic swap, diff reviewed · $0.002 | not run |
+| ruby-openai | the same, via the `openai` gem | 1 | verified · deterministic swap, diff reviewed · $0.002 | not run |
+| rust-openai | the same, via `async-openai` | 1 | verified · deterministic swap, diff reviewed · $0.003 | not run |
+
+The four language cases share one repository with the AI web case, so each run swaps the retired ID in all five folders and leaves the test stand-in that lists retired IDs alone. Each folder's tests call a local stand-in that answers like OpenAI's API: the retired ID gets the API's 404, so the tests fail before (0/2) and pass after (2/2). No agent was needed; Nemotron 3 Ultra read each diff.
 
 ## Clean repositories: no false positives
 

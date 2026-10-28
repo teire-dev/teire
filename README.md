@@ -190,6 +190,7 @@ The required build, in the organisers' words: _"a working software application t
 | ----------------------------------------------- | ----- | -------------------- | ------------------------------------------ |
 | Package majors across all six ecosystems        | 12    | 12 verified          | 12 verified                                |
 | Model retirements (OpenAI, Groq, Token Factory) | 3     | 3 verified           | 3 verified, 1 rejected on reading the diff |
+| Model retirements in Go, Java, Ruby and Rust    | 4     | 4 verified           | not run                                    |
 | Clean repositories (should not be affected)     | 6     | none called affected | —                                          |
 
 Super costs 3 to 7 times less per run, but on one case it passed the tests by replacing the model call with a keyword rule. So Ultra writes the fixes and Super is the failover. Every row, with attempts, steps and cost: [Evaluation](https://teire.vercel.app/docs/nemotron/evaluation).
