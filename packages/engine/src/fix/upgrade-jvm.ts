@@ -1,4 +1,5 @@
 import { dirname, join, normalize } from "node:path";
+import { VERIFY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import type { JvmProject } from "../inventory/jvm";
 import type { RepoTree } from "../inventory/tree";
@@ -206,6 +207,48 @@ export function jvmTransaction(
       if (!edits.length) return `${instance.name} is not declared with a version Teire can edit`;
       const stale = locked.find((m) => !(files[m.lockfile as string] ?? "").includes(lockLine));
       return stale ? `${stale.lockfile} does not lock ${instance.name} ${target}` : null;
+    },
+  };
+}
+
+/**
+ * Gradle targeted locks after the resolver (D104): dependabot-core's Gradle updater rewrites every
+ * lock entry and hides failures, so Teire keeps its manifest edit, drops its lockfiles, and re-locks
+ * only this coordinate (`--update-locks g:a`) in every locked module, then reads the locks back.
+ */
+export function withGradleLocks(
+  tx: Transaction,
+  project: JvmProject,
+  name: string,
+  target: string,
+): Transaction {
+  const locked = project.modules.filter((m) => m.lockfile);
+  if (project.manager !== "gradle" || !locked.length) return tx;
+  const lockfiles = new Set(locked.map((m) => m.lockfile as string));
+  const lockLine = `${name}:${target}=`;
+  return {
+    ...tx,
+    describe: `${tx.describe}; Teire re-locks only ${name} (--update-locks) in ${locked.map((m) => m.name).join(", ")}`,
+    manifest: tx.manifest.filter((m) => !lockfiles.has(m.path)),
+    ...(tx.writes ? { writes: tx.writes.filter((w) => !lockfiles.has(w.path)) } : {}),
+    // In the project's own directory, so a job over several roots re-locks each where it lives.
+    commands: [
+      ...tx.commands,
+      [
+        "env",
+        "-C",
+        project.root === "." ? VERIFY.workDir : `${VERIFY.workDir}/${project.root}`,
+        "teire-jvm",
+        "lock-gradle",
+        name,
+        ...locked.map((m) => m.name),
+      ],
+    ],
+    readBack: [...new Set([...tx.readBack, ...lockfiles])],
+    lockfilePath: locked[0]?.lockfile as string,
+    check: (files) => {
+      const stale = locked.find((m) => !(files[m.lockfile as string] ?? "").includes(lockLine));
+      return stale ? `${stale.lockfile} does not lock ${name} ${target}` : (tx.check?.(files) ?? null);
     },
   };
 }

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { matchesTarget, readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
-import { cargoFeatureOverlay, type FixRun, type Transaction } from "@teire/engine/fix";
+import { cargoFeatureOverlay, type FixRun, type Transaction, withGradleLocks } from "@teire/engine/fix";
 import {
   branchFor,
   commitToBranch,
@@ -315,7 +315,7 @@ async function resolverTransactionFor(
     step: "transaction",
     detail: `dependabot-core's updater changed ${r.files.map((f) => f.path).join(", ")} across ${roots.length} root${roots.length === 1 ? "" : "s"}${resolved.cached ? " (cached)" : ""}`,
   });
-  return resolverTransaction(
+  const tx = resolverTransaction(
     r,
     (path) => {
       try {
@@ -326,6 +326,10 @@ async function resolverTransactionFor(
     },
     { name: packageName, from: assessment.instance.version },
   );
+  // Gradle locks are re-locked by Teire for this coordinate only, in every root the job covered.
+  return matching
+    .filter((m) => m.project.manager === "gradle")
+    .reduce((t, m) => withGradleLocks(t, m.project as JvmProject, packageName, target), tx);
 }
 
 /** A package group (`npm/openai/7.38.0`): re-assess that package, then upgrade and fix it. */

@@ -4,5 +4,6 @@ export * from "./context7";
 export * from "./run";
 export * from "./transaction";
 export * from "./upgrade-js";
+export * from "./upgrade-jvm";
 export * from "./upgrade-py";
 export * from "./upgrade-rust";
