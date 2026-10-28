@@ -3,6 +3,7 @@ import { branchFor } from "../src/github/commit";
 import {
   blockquote,
   changeSummary,
+  composeHumanIssue,
   displayQuote,
   fitBody,
   joinBlocks,
@@ -83,5 +84,29 @@ describe("upstream text in PR bodies", () => {
     expect(out.startsWith("a".repeat(50))).toBe(true);
     expect(out).toContain("Description shortened");
     expect(out.length).toBeLessThanOrEqual(90 + 120);
+  });
+});
+
+describe("needs-a-human issues", () => {
+  it("say why, where and what to do, with upstream text sanitised", () => {
+    const { title, body } = composeHumanIssue({
+      repo: { owner: "teire-lab", repo: "coal", baseSha: "abc123" },
+      key: "advisory/rubygems/rack/GHSA-x",
+      rows: [
+        {
+          changeId: "advisory/rubygems/rack/GHSA-x",
+          title: "rack: header injection",
+          verdict: "affected",
+          reason: "no fixed version is published",
+          callSites: [{ file: "lib/app.rb", line: 12, snippet: "Rack::Utils.parse_query(q)" }],
+        },
+      ],
+      records: [],
+      webUrl: "https://teire.vercel.app/app/repos/teire-lab/coal",
+    });
+    expect(title).toBe("Teire needs a human: rack: header injection");
+    expect(body).toContain("no fixed version is published");
+    expect(body).toContain("lib/app.rb:12");
+    expect(body).toContain("`@teire fix advisory/rubygems/rack/GHSA-x`");
   });
 });

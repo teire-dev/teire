@@ -84,6 +84,8 @@ export type EvidenceKind = keyof typeof PR_MODE_BY_EVIDENCE;
 export const PULL_REQUESTS = {
   maxOpenPerRepo: 5,
   maxNewPerHour: 2,
+  /** New "needs a human" issues one scan may open; the Dashboard issue lists the rest. */
+  maxHumanIssuesPerScan: 3,
   /** GitHub's PR body limit. */
   bodyMaxChars: 65_536,
   /** GitHub check-run annotations per request. */

@@ -58,7 +58,7 @@ import {
 } from "../store";
 import { revalidateWeb } from "../web";
 import { matchesTarget, readOrgConfig } from "./commands";
-import { syncDashboard } from "./dashboard";
+import { syncDashboard, syncHumanIssues } from "./dashboard";
 import { pageReader, storedProviderChanges } from "./providers";
 
 export interface WorkerContext {
@@ -522,6 +522,10 @@ export async function scanRepo(
     }
     if (status !== repo.status) await setRepo(db, repoId, { status });
     if (status !== "active") return { status };
+    // What Teire can't fix on its own gets a "needs a human" issue (D96), fixes paused or not.
+    await syncHumanIssues(ctx, repoId).catch((error) =>
+      console.error(`[scan] ${repo.fullName}: human issues: ${error}`),
+    );
     // Fixes paused (D110): the scan and the Dashboard issue are kept current; no run is queued.
     if (repo.fixesPaused) {
       await syncDashboard(ctx, repoId).catch((error) =>

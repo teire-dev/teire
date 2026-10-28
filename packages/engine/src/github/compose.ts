@@ -724,3 +724,60 @@ export function composeOnboarding(input: {
     body: fitBody(joinBlocks(out), PULL_REQUESTS.bodyMaxChars, input.scanUrl),
   };
 }
+
+/**
+ * A "needs a human" issue opened by a scan (rule 1, D96): a finding Teire can't fix on its own (no
+ * fixed version published, an API surface it couldn't compare, a change with nothing to search
+ * for). It says what changed, quoting the source, why a person is needed, where the code is, and what
+ * to do next.
+ */
+export function composeHumanIssue(input: {
+  repo: RepoRef;
+  key: string;
+  rows: {
+    changeId: string;
+    title: string | null;
+    verdict: string;
+    reason: string | null;
+    callSites: { file: string; line: number; snippet?: string }[];
+  }[];
+  records: ChangeV2[];
+  webUrl?: string | null;
+}) {
+  const { repo, rows } = input;
+  const head = rows[0];
+  const title = `Teire needs a human: ${(head?.title ?? input.key).slice(0, 180)}`;
+  const out: string[] = [`<!-- teire:human=${input.key} -->`];
+  out.push("### Why a person is needed");
+  for (const r of rows.slice(0, 6))
+    out.push(`- **${r.title ?? r.changeId}**: ${r.reason ?? r.verdict.replace(/_/g, " ")}`);
+  const sites = rows.flatMap((r) => r.callSites).slice(0, 12);
+  if (sites.length) {
+    out.push("### Where it is in this repo");
+    for (const s of sites)
+      out.push(
+        `- [\`${s.file}:${s.line}\`](${blob(repo, s.file, s.line)})${s.snippet ? ` \`${escapeCell(s.snippet).slice(0, 100)}\`` : ""}`,
+      );
+  }
+  if (input.records.length) {
+    out.push("### What changed upstream");
+    for (const r of input.records.slice(0, 4)) {
+      const source = r.sources[0];
+      out.push(`**${r.title}**. ${sanitizeUpstream(r.summary.slice(0, 400), upstreamRepoOf(source?.url))}`);
+      if (source?.quote)
+        out.push(
+          `${blockquote(sanitizeUpstream(displayQuote(source.quote).slice(0, 300), upstreamRepoOf(source.url)))}\n>\n> — [source](${source.url})`,
+        );
+    }
+  }
+  out.push("### What you can do");
+  out.push(
+    "- Read the source above and decide whether this repo is affected.\n- `@teire fix " +
+      input.key +
+      "` tries the upgrade anyway: it runs your checks before and after and opens a draft if they don't prove it.\n- `@teire ignore " +
+      input.key +
+      "` stops reporting it; `@teire wrong <reason>` tells us the finding is wrong.",
+  );
+  out.push(`<sub>Teire${input.webUrl ? ` · [dashboard](${input.webUrl})` : ""}</sub>`);
+  return { title, body: fitBody(joinBlocks(out), PULL_REQUESTS.bodyMaxChars, input.webUrl ?? undefined) };
+}

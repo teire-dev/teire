@@ -1,4 +1,7 @@
 import { sql } from "@teire/db";
+import { PULL_REQUESTS } from "@teire/engine/constants";
+import type { ChangeV2 } from "@teire/engine/contract";
+import { composeHumanIssue } from "@teire/engine/github";
 import { findingsWithChanges, getArtifact, getRepo, openArtifacts, upsertArtifact } from "../store";
 import { HELP } from "./commands";
 import type { WorkerContext } from "./scan";
@@ -209,4 +212,76 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
     url: data.html_url,
   });
   return data.number;
+}
+
+const HUMAN_VERDICTS = new Set(["needs_human", "check_by_hand"]);
+
+/**
+ * Scan-time "needs a human" issues (rule 1, D96): a group Teire can't fix on its own gets one issue
+ * saying why: a finding marked needs-human or check-by-hand, or an advisory with no fixed version
+ * published. At most `maxHumanIssuesPerScan` new issues per scan; a group with an open PR, or an
+ * issue of any state (a person closed it), gets none. Repos with Issues off are skipped.
+ */
+export async function syncHumanIssues(ctx: WorkerContext, repoId: number) {
+  const { db, gh } = ctx;
+  const repo = await getRepo(db, repoId);
+  if (!repo?.installationId || repo.status !== "active" || !repo.lastScannedSha) return 0;
+  const rows = (await findingsWithChanges(db, repoId)).filter((f) => f.state === "open");
+  const groups = new Map<string, typeof rows>();
+  for (const f of rows) {
+    const noFix =
+      f.kind === "security-advisory" &&
+      f.verdict === "affected" &&
+      !(f.position as { target?: string | null } | null)?.target;
+    if (!HUMAN_VERDICTS.has(f.verdict) && !noFix) continue;
+    const key = f.groupKey ?? f.changeId;
+    groups.set(key, [...(groups.get(key) ?? []), f]);
+  }
+  if (!groups.size) return 0;
+  const [owner = "", name = ""] = repo.fullName.split("/");
+  const { octokit } = await gh.installation(repo.installationId);
+  let opened = 0;
+  for (const [key, list] of [...groups].sort((a, b) => (a[1][0]?.priority ?? 9) - (b[1][0]?.priority ?? 9))) {
+    if (opened >= PULL_REQUESTS.maxHumanIssuesPerScan) break;
+    if (await getArtifact(db, repoId, "issue", key)) continue;
+    const pr = await getArtifact(db, repoId, "pr", key);
+    if (pr?.state === "open") continue;
+    const ids = [...new Set(list.map((f) => f.changeId))];
+    const { rows: recs } = await db.execute<{ record: ChangeV2 }>(sql`
+      select record from changes where id in (${sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`, `,
+      )}) and schema_version = 2
+    `);
+    const { title, body } = composeHumanIssue({
+      repo: { owner, repo: name, baseSha: repo.lastScannedSha },
+      key,
+      rows: list.map((f) => ({
+        changeId: f.changeId,
+        title: f.title,
+        verdict: f.verdict,
+        reason: f.reason,
+        callSites: (f.callSites as { file: string; line: number; snippet?: string }[] | null) ?? [],
+      })),
+      records: recs.map((r) => r.record),
+      webUrl: ctx.webUrl ? `${ctx.webUrl}/app/repos/${repo.fullName}` : null,
+    });
+    const created = await octokit.rest.issues
+      .create({ owner, repo: name, title, body, labels: ["teire"] })
+      .catch((error: { status?: number; message?: string }) => {
+        if (error.status === 410 || /issues has been disabled/i.test(error.message ?? "")) return null;
+        throw error;
+      });
+    if (!created) return opened;
+    await upsertArtifact(db, {
+      repoId,
+      kind: "issue",
+      changeKey: key,
+      number: created.data.number,
+      state: "open",
+      url: created.data.html_url,
+    });
+    opened++;
+  }
+  return opened;
 }
