@@ -27,15 +27,23 @@ import {
   type TriageReceipt,
   triageModelSites,
 } from "../impact";
+import { readGoInventory } from "../inventory/go";
 import { readJsInventory } from "../inventory/js";
+import { readJvmInventory } from "../inventory/jvm";
 import { readPythonInventory } from "../inventory/python";
+import { readRubyInventory } from "../inventory/ruby";
+import { readRustInventory } from "../inventory/rust";
 import type { RepoTree } from "../inventory/tree";
 import { findBaseUrlOverrides } from "../locate/base-url";
 import { type LiteralScan, locateLiterals } from "../locate/literals";
 import { assessOpenApi, type OpenApiOptions } from "../openapi";
 import type { RegistryOptions } from "../registry/clients";
-import { detectJsChecks } from "../verify/commands";
+import { detectJsChecks, withVerifyOverrides } from "../verify/commands";
+import { detectGoChecks } from "../verify/go-commands";
+import { detectJvmChecks } from "../verify/jvm-commands";
 import { detectPyChecks } from "../verify/python-commands";
+import { detectRubyChecks } from "../verify/ruby-commands";
+import { detectRustChecks } from "../verify/rust-commands";
 import type { FixDependencyInput } from "./js";
 
 /**
@@ -125,6 +133,15 @@ export function catalogModelIds(records: ChangeV2[]) {
  * API host appears in a URL in the code. An OpenAI-compatible provider reached through the OpenAI
  * SDK (Token Factory) counts once its host is in the code.
  */
+/** An installed package is the SDK; a Go SDK's base path matches every major (`openai-go/v3`). */
+function sdkMatches(i: { ecosystem: string; name: string }, sdk: { ecosystem: string; name: string }) {
+  if (i.ecosystem !== sdk.ecosystem) return false;
+  return (
+    i.name === sdk.name ||
+    (sdk.ecosystem === "go" && /^\/v\d+$/.test(i.name.slice(sdk.name.length)) && i.name.startsWith(sdk.name))
+  );
+}
+
 export function providersUsed(
   instances: Pick<DependencyInstance, "ecosystem" | "name">[],
   hosts: ReadonlySet<string>,
@@ -139,7 +156,7 @@ export function providersUsed(
       );
     const sdks = provider.sdks
       .filter((sdk) => !(sharedWithAnother(sdk) && provider.detection.imports.length === 0))
-      .filter((sdk) => instances.some((i) => i.ecosystem === sdk.ecosystem && i.name === sdk.name))
+      .filter((sdk) => instances.some((i) => sdkMatches(i, sdk)))
       .map((sdk) => `${sdk.ecosystem}:${sdk.name}`);
     if (own.length || sdks.length) used.push({ provider, via: [...sdks, ...own] });
   }
@@ -161,11 +178,15 @@ export function liveProviderChanges(options: IngestOptions = {}): ProviderChange
   };
 }
 
-/** Every package the repo's JS and Python projects lock, for provider detection. */
+/** Every package the repo locks, in all six ecosystems, for provider detection (S16.1). */
 export async function repoInstances(repoDir: string, tree: RepoTree) {
   return [
     ...readJsInventory(tree).flatMap((p) => p.instances),
-    ...(await readPythonInventory(repoDir)).flatMap((p) => p.instances),
+    ...(await readPythonInventory(repoDir, tree)).flatMap((p) => p.instances),
+    ...(await readGoInventory(repoDir, tree)).flatMap((p) => p.instances),
+    ...readRustInventory(tree).flatMap((p) => p.instances),
+    ...readRubyInventory(tree).flatMap((p) => p.instances),
+    ...readJvmInventory(tree).flatMap((p) => p.instances),
   ];
 }
 
@@ -465,23 +486,37 @@ function wordsIn(repoDir: string, tree: RepoTree) {
 }
 
 /** The project whose checks prove the change: the JS or Python project holding most edited files. */
-async function checksFor(repoDir: string, tree: RepoTree, files: string[]) {
+/**
+ * The project whose checks verify an API fix (S16.2): the one in any of the six ecosystems holding
+ * most of the changed files, deepest first, with teire.yml's `verify` commands applied.
+ */
+async function checksFor(
+  repoDir: string,
+  tree: RepoTree,
+  files: string[],
+  verify?: FixDependencyInput["verify"],
+) {
   const within = (root: string) => files.filter((f) => root === "." || f.startsWith(`${root}/`)).length;
-  const js = readJsInventory(tree).map((p) => ({
-    score: within(p.root),
-    depth: p.root.length,
-    plan: () => detectJsChecks(tree, p),
-    project: p,
-  }));
-  const py = (await readPythonInventory(repoDir)).map((p) => ({
-    score: within(p.root),
-    depth: p.root.length,
-    plan: () => detectPyChecks(tree, p),
-    project: p,
-  }));
-  const best = [...js, ...py].sort((a, b) => b.score - a.score || b.depth - a.depth)[0];
-  if (!best) throw new Error("no JavaScript or Python project to verify the change in");
-  return { plan: best.plan(), project: best.project };
+  const candidates = [
+    ...readJsInventory(tree).map((p) => ({ project: p, plan: () => detectJsChecks(tree, p) })),
+    ...(await readPythonInventory(repoDir, tree)).map((p) => ({
+      project: p,
+      plan: () => detectPyChecks(tree, p),
+    })),
+    ...(await readGoInventory(repoDir, tree)).map((p) => ({
+      project: p,
+      plan: () => detectGoChecks(tree, p),
+    })),
+    ...readRustInventory(tree).map((p) => ({ project: p, plan: () => detectRustChecks(tree, p) })),
+    ...readRubyInventory(tree).map((p) => ({ project: p, plan: () => detectRubyChecks(tree, p) })),
+    ...readJvmInventory(tree).map((p) => ({ project: p, plan: () => detectJvmChecks(tree, p) })),
+  ];
+  const best = candidates.sort(
+    (a, b) =>
+      within(b.project.root) - within(a.project.root) || b.project.root.length - a.project.root.length,
+  )[0];
+  if (!best) throw new Error("no project in a supported ecosystem to verify the change in");
+  return { plan: withVerifyOverrides(best.plan(), best.project.root, verify), project: best.project };
 }
 
 export interface FixApiInput extends Omit<FixDependencyInput, "assessment"> {
@@ -504,7 +539,7 @@ export async function fixApiChanges(
   const related = [...records, ...input.related.filter((r) => !records.includes(r))];
   const edits = planModelSwaps(input.repoDir, affected, records, related);
   const files = [...new Set(affected.flatMap((f) => f.callSites.map((s) => s.file)))];
-  const { plan, project } = await checksFor(input.repoDir, input.tree, files);
+  const { plan, project } = await checksFor(input.repoDir, input.tree, files, input.verify);
   const swapped = edits.flatMap((e) => e.reason.replace(/^model swap /, "").split(", "));
   // Changes Teire could not swap on its own: several replacements, or a chain that forks.
   const choices = affected

@@ -79,6 +79,8 @@ export function pinnedApiVersion(repoDir: string, files: string[]): { version: s
 /** The GitHub organisation that owns one of the provider's SDKs, from the registry's own metadata. */
 async function sdkOwner(provider: ProviderRecord, options: RegistryOptions): Promise<string | null> {
   for (const sdk of provider.sdks) {
+    // npm's and PyPI's metadata name the repository; one SDK's owner is enough.
+    if (sdk.ecosystem !== "npm" && sdk.ecosystem !== "pypi") continue;
     const key = `${sdk.ecosystem}:${sdk.name}:repo`;
     const cached = await options.cache.get("sdk-profile", key);
     let links: string[];

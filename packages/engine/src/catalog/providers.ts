@@ -29,6 +29,11 @@ const definitions: ProviderRecord[] = [
       { ecosystem: "npm", name: "@langchain/openai" },
       { ecosystem: "pypi", name: "openai" },
       { ecosystem: "pypi", name: "langchain-openai" },
+      { ecosystem: "go", name: "github.com/openai/openai-go" },
+      { ecosystem: "maven", name: "com.openai:openai-java" },
+      { ecosystem: "rubygems", name: "openai" },
+      { ecosystem: "rubygems", name: "ruby-openai" },
+      { ecosystem: "cargo", name: "async-openai" },
     ],
     detection: {
       imports: ["openai", "@ai-sdk/openai", "@langchain/openai", "langchain_openai"],
@@ -68,6 +73,9 @@ const definitions: ProviderRecord[] = [
       { ecosystem: "npm", name: "@langchain/anthropic" },
       { ecosystem: "pypi", name: "anthropic" },
       { ecosystem: "pypi", name: "langchain-anthropic" },
+      { ecosystem: "go", name: "github.com/anthropics/anthropic-sdk-go" },
+      { ecosystem: "maven", name: "com.anthropic:anthropic-java" },
+      { ecosystem: "rubygems", name: "anthropic" },
     ],
     detection: {
       imports: [
@@ -113,6 +121,8 @@ const definitions: ProviderRecord[] = [
       { ecosystem: "npm", name: "@langchain/google-genai" },
       { ecosystem: "pypi", name: "google-genai" },
       { ecosystem: "pypi", name: "google-generativeai" },
+      { ecosystem: "go", name: "google.golang.org/genai" },
+      { ecosystem: "maven", name: "com.google.genai:google-genai" },
     ],
     detection: {
       imports: [
@@ -158,6 +168,11 @@ const definitions: ProviderRecord[] = [
     sdks: [
       { ecosystem: "npm", name: "openai" },
       { ecosystem: "pypi", name: "openai" },
+      { ecosystem: "go", name: "github.com/openai/openai-go" },
+      { ecosystem: "maven", name: "com.openai:openai-java" },
+      { ecosystem: "rubygems", name: "openai" },
+      { ecosystem: "rubygems", name: "ruby-openai" },
+      { ecosystem: "cargo", name: "async-openai" },
     ],
     detection: {
       imports: [],
@@ -190,6 +205,10 @@ const definitions: ProviderRecord[] = [
     sdks: [
       { ecosystem: "npm", name: "stripe" },
       { ecosystem: "pypi", name: "stripe" },
+      { ecosystem: "go", name: "github.com/stripe/stripe-go" },
+      { ecosystem: "maven", name: "com.stripe:stripe-java" },
+      { ecosystem: "rubygems", name: "stripe" },
+      { ecosystem: "cargo", name: "async-stripe" },
     ],
     detection: {
       imports: ["stripe"],

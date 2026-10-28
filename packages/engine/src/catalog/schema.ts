@@ -31,7 +31,8 @@ export const sourceRef = z.object({
 export type SourceRef = z.infer<typeof sourceRef>;
 
 const packageRef = z.object({
-  ecosystem: z.enum(["npm", "pypi"]),
+  /** A Go SDK is listed by its base module path; every major (`…/v3`) matches it. */
+  ecosystem: z.enum(["npm", "pypi", "go", "maven", "rubygems", "cargo"]),
   name: z.string().min(1),
   /** Semver range the change applies to, when the source gives one. */
   versions: z.string().optional(),
