@@ -167,7 +167,32 @@ async function Repo({
               />
             );
           })}
-          {!b.affected.length && !b.human.length ? (
+          {b.undecided.length ? (
+            <section className="flex flex-col gap-3">
+              <h2 className="text-sm font-medium">
+                Decided in the sandbox{" "}
+                <span className="font-normal text-muted-foreground">({b.undecided.length})</span>
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                The code alone doesn&apos;t settle these: some references could not be resolved. Each upgrade
+                runs this repo&apos;s checks before and after, and that result decides.
+              </p>
+              {b.undecided.map((g) => (
+                <FindingGroupCard
+                  key={g.key}
+                  group={g}
+                  repo={fullName}
+                  sha={repo.lastScannedSha}
+                  action={
+                    <ActionButton repo={fullName} action="fix" target={g.key} back={back} variant="default">
+                      Upgrade and check
+                    </ActionButton>
+                  }
+                />
+              ))}
+            </section>
+          ) : null}
+          {!b.affected.length && !b.human.length && !b.undecided.length ? (
             <p className="text-sm text-muted-foreground">
               Nothing reaches this code right now
               {scan?.coverage

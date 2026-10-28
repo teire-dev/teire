@@ -99,7 +99,9 @@ export function bucketGroups(groups: FindingGroup[]) {
       .filter((g) => g.verdict === "affected")
       .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9)),
     human: groups.filter((g) => g.verdict === "needs_human" || g.verdict === "check_by_hand"),
-    quiet: groups.filter((g) => g.verdict === "not_affected" || g.verdict === "inconclusive"),
+    // Inconclusive is never "not affected" (rule 12): the upgrade's sandbox run decides.
+    undecided: groups.filter((g) => g.verdict === "inconclusive"),
+    quiet: groups.filter((g) => g.verdict === "not_affected"),
     outside: groups.filter((g) => g.verdict === "not_applicable"),
     deadlines: groups
       .filter((g) => g.deadline && g.verdict !== "not_applicable")

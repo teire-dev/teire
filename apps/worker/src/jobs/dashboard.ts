@@ -8,7 +8,8 @@ import type { WorkerContext } from "./scan";
 
 /**
  * The Teire Dashboard issue (card C7, plan S09): one per repo, constant title, a hidden marker.
- * Upcoming deadlines · Affected ("Fix now") · Open PRs ("Rebase") · Needs a human · Not affected
+ * Upcoming deadlines · Affected ("Fix now") · Decided in the sandbox ("Upgrade and check") · Open PRs
+ * ("Rebase") · Needs a human · Not affected
  * and Not applicable (collapsed) · Ignored ("Unignore") · inventory per ecosystem · config problems
  * · command help. A ticked box arrives as `issues.edited`; the worker acts on the boxes that went
  * from [ ] to [x], re-renders the issue (ticks cleared) and replies with what it started.
@@ -77,9 +78,16 @@ export function composeDashboard(d: DashboardInput) {
   const affected = open.filter(
     ([k, list]) => list.some((f) => f.verdict === "affected") && !prFor.has(k) && !issueFor.has(k),
   );
-  const notAffected = open.filter(([, list]) =>
-    list.every((f) => f.verdict === "not_affected" || f.verdict === "inconclusive"),
+  // Inconclusive is never "not affected" (rule 12): references Teire could not resolve leave the
+  // answer to the upgrade's own run, which checks the repo before and after in the sandbox.
+  const undecided = open.filter(
+    ([k, list]) =>
+      list.some((f) => f.verdict === "inconclusive") &&
+      list.every((f) => f.verdict === "inconclusive" || f.verdict === "not_affected") &&
+      !prFor.has(k) &&
+      !issueFor.has(k),
   );
+  const notAffected = open.filter(([, list]) => list.every((f) => f.verdict === "not_affected"));
   const notApplicable = open.filter(([, list]) => list.every((f) => f.verdict === "not_applicable"));
   const ignored = [
     ...new Set([
@@ -113,6 +121,23 @@ export function composeDashboard(d: DashboardInput) {
       lines.push(box("fix", k, `Fix now: ${label(k, list)}`));
   else lines.push("Nothing affected right now.");
   lines.push("");
+  if (undecided.length) {
+    lines.push(
+      "## Decided in the sandbox",
+      "",
+      "The code alone doesn't settle these: some references could not be resolved. Each upgrade runs this repo's checks before and after, and that result decides.",
+      "",
+    );
+    for (const [k, list] of undecided.slice(0, 40))
+      lines.push(
+        box(
+          "fix",
+          k,
+          `Upgrade and check: ${label(k, list)}${list[0]?.reason ? `: ${list[0].reason.slice(0, 160)}` : ""}`,
+        ),
+      );
+    lines.push("");
+  }
   const prs = d.artifacts.filter((a) => a.kind === "pr");
   if (prs.length) {
     lines.push("## Open PRs", "");

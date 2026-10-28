@@ -29,8 +29,9 @@ The report page updates by itself while the scan runs. Most repositories take on
 - **Dependencies read**, per ecosystem as direct · transitive, with the files searched and how the lines were resolved (type-level or syntax-level),
 - **Deadlines**: dated changes that reach the code,
 - **Affected**: each change with its call sites linked to the exact line at the scanned commit,
+- **Decided in the sandbox**: upgrades where some references could not be resolved, so the code alone doesn't settle them; a dry run upgrades and runs the repo's checks before and after,
 - **Needs a person**: changes Teire could not decide alone,
-- **Checked, not reaching this code**: changes Teire looked at and ruled out.
+- **Checked, not reaching this code**: changes Teire looked at and ruled out, with every reference resolved.
 
 <Tabs items={["Model retirement", "Go major", "Kotlin", "Python", "Nothing to fix"]}>
 <Tab value="Model retirement">

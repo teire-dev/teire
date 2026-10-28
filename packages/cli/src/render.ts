@@ -167,7 +167,14 @@ export function renderScan(scan: ScanResult, options: { all?: boolean } = {}) {
     "yellow",
     live.filter((g) => g.verdict === "needs_human" || g.verdict === "check_by_hand"),
   );
-  const quiet = live.filter((g) => g.verdict === "not_affected" || g.verdict === "inconclusive");
+  // Inconclusive is never "not affected" (rule 12): Teire couldn't resolve every reference, so the
+  // upgrade's own checks decide.
+  section(
+    "Decided by running your checks (some references could not be resolved)",
+    "yellow",
+    live.filter((g) => g.verdict === "inconclusive"),
+  );
+  const quiet = live.filter((g) => g.verdict === "not_affected");
   const outside = groups.filter((g) => g.verdict === "not_applicable");
   if (options.all) {
     section("Not affected", "green", quiet);
@@ -288,7 +295,8 @@ export function scanSummary(scan: ScanResult) {
       .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9))
       .map(brief),
     needsHuman: live.filter((g) => g.verdict === "needs_human" || g.verdict === "check_by_hand").map(brief),
-    notAffected: live.filter((g) => g.verdict === "not_affected" || g.verdict === "inconclusive").length,
+    undecided: live.filter((g) => g.verdict === "inconclusive").map(brief),
+    notAffected: live.filter((g) => g.verdict === "not_affected").length,
     notApplicable: groups.length - live.length,
     notes: scan.notes,
     next: "explain_finding with a group key gives its change records, migration notes, quoted sources and every call site.",

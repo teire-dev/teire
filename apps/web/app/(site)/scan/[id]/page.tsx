@@ -179,6 +179,24 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
         ))}
       </Section>
 
+      {b.undecided.length ? (
+        <Section title="Decided in the sandbox" count={b.undecided.length}>
+          <p className="text-sm text-muted-foreground">
+            The code alone doesn&apos;t settle these: some references could not be resolved. A dry run
+            upgrades and runs this repo&apos;s checks before and after; that result decides.
+          </p>
+          {b.undecided.map((g) => (
+            <FindingGroupCard
+              key={g.key}
+              group={g}
+              repo={name}
+              sha={sha}
+              action={<DryRun publicScanId={request.id} group={g} existing={runFor.get(g.key)} />}
+            />
+          ))}
+        </Section>
+      ) : null}
+
       {b.human.length ? (
         <Section title="Needs a person" count={b.human.length}>
           {b.human.map((g) => (

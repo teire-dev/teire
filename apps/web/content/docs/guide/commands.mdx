@@ -27,7 +27,7 @@ Start a line of a comment with the command, on any issue or pull request in the 
 
 <Accordions>
 <Accordion title="rescan">
-Queues a scan of the default branch, or of `pullRequests.targetBranch` when one is set. The reply is "Rescanning the default branch; the Dashboard issue updates when it finishes." A paused repository answers "`@teire resume` first."
+Queues a scan of the default branch, or of `pullRequests.targetBranch` when one is set. The reply is "Rescanning the default branch; the Dashboard issue updates when it finishes." Before the repository is turned on, it names the onboarding pull request instead, whose text follows each scan. A paused repository answers "`@teire resume` first."
 </Accordion>
 <Accordion title="fix <target>">
 Finds the first finding that matches the target and starts its fix run on the current head. The reply links the run page. If a PR for that change is already open, Teire answers "Already open" with its link. A target matching nothing gets "No finding matches…".
@@ -59,7 +59,7 @@ Records the feedback (up to 2,000 characters) against the repository. The reply 
 
 The same actions exist in two other places:
 
-- **The Dashboard issue.** Tick **Rescan now**, **Fix now**, **Rebase** or **Unignore**.
+- **The Dashboard issue.** Tick **Rescan now**, **Fix now**, **Upgrade and check**, **Rebase** or **Unignore**.
 - **The web dashboard.** **Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore** and **Unignore** on the repository page.
 
 Both apply the same write-access rule. See [Dashboard](/docs/guide/dashboard).

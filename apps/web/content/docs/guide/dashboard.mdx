@@ -59,7 +59,7 @@ A repository page has five tabs:
 
 | Tab | What it holds |
 |---|---|
-| **Findings** | Affected changes and those needing a person, each with **Fix now** or **Open PR #n**, and **Ignore**. Then the changes checked and ruled out, and the ignored ones with **Unignore** |
+| **Findings** | Affected changes, those decided in the sandbox (**Upgrade and check**) and those needing a person, each with **Fix now** or **Open PR #n**, and **Ignore**. Then the changes checked and ruled out, and the ignored ones with **Unignore** |
 | **Inventory** | Every dependency with its version (or "unresolved"), scope and workspace |
 | **Pull requests** | Teire's PRs, its "needs a human" issues and the onboarding PR, with their state |
 | **Runs** | The latest 25 runs with their evidence and cost |
@@ -80,9 +80,10 @@ Once a repository is active, Teire keeps one issue named **Teire Dashboard** up 
 | Header | The last scan's commit and time, whether the repo is paused, a link to Teire | **Rescan now** |
 | Upcoming deadlines | Each dated change, with its PR or verdict | |
 | Affected | Each change with no PR yet: title, sites, priority | **Fix now** |
+| Decided in the sandbox | Upgrades where some references could not be resolved, so the code alone doesn't settle them; the upgrade's run checks the repo before and after | **Upgrade and check** |
 | Open PRs | Each Teire PR | **Rebase** |
 | Needs a human | Links to Teire's issues | |
-| Not affected, Not applicable | Collapsed lists with the reason for each | |
+| Not affected, Not applicable | Collapsed lists with the reason for each; "not affected" only when every reference was resolved | |
 | Ignored | What you ignored | **Unignore** |
 | Inventory | Dependencies per ecosystem | |
 | Config problems | Keys that fell back to their defaults, and why | |
