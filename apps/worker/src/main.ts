@@ -57,13 +57,35 @@ const server = createServer(async (req, res) => {
 });
 
 /** In the image MIGRATIONS_DIR is an absolute path; in dev it is the db package folder. */
+/** When the worker fails jobs a replaced container left active (after Coolify's overlap window). */
+const STALE_JOB_SWEEP_MS = 3 * 60_000;
+
 const migrationsDir = process.env.MIGRATIONS_DIR ?? resolve(process.cwd(), "../../packages/db/drizzle");
 
 async function main() {
   await runMigrations(db, migrationsDir);
   console.log("[worker] migrations applied");
+  const booted = new Date();
   await boss.start();
   await ensureQueues(boss);
+  // A deploy kills the previous container mid-job; its jobs stay "active" until they expire (two
+  // hours for fix runs), and key_strict_fifo holds the repository's whole queue behind them. This is
+  // the only worker, so once the old container is surely gone (Coolify's rolling replace overlaps
+  // them briefly), jobs that went active before this one booted are failed and retry here.
+  setTimeout(() => {
+    void (async () => {
+      const { rows } = await db.execute<{ id: string; name: string }>(sql`
+        select id, name from pgboss.job where state = 'active' and started_on < ${booted.toISOString()}
+      `);
+      for (const name of new Set(rows.map((r) => r.name)))
+        await boss.fail(
+          name,
+          rows.filter((r) => r.name === name).map((r) => r.id),
+          { reason: "the worker restarted during this job" },
+        );
+      if (rows.length) console.log(`[worker] failed ${rows.length} job(s) a previous container left active`);
+    })().catch((error) => console.error(`[worker] stale jobs: ${error}`));
+  }, STALE_JOB_SWEEP_MS);
 
   // GitHub App: scans, fixes and the webhook outbox (S02b). Without the App's credentials the
   // worker only answers its health checks.
