@@ -14,6 +14,18 @@ case "${1:-install}" in
     install -m 0644 daemon.json resolv.conf /etc/teire-resolver/
     install -m 0755 firewall.sh runsc-wrapper.sh teire-resolver.py /usr/local/lib/teire-resolver/
     install -m 0644 images.json /etc/teire-resolver/
+    # The dependabot CLI at the version images.json pins, checked against its release tarball's
+    # sha256 (the CLI and the images move together: its decoder rejects unknown job fields).
+    cli=$(python3 -c 'import json; print(json.load(open("images.json"))["cli"])')
+    sum=$(python3 -c 'import json; print(json.load(open("images.json"))["cliSha256"])')
+    if [ "$(dependabot --version 2>/dev/null | awk '{print $3}')" != "$cli" ]; then
+      tmp=$(mktemp -d)
+      curl -fsSL -o "$tmp/cli.tgz" "https://github.com/dependabot/cli/releases/download/$cli/dependabot-$cli-linux-amd64.tar.gz"
+      echo "$sum  $tmp/cli.tgz" | sha256sum -c -
+      tar -xzf "$tmp/cli.tgz" -C "$tmp" dependabot
+      install -m 0755 "$tmp/dependabot" /usr/local/bin/dependabot
+      rm -rf "$tmp"
+    fi
     install -m 0644 teire-resolver.slice docker-resolver.service teire-resolver.service /etc/systemd/system/
     # The shared secret the worker sends; generated here once, never printed.
     if [ ! -f /etc/teire-resolver/env ]; then
