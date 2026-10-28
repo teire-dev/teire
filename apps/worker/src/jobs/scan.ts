@@ -326,7 +326,15 @@ export async function assessCheckout(
       }; Tavily ${api.discovery.usage.reduce((n, u) => n + u.credits, 0)} credit(s)${api.discovery.notes.length ? `; ${api.discovery.notes.join("; ")}` : ""}`,
     );
   // Runtimes the repo runs, against their end of life (notices, never PRs).
-  const runtimes = await assessRuntimes(runtimesOf(tree, js.projects, py.projects), { cache });
+  const runtimes = await assessRuntimes(
+    runtimesOf(tree, js.projects, py.projects, {
+      go: go.projects,
+      ruby: ruby.projects,
+      rust: rust.projects,
+      jvm: jvm.projects,
+    }),
+    { cache },
+  );
   // Records computed in this scan (OpenAPI diffs, runtime dates) are stored with their findings;
   // provider records were stored when their pages were read.
   for (const r of [

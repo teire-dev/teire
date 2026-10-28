@@ -36,8 +36,78 @@ function locate(tree: RepoTree, file: string, needle: RegExp) {
   return { lineNo: i + 1, snippet: (lines[i] ?? "").trim().slice(0, 200) };
 }
 
-export function runtimesOf(tree: RepoTree, js: JsProject[], py: PyProject[]): RuntimeUse[] {
+/** Where Go, Ruby, Rust and JVM projects live: the runtime is read from their own files (S16.4). */
+export interface OtherRoots {
+  go?: { root: string }[];
+  ruby?: { root: string }[];
+  rust?: { root: string }[];
+  jvm?: { root: string }[];
+}
+
+export function runtimesOf(
+  tree: RepoTree,
+  js: JsProject[],
+  py: PyProject[],
+  others: OtherRoots = {},
+): RuntimeUse[] {
   const out: RuntimeUse[] = [];
+  const at = (root: string, file: string) => (root === "." ? file : join(root, file));
+  // Go: the toolchain directive when present (it is what runs), else the `go` line.
+  for (const { root } of others.go ?? []) {
+    const file = at(root, "go.mod");
+    const text = tree.read(file) ?? "";
+    const toolchain = /^toolchain\s+go(\d+\.\d+)/m.exec(text)?.[1];
+    const go = /^go\s+(\d+\.\d+)/m.exec(text)?.[1];
+    const line = toolchain ?? go;
+    if (line)
+      out.push({ runtime: "go", line, file, ...locate(tree, file, toolchain ? /^toolchain\s/ : /^go\s/) });
+  }
+  // Ruby: `.ruby-version`, else the Gemfile's `ruby` line.
+  for (const { root } of others.ruby ?? []) {
+    const dotfile = at(root, ".ruby-version");
+    const pinned = /^\s*(?:ruby-)?(\d+\.\d+)/.exec(tree.read(dotfile) ?? "")?.[1];
+    if (pinned) {
+      out.push({ runtime: "ruby", line: pinned, file: dotfile, ...locate(tree, dotfile, /\d/) });
+      continue;
+    }
+    const gemfile = at(root, "Gemfile");
+    const declared = /^\s*ruby\s+["'](\d+\.\d+)/m.exec(tree.read(gemfile) ?? "")?.[1];
+    if (declared)
+      out.push({ runtime: "ruby", line: declared, file: gemfile, ...locate(tree, gemfile, /^\s*ruby\s/) });
+  }
+  // Rust: a numeric toolchain pin only (`stable` always runs the newest, which is the supported one).
+  for (const { root } of others.rust ?? []) {
+    for (const name of ["rust-toolchain.toml", "rust-toolchain"]) {
+      const file = at(root, name);
+      const text = tree.read(file);
+      if (text === null) continue;
+      const line = /(?:channel\s*=\s*["']|^)(1\.\d+)/m.exec(text)?.[1];
+      if (line) out.push({ runtime: "rust", line, file, ...locate(tree, file, /1\.\d+/) });
+      break;
+    }
+  }
+  // Java: Gradle's toolchain or sourceCompatibility, Maven's release, source or java.version.
+  for (const { root } of others.jvm ?? []) {
+    for (const name of ["build.gradle.kts", "build.gradle", "pom.xml"]) {
+      const file = at(root, name);
+      const text = tree.read(file);
+      if (text === null) continue;
+      const m =
+        /JavaLanguageVersion\.of\(\s*(\d+)\s*\)/.exec(text) ??
+        /JavaVersion\.VERSION_(?:1_)?(\d+)/.exec(text) ??
+        /sourceCompatibility\s*=\s*['"]?(?:1\.)?(\d+)/.exec(text) ??
+        /<(?:maven\.compiler\.release|maven\.compiler\.source|java\.version)>\s*(?:1\.)?(\d+)\s*</.exec(text);
+      if (m?.[1]) {
+        out.push({
+          runtime: "java",
+          line: m[1],
+          file,
+          ...locate(tree, file, new RegExp(m[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))),
+        });
+        break;
+      }
+    }
+  }
   for (const project of js) {
     const node = readJsUpgradePolicy(tree, project).node;
     if (!node) continue;

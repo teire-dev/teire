@@ -209,7 +209,7 @@ Super costs 3 to 7 times less per run, but on one case it passed the tests by re
 | Public change catalog | Every confirmed change Teire has read, with the source's own words: [/changes](https://teire.vercel.app/changes), provider and package pages, and a JSON API | [Providers](https://teire.vercel.app/docs/ecosystems/providers) |
 | `teire.yml` | What to upgrade, PR limits, custom checks, your own API's changelog or OpenAPI spec | [Configuration](https://teire.vercel.app/docs/guide/configuration) |
 | CLI and MCP | `npx teire-cli scan` in any checkout or on any public repository (`scan owner/name`), `teire check` for CI, and the same tools for coding agents ([`teire-cli` on npm](https://www.npmjs.com/package/teire-cli)) | [CLI](https://teire.vercel.app/docs/build/cli) · [MCP](https://teire.vercel.app/docs/build/mcp) |
-| Runtimes | Node.js and Python end-of-life notices | [Runtimes](https://teire.vercel.app/docs/ecosystems/runtimes) |
+| Runtimes | End-of-life notices for Node.js, Python, Go, Ruby, Java and Rust | [Runtimes](https://teire.vercel.app/docs/ecosystems/runtimes) |
 
 ## Run it locally
 

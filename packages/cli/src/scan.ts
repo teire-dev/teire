@@ -256,9 +256,17 @@ export async function scanPath(
       );
     }
   }
-  const runtimes = await assessRuntimes(runtimesOf(tree, js.projects as never, py.projects as never), {
-    cache,
-  }).catch((error) => {
+  const runtimes = await assessRuntimes(
+    runtimesOf(tree, js.projects as never, py.projects as never, {
+      go: go.projects as never,
+      ruby: ruby.projects as never,
+      rust: rust.projects as never,
+      jvm: jvm.projects as never,
+    }),
+    {
+      cache,
+    },
+  ).catch((error) => {
     notes.push(`runtimes: not checked (${error instanceof Error ? error.message : String(error)})`);
     return null;
   });

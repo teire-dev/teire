@@ -102,5 +102,5 @@ A change only appears once a scanned repository depends on it. The same records 
 />
 
 <Callout type="warn" title="Limits">
-  Provider SDKs and discovery read npm and PyPI packages only. Model IDs and URLs are found in all seven languages. Model and API fixes are verified in JavaScript/TypeScript or Python projects. Stripe is read for its Node.js and Python SDK sections. Parameter and API-version records don't become findings on their own. The OpenAPI diff matches URLs in your code, not SDK method calls.
+  Provider SDKs are recognised in all six ecosystems (Go modules, Maven, RubyGems and Cargo as well as npm and PyPI); discovering an unknown provider's API hosts from its SDK still reads npm and PyPI packages. Model IDs and URLs are found in all seven languages, and a model or API fix is verified with the checks of the project it changed, whatever its ecosystem. Stripe is read for its Node.js and Python SDK sections. Parameter and API-version records don't become findings on their own. The OpenAPI diff matches URLs in your code, not SDK method calls.
 </Callout>

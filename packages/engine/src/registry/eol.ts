@@ -52,6 +52,7 @@ export const RUNTIME_PRODUCTS = {
   ruby: "ruby",
   go: "go",
   java: "eclipse-temurin",
+  rust: "rust",
 } as const;
 
 export async function getRuntimeProduct(

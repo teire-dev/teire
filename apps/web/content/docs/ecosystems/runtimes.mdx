@@ -1,6 +1,6 @@
 ---
 title: Runtimes
-description: The Node.js and Python versions your project pins, checked against their end-of-life dates. Teire reports them, and never changes a runtime for you.
+description: The runtime versions your project pins, in all six ecosystems, checked against their end-of-life dates. Teire reports them, and never changes a runtime for you.
 icon: CalendarClock
 ---
 
@@ -8,6 +8,10 @@ icon: CalendarClock
 |---|---|
 | Node.js | Volta, `.nvmrc`, `.node-version`, or `engines.node` in `package.json` |
 | Python | `.python-version`, else the `requires-python` floor in `pyproject.toml` |
+| Go | the `toolchain` line in `go.mod` (what actually runs), else its `go` line |
+| Ruby | `.ruby-version`, else the `ruby` line in the `Gemfile` |
+| Java | Gradle's `JavaLanguageVersion.of(…)`, `JavaVersion.VERSION_…` or `sourceCompatibility`; Maven's `maven.compiler.release`, `maven.compiler.source` or `java.version` |
+| Rust | a numeric `rust-toolchain` channel (`1.70`); `stable` always runs the supported release |
 
 Dates come from [endoflife.date](https://endoflife.date), cached for 24 hours. A runtime is flagged once it is past its end of life, or within **180 days** of it. The notice names the newest maintained line, the LTS line for Node.js.
 
@@ -20,5 +24,5 @@ Runtime notices appear in the onboarding PR, the web dashboard, the public repor
 />
 
 <Callout type="warn" title="Limits">
-  Only Node.js and Python are detected. Ruby, Go and Java versions are not checked for end of life yet.
+  Rust supports only its newest stable release, so any pinned numeric toolchain is flagged once a newer one ships.
 </Callout>
