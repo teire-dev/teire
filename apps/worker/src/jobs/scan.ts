@@ -650,8 +650,10 @@ export async function scanRepo(
     ].sort((x, y) => x.priority - y.priority);
     let enqueued = 0;
     for (const c of queue) {
-      // One PR per group, and nothing a person closed comes back (C6).
-      if (await getArtifact(db, repoId, "pr", c.groupKey)) continue;
+      // One PR per group, and nothing a person closed comes back (C6). A merged PR whose group is
+      // still a candidate left a root behind (one it didn't change): that root gets its own run.
+      const pr = await getArtifact(db, repoId, "pr", c.groupKey);
+      if (pr && pr.state !== "merged") continue;
       // A target whose run moved, fell back or stopped this week gives the same answer again.
       if (await recentlySettled(db, repoId, c.groupKey)) continue;
       if (await fixInFlight(db, repoId, c.groupKey)) continue;
