@@ -21,11 +21,12 @@ const OFFLINE_ENV = {
 
 /**
  * `cargo fetch --locked`; when the committed Cargo.lock is behind Cargo.toml, Cargo refuses ("cannot
- * update the lock file … because --locked was passed") and the repo's own `cargo build` would bring
+ * update the lock file … because --locked was passed", or in other versions "… needs to be updated but
+ * --locked was passed") and the repo's own `cargo build` would bring
  * the lock up to date, so the fetch does that and says so. The checks then run `--locked` against it
  * (live walk on teire-dev/rizzler, 2026-10-28: its lock was behind, and there was no baseline).
  */
-const FETCH = `out=$(cargo fetch --locked 2>&1); status=$?; printf '%s\\n' "$out"; if [ "$status" -ne 0 ] && printf '%s' "$out" | grep -q 'because --locked was passed'; then echo 'teire: Cargo.lock is behind Cargo.toml; fetching as cargo build does, which brings it up to date'; cargo fetch; else exit "$status"; fi`;
+const FETCH = `out=$(cargo fetch --locked 2>&1); status=$?; printf '%s\\n' "$out"; if [ "$status" -ne 0 ] && printf '%s' "$out" | grep -q -e '--locked was passed'; then echo 'teire: Cargo.lock is behind Cargo.toml; fetching as cargo build does, which brings it up to date'; cargo fetch; else exit "$status"; fi`;
 
 /**
  * Where rustup and cargo keep toolchains and the crates the install fetched. exec() does not pass
