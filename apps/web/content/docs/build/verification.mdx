@@ -56,6 +56,10 @@ Rule 8 sorts out why both sides failed:
 
 `verified` opens a ready PR. The middle kinds open a draft that names the reason. `regression`, `unverified` and `timeout` open an issue for a person. The model's review never changes this.
 
+## When the newest major won't pass
+
+If a major upgrade still fails its checks after the agent's attempts, Teire opens nothing for it. It tries once more with the newest version of the previous major, and that pull request opens with **Why X, not Y** and the checks that failed on the newer one. The newer major comes back on a later scan.
+
 ## What is kept
 
 For each install and check, Teire keeps:

@@ -20,6 +20,8 @@ export interface Transaction {
   readBack: string[];
   lockfilePath?: string;
   check?: (files: Record<string, string>) => string | null;
+  /** Every package the change moved, the lead included (dependabot-core's updater reports them). */
+  moved?: { name: string; from: string | null; to: string | null; removed?: boolean }[];
   fallback?: Transaction;
 }
 

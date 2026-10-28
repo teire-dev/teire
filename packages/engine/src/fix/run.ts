@@ -114,6 +114,8 @@ export interface FixRun {
   lockfile: { path: string; before: string; after: string; added: number; removed: number } | null;
   /** Every file the upgrade transaction changed (manifests, lock, files the tool rewrote). */
   transactionFiles: string[];
+  /** Packages the transaction moved besides the lead (co-upgrades, D-10). */
+  moved: NonNullable<Transaction["moved"]>;
   files: FileChange[];
   codemods: CodemodEdit[];
   attempts: FixAttempt[];
@@ -436,6 +438,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         manifest,
         lockfile,
         transactionFiles: [...transactionFiles].filter((p) => !editedSince(p)),
+        moved: (input.transaction.moved ?? []).filter((m) => m.name !== input.instance?.name),
         files,
         codemods,
         attempts,

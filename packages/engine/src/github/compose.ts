@@ -394,6 +394,15 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     for (const path of run.transactionFiles)
       if (path !== run.lockfile?.path && !run.manifest.some((m) => m.path === path))
         out.push(`| \`${path}\` | updated by ${plan.manager} |`);
+    // Co-upgrades (D-10): what else the updater had to move for this version to resolve.
+    if (run.moved.length) {
+      out.push("", "Moved with it, so the new version resolves:", "", "| Package | Version |", "|---|---|");
+      for (const m of run.moved.slice(0, 30))
+        out.push(
+          `| \`${m.name}\` | ${m.removed ? `\`${m.from ?? "?"}\` removed` : `\`${m.from ?? "new"}\` → \`${m.to ?? "?"}\``} |`,
+        );
+      if (run.moved.length > 30) out.push(`| and ${run.moved.length - 30} more | |`);
+    }
 
     for (const f of codeFiles) {
       const moved = run.manifest.find((m) => m.path === f.path);

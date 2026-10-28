@@ -37,6 +37,7 @@ export function resolverTransaction(
       .map((f) => ({ path: f.path, bytes: f.content === null ? null : Buffer.from(f.content, "base64") })),
     commands: links.map((f) => ["ln", "-sfn", f.content as string, `${VERIFY.workDir}/${f.path}`]),
     readBack: change.files.filter((f) => f.content !== null && f.mode !== "120000").map((f) => f.path),
+    moved: change.moved,
     ...(lockfilePath ? { lockfilePath } : {}),
   };
 }
