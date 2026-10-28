@@ -84,8 +84,17 @@ describe("evidence", () => {
       side("baseline", [check("typecheck", 0), slow]),
       side("after", [check("typecheck", 0), slow]),
     );
-    expect(e.kind).toBe("timeout");
+    // Only the tests are too slow and the typecheck passes on both sides: a typecheck-only draft.
+    expect(e.kind).toBe("typecheck_only");
     expect(e.reasons[0]).toBe(
+      "the repository's own test ran past its time limit on the unchanged code (5 min) and after the change; the typecheck passes before and after",
+    );
+    const broken = decideEvidence(
+      side("baseline", [check("typecheck", 0), slow]),
+      side("after", [check("typecheck", 1), slow]),
+    );
+    expect(broken.kind).toBe("timeout");
+    expect(broken.reasons[0]).toBe(
       "the repository's own test ran past its time limit on the unchanged code (5 min), so it can't judge the change",
     );
   });

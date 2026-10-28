@@ -59,6 +59,24 @@ export function decideEvidence(baseline: SideResult, after: SideResult): Evidenc
   if ([...baseline.checks, ...after.checks].some((c) => c.timedOut)) {
     // On the unchanged code it is the repository's own check that is too slow, not the change.
     const slow = baseline.checks.filter((c) => c.timedOut).map((c) => c.name);
+    // Only the tests are too slow, on both sides, and the typecheck passes before and after: the
+    // change is judged by the typecheck, as a draft that says so (live walk, explain-error-plugin).
+    const typecheck = (side: SideResult) => side.checks.find((c) => c.name === "typecheck");
+    const others = (side: SideResult) => side.checks.filter((c) => c.name !== "test");
+    if (
+      slow.length === 1 &&
+      slow[0] === "test" &&
+      after.checks.find((c) => c.name === "test")?.timedOut &&
+      passed(typecheck(baseline)) &&
+      passed(typecheck(after)) &&
+      others(baseline).every(passed) &&
+      others(after).every(passed)
+    ) {
+      reasons.push(
+        `the repository's own test ran past its time limit on the unchanged code (${Math.round((baseline.checks.find((c) => c.timedOut)?.ms ?? 0) / 60_000)} min) and after the change; the typecheck passes before and after`,
+      );
+      return done("typecheck_only");
+    }
     reasons.push(
       slow.length
         ? `the repository's own ${slow.join(" and ")} ran past its time limit on the unchanged code (${Math.round((baseline.checks.find((c) => c.timedOut)?.ms ?? 0) / 60_000)} min), so it can't judge the change`
