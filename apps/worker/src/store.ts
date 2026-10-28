@@ -256,6 +256,19 @@ export async function recentlySettled(db: Database, repoId: number, groupKey: st
   return (rows[0]?.n ?? 0) > 0;
 }
 
+/**
+ * A fix run for this group is queued or running. A scan of a newer commit leaves it be: without
+ * this, every push would queue the group a second time (the run key carries the commit).
+ */
+export async function fixInFlight(db: Database, repoId: number, groupKey: string) {
+  const { rows } = await db.execute<{ n: number }>(sql`
+    select count(*)::int as n from runs
+    where repo_id = ${repoId} and kind = 'fix' and group_key = ${groupKey}
+      and status in ('queued', 'running')
+  `);
+  return (rows[0]?.n ?? 0) > 0;
+}
+
 /** Lineages with an open finding: what an open Teire PR in that lineage still answers (C6). */
 export async function openLineages(db: Database, repoId: number) {
   const rows = await db

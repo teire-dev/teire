@@ -47,6 +47,7 @@ import {
   changeHash,
   claimRun,
   finishScan,
+  fixInFlight,
   getArtifact,
   getRepo,
   openArtifacts,
@@ -652,6 +653,7 @@ export async function scanRepo(
       if (await getArtifact(db, repoId, "pr", c.groupKey)) continue;
       // A target whose run moved, fell back or stopped this week gives the same answer again.
       if (await recentlySettled(db, repoId, c.groupKey)) continue;
+      if (await fixInFlight(db, repoId, c.groupKey)) continue;
       const { run, created } = await claimRun(db, {
         repoId,
         groupKey: c.groupKey,
