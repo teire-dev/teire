@@ -24,7 +24,7 @@ import { decideEvidence, type Evidence, type SideResult } from "../verify/eviden
 import { runChecks, runSide, type SideRun } from "../verify/run";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
-import { type Review, reviewFix } from "./review";
+import { type InstallTriage, type Review, reviewFix, triageInstall } from "./review";
 import { prepareTransaction, type Transaction, utf8 } from "./transaction";
 import type { ManifestEdit } from "./upgrade-js";
 
@@ -119,6 +119,8 @@ export interface FixRun {
   transactionFiles: string[];
   /** Packages the transaction moved besides the lead (co-upgrades, D-10). */
   moved: NonNullable<Transaction["moved"]>;
+  /** Nemotron's reading of a failed after-side install (S15.5), when the upgrade broke the install. */
+  triage?: InstallTriage;
   /** Upstream commits between the versions (D-13), when the updater listed them. */
   upstream: Transaction["upstream"] | null;
   files: FileChange[];
@@ -403,6 +405,7 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     if (txn.applied.length > 1)
       emit({ step: "transaction", detail: `fell back: ${txn.applied.at(-1)?.describe}` });
 
+    let triage: InstallTriage | undefined;
     const finish = (
       evidence: Evidence,
       afterSide: SideResult,
@@ -461,15 +464,47 @@ export async function runFix(input: FixInput): Promise<FixRun> {
         agentSteps,
         events,
         summary,
-        costUsd: agentSteps.reduce((n, s) => n + s.costUsd, 0) + (review?.costUsd ?? 0),
+        costUsd:
+          agentSteps.reduce((n, s) => n + s.costUsd, 0) + (review?.costUsd ?? 0) + (triage?.costUsd ?? 0),
+        ...(triage ? { triage } : {}),
         ms: Date.now() - started,
         exhausted,
         review,
       };
     };
 
+    const brief = input.instance
+      ? `Upgrade ${input.instance.name} ${input.instance.version} → ${input.target}`
+      : (input.headline ?? `Move to ${input.target}`);
+    // The code Teire and the agent changed, for the review (not the transaction's own files).
+    const codePatch = () =>
+      [...originals.entries()]
+        .filter(([path]) => !transactionFiles.has(path) || editedSince(path))
+        .map(([path, before]) =>
+          createTwoFilesPatch(`a/${path}`, `b/${path}`, before, read(path), "", "", { context: 3 }),
+        )
+        .join("\n");
+
     if (!prepared.install.ok) {
       const evidence = decideEvidence(baseline, prepared);
+      // The upgrade broke an install that worked before: Nemotron names the cause (S15.5).
+      if (baseline.install.ok) {
+        triage = await triageInstall({
+          tf: input.tf,
+          prices: input.prices,
+          brief,
+          output: prepared.install.output,
+        }).catch(() => undefined);
+        if (triage?.cause) evidence.reasons.push(`the install failed: ${triage.cause}`);
+        if (triage)
+          emit({
+            step: "review",
+            model: triage.model,
+            detail: triage.error ?? `install (${triage.kind}): ${triage.cause}`,
+            ms: triage.ms,
+            costUsd: triage.costUsd,
+          });
+      }
       emit({ step: "verify", detail: `${evidence.kind}: ${evidence.reasons.join("; ")}` });
       return finish(evidence, prepared, [], [], [], "", true);
     }
@@ -516,7 +551,33 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     };
 
     let current = await verify("after the upgrade and deterministic edits");
-    if (acceptable(current.evidence)) return finish(current.evidence, lastAfter, [], codemods, [], "", false);
+    if (acceptable(current.evidence)) {
+      // Deterministic edits that pass get the same review as an agent's (Ultra on every run, S15.5).
+      const patch = codemods.length ? codePatch() : "";
+      const review = patch
+        ? await reviewFix({
+            tf: input.tf,
+            prices: input.prices,
+            brief,
+            notes: input.notes,
+            patch,
+            rationale: `Deterministic edits at located sites: ${codemods.map((c) => `${c.file}:${c.line} ${c.reason}`).join("; ")}`,
+          })
+        : null;
+      if (review)
+        emit({
+          step: "review",
+          model: review.model,
+          detail:
+            review.error ??
+            (review.problems.length
+              ? review.problems.map((p) => `${p.file}: ${p.problem}`).join(" | ")
+              : "no problems found"),
+          ms: review.ms,
+          costUsd: review.costUsd,
+        });
+      return finish(current.evidence, lastAfter, [], codemods, [], "", false, review);
+    }
     // Without a baseline no edit can be judged, so the agent is not started.
     if (!baseline.install.ok) return finish(current.evidence, lastAfter, [], codemods, [], "", false);
 
@@ -529,17 +590,6 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     const agentSteps: AgentStep[] = [];
     const failures: string[] = [];
     let summary = "";
-    // The review of a passing fix (S03 evaluation: checks miss bypassed APIs and widened validators).
-    const codePatch = () =>
-      [...originals.entries()]
-        .filter(([path]) => !transactionFiles.has(path) || editedSince(path))
-        .map(([path, before]) =>
-          createTwoFilesPatch(`a/${path}`, `b/${path}`, before, read(path), "", "", { context: 3 }),
-        )
-        .join("\n");
-    const brief = input.instance
-      ? `Upgrade ${input.instance.name} ${input.instance.version} → ${input.target}`
-      : (input.headline ?? `Move to ${input.target}`);
     // The failure the agent started from: the reviewer needs to know why the code had to change.
     const startingFailure = current.text;
     let reviewRounds = 0;

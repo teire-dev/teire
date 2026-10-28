@@ -115,3 +115,69 @@ export async function reviewFix(input: {
     };
   }
 }
+
+export interface InstallTriage {
+  model: string;
+  /** One sentence, in the install output's own terms: what stopped the install. */
+  cause: string;
+  kind: "conflict" | "toolchain" | "registry" | "network" | "build" | "other";
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number;
+  ms: number;
+  error?: string;
+}
+
+const triageSchema = z.object({
+  kind: z
+    .enum(["conflict", "toolchain", "registry", "network", "build", "other"])
+    .describe(
+      "conflict: versions can't be resolved together; toolchain: the runtime or compiler is the wrong version; registry: a package or version is missing; network: a host was unreachable; build: a native or compile step failed; other",
+    ),
+  cause: z
+    .string()
+    .describe("One sentence naming the package, version or step from the output that stopped the install"),
+});
+
+const TRIAGE = `You read why a dependency install failed after Teire upgraded one package in a repository. Name the cause in one sentence, using only what the output shows (the package, versions and step it names). Do not suggest fixes and do not guess beyond the output.`;
+
+/**
+ * Nemotron 3 Ultra reads a failed install (S15.5): the after side didn't install, so no check ran
+ * and no agent can start. The cause it names goes on the run's evidence and its receipt.
+ */
+export async function triageInstall(input: {
+  tf: TokenFactory;
+  prices?: Map<string, ModelPrice>;
+  brief: string;
+  output: string;
+}): Promise<InstallTriage> {
+  const started = Date.now();
+  const model = input.tf.modelId("reader");
+  try {
+    const result = await generateText({
+      model: input.tf.model("reader"),
+      system: TRIAGE,
+      prompt: `Change: ${input.brief}\n\n<install_output>\n${input.output.slice(-FIX.maxCheckOutputChars)}\n</install_output>`,
+      output: Output.object({ schema: triageSchema }),
+      maxOutputTokens: FIX.maxOutputTokens,
+      ...nemotronSampling,
+      providerOptions: nemotronOptions({ thinking: true }),
+    });
+    const receipt = receiptFor(result.usage, input.prices?.get(model));
+    return { model, ...result.output, ...receipt, ms: Date.now() - started };
+  } catch (error) {
+    if (!NoObjectGeneratedError.isInstance(error)) throw error;
+    const receipt = receiptFor(
+      error.usage ?? ({} as Parameters<typeof receiptFor>[0]),
+      input.prices?.get(model),
+    );
+    return {
+      model,
+      kind: "other",
+      cause: "",
+      ...receipt,
+      ms: Date.now() - started,
+      error: "the triage's answer did not match the schema",
+    };
+  }
+}

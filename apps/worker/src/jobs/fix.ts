@@ -864,6 +864,17 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         costUsd: fix.review.costUsd.toFixed(6),
         latencyMs: fix.review.ms,
       });
+    if (fix.triage)
+      await recordLlmCall(db, {
+        runId,
+        purpose: "review",
+        step: "install-triage",
+        model: fix.triage.model,
+        tokensIn: fix.triage.tokensIn,
+        tokensOut: fix.triage.tokensOut,
+        costUsd: fix.triage.costUsd.toFixed(6),
+        latencyMs: fix.triage.ms,
+      });
     for (const [phase, side] of [
       ["baseline", fix.baseline],
       ["after", fix.after],
