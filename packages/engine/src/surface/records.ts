@@ -145,7 +145,7 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
       subject: { kind: "package", ecosystem: diff.ecosystem, name: diff.name },
       kind: "package-major",
       title,
-      summary: diff.notes.join("; ") || "One side's declarations could not be read.",
+      summary: [...new Set(diff.notes)].join("; ") || "One side's declarations could not be read.",
       applicability: {
         class: "breaks-on-upgrade",
         affectedRange: diff.fromVersion,

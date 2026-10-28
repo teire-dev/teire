@@ -234,6 +234,9 @@ export async function syncHumanIssues(ctx: WorkerContext, repoId: number) {
       f.verdict === "affected" &&
       !(f.position as { target?: string | null } | null)?.target;
     if (!HUMAN_VERDICTS.has(f.verdict) && !noFix) continue;
+    // A major whose API surface couldn't be compared is the upgrade's to settle: its run checks the
+    // repo before and after in the sandbox (the onboarding PR says so). Not a person's job.
+    if (f.kind === "package-major" && f.verdict === "check_by_hand") continue;
     const key = f.groupKey ?? f.changeId;
     groups.set(key, [...(groups.get(key) ?? []), f]);
   }

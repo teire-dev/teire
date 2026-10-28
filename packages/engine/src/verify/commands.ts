@@ -133,17 +133,27 @@ const RUNNER = /^(?:jest|vitest|mocha|ava|tap|c8|nyc|node\s+--test)(?:\s|$)/;
 const LINT_ONLY = /(lint|eslint|prettier|format|biome|standard|xo)\b/i;
 
 /**
- * The test runner inside a chained script (`zeit-eslint && jest --forceExit test/integration.test.js`):
- * lint and format steps are dropped and the runner keeps the repo's own flags and paths (without
- * them a bare `jest` can wait forever on the servers the tests open). Only `&&` chains of plain
- * words with exactly one runner qualify.
+ * The test runner inside a chained script (`zeit-eslint && jest --forceExit test/integration.test.js`,
+ * or `yarn run test-lint && yarn run test-integration` naming other scripts): lint and format steps
+ * are dropped and the runner keeps the repo's own flags and paths (without them a bare `jest` can
+ * wait forever on the servers the tests open). Only `&&` chains of plain words with exactly one
+ * runner qualify.
  */
-export function runnerSegment(body: string): string[] | null {
-  if (/\|\||[|;<>`$"']/.test(body)) return null;
-  const segments = body
-    .split("&&")
-    .map((s) => s.trim())
-    .filter(Boolean);
+export function runnerSegment(body: string, scripts: Record<string, string> = {}): string[] | null {
+  const expand = (text: string, depth: number): string[] | null => {
+    if (/\|\||[|;<>`$"']/.test(text)) return null;
+    const out: string[] = [];
+    for (const part of text.split("&&").map((s) => s.trim())) {
+      if (!part) continue;
+      const ref = /^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:-s\s+)?([\w:.-]+)$/.exec(part)?.[1];
+      const inner = ref && ref in scripts && depth < 3 ? expand(scripts[ref] as string, depth + 1) : [part];
+      if (!inner) return null;
+      out.push(...inner);
+    }
+    return out;
+  };
+  const segments = expand(body, 0);
+  if (!segments) return null;
   const runners = segments.filter((s) => RUNNER.test(s) && !/--watch|\bwatch\b/.test(s));
   const rest = segments.filter((s) => !runners.includes(s));
   if (runners.length !== 1 || !rest.every((s) => LINT_ONLY.test(s))) return null;
@@ -180,7 +190,7 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
   };
   /** A test script that also lints: its runner, run directly with the repo's flags. */
   const runnerCheck = (script: string, source: PlannedCheck["source"]) => {
-    const runner = runnerSegment(scripts[script] ?? "");
+    const runner = runnerSegment(scripts[script] ?? "", scripts);
     if (!runner) return;
     const extra = reporterArgs(runner.join(" "), reportPath);
     add({

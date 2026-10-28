@@ -18,6 +18,7 @@ import {
 } from "../src/inventory";
 import {
   type CheckPlan,
+  classifyFailure,
   detectGoChecks,
   detectJsChecks,
   detectJvmChecks,
@@ -95,8 +96,14 @@ for (const { ecosystem, root, plan } of plans) {
     const side = await runSide(session, plan, "baseline", undefined, (line) => console.log(`  ${line}`));
     if (!side.install.ok || args.includes("--verbose"))
       console.log(`install output (tail):\n${side.install.output.slice(-3000)}`);
-    for (const c of side.checks.filter((c) => c.exitCode !== 0))
+    const causes: Record<string, string> = {};
+    for (const c of side.checks.filter((c) => c.exitCode !== 0)) {
       console.log(`${c.name} output (tail):\n${c.output.slice(-3000)}`);
+      // How a fix run would read this failure (the PR's evidence label).
+      const { cause } = classifyFailure(c.output, side.deniedHosts);
+      causes[c.name] = cause ?? "unclassified";
+      console.log(`${c.name}: classified ${cause}`);
+    }
     const passed = side.install.ok && side.checks.every((c) => c.exitCode === 0);
     summary.push({
       ecosystem,
@@ -105,6 +112,7 @@ for (const { ecosystem, root, plan } of plans) {
       install: { exitCode: side.install.exitCode, ms: side.install.ms },
       checks: side.checks.map((c) => ({ name: c.name, exitCode: c.exitCode, ms: c.ms, counts: c.counts })),
       deniedHosts: side.deniedHosts,
+      ...(Object.keys(causes).length ? { causes } : {}),
       notes: plan.notes,
     });
   } finally {

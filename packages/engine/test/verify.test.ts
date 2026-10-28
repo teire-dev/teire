@@ -185,6 +185,12 @@ describe("check commands", () => {
       "test/integration.test.js",
     ]);
     expect(plan.checks[0]?.argv).toContain("--json");
+    expect(
+      runnerSegment("yarn run test-lint && yarn run test-integration", {
+        "test-lint": "zeit-eslint --ext .jsx,.js .",
+        "test-integration": "jest --forceExit test/integration.test.js",
+      }),
+    ).toEqual(["jest", "--forceExit", "test/integration.test.js"]);
     expect(runnerSegment("eslint . && jest && tsc")).toBeNull();
     expect(runnerSegment("jest --watch")).toBeNull();
   });
