@@ -98,6 +98,7 @@ Some upgrades Dependabot doesn't do, so Teire keeps its own changes for them:
 - Cargo crates renamed in `Cargo.toml`, and features a new version removed;
 - npm aliases (`npm:`);
 - pnpm lockfiles older than version 6 (pnpm 7), which the updater's pnpm reader fails on although pnpm reads them;
+- Bun's binary `bun.lockb`, since the updater reads only the text `bun.lock` (Bun 1.1.39 and later);
 - `pylock.toml`;
 - Gradle lockfiles updated for one module only;
 - the runtime or build-tool bump a new major needs (Java 17 for Spring Boot 4, for example);

@@ -94,14 +94,18 @@ function resolverDecides(ecosystem: Ecosystem) {
 }
 
 /**
- * Lockfiles dependabot-core's updater stops on although the package manager reads them, so Teire's
- * own transaction keeps them (D104): pnpm lockfiles before v6 (pnpm 7), whose importers its pnpm
- * helper reads `specifiers` from and fails ("pnpm-lock.yaml not parseable", pilot 2026-10-28).
+ * Lockfiles dependabot-core's updater can't handle although the package manager reads them, so
+ * Teire's own transaction keeps them (D104), as found in the pilot (2026-10-28):
+ * - pnpm lockfiles before v6 (pnpm 7): its pnpm helper reads importer `specifiers` that v5.4
+ *   lockfiles don't carry, and fails ("pnpm-lock.yaml not parseable");
+ * - Bun's binary `bun.lockb`: it reads only the text `bun.lock`, so the lockfile would stay stale.
  */
 function dependabotCannotParse(tree: RepoTree, project: { manager: string; root: string }) {
+  const at = (file: string) => (project.root === "." ? file : `${project.root}/${file}`);
+  if (project.manager === "bun")
+    return tree.read(at("bun.lock")) === null && tree.files().includes(at("bun.lockb"));
   if (project.manager !== "pnpm") return false;
-  const lock = tree.read(project.root === "." ? "pnpm-lock.yaml" : `${project.root}/pnpm-lock.yaml`);
-  const version = lock?.match(/^lockfileVersion: ['"]?(\d+)/m)?.[1];
+  const version = tree.read(at("pnpm-lock.yaml"))?.match(/^lockfileVersion: ['"]?(\d+)/m)?.[1];
   return !!version && Number(version) < 6;
 }
 
