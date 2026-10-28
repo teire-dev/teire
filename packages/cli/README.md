@@ -84,12 +84,12 @@ The agent can then scan the repository it is editing, ask why a finding matters 
 
 If a toolchain is missing, the scan says which one and how to get it. It never guesses past one.
 
-| To read         | Needs                                                                                      |
-| --------------- | ------------------------------------------------------------------------------------------ |
+| To read         | Needs                                                                                                                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Python packages | [uv](https://docs.astral.sh/uv) (it supplies Python 3.12 and the helper's pinned packages), or Python 3.11+ already installed (a virtual environment is made once in `~/.cache/teire`) |
-| Go modules      | Go (`TEIRE_GO` points at a specific binary)                                                |
-| Rust crates     | `cargo install cargo-semver-checks --version 0.51.0 --locked`                              |
-| Maven/Gradle    | Java 17 or newer (`TEIRE_JAVA`); japicmp is downloaded once and checked against its SHA-1  |
+| Go modules      | Go (`TEIRE_GO` points at a specific binary)                                                                                                                                            |
+| Rust crates     | `cargo install cargo-semver-checks --version 0.51.0 --locked`                                                                                                                          |
+| Maven/Gradle    | Java 17 or newer (`TEIRE_JAVA`); japicmp is downloaded once and checked against its SHA-1                                                                                              |
 
 ## Environment
 

@@ -78,6 +78,9 @@ const DEFER_SECONDS = 3600;
 
 /** What a fix produced, whatever was fixed (a package upgrade or a provider's API change). */
 interface Outcome {
+  /** Set when the target moved during the run (D103: the updater resolved only up to it). */
+  groupKey?: string;
+  targetVersion?: string;
   fix: FixRun;
   pr: { title: string; body: string };
   notesReceipt: { model: string; tokensIn: number; tokensOut: number; costUsd: number; ms: number } | null;
@@ -140,7 +143,7 @@ async function resolverTransactionFor(
   config: TeireConfig,
   tree: RepoTree,
   common: Common,
-): Promise<Transaction | null> {
+): Promise<Transaction | { cap: { version: string; reason: string } } | null> {
   const manager = resolverManager(assessment.project.manager);
   const keep =
     !manager ||
@@ -191,11 +194,13 @@ async function resolverTransactionFor(
   }
   const bare = (v: string | null) => v?.replace(/^v(?=\d)/, "") ?? null;
   if (bare(r.leadVersion) !== bare(target)) {
-    common.onEvent?.({
-      step: "transaction",
-      detail: `dependabot-core's updater resolves ${packageName} only up to ${r.leadVersion ?? "nothing"}, not ${target}; Teire's own transaction is used`,
-    });
-    return null;
+    // D103: below T becomes the target, diffed again; the reason goes on the run and the PR.
+    const reason = [
+      `dependabot-core's updater resolves ${packageName} only up to ${r.leadVersion}, not ${target}`,
+      ...r.warnings,
+    ].join("; ");
+    common.onEvent?.({ step: "transaction", detail: reason });
+    return r.leadVersion ? { cap: { version: r.leadVersion, reason } } : null;
   }
   common.onEvent?.({
     step: "transaction",
@@ -224,6 +229,7 @@ async function packageOutcome(
   config: TeireConfig,
   token: string | undefined,
   common: Common,
+  cap?: { version: string; reason: string },
 ): Promise<Outcome | null> {
   // A package group key is `<ecosystem>/<name>/<target>` with the contract's ecosystem names.
   const head = run.groupKey.split("/")[0] ?? "";
@@ -235,6 +241,7 @@ async function packageOutcome(
     cache,
     cooldownDays: config.upgrades.cooldownDays,
     onlyPackage: packageName,
+    ...(cap ? { targetMax: { name: packageName, ...cap } } : {}),
     ...(token ? { githubToken: token } : {}),
     surfaceDiff: (n: string, f: string, t: string) =>
       cachedSurfaceDiff(ctx.db, ecosystem, n, f, t, { cache }),
@@ -275,7 +282,7 @@ async function packageOutcome(
   const assessment = matching[0];
   if (!assessment) return null;
   const roots = [...new Set(matching.map((a) => a.project.root))];
-  const transaction = await resolverTransactionFor(
+  const resolved = await resolverTransactionFor(
     ctx,
     repo,
     ecosystem,
@@ -287,6 +294,24 @@ async function packageOutcome(
     tree,
     common,
   );
+  if (resolved && "cap" in resolved) {
+    // Once only: the capped run's own resolver job lands on the cap or falls back.
+    if (cap) return null;
+    const capped = `${run.groupKey.split("/").slice(0, -1).join("/")}/${resolved.cap.version}`;
+    const outcome = await packageOutcome(
+      ctx,
+      repo,
+      { groupKey: capped, targetVersion: resolved.cap.version, fromVersion: run.fromVersion },
+      repoDir,
+      tree,
+      config,
+      token,
+      common,
+      resolved.cap,
+    );
+    return outcome ? { ...outcome, groupKey: capped, targetVersion: resolved.cap.version } : null;
+  }
+  const transaction = resolved;
   if (roots.length > 1 && !transaction)
     common.onEvent?.({
       step: "transaction",
@@ -407,7 +432,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     });
     throw new Error(`run ${runId} is incomplete`);
   }
-  const groupKey = run.groupKey;
+  let groupKey = run.groupKey;
   const isApi = /^(models|api)\//.test(groupKey);
   const [owner = "", name = ""] = repo.fullName.split("/");
   // A paused repo gets no PRs ("no scans or PRs until resume"), whatever started the run.
@@ -526,6 +551,15 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
           token,
           common,
         );
+    if (outcome?.groupKey && outcome.groupKey !== groupKey) {
+      await event("transaction", "target-moved", { from: run.targetVersion, to: outcome.targetVersion });
+      await updateRun(db, runId, {
+        groupKey: outcome.groupKey,
+        targetVersion: outcome.targetVersion ?? run.targetVersion,
+        lineageKey: lineageKey(outcome.groupKey),
+      });
+      groupKey = outcome.groupKey;
+    }
     if (!outcome) {
       await updateRun(db, runId, { status: "cancelled", step: "no longer applies", finishedAt: new Date() });
       await event("assess", "cancelled", { reason: "the change no longer applies to this repo" });

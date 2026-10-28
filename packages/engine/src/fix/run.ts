@@ -1,5 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, readlinkSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readlinkSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";

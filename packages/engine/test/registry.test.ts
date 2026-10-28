@@ -14,6 +14,7 @@ import {
   RUNTIME_PRODUCTS,
   releaseLineOf,
   type TargetPolicy,
+  withTargetMax,
 } from "../src/registry";
 import { fixture } from "./helpers";
 
@@ -82,6 +83,16 @@ describe("target policy", () => {
       npmScheme,
     );
     expect(alias.kind).toBe("blocked");
+  });
+
+  it("caps the target where the updater stopped, for that package only (D103)", () => {
+    const cap = {
+      targetMax: { name: "openai", version: "6.49.0", reason: "the updater resolves only 6.49.0" },
+    };
+    const d = chooseTarget(openai, "4.104.0", withTargetMax(policy(), "openai", cap), npmScheme);
+    expect(d).toMatchObject({ kind: "upgrade", to: "6.49.0" });
+    expect(d.skipped.find((s) => s.reason === "pinned")?.detail).toContain("the updater resolves only");
+    expect(withTargetMax(policy(), "zod", cap).max).toBeUndefined();
   });
 
   it("never proposes pre-releases from a stable version", () => {

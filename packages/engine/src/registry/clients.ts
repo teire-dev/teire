@@ -148,6 +148,8 @@ async function fromNpm(name: string, previous: CacheEntry | null, now: Date) {
 export interface RegistryOptions {
   cache: RegistryCache;
   now?: Date;
+  /** Cap one package's target (D103): the version dependabot-core's updater resolved it to, and why. */
+  targetMax?: { name: string; version: string; reason: string };
 }
 
 /**

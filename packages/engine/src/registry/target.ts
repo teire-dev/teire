@@ -23,6 +23,21 @@ export interface TargetPolicy {
   fallbackMajors: number;
   /** Why a version cannot be used here at all (e.g. it requires a newer Python), or null. */
   exclude?: (version: string) => string | null;
+  /**
+   * The highest version allowed, with why: dependabot-core's updater resolved the package only this
+   * far (D103), so the target becomes it and is diffed again.
+   */
+  max?: { version: string; reason: string };
+}
+
+/** The policy capped for one package, when the options carry a cap for it (D103). */
+export function withTargetMax(
+  policy: TargetPolicy,
+  name: string,
+  options: { targetMax?: { name: string; version: string; reason: string } },
+): TargetPolicy {
+  const cap = options.targetMax;
+  return cap && cap.name === name ? { ...policy, max: { version: cap.version, reason: cap.reason } } : policy;
 }
 
 export type SkipReason =
@@ -90,6 +105,8 @@ function reasonFor(
     return { reason: "above-default", detail: `newer than the registry's default version ${defaultVersion}` };
   if (v.deprecated !== null)
     return { reason: "deprecated", detail: v.deprecated ? `deprecated: ${v.deprecated}` : "deprecated" };
+  if (policy.max && scheme.compare(v.version, policy.max.version) > 0)
+    return { reason: "pinned", detail: `above ${policy.max.version}: ${policy.max.reason}` };
   const pin = policy.pins.find((p) => !scheme.satisfies(v.version, p.value));
   if (pin) return { reason: "pinned", detail: `outside "${pin.value}" (${pin.source})` };
   if (applyAge) {

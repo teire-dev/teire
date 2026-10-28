@@ -279,6 +279,8 @@ export interface FixPullRequestInput {
   /** Behaviour changes read from the notes (candidate records, quoted). */
   behaviour: ChangeV2[];
   notesReceipt?: { model: string; tokensIn: number; tokensOut: number; costUsd: number };
+  /** The updater resolved the package only this far (D103): the target was capped, and why. */
+  targetMax?: { name: string; version: string; reason: string };
 }
 
 function verdictLine(input: FixPullRequestInput) {
@@ -313,6 +315,8 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     : `Upgrade ${instance.name} from ${instance.version} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
   const sections = (withDiff: boolean, siteCap: number, noteCap: number) => {
     const out: string[] = [`<!-- teire:group=${input.groupKey} run=${input.runId} -->`, verdictLine(input)];
+    if (input.targetMax?.name === instance.name)
+      out.push(`**Why ${run.target}, not newer.** ${sanitizeUpstream(input.targetMax.reason, null)}.`);
 
     // Why this repo
     const sites = input.summary.breaking.flatMap((f) => f.callSites.map((s) => ({ s, f })));

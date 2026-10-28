@@ -21,7 +21,7 @@ import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "
 import { gatherNpmNotes, githubRepoOf } from "../notes/sources";
 import { getNpmVersion, getPackageInfo } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
-import { chooseTarget, type TargetDecision } from "../registry/target";
+import { chooseTarget, type TargetDecision, withTargetMax } from "../registry/target";
 import type { PackageInfo } from "../registry/types";
 import { npmScheme } from "../registry/versions";
 import { type NpmSurfaceOptions, npmSurface, npmSurfaceDiff, npmTypesLayout } from "../surface/npm";
@@ -114,7 +114,11 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
       const decision = chooseTarget(
         info,
         instance.version,
-        jsTargetPolicy(policy, instance.name, instance.version, { cooldownDays: options.cooldownDays }),
+        withTargetMax(
+          jsTargetPolicy(policy, instance.name, instance.version, { cooldownDays: options.cooldownDays }),
+          instance.name,
+          options,
+        ),
         npmScheme,
       );
       const a: Assessment = {
@@ -288,6 +292,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
   const pr = composeFixPullRequest({
     repo: input.repo,
     runId: input.runId,
+    ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

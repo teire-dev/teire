@@ -13,6 +13,8 @@ RUN uv tool install poetry==2.5.1 \
   && uv tool install pipenv==2026.10.2 \
   && uv tool install pip-tools==7.6.2
 # Other CPython versions a repo can ask for (.python-version, requires-python): /opt/python/<v>/bin.
+# Installed outside /root, so a venv's interpreter link resolves for the unprivileged check user.
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
 RUN set -eux; UV_PYTHON_DOWNLOADS=automatic uv python install 3.10 3.11 3.13; \
     for v in 3.10 3.11 3.13; do \
       p="$(UV_PYTHON_DOWNLOADS=never uv python find "$v")"; mkdir -p "/opt/python/$v/bin"; \

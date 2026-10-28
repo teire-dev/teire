@@ -13,7 +13,7 @@ import { gatherJvmNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { mavenFlavor } from "../registry/maven-version";
-import { chooseTarget, type TargetPolicy } from "../registry/target";
+import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { mavenScheme } from "../registry/versions";
 import { jvmSurfaceDiff } from "../surface/jvm";
 import { jvmDocsLookup } from "../surface/jvmdoc";
@@ -142,7 +142,12 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
         assessments.push(base);
         continue;
       }
-      const decision = chooseTarget(info, instance.version, jvmPolicy(instance, options), mavenScheme);
+      const decision = chooseTarget(
+        info,
+        instance.version,
+        withTargetMax(jvmPolicy(instance, options), instance.name, options),
+        mavenScheme,
+      );
       const a: Assessment<JvmProject> = {
         ...base,
         info,
@@ -293,6 +298,7 @@ export async function fixJvmDependency(
   const pr = composeFixPullRequest({
     repo: input.repo,
     runId: input.runId,
+    ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

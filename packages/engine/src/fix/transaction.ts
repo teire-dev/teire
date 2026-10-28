@@ -86,7 +86,10 @@ export async function prepareTransaction(
       await session.writeFile(`${VERIFY.workDir}/${edit.path}`, encoder.encode(edit.after));
     for (const w of t.writes ?? [])
       if (w.bytes) await session.writeFile(`${VERIFY.workDir}/${w.path}`, w.bytes);
-      else await session.run(`after-delete-${++step}`, ["rm", "-f", `${VERIFY.workDir}/${w.path}`], { timeoutSec: 60 });
+      else
+        await session.run(`after-delete-${++step}`, ["rm", "-f", `${VERIFY.workDir}/${w.path}`], {
+          timeoutSec: 60,
+        });
     for (const argv of t.commands) {
       const run = await session.run(`after-lock-${++step}`, argv, {
         cwd: plan.cwd,

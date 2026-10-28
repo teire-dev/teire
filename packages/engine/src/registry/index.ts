@@ -17,6 +17,7 @@ export {
   type TargetDecision,
   type TargetPin,
   type TargetPolicy,
+  withTargetMax,
 } from "./target";
 export {
   type CacheEntry,

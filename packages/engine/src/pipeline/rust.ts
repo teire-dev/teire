@@ -11,7 +11,7 @@ import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "
 import { gatherCargoNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
-import { chooseTarget, type TargetPolicy } from "../registry/target";
+import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { cargoScheme } from "../registry/versions";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import { cargoSurfaceDiff } from "../surface/rust";
@@ -85,7 +85,12 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
         assessments.push(base);
         continue;
       }
-      const decision = chooseTarget(info, instance.version, rustPolicy(instance, options), cargoScheme);
+      const decision = chooseTarget(
+        info,
+        instance.version,
+        withTargetMax(rustPolicy(instance, options), instance.name, options),
+        cargoScheme,
+      );
       const a: Assessment<RustProject> = {
         ...base,
         info,
@@ -201,6 +206,7 @@ export async function fixRustDependency(
   const pr = composeFixPullRequest({
     repo: input.repo,
     runId: input.runId,
+    ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

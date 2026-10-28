@@ -16,7 +16,7 @@ import { gatherGoNotes } from "../notes/sources";
 import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { escapeModulePath, goModuleFamily } from "../registry/go";
-import { chooseTarget, type TargetPolicy } from "../registry/target";
+import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { goScheme } from "../registry/versions";
 import { goSurfaceDiff } from "../surface/go";
 import { goDocsLookup } from "../surface/godoc";
@@ -97,7 +97,12 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
         assessments.push(base);
         continue;
       }
-      const decision = chooseTarget(family.info, instance.version, goPolicy(instance, options), goScheme);
+      const decision = chooseTarget(
+        family.info,
+        instance.version,
+        withTargetMax(goPolicy(instance, options), instance.name, options),
+        goScheme,
+      );
       const a: GoAssessment = {
         ...base,
         info: family.info,
@@ -294,6 +299,7 @@ export async function fixGoDependency(
   const pr = composeFixPullRequest({
     repo: input.repo,
     runId: input.runId,
+    ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

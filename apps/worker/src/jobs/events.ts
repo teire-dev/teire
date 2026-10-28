@@ -165,7 +165,8 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
           : (await octokit.rest.pulls.get({ owner, repo: name, pull_number: a.number }).catch(() => null))
               ?.data.mergeable === false;
         // Paused fixes keep their PRs as they are until `@teire resume-fixes`.
-        if (conflict && !repo.fixesPaused) await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
+        if (conflict && !repo.fixesPaused)
+          await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
       }
       return;
     }

@@ -13,7 +13,7 @@ import { gatherPypiNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
-import { chooseTarget, type TargetPolicy } from "../registry/target";
+import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { pypiScheme } from "../registry/versions";
 import { fetchPypiWheel, pypiSurfaceDiff } from "../surface/pypi";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
@@ -121,7 +121,7 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
       const decision = chooseTarget(
         info,
         instance.version,
-        pyPolicy(instance, index, options, python),
+        withTargetMax(pyPolicy(instance, index, options, python), instance.name, options),
         pypiScheme,
       );
       const a: Assessment<PyProject> = {
@@ -251,6 +251,7 @@ export async function fixPyDependency(
   const pr = composeFixPullRequest({
     repo: input.repo,
     runId: input.runId,
+    ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

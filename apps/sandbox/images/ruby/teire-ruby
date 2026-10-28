@@ -108,8 +108,9 @@ case "${1:-}" in
     fi
     locked_bundler="$(bundled_with)"
     # A frozen install fails when the lockfile has neither `ruby` nor this platform (research gotcha 2).
+    # Bundler before 2.5 also refuses `bundle lock` itself while frozen, so it is unfrozen for this step.
     if [ -f "$LOCK" ] && ! platforms | grep -qE '^(ruby|x86_64-linux)'; then
-      bundle lock --add-platform x86_64-linux || exit $?
+      BUNDLE_FROZEN=false bundle lock --add-platform x86_64-linux || exit $?
       restore_bundled_with "$locked_bundler"
     fi
     bundler_from_lock || exit $?

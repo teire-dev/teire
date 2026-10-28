@@ -12,7 +12,7 @@ import { gatherRubyNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
-import { chooseTarget, type TargetPolicy } from "../registry/target";
+import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { rubygemsScheme } from "../registry/versions";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import { rubySurfaceDiff } from "../surface/ruby";
@@ -116,7 +116,7 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
       const decision = chooseTarget(
         info,
         instance.version,
-        rubyPolicy(instance, project, versions, options),
+        withTargetMax(rubyPolicy(instance, project, versions, options), instance.name, options),
         rubygemsScheme,
       );
       const a: Assessment<RubyProject> = {
@@ -253,6 +253,7 @@ export async function fixRubyDependency(
   const pr = composeFixPullRequest({
     repo: input.repo,
     runId: input.runId,
+    ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,
