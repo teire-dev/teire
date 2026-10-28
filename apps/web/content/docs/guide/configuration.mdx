@@ -49,7 +49,7 @@ Read from the same schema the worker validates with:
 
 ## Examples
 
-<Tabs items={["Fewer PRs", "Custom checks", "Your own API", "Monorepo"]}>
+<Tabs items={["Fewer PRs", "Ask first", "Custom checks", "Your own API", "Monorepo"]}>
 <Tab value="Fewer PRs">
 
 ```yaml title=".github/teire.yml"
@@ -62,6 +62,16 @@ pullRequests:
 ignore:
   - provider:stripe        # don't report Stripe API changes
 ```
+
+</Tab>
+<Tab value="Ask first">
+
+```yaml title=".github/teire.yml"
+fixes: ask                # Teire lists what it would fix; a person starts each one
+securityFixes: automatic  # security fixes still start on their own
+```
+
+The Dashboard issue lists them under **Upgrades available**; tick one, press **Fix now** on the web dashboard, or comment `@teire fix <package>`. See [`fix-mode`](/docs/guide/commands).
 
 </Tab>
 <Tab value="Custom checks">

@@ -69,6 +69,7 @@ import {
   appendEvent,
   claimRun,
   claimRunLease,
+  fixModeOf,
   getArtifact,
   getRepo,
   getRun,
@@ -82,7 +83,7 @@ import {
   updateRun,
   upsertArtifact,
 } from "../store";
-import { readOrgConfig } from "./commands";
+import { fixesOffReply, readOrgConfig } from "./commands";
 import { syncDashboard } from "./dashboard";
 import { pageReader, storedProviderChanges } from "./providers";
 import { requesterToken } from "./public";
@@ -986,13 +987,15 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     });
     return { cancelled: "paused" };
   }
-  // Fixes paused (`@teire pause-fixes`, D110): scans and the Dashboard issue go on, no run does.
-  if (!dry && repo.fixesPaused) {
-    await updateRun(db, runId, { status: "cancelled", step: "fixes paused", finishedAt: new Date() });
+  // Fix mode (D118, D125): Off cancels queued runs with the mode and where it was set; scans and the
+  // Dashboard issue go on. Ask first lets runs already queued finish (nothing new starts on its own).
+  const mode = dry ? null : await fixModeOf(db, repo);
+  if (mode?.mode === "off") {
+    await updateRun(db, runId, { status: "cancelled", step: "fixes off", finishedAt: new Date() });
     await appendEvent(db, runId, "queue", "cancelled", {
-      reason: "fixes are paused for this repository; `@teire resume-fixes` to fix",
+      reason: fixesOffReply(mode),
     });
-    return { cancelled: "fixes paused" };
+    return { cancelled: "fixes off" };
   }
   const installation = repo.installationId && !dry ? await gh.installation(repo.installationId) : null;
   const event = (step: string, type: string, payload: object) => appendEvent(db, runId, step, type, payload);

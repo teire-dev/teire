@@ -89,6 +89,16 @@ export const teireConfigSchema = z
       .partial()
       .strict(),
     dashboardIssue: z.boolean().describe("Keep the Teire Dashboard issue (default true)."),
+    fixes: z
+      .enum(["automatic", "ask", "off"])
+      .describe(
+        "automatic (the default): a fix starts when a change reaches your code. ask: nothing new is written until someone asks (Fix now, @teire fix). off: findings are listed, nothing is fixed.",
+      ),
+    securityFixes: z
+      .enum(["automatic", "ask"])
+      .describe(
+        "automatic (the default): a security fix starts on its own, even when fixes are ask. ask: security fixes wait for a person too. fixes: off turns these off as well.",
+      ),
     sources: z
       .array(sourceSchema)
       .describe("Changelogs or API specs Teire should read for a host or package."),
@@ -136,6 +146,9 @@ export interface TeireConfig {
     targetBranch: string | null;
   };
   dashboardIssue: boolean;
+  /** Set only when a file says so; null means the dashboard or the installation decides. */
+  fixes: "automatic" | "ask" | "off" | null;
+  securityFixes: "automatic" | "ask" | null;
   ignore: string[];
   /** Sources the repo names itself (C8, D52); read through the same gate, `repo-config`, private. */
   sources: DeclaredSource[];
@@ -168,6 +181,8 @@ export function defaultConfig(): TeireConfig {
       targetBranch: null,
     },
     dashboardIssue: true,
+    fixes: null,
+    securityFixes: null,
     ignore: [],
     sources: [],
     problems: [],
@@ -373,3 +388,4 @@ export function matchesTarget(
   if (t.startsWith("provider:") && f.groupKey?.split("/")[1] === t.slice(9)) return true;
   return f.groupKey !== null && f.groupKey.split("/").slice(0, -1).join("/") === t;
 }
+export * from "./fix-mode";

@@ -113,6 +113,20 @@
       "when": 1793207518246,
       "tag": "0015_r13_run_lease",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793216917210,
+      "tag": "0016_u1_fix_mode_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793217354009,
+      "tag": "0017_u1_scan_upgrades",
+      "breakpoints": true
     }
   ]
 }

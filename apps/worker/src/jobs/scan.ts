@@ -1,7 +1,13 @@
 import { rm } from "node:fs/promises";
 import { type Database, sql } from "@teire/db";
 import { osvAdvisoryIds } from "@teire/engine/advisories";
-import { readTeireConfig, type TeireConfig, updateIgnores } from "@teire/engine/config";
+import {
+  describeFixMode,
+  readTeireConfig,
+  startsOnItsOwn,
+  type TeireConfig,
+  updateIgnores,
+} from "@teire/engine/config";
 import { ECOSYSTEMS, lineageKey } from "@teire/engine/contract";
 import {
   commitToBranch,
@@ -48,6 +54,7 @@ import {
   claimRun,
   finishScan,
   fixInFlight,
+  fixModeOf,
   getArtifact,
   getRepo,
   openArtifacts,
@@ -59,6 +66,7 @@ import {
   setFindingsState,
   setRepo,
   setRepoProviders,
+  setScanUpgrades,
   startScan,
   upsertArtifact,
   upsertChange,
@@ -602,10 +610,11 @@ export async function scanRepo(
     await syncHumanIssues(ctx, repoId).catch((error) =>
       console.error(`[scan] ${repo.fullName}: human issues: ${error}`),
     );
-    // Fixes paused (D110): the scan and the Dashboard issue are kept current; no run is queued.
-    // Paused fixes also keep their PRs as they are.
-    // Not while model work is paused: triage-dependent model findings would look gone.
-    if (!repo.fixesPaused && lookupsAnswered(gaps) && !blocked)
+    // Fix mode (D118, D124): Off lists and fixes nothing; Ask first starts nothing on its own (a
+    // security fix follows its own setting). A PR no longer needed closes with its reason in every
+    // mode. Not while model work is paused: triage-dependent model findings would look gone.
+    const mode = await fixModeOf(db, { ...repo, config });
+    if (lookupsAnswered(gaps) && !blocked)
       await closeStalePullRequests(
         ctx,
         installation.octokit,
@@ -622,13 +631,6 @@ export async function scanRepo(
           }),
         ),
       ).catch((error) => console.error(`[scan] ${repo.fullName}: stale PRs: ${error}`));
-    if (repo.fixesPaused) {
-      await syncDashboard(ctx, repoId).catch((error) =>
-        console.error(`[scan] ${repo.fullName}: dashboard: ${error}`),
-      );
-      return { status, fixes: "paused" };
-    }
-
     // Active: enqueue one run per group, best first (D70 queue: provider changes that already broke
     // the repo outrank majors); the fix job applies the PR caps.
     const queue = [
@@ -642,14 +644,35 @@ export async function scanRepo(
                 priority: a.priority ?? 9,
                 from: a.instance.version,
                 to: a.decision.to,
+                security: a.purpose === "security",
               },
             ]
           : [];
       }),
       ...apiCandidates(api.findings, config),
     ].sort((x, y) => x.priority - y.priority);
+    // Kept on the scan: Ask first and Off list these as "Upgrades available" (D125).
+    await setScanUpgrades(
+      db,
+      scan.id,
+      queue.map((c) => ({
+        groupKey: c.groupKey,
+        from: c.from || null,
+        to: c.to,
+        security: "security" in c && c.security === true,
+        priority: c.priority,
+      })),
+    );
+    if (mode.mode === "off") {
+      await syncDashboard(ctx, repoId).catch((error) =>
+        console.error(`[scan] ${repo.fullName}: dashboard: ${error}`),
+      );
+      return { status, fixes: describeFixMode(mode) };
+    }
     let enqueued = 0;
     for (const c of queue) {
+      // Ask first: the Dashboard issue and the dashboard offer it; a person starts it (D125).
+      if (!startsOnItsOwn(mode, "security" in c && c.security === true)) continue;
       // One PR per group, and nothing a person closed comes back (C6). A merged PR whose group is
       // still a candidate left a root behind (one it didn't change): that root gets its own run.
       const pr = await getArtifact(db, repoId, "pr", c.groupKey);

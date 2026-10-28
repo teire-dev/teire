@@ -2,6 +2,7 @@ import type { Delivery } from "../outbox";
 import {
   appendEvent,
   artifactByBranch,
+  fixModeOf,
   getArtifact,
   getRepo,
   markFindings,
@@ -17,14 +18,7 @@ import {
   upsertRepo,
 } from "../store";
 import { handleRepoAction } from "./actions";
-import {
-  canWrite,
-  FIXES_PAUSED_REPLY,
-  handleComment,
-  matchesTarget,
-  parseCommand,
-  startRun,
-} from "./commands";
+import { canWrite, fixesOffReply, handleComment, matchesTarget, parseCommand, startRun } from "./commands";
 import { syncDashboard, tickedActions } from "./dashboard";
 import { requestDryRun } from "./public";
 import { ONBOARDING_BRANCH, type WorkerContext } from "./scan";
@@ -159,15 +153,16 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       if (!repo.installationId) return;
       const [owner = "", name = ""] = repo.fullName.split("/");
       const { octokit } = await ctx.gh.installation(repo.installationId);
+      // Automatic and Ask first refresh a PR a person has (they asked for it); Off leaves it as it is,
+      // and the run page and dashboard say its evidence is stale (D125).
+      const refreshes = (await fixModeOf(db, repo)).mode !== "off";
       for (const a of await openArtifacts(db, repo.id)) {
         if (a.kind !== "pr" || !a.number) continue;
         const conflict = deps
           ? true
           : (await octokit.rest.pulls.get({ owner, repo: name, pull_number: a.number }).catch(() => null))
               ?.data.mergeable === false;
-        // Paused fixes keep their PRs as they are until `@teire resume-fixes`.
-        if (conflict && !repo.fixesPaused)
-          await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
+        if (conflict && refreshes) await startRun(ctx, repo, octokit, a.changeKey, "rebase", "base-moved");
       }
       return;
     }
@@ -205,8 +200,8 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
           await setIgnore(db, repo.id, a.key, false);
           await setFindingsState(db, repo.id, (f) => matchesTarget(a.key, f), "open");
           done.push(`unignored \`${a.key}\``);
-        } else if (repo.fixesPaused) {
-          done.push(`${a.kind} \`${a.key}\`: ${FIXES_PAUSED_REPLY}`);
+        } else if ((await fixModeOf(db, repo)).mode === "off") {
+          done.push(`${a.kind} \`${a.key}\`: ${fixesOffReply(await fixModeOf(db, repo))}`);
         } else {
           const { run, created } = await startRun(ctx, repo, octokit, a.key, a.kind, login);
           done.push(
@@ -229,7 +224,9 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       if (delivery.action !== "completed" || !["failure", "timed_out"].includes(suite?.conclusion)) return;
       if (suite.app?.slug === ctx.gh.slug) return;
       const repo = await getRepo(db, p.repository.id);
-      if (!repo?.installationId || repo.status === "paused" || repo.fixesPaused) return;
+      if (!repo?.installationId || repo.status === "paused") return;
+      // A CI repair keeps a PR a person has truthful (D125): in every mode but Off.
+      if ((await fixModeOf(db, repo)).mode === "off") return;
       const artifact = await artifactByBranch(db, repo.id, String(suite.head_branch ?? ""));
       if (!artifact || artifact.kind !== "pr" || artifact.state !== "open") return;
       if (artifact.headSha !== suite.head_sha || artifact.ciRepairSha === suite.head_sha) return;

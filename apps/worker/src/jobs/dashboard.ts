@@ -1,8 +1,16 @@
-import { sql } from "@teire/db";
+import { type ScanUpgrade, sql } from "@teire/db";
+import { describeFixMode, type EffectiveFixMode } from "@teire/engine/config";
 import { PULL_REQUESTS } from "@teire/engine/constants";
 import { type ChangeV2, lineageKey } from "@teire/engine/contract";
 import { composeHumanIssue } from "@teire/engine/github";
-import { findingsWithChanges, getArtifact, getRepo, openArtifacts, upsertArtifact } from "../store";
+import {
+  findingsWithChanges,
+  fixModeOf,
+  getArtifact,
+  getRepo,
+  openArtifacts,
+  upsertArtifact,
+} from "../store";
 import { HELP } from "./commands";
 import type { WorkerContext } from "./scan";
 
@@ -44,7 +52,10 @@ export interface DashboardInput {
   sha: string | null;
   scannedAt: Date | null;
   status: string;
-  fixesPaused?: boolean;
+  /** The effective fix mode (D118): stated in the header; Off offers no box to tick. */
+  fixMode?: EffectiveFixMode;
+  /** What the latest scan would upgrade; listed under Ask first and Off (D125). */
+  upgrades?: ScanUpgrade[];
   webUrl: string | null;
   findings: Awaited<ReturnType<typeof findingsWithChanges>>;
   artifacts: Awaited<ReturnType<typeof openArtifacts>>;
@@ -109,12 +120,14 @@ export function composeDashboard(d: DashboardInput) {
       ...d.findings.filter((f) => f.state === "ignored").map((f) => f.groupKey ?? f.changeId),
     ]),
   ];
-  // While fixes are paused a fix can't start, so its row offers no box to tick.
-  const fixRow = (key: string, text: string) => (d.fixesPaused ? `- ${text}` : box("fix", key, text));
+  // While fixes are Off a fix can't start, so its row offers no box to tick. Under Ask first the box
+  // is how a person asks.
+  const off = d.fixMode?.mode === "off";
+  const fixRow = (key: string, text: string) => (off ? `- ${text}` : box("fix", key, text));
   const sha = d.sha ? `\`${d.sha.slice(0, 7)}\`` : "—";
   const lines = [
     MARKER,
-    `Teire watches every dependency and API this repo uses. Last scan: ${sha}${d.scannedAt ? ` (${d.scannedAt.toISOString().slice(0, 16).replace("T", " ")} UTC)` : ""}${d.status === "paused" ? " · **paused** (`@teire resume`)" : ""}${d.fixesPaused ? " · **fixes paused** (`@teire resume-fixes`)" : ""}.${d.webUrl ? ` [Open in Teire](${d.webUrl})` : ""}`,
+    `Teire watches every dependency and API this repo uses. Last scan: ${sha}${d.scannedAt ? ` (${d.scannedAt.toISOString().slice(0, 16).replace("T", " ")} UTC)` : ""}${d.status === "paused" ? " · **paused** (`@teire resume`)" : ""}${d.fixMode ? ` · fixes: **${describeFixMode(d.fixMode)}**` : ""}.${d.webUrl ? ` [Open in Teire](${d.webUrl})` : ""}`,
     "",
     box("rescan", "now", "Rescan now"),
     "",
@@ -153,6 +166,29 @@ export function composeDashboard(d: DashboardInput) {
       );
     lines.push("");
   }
+  // Ask first and Off: what Automatic would have started, so a person can start it (or knows it's waiting).
+  const listed = new Set([...affected, ...undecided].map(([k]) => k));
+  const upgrades = (d.fixMode?.mode === "auto" ? [] : (d.upgrades ?? [])).filter(
+    (u) =>
+      !listed.has(u.groupKey) &&
+      !prFor.has(u.groupKey) &&
+      !prLineages.has(lineageKey(u.groupKey, u.security ? "security" : "version")) &&
+      !issueFor.has(u.groupKey) &&
+      !stopped(u.groupKey),
+  );
+  if (upgrades.length) {
+    lines.push(
+      "## Upgrades available",
+      "",
+      off
+        ? "Fixes are off here, so none of these starts."
+        : "Teire won't start these until you ask: tick one to start it.",
+      "",
+    );
+    for (const u of upgrades.slice(0, 40))
+      lines.push(fixRow(u.groupKey, `Upgrade: ${upgradeLabel(u)}${u.security ? " · security" : ""}`));
+    lines.push("");
+  }
   const prs = d.artifacts.filter((a) => a.kind === "pr");
   if (prs.length) {
     lines.push("## Open PRs", "");
@@ -189,6 +225,13 @@ export function composeDashboard(d: DashboardInput) {
   return lines.join("\n");
 }
 
+/** `zod` 3.25.76 → 4.6.6, or a provider group's models (`models/openai`: gpt-4.1-nano → gpt-5.6-luna). */
+function upgradeLabel(u: ScanUpgrade) {
+  const eco = u.groupKey.split("/")[0] ?? "";
+  const pkg = u.groupKey.endsWith(`/${u.to}`) ? u.groupKey.slice(eco.length + 1, -(u.to.length + 1)) : null;
+  return `\`${pkg ?? u.groupKey}\` ${u.from ? `${u.from} → ` : "→ "}${u.to}`;
+}
+
 /** Creates, updates or (when the config turns it off) closes the repo's Dashboard issue. */
 export async function syncDashboard(ctx: WorkerContext, repoId: number) {
   const { db, gh } = ctx;
@@ -213,15 +256,19 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
     where scan_id = (select id from scans where repo_id = ${repoId} and status = 'done' order by created_at desc limit 1)
     group by ecosystem order by ecosystem
   `);
-  const { rows: latest } = await db.execute<{ coverage: { gaps?: string[] } | null }>(sql`
-    select coverage from scans where repo_id = ${repoId} and status = 'done' order by created_at desc limit 1
+  const { rows: latest } = await db.execute<{
+    coverage: { gaps?: string[] } | null;
+    upgrades: ScanUpgrade[] | null;
+  }>(sql`
+    select coverage, upgrades from scans where repo_id = ${repoId} and status = 'done' order by created_at desc limit 1
   `);
   const body = composeDashboard({
     fullName: repo.fullName,
     sha: repo.lastScannedSha,
     scannedAt: repo.lastScannedAt,
     status: repo.status,
-    fixesPaused: repo.fixesPaused,
+    fixMode: await fixModeOf(db, repo),
+    upgrades: latest[0]?.upgrades ?? [],
     webUrl: ctx.webUrl,
     findings: await findingsWithChanges(db, repoId),
     artifacts: (await openArtifacts(db, repoId)).filter((a) => a.kind === "pr" || a.kind === "issue"),

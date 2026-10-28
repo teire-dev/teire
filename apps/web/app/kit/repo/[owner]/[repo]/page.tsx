@@ -116,9 +116,9 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
   const fullName = `${owner}/${name}`;
   const [data, shell] = await Promise.all([kitRepo(fullName), kitShell()]);
   if (!data) return <p className="p-8 text-sm text-ink-3">No public repository named {fullName}.</p>;
-  const { repo, groups, runs } = data;
+  const { repo, fixMode, groups, runs } = data;
   const turn = await draftTurn(fullName, runs);
-  const mode = repo.fixesPaused ? "off" : "auto";
+  const mode = fixMode.mode;
   const affected = groups.filter(([, rows]) => rows.some((r) => r.finding.verdict === "affected"));
 
   return (
@@ -182,7 +182,11 @@ async function Repo({ params }: { params: PageProps<"/kit/repo/[owner]/[repo]">[
               ))}
             </ToggleGroup>
             <span className="font-mono text-[11px] text-ink-3">
-              {mode === "off" ? "set with @teire pause-fixes" : "installation default"}
+              {fixMode.file
+                ? `set in ${fixMode.file}`
+                : fixMode.origin === "dashboard"
+                  ? "set here"
+                  : "installation default"}
             </span>
           </div>
           <nav aria-label="Repository" className="flex gap-1 overflow-x-auto border-b border-rule text-sm">

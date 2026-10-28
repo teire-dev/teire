@@ -19,6 +19,7 @@ import {
 import { notFound } from "next/navigation";
 import type { LedgerCheck } from "@/components/teire/ledger";
 import { database } from "./db";
+import { repoFixMode } from "./fix-mode";
 import { type Proof, proofOfRun } from "./proof";
 import { getSession } from "./session";
 
@@ -212,7 +213,10 @@ export async function kitOverview() {
         id: repos.id,
         fullName: repos.fullName,
         status: repos.status,
-        fixesPaused: repos.fixesPaused,
+        config: repos.config,
+        fixMode: repos.fixMode,
+        defaultFixMode: installations.defaultFixMode,
+        securityFixMode: installations.securityFixMode,
         pausedReason: repos.pausedReason,
         lastScannedAt: repos.lastScannedAt,
         languages: repos.languages,
@@ -270,7 +274,10 @@ export async function kitOverview() {
     live,
     recent,
     deadlines,
-    repos: repoRows,
+    repos: repoRows.map(({ config, defaultFixMode, securityFixMode, fixMode, ...r }) => ({
+      ...r,
+      fixMode: repoFixMode({ config, fixMode, fullName: r.fullName }, { defaultFixMode, securityFixMode }),
+    })),
     gaps,
     counts: counts ?? { proven: 0, drafts: 0, open: 0, reaching: 0 },
   };
@@ -279,8 +286,19 @@ export async function kitOverview() {
 /** One repository's findings grouped by change, its PRs and runs: the Repository page. */
 export async function kitRepo(fullName: string) {
   const db = database();
-  const [repo] = await db.select().from(repos).where(eq(repos.fullName, fullName)).limit(1);
-  if (!repo || repo.isPrivate) return null;
+  const [row] = await db
+    .select({
+      repo: repos,
+      defaultFixMode: installations.defaultFixMode,
+      securityFixMode: installations.securityFixMode,
+    })
+    .from(repos)
+    .leftJoin(installations, eq(installations.id, repos.installationId))
+    .where(eq(repos.fullName, fullName))
+    .limit(1);
+  const repo = row?.repo;
+  if (!row || !repo || repo.isPrivate) return null;
+  const fixMode = repoFixMode(repo, row);
   const [rows, recent] = await Promise.all([
     db
       .select({ finding: findings, change: changes })
@@ -295,7 +313,7 @@ export async function kitRepo(fullName: string) {
     const key = r.finding.groupKey ?? r.finding.changeId;
     groups.set(key, [...(groups.get(key) ?? []), r]);
   }
-  return { repo, groups: [...groups], runs: recent };
+  return { repo, fixMode, groups: [...groups], runs: recent };
 }
 
 /** The sidebar's installation and repositories, with a live dot where a run is going. */
@@ -309,7 +327,10 @@ export async function kitShell() {
   const list = await db
     .select({
       fullName: repos.fullName,
-      paused: repos.fixesPaused,
+      config: repos.config,
+      fixMode: repos.fixMode,
+      defaultFixMode: installations.defaultFixMode,
+      securityFixMode: installations.securityFixMode,
       languages: repos.languages,
       live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status = 'running')`,
     })
@@ -328,7 +349,7 @@ export async function kitShell() {
     repos: list.map((r) => ({
       fullName: r.fullName,
       live: r.live,
-      paused: r.paused,
+      paused: repoFixMode(r, r).mode === "off",
       languages: r.languages,
     })),
   };

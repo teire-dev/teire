@@ -1,5 +1,12 @@
 import { rm } from "node:fs/promises";
-import { describeConfig, matchesTarget, readTeireConfig } from "@teire/engine/config";
+import {
+  describeConfig,
+  describeFixMode,
+  type EffectiveFixMode,
+  matchesTarget,
+  personMayStart,
+  readTeireConfig,
+} from "@teire/engine/config";
 import { lineageKey } from "@teire/engine/contract";
 import { directoryTree, fetchRepoTarball } from "@teire/engine/inventory";
 import {
@@ -8,6 +15,7 @@ import {
   claimRun,
   findingsWithChanges,
   fixInFlight,
+  fixModeOf,
   getArtifact,
   getRepo,
   recordFeedback,
@@ -41,7 +49,8 @@ export const HELP = [
   "| `@teire explain` | On a Teire PR or issue: the evidence behind it |",
   "| `@teire config` | The resolved config, with where each value came from |",
   "| `@teire pause` / `@teire resume` | Stop or restart scans and PRs for this repo |",
-  "| `@teire pause-fixes` / `@teire resume-fixes` | Keep scanning and reporting, but start no fix runs (or start them again) |",
+  "| `@teire fix-mode automatic\\|ask\\|off\\|default` | How Teire fixes here: on its own, only when asked, or not at all (`default` follows the installation) |",
+  "| `@teire pause-fixes` / `@teire resume-fixes` | Fix mode Off, or back to the installation's default |",
   "| `@teire wrong <reason>` | Tell us a finding is a false positive or negative |",
   "| `@teire help` | This list |",
 ].join("\n");
@@ -58,6 +67,7 @@ export const COMMANDS = [
   "pause",
   "resume",
   "pause-fixes",
+  "fix-mode",
   "resume-fixes",
   "wrong",
   "show",
@@ -141,16 +151,29 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       await reply("Resumed; rescanning now.");
       return;
     case "pause-fixes":
-      if (!repo.fixesPaused) await setRepo(db, repo.id, { fixesPaused: true });
-      await reply(
-        "Fixes paused: Teire keeps scanning and updating the Dashboard issue, but starts no fix runs until `@teire resume-fixes`.",
-      );
-      return;
     case "resume-fixes":
-      if (repo.fixesPaused) await setRepo(db, repo.id, { fixesPaused: false });
-      await ctx.enqueueScan(repo.id, "command");
-      await reply("Fixes resumed; rescanning now, and fix runs start from this scan.");
+    case "fix-mode": {
+      // D118, D124: one column, `fix_mode` (null follows the installation); a teire.yml `fixes:` wins.
+      const word = command.name === "fix-mode" ? (command.args.trim().split(/\s+/)[0] ?? "") : "";
+      const next =
+        command.name === "pause-fixes"
+          ? "off"
+          : command.name === "resume-fixes" || word === "default"
+            ? null
+            : ({ automatic: "auto", auto: "auto", ask: "ask", "ask-first": "ask", off: "off" } as const)[
+                word as "automatic"
+              ];
+      if (command.name === "fix-mode" && next === undefined)
+        return void (await reply("Usage: `@teire fix-mode automatic|ask|off|default`"));
+      await setRepo(db, repo.id, { fixMode: next ?? null });
+      const mode = await fixModeOf(db, { ...repo, fixMode: next ?? null });
+      const held = mode.origin === "repo-file" || mode.origin === "org-file";
+      await reply(
+        `Fixes here: **${describeFixMode(mode)}**.${held ? ` The file decides; change \`fixes:\` in ${mode.file} to change it.` : ""}${mode.mode === "ask" ? " Teire lists what it finds and starts a fix when someone asks (Fix now, `@teire fix`)." : mode.mode === "off" ? " Teire keeps scanning and reporting, and starts no fix runs." : ""}`,
+      );
+      if (mode.mode !== "off" && command.name !== "pause-fixes") await ctx.enqueueScan(repo.id, "command");
       return;
+    }
     case "show": {
       if (!/^ignores\b/.test(command.args.trim())) return void (await reply("Usage: `@teire show ignores`"));
       // The config as the last scan resolved it; the command-made entries are listed apart.
@@ -229,8 +252,6 @@ export async function handleComment(ctx: EventContext, p: Payload) {
         command.name === "fix"
           ? (all.find((f) => matchesTarget(target, f) && f.groupKey)?.groupKey ?? null)
           : artifact?.changeKey || null;
-      if (repo.fixesPaused)
-        return void (await reply("Fixes are paused for this repo; `@teire resume-fixes` first."));
       if (!groupKey)
         return void (await reply(
           command.name === "fix"
@@ -241,7 +262,12 @@ export async function handleComment(ctx: EventContext, p: Payload) {
         const open = await getArtifact(db, repo.id, "pr", groupKey);
         if (open?.state === "open") return void (await reply(`Already open: ${open.url}`));
       }
-      const { run, created, sha } = await startRun(ctx, repo, octokit, groupKey, command.name, by);
+      const started_ = await startRun(ctx, repo, octokit, groupKey, command.name, by).catch((error) => {
+        if (error instanceof FixesOffError) return error;
+        throw error;
+      });
+      if (started_ instanceof FixesOffError) return void (await reply(started_.message));
+      const { run, created, sha } = started_;
       const link = ctx.webUrl ? `: ${ctx.webUrl}/runs/${run.id}` : ".";
       const started = created
         ? `Started (${command.name}) on \`${sha.slice(0, 7)}\`${link}`
@@ -345,14 +371,23 @@ export async function canWrite(
  * A fix run for one group on the default branch's head: `fix` and Dashboard ticks once per head,
  * `rebase` re-applies on the new head, `recreate` always starts fresh (C6).
  */
-/** Thrown by `startRun` for a repo whose fixes are paused (D110): the one gate every run start passes. */
-export class FixesPausedError extends Error {
-  constructor(repo: string) {
-    super(`fixes are paused for ${repo}`);
+/**
+ * Thrown by `startRun` when fix mode is Off (D118): the one gate every run start passes. Its message
+ * names the mode and where it was set, and the way round it.
+ */
+export class FixesOffError extends Error {
+  constructor(readonly mode: EffectiveFixMode) {
+    super(fixesOffReply(mode));
   }
 }
 
-export const FIXES_PAUSED_REPLY = "Fixes are paused here; `@teire resume-fixes` first.";
+export function fixesOffReply(mode: EffectiveFixMode) {
+  return `Fixes are ${describeFixMode(mode)} here. ${
+    mode.origin === "repo-file" || mode.origin === "org-file"
+      ? `Change \`fixes:\` in ${mode.file} to turn them on.`
+      : "`@teire fix-mode automatic` (or the dashboard) turns them on."
+  }`;
+}
 
 export async function startRun(
   ctx: EventContext,
@@ -364,7 +399,9 @@ export async function startRun(
   /** Runs after the run exists and before its job is queued (the CI log a repair starts from). */
   beforeEnqueue?: (runId: string) => Promise<void>,
 ) {
-  if (repo.fixesPaused) throw new FixesPausedError(repo.fullName);
+  // Automatic and Ask first both run what a person (or a PR they asked for) needs; Off never does.
+  const mode = await fixModeOf(ctx.db, repo);
+  if (!personMayStart(mode)) throw new FixesOffError(mode);
   const [owner = "", name = ""] = repo.fullName.split("/");
   const { data: branch } = await octokit.rest.repos.getBranch({
     owner,

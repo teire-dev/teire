@@ -231,7 +231,11 @@ async function Overview() {
                         <span className="text-[11px] text-ink-3">reaching code</span>
                       </span>
                       <span className="flex items-center gap-3 font-mono text-xs text-ink-2">
-                        {r.fixesPaused ? <StatusChip tone="neutral">fixes off</StatusChip> : null}
+                        {r.fixMode.mode !== "auto" ? (
+                          <StatusChip tone="neutral">
+                            {r.fixMode.mode === "off" ? "fixes off" : "ask first"}
+                          </StatusChip>
+                        ) : null}
                         <span className="flex items-center gap-1" title="open pull requests">
                           <GitPullRequestDraft className="size-3.5 text-ink-3" />
                           {r.openPrs}

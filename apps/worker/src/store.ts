@@ -17,11 +17,13 @@ import {
   or,
   repos,
   runs,
+  type ScanUpgrade,
   sandboxExecs,
   scans,
   sql,
 } from "@teire/db";
 import { sha256 } from "@teire/engine/catalog";
+import { effectiveFixMode, type TeireConfig } from "@teire/engine/config";
 import { type ChangeV2, type Coverage, type DependencyInstance, lineageKey } from "@teire/engine/contract";
 import type { FindingDraft } from "@teire/engine/impact";
 
@@ -116,6 +118,11 @@ export async function finishScan(
     .update(scans)
     .set({ ...fields, finishedAt: new Date() })
     .where(eq(scans.id, id));
+}
+
+/** What the scan would upgrade (U1), kept for Ask first's and Off's "Upgrades available". */
+export async function setScanUpgrades(db: Database, id: string, upgrades: ScanUpgrade[]) {
+  await db.update(scans).set({ upgrades }).where(eq(scans.id, id));
 }
 
 export async function saveInstances(
@@ -336,6 +343,35 @@ export async function claimRunLease(db: Database, runId: string, leaseMs: number
   return rows.length > 0;
 }
 
+/**
+ * A repository's fix mode with where it came from (D124): its teire.yml, the dashboard, the org
+ * file, the installation default, or automatic.
+ */
+export async function fixModeOf(
+  db: Database,
+  repo: {
+    config: unknown;
+    fixMode: "auto" | "ask" | "off" | null;
+    installationId: number | null;
+    fullName: string;
+  },
+) {
+  const [inst] = repo.installationId
+    ? await db
+        .select({ mode: installations.defaultFixMode, security: installations.securityFixMode })
+        .from(installations)
+        .where(eq(installations.id, repo.installationId))
+        .limit(1)
+    : [];
+  return effectiveFixMode({
+    config: (repo.config as TeireConfig | null) ?? null,
+    repoOverride: repo.fixMode ?? null,
+    installationDefault: inst?.mode ?? null,
+    installationSecurity: inst?.security ?? null,
+    orgFile: `${repo.fullName.split("/")[0]}/teire-config/teire.yml`,
+  });
+}
+
 /** Renews this worker's lease; false when another worker has taken the run (this one must stop). */
 export async function renewLease(db: Database, runId: string) {
   const { rows } = await db.execute<{ id: string }>(sql`
@@ -539,7 +575,7 @@ export async function removeInstallationData(db: Database, installationId: numbe
     await tx.execute(sql`
       update repos set status = 'disabled', installation_id = null, config = null, config_source = null,
         ignores = '[]'::jsonb, last_scanned_sha = null, last_scanned_at = null, paused_from = null,
-        paused_reason = null, fixes_paused = false, updated_at = now()
+        paused_reason = null, fix_mode = null, updated_at = now()
       where installation_id = ${installationId}
     `);
   });

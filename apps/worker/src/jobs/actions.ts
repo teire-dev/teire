@@ -1,7 +1,15 @@
 import { and, eq, userInstallations } from "@teire/db";
-import { matchesTarget } from "@teire/engine/config";
-import { findingsWithChanges, getArtifact, getRepo, setFindingsState, setIgnore, setRepo } from "../store";
-import { canWrite, startRun } from "./commands";
+import { matchesTarget, personMayStart } from "@teire/engine/config";
+import {
+  findingsWithChanges,
+  fixModeOf,
+  getArtifact,
+  getRepo,
+  setFindingsState,
+  setIgnore,
+  setRepo,
+} from "../store";
+import { canWrite, fixesOffReply, startRun } from "./commands";
 import { syncDashboard } from "./dashboard";
 import type { EventContext } from "./events";
 import { requesterToken } from "./public";
@@ -87,7 +95,8 @@ export async function handleRepoAction(
     }
     case "fix": {
       if (repo.status === "paused") return { skipped: "paused" };
-      if (repo.fixesPaused) return { skipped: "fixes paused" };
+      const mode = await fixModeOf(db, repo);
+      if (!personMayStart(mode)) return { refused: fixesOffReply(mode) };
       const group = (await findingsWithChanges(db, repo.id)).find(
         (f) => matchesTarget(target, f) && f.groupKey,
       )?.groupKey;

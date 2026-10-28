@@ -32,6 +32,10 @@ export const installations = pgTable("installations", {
   repositorySelection: text("repository_selection").$type<"all" | "selected">().notNull(),
   suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  /** Fix mode for repositories that set none (plan revision 3.3, D118): auto, ask or off. */
+  defaultFixMode: text("default_fix_mode").$type<"auto" | "ask" | "off">().notNull().default("auto"),
+  /** Security fixes: auto (the default) or ask, even when fixes are automatic (D125). */
+  securityFixMode: text("security_fix_mode").$type<"auto" | "ask">().notNull().default("auto"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -70,8 +74,10 @@ export const repos = pgTable(
     pausedFrom: text("paused_from").$type<RepoStatus>(),
     /** Why the repo is paused when Teire paused it (`opted_out`, `installation_suspended`), not a person. */
     pausedReason: text("paused_reason"),
-    /** Scans and the Dashboard issue go on; no fix run starts (`@teire pause-fixes`, D110). */
+    /** Retired by `fix_mode` (D124); kept, unread, until the column is dropped. */
     fixesPaused: boolean("fixes_paused").notNull().default(false),
+    /** The dashboard's fix mode for this repository; null inherits (D124). A `teire.yml` `fixes:` wins. */
+    fixMode: text("fix_mode").$type<"auto" | "ask" | "off">(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -167,6 +173,14 @@ export const changes = pgTable(
 );
 
 export type ScanTrigger = "install" | "push" | "catalog" | "command" | "manual" | "public";
+/** One upgrade a scan would start, best first (U1): Ask first and Off list these instead of running them. */
+export interface ScanUpgrade {
+  groupKey: string;
+  from: string | null;
+  to: string;
+  security: boolean;
+  priority: number;
+}
 export type JobStatus = "queued" | "running" | "done" | "failed";
 
 export const scans = pgTable(
@@ -180,6 +194,7 @@ export const scans = pgTable(
     status: text("status").$type<JobStatus>().notNull().default("queued"),
     catalogVersion: text("catalog_version"),
     coverage: jsonb("coverage"),
+    upgrades: jsonb("upgrades").$type<ScanUpgrade[]>(),
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
@@ -303,6 +318,9 @@ export const runs = pgTable(
     heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
     /** The worker holding the run (review R13): another worker takes it only once the heartbeat is stale. */
     workerId: text("worker_id"),
+    /** A person asked to stop the run (U1): its heartbeat sees this and aborts before any GitHub write. */
+    cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true }),
+    cancelledBy: text("cancelled_by"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     createdAt: createdAt(),
@@ -453,6 +471,40 @@ export const feedback = pgTable(
 );
 
 /** Outbox for GitHub webhooks: the web route inserts, the worker claims. */
+/**
+ * A person's request to Teire, from the web, a comment, the Dashboard issue or Ask Teire (plan
+ * revision 3.3, "Actions with real results", D121): written with its outbox delivery in one
+ * transaction, then moved by the worker to its outcome, with links to what it produced.
+ */
+export const actions = pgTable(
+  "actions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The signed-in user (better-auth id), or `github:<login>` for a comment or checkbox. */
+    requester: text("requester").notNull(),
+    installationId: githubId("installation_id"),
+    repoId: githubId("repo_id"),
+    kind: text("kind").notNull(),
+    params: jsonb("params").$type<Record<string, unknown>>().notNull().default({}),
+    source: text("source").$type<"web" | "comment" | "dashboard" | "assistant">().notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status")
+      .$type<"requested" | "accepted" | "started" | "done" | "refused" | "failed" | "stopping" | "unknown">()
+      .notNull()
+      .default("requested"),
+    /** What happened, in words a person reads ("Rescan finished: 3 changes reach your code"). */
+    result: text("result"),
+    /** What it produced: the scan, run, PR or config PR. */
+    links: jsonb("links").$type<{ label: string; href: string }[]>().notNull().default([]),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("actions_requester_key_idx").on(t.requester, t.idempotencyKey),
+    index("actions_repo_idx").on(t.repoId, t.createdAt),
+  ],
+);
+
 export const webhookDeliveries = pgTable(
   "webhook_deliveries",
   {
