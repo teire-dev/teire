@@ -29,6 +29,11 @@ allprojects { p ->
     // verification that counts nothing cannot say the tests passed (S10 evaluation, Kotlin).
     t.outputs.upToDateWhen { false }
     t.outputs.cacheIf { false }
+    // The warm-up starts the test workers (so their runtime resolves) without running a test.
+    if (p.hasProperty("teireWarmup")) {
+      t.filter.includeTestsMatching("TeireWarmupNoTest")
+      t.filter.failOnNoMatchingTests = false
+    }
     t.addTestListener(new TestListener() {
       void beforeSuite(TestDescriptor d) {}
       void afterSuite(TestDescriptor d, TestResult r) {

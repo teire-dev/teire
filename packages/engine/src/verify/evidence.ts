@@ -61,7 +61,12 @@ export function decideEvidence(baseline: SideResult, after: SideResult): Evidenc
     return done("timeout");
   }
   if (!baseline.install.ok) {
-    reasons.push("the repo's own lockfile does not install in the sandbox, so there is no baseline");
+    // An install that hit its time limit (exit 124) did not fail on the lockfile; say which it was.
+    reasons.push(
+      baseline.install.exitCode === 124
+        ? `the repo's own install did not finish within its time limit in the sandbox (${Math.round(baseline.install.ms / 60_000)} min), so there is no baseline`
+        : "the repo's own lockfile does not install in the sandbox, so there is no baseline",
+    );
     return done("environment_mismatch", classifyFailure(baseline.install.output, []));
   }
   if (!after.install.ok) {

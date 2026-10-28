@@ -34,6 +34,8 @@ export interface CheckPlan {
   install: string[];
   /** Environment for the install (e.g. keep virtualenvs inside the project). */
   installEnv?: Record<string, string>;
+  /** The install's time limit when the ecosystem needs more than `VERIFY.installTimeoutSec`. */
+  installTimeoutSec?: number;
   /** Environment for check commands (offline-safe settings). */
   env: Record<string, string>;
   checks: PlannedCheck[];

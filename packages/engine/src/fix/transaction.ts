@@ -99,7 +99,7 @@ export async function prepareTransaction(
     // compiling; the checks after the change then find it offline.
     const warm = await session.run("after-warm-baseline", plan.install, {
       cwd: plan.cwd,
-      timeoutSec: VERIFY.installTimeoutSec,
+      timeoutSec: plan.installTimeoutSec ?? VERIFY.installTimeoutSec,
       ...(plan.installEnv ? { env: plan.installEnv } : {}),
     });
     log(`after: warm-up on the unchanged repo exit ${warm.exitCode} in ${warm.ms} ms`);
@@ -120,7 +120,7 @@ export async function prepareTransaction(
       const once = () =>
         session.run(`after-lock-${++step}`, argv, {
           cwd: plan.cwd,
-          timeoutSec: VERIFY.installTimeoutSec,
+          timeoutSec: plan.installTimeoutSec ?? VERIFY.installTimeoutSec,
           // The same settings as the install (Go: GOTOOLCHAIN=local, so `go get` never fetches a toolchain).
           ...(plan.installEnv ? { env: plan.installEnv } : {}),
         });

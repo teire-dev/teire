@@ -80,7 +80,7 @@ export async function prepareSide(
     if (change.lockfile) {
       const run = await session.run(`${side}-lockfile`, change.lockfile, {
         cwd: plan.cwd,
-        timeoutSec: VERIFY.installTimeoutSec,
+        timeoutSec: plan.installTimeoutSec ?? VERIFY.installTimeoutSec,
       });
       result.lockfileRun = {
         exitCode: run.exitCode ?? -1,
@@ -106,7 +106,7 @@ export async function prepareSide(
   const install = await session.run(`${side}-install`, plan.install, {
     cwd: plan.cwd,
     ...(plan.installEnv ? { env: plan.installEnv } : {}),
-    timeoutSec: VERIFY.installTimeoutSec,
+    timeoutSec: plan.installTimeoutSec ?? VERIFY.installTimeoutSec,
   });
   result.install = {
     ok: install.exitCode === 0,

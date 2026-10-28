@@ -392,6 +392,11 @@ export const SURFACE = {
 export const VERIFY = {
   workDir: "/work",
   installTimeoutSec: 600,
+  /**
+   * A JVM warm-up downloads the whole build's plugins and dependencies: a Jenkins plugin took 502 s on
+   * Token Factory (live walk, explain-error-plugin), too close to the default.
+   */
+  jvmInstallTimeoutSec: 1_200,
   checkTimeoutSec: 300,
   /** Output kept per command for the classifier and the PR body. */
   outputTailChars: 20_000,

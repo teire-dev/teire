@@ -70,11 +70,16 @@ case "${1:-}" in
   warmup)
     ensure_jdk "$JDK" || { echo "teire-jvm: JDK $JDK could not be installed"; exit 3; }
     log=/tmp/teire-warmup.log
+    # The build runs as the checks will, with a test filter that matches nothing: the test plugins
+    # still resolve their providers and test classpaths, but no test runs. Running the suite here
+    # took a Jenkins plugin past the install's 10 minutes (live walk, explain-error-plugin).
     if [ "${2:-}" = maven ]; then
       # Compile errors must not stop the warm-up: surefire's provider downloads only when tests run.
-      maven -fae -Dmaven.compiler.failOnError=false -Dmaven.test.failure.ignore=true verify >"$log" 2>&1
+      maven -fae -Dmaven.compiler.failOnError=false -Dmaven.test.failure.ignore=true \
+        -Dtest=TeireWarmupNoTest -Dsurefire.failIfNoSpecifiedTests=false \
+        -Dit.test=TeireWarmupNoTest -Dfailsafe.failIfNoSpecifiedTests=false verify >"$log" 2>&1
     else
-      gradle_cmd --continue teireResolveAll test >"$log" 2>&1
+      gradle_cmd --continue -PteireWarmup teireResolveAll test >"$log" 2>&1
     fi
     tail -40 "$log"
     # Outputs of a build that ignored failures must not stand in for the checks' own compile.

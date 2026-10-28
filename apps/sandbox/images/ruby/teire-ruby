@@ -49,6 +49,21 @@ restore_bundled_with() {
   [ "$(bundled_with)" = "$want" ] || sed -i "/^BUNDLED WITH\$/{n;s/.*/   $want/}" "$LOCK"
 }
 
+# Token Factory's root filesystem (virtiofs) loses a file that mkmf writes while a compiler it started
+# holds the same file open, so every native extension fails there with "Bad file descriptor - mkmf.log
+# (Errno::EBADF)" (live walk on teire-dev/bristow; the same build passes on tmpfs). On that filesystem
+# the gems are built on the VM's tmpfs and copied into place, where the checks read them.
+bundle_install() {
+  [ "$(awk '$2=="/"{print $3; exit}' /proc/mounts 2>/dev/null)" = virtiofs ] && [ -d /dev/shm ] \
+    || { bundle install "$@"; return $?; }
+  local dir shm=/dev/shm/teire-bundle status
+  dir="$(ruby -rbundler -e 'print Bundler.bundle_path' 2>/dev/null)" || { bundle install "$@"; return $?; }
+  rm -rf "$shm" && mkdir -p "$dir" "$shm" && cp -a "$dir/." "$shm/" && rm -rf "$dir" && ln -s "$shm" "$dir" || return $?
+  bundle install "$@"; status=$?
+  rm "$dir" && mkdir -p "$dir" && cp -a "$shm/." "$dir/" && rm -rf "$shm" || return $?
+  return "$status"
+}
+
 # Rubies tried when a repo pins none and the lockfile refuses the image's (newest first; rv builds).
 FALLBACK_RUBIES="3.4.12 3.3.13 3.2.11"
 
@@ -117,7 +132,7 @@ case "${1:-}" in
     # With no pin, the image's Ruby is a guess. When a locked gem refuses it ("minitest-5.20.0
     # requires ruby version < 4.0, >= 2.6, which is incompatible with the current version"), the
     # lockfile has said which Rubies it was resolved for: retry on the newest provided one it accepts.
-    out="$(bundle install --jobs 4 2>&1)"; status=$?
+    out="$(bundle_install --jobs 4 2>&1)"; status=$?
     echo "$out"
     link_ruby
     if [ "$status" -ne 0 ]; then
@@ -133,7 +148,7 @@ case "${1:-}" in
       echo "teire-ruby: the lockfile needs Ruby $req; retrying on Ruby $pick"
       use_ruby "$pick" || exit $?
       bundler_from_lock || exit $?
-      bundle install --jobs 4 || exit $?
+      bundle_install --jobs 4 || exit $?
       link_ruby
     fi
     for s in ${TEIRE_SERVICES:+${TEIRE_SERVICES//,/ }}; do "start_$s" || exit $?; done

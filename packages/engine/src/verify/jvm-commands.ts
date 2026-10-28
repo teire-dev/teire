@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { VERIFY } from "../constants";
 import type { JvmProject } from "../inventory/jvm";
 import type { RepoTree } from "../inventory/tree";
 import { ciJobsFor } from "./ci";
@@ -103,6 +104,7 @@ export function detectJvmChecks(tree: RepoTree, project: JvmProject, sandboxRoot
     cwd: project.root === "." ? sandboxRoot : join(sandboxRoot, project.root),
     install: ["teire-jvm", "warmup", project.manager],
     installEnv: env,
+    installTimeoutSec: VERIFY.jvmInstallTimeoutSec,
     env,
     checks,
     provenOffline: true,

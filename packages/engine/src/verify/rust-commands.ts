@@ -20,6 +20,14 @@ const OFFLINE_ENV = {
 };
 
 /**
+ * `cargo fetch --locked`; when the committed Cargo.lock is behind Cargo.toml, Cargo refuses ("cannot
+ * update the lock file … because --locked was passed") and the repo's own `cargo build` would bring
+ * the lock up to date, so the fetch does that and says so. The checks then run `--locked` against it
+ * (live walk on teire-dev/rizzler, 2026-10-28: its lock was behind, and there was no baseline).
+ */
+const FETCH = `out=$(cargo fetch --locked 2>&1); status=$?; printf '%s\\n' "$out"; if [ "$status" -ne 0 ] && printf '%s' "$out" | grep -q 'because --locked was passed'; then echo 'teire: Cargo.lock is behind Cargo.toml; fetching as cargo build does, which brings it up to date'; cargo fetch; else exit "$status"; fi`;
+
+/**
  * Where rustup and cargo keep toolchains and the crates the install fetched. exec() does not pass
  * the image's ENV, so both phases name them: the offline checks must read the cache the install
  * filled (a fetch into one home and a build from another finds no crates). Cargo's home is the
@@ -75,13 +83,13 @@ export function detectRustChecks(tree: RepoTree, project: RustProject, sandboxRo
     image: "rust",
     instance: "standard-3",
     cwd: root === "." ? sandboxRoot : join(sandboxRoot, root),
-    install: toolchain
-      ? [
-          "sh",
-          "-c",
-          `rustup toolchain install ${toolchain.version} --profile minimal && cargo fetch --locked`,
-        ]
-      : ["cargo", "fetch", "--locked"],
+    install: [
+      "sh",
+      "-c",
+      toolchain
+        ? `rustup toolchain install ${toolchain.version} --profile minimal || exit $?; ${FETCH}`
+        : FETCH,
+    ],
     installEnv: { CARGO_TERM_COLOR: "never", RUSTUP_AUTO_INSTALL: "0", ...HOMES, ...rustPath },
     env: { ...OFFLINE_ENV, ...HOMES, ...rustPath },
     checks,
