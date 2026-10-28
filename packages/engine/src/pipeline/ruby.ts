@@ -232,7 +232,8 @@ export async function fixRubyDependency(
     tarball: input.tarball,
     project: a.project,
     plan,
-    transaction: await rubyTransaction(input.tree, a.project, a.instance, target, lockCooldown),
+    transaction:
+      input.transaction ?? (await rubyTransaction(input.tree, a.project, a.instance, target, lockCooldown)),
     instance: a.instance,
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],

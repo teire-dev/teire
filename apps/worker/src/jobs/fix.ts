@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import { matchesTarget, readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
-import { type CallSite, lineageKey } from "@teire/engine/contract";
-import type { FixRun } from "@teire/engine/fix";
+import { type CallSite, type Ecosystem, lineageKey } from "@teire/engine/contract";
+import type { FixRun, Transaction } from "@teire/engine/fix";
 import {
   branchFor,
   commitToBranch,
@@ -39,10 +41,18 @@ import {
   type GoAssessment,
   repoInstances,
 } from "@teire/engine/pipeline";
+import {
+  jobSettings,
+  readDependabotConfig,
+  resolverTransaction,
+  type TeireManager,
+  updateFor,
+} from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
 import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import { markCreditsExhausted, modelWorkBlocked } from "../reliability";
+import { resolveForRepo } from "../resolver";
 import {
   appendEvent,
   getArtifact,
@@ -87,9 +97,127 @@ export function packageEcosystemOf(head: string): (typeof PACKAGE_ECOSYSTEMS)[nu
     : null;
 }
 
+/** Teire's manager names as the resolver's job wants them; null where the updater can't run. */
+function resolverManager(manager: string): TeireManager | null {
+  if (manager === "pip-tools") return "pip-compile";
+  if (manager === "uv-pip") return "pip";
+  return (
+    (
+      [
+        "npm",
+        "yarn",
+        "pnpm",
+        "bun",
+        "pip",
+        "pipenv",
+        "poetry",
+        "uv",
+        "go",
+        "cargo",
+        "bundler",
+        "maven",
+        "gradle",
+      ] as const
+    ).find((m) => m === manager) ?? null
+  );
+}
+
+/**
+ * The dependency-file change from dependabot-core's updater (S15.1, D92), one job across every
+ * lockfile root that declares the package at this target (D94). Teire's own transaction stays
+ * where D104 keeps it: Go majors (a new module path), renamed or aliased packages, `pylock.toml`
+ * and, until advisories ride along in the job, security updates. When the updater stops or lands
+ * below the target, the run says why and uses Teire's own transaction.
+ */
+async function resolverTransactionFor(
+  ctx: WorkerContext,
+  repo: { id: number; installationId: number | null; isPrivate: boolean | null },
+  ecosystem: Ecosystem,
+  packageName: string,
+  target: string,
+  assessment: Assessment<AssessedProject>,
+  matching: Assessment<AssessedProject>[],
+  config: TeireConfig,
+  tree: RepoTree,
+  common: Common,
+): Promise<Transaction | null> {
+  const manager = resolverManager(assessment.project.manager);
+  const keep =
+    !manager ||
+    !!assessment.instance.aliasName ||
+    assessment.purpose === "security" ||
+    (ecosystem === "go" && assessment.decision?.kind === "upgrade" && assessment.decision.isMajor);
+  if (keep || !manager) return null;
+  const roots = [
+    ...new Set(
+      matching.filter((m) => m.project.manager === assessment.project.manager).map((m) => m.project.root),
+    ),
+  ];
+  const { options, conflicts } = jobSettings(
+    updateFor(readDependabotConfig(tree), manager, assessment.project.root),
+    config,
+  );
+  for (const c of conflicts) common.onEvent?.({ step: "transaction", detail: `config: ${c}` });
+  const resolved = await resolveForRepo(
+    ctx,
+    repo,
+    {
+      manager,
+      ecosystem,
+      repo: `${common.repo.owner}/${common.repo.repo}`,
+      commit: common.repo.baseSha,
+      roots,
+      shape: { kind: "version", dependency: packageName, target },
+      ...options,
+      ...(repo.isPrivate ? { repoPrivate: true } : {}),
+    },
+    { ecosystem, name: packageName },
+    common.runId,
+  ).catch((error: unknown) => {
+    common.onEvent?.({
+      step: "transaction",
+      detail: `resolver unavailable (${(error as Error).message}); Teire's own transaction is used`,
+    });
+    return null;
+  });
+  if (!resolved) return null;
+  const r = resolved.result;
+  if (r.kind !== "change") {
+    common.onEvent?.({
+      step: "transaction",
+      detail: `dependabot-core's updater: ${r.kind === "stop" ? r.message : r.kind === "close" ? `nothing to change (${r.reason})` : "no change"}; Teire's own transaction is used`,
+    });
+    return null;
+  }
+  const bare = (v: string | null) => v?.replace(/^v(?=\d)/, "") ?? null;
+  if (bare(r.leadVersion) !== bare(target)) {
+    common.onEvent?.({
+      step: "transaction",
+      detail: `dependabot-core's updater resolves ${packageName} only up to ${r.leadVersion ?? "nothing"}, not ${target}; Teire's own transaction is used`,
+    });
+    return null;
+  }
+  common.onEvent?.({
+    step: "transaction",
+    detail: `dependabot-core's updater changed ${r.files.map((f) => f.path).join(", ")} across ${roots.length} root${roots.length === 1 ? "" : "s"}${resolved.cached ? " (cached)" : ""}`,
+  });
+  return resolverTransaction(
+    r,
+    (path) => {
+      try {
+        return readFileSync(join(common.repoDir, path), "utf8");
+      } catch {
+        return null;
+      }
+    },
+    { name: packageName, from: assessment.instance.version },
+  );
+}
+
 /** A package group (`npm/openai/7.38.0`): re-assess that package, then upgrade and fix it. */
 async function packageOutcome(
   ctx: WorkerContext,
+  repo: { id: number; installationId: number | null; isPrivate: boolean | null },
   run: { groupKey: string; targetVersion: string; fromVersion: string | null },
   repoDir: string,
   tree: RepoTree,
@@ -147,32 +275,45 @@ async function packageOutcome(
   const assessment = matching[0];
   if (!assessment) return null;
   const roots = [...new Set(matching.map((a) => a.project.root))];
-  if (roots.length > 1)
+  const transaction = await resolverTransactionFor(
+    ctx,
+    repo,
+    ecosystem,
+    packageName,
+    run.targetVersion,
+    assessment,
+    matching,
+    config,
+    tree,
+    common,
+  );
+  if (roots.length > 1 && !transaction)
     common.onEvent?.({
       step: "transaction",
       detail: `${roots.length} lockfile roots declare ${packageName} at ${run.targetVersion} (${roots.join(", ")}); this run edits ${assessment.project.root}`,
     });
+  const input = { ...common, ...(transaction ? { transaction } : {}) };
   const result =
     ecosystem === "pypi"
-      ? await fixPyDependency({ ...common, assessment: assessment as unknown as Assessment<PyProject> })
+      ? await fixPyDependency({ ...input, assessment: assessment as unknown as Assessment<PyProject> })
       : ecosystem === "go"
-        ? await fixGoDependency({ ...common, assessment: assessment as unknown as GoAssessment })
+        ? await fixGoDependency({ ...input, assessment: assessment as unknown as GoAssessment })
         : ecosystem === "cargo"
           ? await fixRustDependency({
-              ...common,
+              ...input,
               assessment: assessment as unknown as Assessment<RustProject>,
             })
           : ecosystem === "rubygems"
             ? await fixRubyDependency({
-                ...common,
+                ...input,
                 assessment: assessment as unknown as Assessment<RubyProject>,
               })
             : ecosystem === "maven"
               ? await fixJvmDependency({
-                  ...common,
+                  ...input,
                   assessment: assessment as unknown as Assessment<JvmProject>,
                 })
-              : await fixJsDependency({ ...common, assessment: assessment as unknown as Assessment });
+              : await fixJsDependency({ ...input, assessment: assessment as unknown as Assessment });
   return {
     fix: result.run,
     pr: result.pr,
@@ -377,6 +518,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       ? await apiOutcome(ctx, { groupKey }, checkout.dir, tree, runConfig, common)
       : await packageOutcome(
           ctx,
+          { id: repo.id, installationId: repo.installationId, isPrivate: repo.isPrivate },
           { groupKey, targetVersion: run.targetVersion, fromVersion: run.fromVersion },
           checkout.dir,
           tree,

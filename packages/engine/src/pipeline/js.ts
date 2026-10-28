@@ -2,6 +2,7 @@ import type { ChangeV2, DependencyInstance } from "../contract";
 import type { MigrationNote } from "../fix/codemods";
 import { lookupDocs } from "../fix/context7";
 import { type FixRun, runFix } from "../fix/run";
+import type { Transaction } from "../fix/transaction";
 import { jsTransaction } from "../fix/upgrade-js";
 import { composeFixPullRequest, type RepoRef } from "../github/compose";
 import {
@@ -193,6 +194,11 @@ export interface FixDependencyInput {
   extraNotes?: MigrationNote[];
   /** teire.yml `verify` commands, which replace the detected ones per workspace (C8). */
   verify?: { workspace: string; install?: string; typecheck?: string; test?: string }[];
+  /**
+   * The dependency-file change made elsewhere (dependabot-core's updater, S15.1): used instead of
+   * this ecosystem's own transaction.
+   */
+  transaction?: Transaction;
 }
 
 export interface FixDependencyResult {
@@ -255,7 +261,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     tarball: input.tarball,
     project: a.project,
     plan,
-    transaction: jsTransaction(input.tree, a.project, a.instance, target),
+    transaction: input.transaction ?? jsTransaction(input.tree, a.project, a.instance, target),
     instance: a.instance,
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],

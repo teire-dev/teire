@@ -14,6 +14,8 @@ import type { ManifestEdit } from "./upgrade-js";
 export interface Transaction {
   describe: string;
   manifest: ManifestEdit[];
+  /** Files written as bytes (a binary lockfile) or deleted (null), before the commands run. */
+  writes?: { path: string; bytes: Uint8Array | null }[];
   commands: string[][];
   readBack: string[];
   lockfilePath?: string;
@@ -29,6 +31,8 @@ export interface PreparedTransaction {
   binary: Record<string, Uint8Array>;
   /** The transactions applied, the first one and any fallback that took over. */
   applied: Transaction[];
+  /** Files the landed transaction deleted. */
+  deleted: string[];
 }
 
 const strict = new TextDecoder("utf-8", { fatal: true });
@@ -57,6 +61,7 @@ export async function prepareTransaction(
     files: {},
     binary: {},
     applied,
+    deleted: [],
   });
   let current: Transaction | undefined = transaction;
   let files: Record<string, string> = {};
@@ -79,6 +84,9 @@ export async function prepareTransaction(
     onManifest(t.manifest);
     for (const edit of t.manifest)
       await session.writeFile(`${VERIFY.workDir}/${edit.path}`, encoder.encode(edit.after));
+    for (const w of t.writes ?? [])
+      if (w.bytes) await session.writeFile(`${VERIFY.workDir}/${w.path}`, w.bytes);
+      else await session.run(`after-delete-${++step}`, ["rm", "-f", `${VERIFY.workDir}/${w.path}`], { timeoutSec: 60 });
     for (const argv of t.commands) {
       const run = await session.run(`after-lock-${++step}`, argv, {
         cwd: plan.cwd,
@@ -115,5 +123,6 @@ export async function prepareTransaction(
     break;
   }
   const side = await prepareSide(session, plan, "after", undefined, log);
-  return { side, files, binary, applied };
+  const deleted = (applied.at(-1)?.writes ?? []).filter((w) => w.bytes === null).map((w) => w.path);
+  return { side, files, binary, applied, deleted };
 }

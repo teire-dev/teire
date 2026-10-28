@@ -185,7 +185,8 @@ export async function fixRustDependency(
     tarball: input.tarball,
     project: a.project,
     plan,
-    transaction: cargoTransaction(input.tree, a.project, a.instance, target, removedFeatures),
+    transaction:
+      input.transaction ?? cargoTransaction(input.tree, a.project, a.instance, target, removedFeatures),
     instance: a.instance,
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],

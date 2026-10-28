@@ -279,7 +279,7 @@ export async function fixGoDependency(
     tarball: input.tarball,
     project: a.project,
     plan,
-    transaction: goTransaction(input.tree, a.project, a.instance, targetPath, target),
+    transaction: input.transaction ?? goTransaction(input.tree, a.project, a.instance, targetPath, target),
     instance: a.instance,
     target: targetPath === a.instance.name ? target : `${targetPath} ${target}`,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],

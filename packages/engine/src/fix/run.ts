@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, readlinkSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
@@ -341,6 +341,14 @@ export async function runFix(input: FixInput): Promise<FixRun> {
       writeFileSync(join(input.repoDir, path), content);
       transactionFiles.add(path);
     }
+    // Files the transaction deleted (a lockfile the resolver replaced) leave the worker copy too.
+    for (const path of txn.deleted) {
+      const full = join(input.repoDir, path);
+      if (!existsSync(full)) continue;
+      remember(path);
+      unlinkSync(full);
+      transactionFiles.add(path);
+    }
     // Binary read-backs (bun.lockb) land byte for byte; decoding them as text would corrupt them.
     for (const [path, bytes] of Object.entries(txn.binary)) {
       const full = join(input.repoDir, path);
@@ -353,16 +361,18 @@ export async function runFix(input: FixInput): Promise<FixRun> {
     // What each transaction file held when the transaction landed. A file edited after that (Go's
     // import rewrite is part of the transaction, and the agent then fixes the same file) is code again:
     // sent to the sandbox, reviewed, and listed as a change.
-    const landed = new Map([...transactionFiles].map((p) => [p, read(p)]));
-    const editedSince = (p: string) => transactionFiles.has(p) && read(p) !== landed.get(p);
+    // A deleted file reads as "" here, so it never counts as edited since.
+    const nowText = (p: string) => (existsSync(join(input.repoDir, p)) ? read(p) : "");
+    const landed = new Map([...transactionFiles].map((p) => [p, nowText(p)]));
+    const editedSince = (p: string) => transactionFiles.has(p) && nowText(p) !== landed.get(p);
     const lockfilePath = txn.applied.at(-1)?.lockfilePath ?? input.transaction.lockfilePath;
     const lockfile =
       lockfilePath && transactionFiles.has(lockfilePath)
         ? {
             path: lockfilePath,
             before: originals.get(lockfilePath) ?? "",
-            after: read(lockfilePath),
-            ...lineDiffStats(originals.get(lockfilePath) ?? "", read(lockfilePath)),
+            after: nowText(lockfilePath),
+            ...lineDiffStats(originals.get(lockfilePath) ?? "", nowText(lockfilePath)),
           }
         : null;
     if (txn.applied.length > 1)

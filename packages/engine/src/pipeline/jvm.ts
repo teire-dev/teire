@@ -251,7 +251,7 @@ export async function fixJvmDependency(
     tarball: input.tarball,
     project: a.project,
     plan,
-    transaction: jvmTransaction(input.tree, a.project, a.instance, target),
+    transaction: input.transaction ?? jvmTransaction(input.tree, a.project, a.instance, target),
     instance: a.instance,
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],

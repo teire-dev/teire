@@ -235,7 +235,7 @@ export async function fixPyDependency(
     tarball: input.tarball,
     project: a.project,
     plan,
-    transaction: pyTransaction(input.tree, a.project, a.instance, target, hashes),
+    transaction: input.transaction ?? pyTransaction(input.tree, a.project, a.instance, target, hashes),
     instance: a.instance,
     target,
     findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
