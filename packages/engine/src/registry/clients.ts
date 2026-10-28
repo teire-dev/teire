@@ -180,6 +180,11 @@ export interface RegistryOptions {
   now?: Date;
   /** Cap one package's target (D103): the version dependabot-core's updater resolved it to, and why. */
   targetMax?: { name: string; version: string; reason: string };
+  /**
+   * The lowest fixed version for one package's security target: the lowest fix dependabot-core's
+   * updater could resolve, when that is above the lowest one published.
+   */
+  targetFloor?: { name: string; version: string };
   /** Majors below the newest to target (D71: one lower after two failed verifications). */
   fallbackMajors?: number;
 }

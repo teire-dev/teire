@@ -324,7 +324,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
         `**Why ${run.target}, not ${input.fallbackFrom.version}.** Teire tried ${input.fallbackFrom.version} first; the repo's checks still failed after the agent's attempts (${sanitizeUpstream(input.fallbackFrom.reason, null)}), so this PR moves to the newest version of the previous major.`,
       );
     if (input.targetMax?.name === instance.name)
-      out.push(`**Why ${run.target}, not newer.** ${sanitizeUpstream(input.targetMax.reason, null)}.`);
+      out.push(`**Why ${run.target}.** ${sanitizeUpstream(input.targetMax.reason, null)}.`);
 
     // Why this repo
     const sites = input.summary.breaking.flatMap((f) => f.callSites.map((s) => ({ s, f })));

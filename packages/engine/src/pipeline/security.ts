@@ -58,7 +58,10 @@ export async function securityAssessments<P extends AssessedProject>(
     const fixes = records
       .map((r) => chooseFixedTarget(info, instance.version ?? "", r.applicability.fixedIn, policy, scheme))
       .flatMap((d) => (d.kind === "upgrade" ? [d.to] : []));
-    const required = fixes.sort((x, y) => scheme.compare(y, x))[0];
+    const highest = fixes.sort((x, y) => scheme.compare(y, x))[0];
+    // The updater's lowest resolvable fix, when it is above the lowest published one, is the floor.
+    const floor = options.targetFloor?.name === instance.name ? options.targetFloor.version : undefined;
+    const required = floor && (!highest || scheme.compare(floor, highest) > 0) ? floor : highest;
     const decision: TargetDecision = required
       ? chooseFixedTarget(info, instance.version, [required], policy, scheme)
       : { kind: "blocked", from: instance.version, reason: "no fixed version is published", skipped: [] };

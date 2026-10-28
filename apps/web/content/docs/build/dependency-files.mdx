@@ -43,7 +43,8 @@ There is no silent fallback. For an ecosystem that has moved to the updater:
 | What came back | What Teire does |
 |---|---|
 | A change at the target | Applies it, then runs the [verification](/docs/build/verification) |
-| A change below the target | Makes that version the target, compares its API again, and the PR opens with **Why X, not newer** quoting the reason |
+| A change below the target | Makes that version the target, compares its API again, and the PR opens with **Why X** quoting the reason |
+| A security fix above the lowest published one | The lowest published fix doesn't resolve in this repository, so the updater's lowest fix becomes the target, as Dependabot's own security update would; the PR says why |
 | A named stop | Opens one issue for the package, quoting the updater's words. The next pull request for that package closes it |
 | Nothing to change | Ends the run with the reason |
 | The updater is unreachable | Waits 15 minutes and tries again, up to three times, then stops with an issue |

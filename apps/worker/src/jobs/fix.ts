@@ -229,7 +229,7 @@ async function resolverTransactionFor(
   config: TeireConfig,
   tree: RepoTree,
   common: Common,
-): Promise<Transaction | { cap: { version: string; reason: string } } | null> {
+): Promise<Transaction | { cap: { version: string; reason: string; floor?: boolean } } | null> {
   const manager = resolverManager(assessment.project.manager);
   const keep =
     !manager ||
@@ -296,12 +296,13 @@ async function resolverTransactionFor(
     );
   const bare = (v: string | null) => v?.replace(/^v(?=\d)/, "") ?? null;
   if (bare(r.leadVersion) !== bare(target)) {
-    // A security job's lowest resolvable fix differs from Teire's lowest published fix: named, not guessed.
-    if (assessment.purpose === "security")
-      throw new ResolverStopError(
-        "security_fix_differs",
-        `the lowest fix of ${packageName} the updater can resolve is ${r.leadVersion}, not ${target}`,
-      );
+    // A security job's lowest resolvable fix is above the lowest published one (that one doesn't
+    // resolve here): it becomes the target, as Dependabot's own security update would.
+    if (assessment.purpose === "security" && r.leadVersion) {
+      const reason = `${target} is the lowest version that fixes the advisory, but dependabot-core's updater can resolve ${packageName} only from ${r.leadVersion} in this repository`;
+      common.onEvent?.({ step: "transaction", detail: reason });
+      return { cap: { version: r.leadVersion, reason, floor: true } };
+    }
     // D103: below T becomes the target, diffed again; the reason goes on the run and the PR.
     const reason = belowTargetReason(
       ecosystem,
@@ -351,7 +352,7 @@ async function packageOutcome(
   config: TeireConfig,
   token: string | undefined,
   common: Common,
-  cap?: { version: string; reason: string },
+  cap?: { version: string; reason: string; floor?: boolean },
 ): Promise<Outcome | null> {
   // A package group key is `<ecosystem>/<name>/<target>` with the contract's ecosystem names.
   const head = run.groupKey.split("/")[0] ?? "";
@@ -363,7 +364,8 @@ async function packageOutcome(
     cache,
     cooldownDays: config.upgrades.cooldownDays,
     onlyPackage: packageName,
-    ...(cap ? { targetMax: { name: packageName, ...cap } } : {}),
+    ...(cap ? { targetMax: { name: packageName, version: cap.version, reason: cap.reason } } : {}),
+    ...(cap?.floor ? { targetFloor: { name: packageName, version: cap.version } } : {}),
     ...(run.fallbackMajors ? { fallbackMajors: run.fallbackMajors } : {}),
     ...(token ? { githubToken: token } : {}),
     surfaceDiff: (n: string, f: string, t: string) =>
@@ -424,12 +426,13 @@ async function packageOutcome(
   );
   if (resolved && "cap" in resolved) {
     // Once only: the capped run's own job must land on the cap.
-    if (cap) throw new ResolverStopError("below_target", resolved.cap.reason);
+    if (cap)
+      throw new ResolverStopError(resolved.cap.floor ? "fix_moved" : "below_target", resolved.cap.reason);
     const capped = `${run.groupKey.split("/").slice(0, -1).join("/")}/${resolved.cap.version}`;
     const outcome = await packageOutcome(
       ctx,
       repo,
-      { groupKey: capped, targetVersion: resolved.cap.version, fromVersion: run.fromVersion },
+      { ...run, groupKey: capped, targetVersion: resolved.cap.version },
       repoDir,
       tree,
       config,
