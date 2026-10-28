@@ -262,7 +262,7 @@ const DEPENDENCY_FILE = new RegExp(
   ].join("|"),
 );
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * A file the updater may write for this change (review R8, stage R review): the dependency files
@@ -277,7 +277,7 @@ export function isDependencyFile(path: string, change?: { ecosystem?: string; mo
   if (vendor && change?.ecosystem === "go")
     return vendor === "modules.txt" || moved.some((m) => vendor.startsWith(`${m}/`));
   if (vendor && change?.ecosystem === "rubygems")
-    return moved.some((g) => new RegExp(`^cache/${escape(g)}-[^/]+\\.gem$`).test(vendor));
+    return moved.some((g) => new RegExp(`^cache/${escapeRegex(g)}-[^/]+\\.gem$`).test(vendor));
   if (/(?:^|\/)gradle\/wrapper\/gradle-wrapper\.(?:properties|jar)$/.test(path))
     return change?.ecosystem === "maven" && moved.some((m) => /(?:^|:)gradle(?:-wrapper)?$/.test(m));
   return false;
