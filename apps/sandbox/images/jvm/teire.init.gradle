@@ -9,8 +9,13 @@ def toMirror = { RepositoryHandler repos ->
   }
 }
 beforeSettings { settings ->
-  // Plugins published to Central (Kotlin's markers among them) come from the mirror first.
-  settings.pluginManagement.repositories { maven { url = MIRROR; name = "teireCentralMirror" } }
+  // Plugins published to Central (Kotlin's markers among them) come from the mirror first. Gradle
+  // uses the Plugin Portal only while this list is empty, so adding the mirror would drop it: the
+  // portal is added back (plugin markers such as io.spring.dependency-management live only there).
+  settings.pluginManagement.repositories {
+    maven { url = MIRROR; name = "teireCentralMirror" }
+    gradlePluginPortal()
+  }
 }
 settingsEvaluated { settings ->
   toMirror(settings.pluginManagement.repositories)

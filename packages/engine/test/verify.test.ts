@@ -8,6 +8,7 @@ import {
   countsFromOutput,
   decideEvidence,
   detectJsChecks,
+  runnerSegment,
   type SideResult,
 } from "../src/verify";
 
@@ -163,6 +164,29 @@ describe("check commands", () => {
       "typecheck:default:npx --no-install tsc",
       "test:default:npx --no-install jest",
     ]);
+  });
+
+  it("runs the test runner of a script that also lints, with the repo's own flags", () => {
+    const tree = memoryTree({
+      "package.json": JSON.stringify({
+        scripts: { test: "zeit-eslint && jest --forceExit test/integration.test.js" },
+        devDependencies: { jest: "29.7.0" },
+      }),
+      ".github/workflows/ci.yml": "jobs:\n  test:\n    steps:\n      - run: yarn test\n",
+    });
+    const plan = detectJsChecks(tree, project("yarn"));
+    expect(plan.checks).toHaveLength(1);
+    expect(plan.checks[0]?.source).toBe("ci");
+    expect(plan.checks[0]?.argv.slice(0, 5)).toEqual([
+      "yarn",
+      "exec",
+      "jest",
+      "--forceExit",
+      "test/integration.test.js",
+    ]);
+    expect(plan.checks[0]?.argv).toContain("--json");
+    expect(runnerSegment("eslint . && jest && tsc")).toBeNull();
+    expect(runnerSegment("jest --watch")).toBeNull();
   });
 });
 

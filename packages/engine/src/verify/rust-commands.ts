@@ -19,6 +19,13 @@ const OFFLINE_ENV = {
   CARGO_INCREMENTAL: "0",
 };
 
+/**
+ * Where rustup and cargo keep toolchains and the crates the install fetched. exec() does not pass
+ * the image's ENV, so both phases name them: the offline checks must read the cache the install
+ * filled (a fetch into one home and a build from another finds no crates).
+ */
+const HOMES = { RUSTUP_HOME: "/usr/local/rustup", CARGO_HOME: "/usr/local/cargo" };
+
 function ciFeatures(tree: RepoTree) {
   for (const file of tree.files().filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f))) {
     let doc: { jobs?: Record<string, { steps?: { run?: string }[] }> };
@@ -73,14 +80,8 @@ export function detectRustChecks(tree: RepoTree, project: RustProject, sandboxRo
           `rustup toolchain install ${toolchain.version} --profile minimal && cargo fetch --locked`,
         ]
       : ["cargo", "fetch", "--locked"],
-    installEnv: {
-      CARGO_TERM_COLOR: "never",
-      RUSTUP_AUTO_INSTALL: "0",
-      RUSTUP_HOME: "/usr/local/rustup",
-      CARGO_HOME: "/usr/local/cargo",
-      ...rustPath,
-    },
-    env: { ...OFFLINE_ENV, ...rustPath },
+    installEnv: { CARGO_TERM_COLOR: "never", RUSTUP_AUTO_INSTALL: "0", ...HOMES, ...rustPath },
+    env: { ...OFFLINE_ENV, ...HOMES, ...rustPath },
     checks,
     provenOffline: true,
     notes,

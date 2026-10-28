@@ -59,7 +59,7 @@ gradle_cmd() {
 }
 
 resolution_failed() {
-  grep -E "Could not resolve dependencies|Could not transfer artifact|Non-resolvable (parent|import)|Plugin .* could not be resolved|Could not resolve all (files|dependencies)|Could not find [a-z0-9.-]+:|teire: could not resolve|PKIX path building failed|SSLHandshakeException|Could not install Gradle distribution|UnknownHostException|Exception in thread \"main\"|Could not resolve all artifacts|Could not GET|Received status code 4|status code: 4" "$1"
+  grep -E "Could not resolve dependencies|Could not transfer artifact|Non-resolvable (parent|import)|Plugin .* could not be resolved|was not found in any of the following sources|Could not resolve all (files|dependencies)|Could not find [a-z0-9.-]+:|teire: could not resolve|PKIX path building failed|SSLHandshakeException|Could not install Gradle distribution|UnknownHostException|Exception in thread \"main\"|Could not resolve all artifacts|Could not GET|Received status code 4|status code: 4" "$1"
 }
 
 case "${1:-}" in

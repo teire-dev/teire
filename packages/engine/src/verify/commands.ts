@@ -129,6 +129,27 @@ function reporterArgs(script: string, path: string): string[] | null {
   return null;
 }
 
+const RUNNER = /^(?:jest|vitest|mocha|ava|tap|c8|nyc|node\s+--test)(?:\s|$)/;
+const LINT_ONLY = /(lint|eslint|prettier|format|biome|standard|xo)\b/i;
+
+/**
+ * The test runner inside a chained script (`zeit-eslint && jest --forceExit test/integration.test.js`):
+ * lint and format steps are dropped and the runner keeps the repo's own flags and paths (without
+ * them a bare `jest` can wait forever on the servers the tests open). Only `&&` chains of plain
+ * words with exactly one runner qualify.
+ */
+export function runnerSegment(body: string): string[] | null {
+  if (/\|\||[|;<>`$"']/.test(body)) return null;
+  const segments = body
+    .split("&&")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const runners = segments.filter((s) => RUNNER.test(s) && !/--watch|\bwatch\b/.test(s));
+  const rest = segments.filter((s) => !runners.includes(s));
+  if (runners.length !== 1 || !rest.every((s) => LINT_ONLY.test(s))) return null;
+  return (runners[0] as string).split(/\s+/);
+}
+
 /** `run:` lines of the CI jobs that test this project, one command per line (monorepos: its folder's jobs). */
 function ciCommands(tree: RepoTree, root: string): string[] {
   return ciJobsFor(tree, root).flatMap((job) => job.steps.flatMap((step) => runLines(step, root)));
@@ -157,6 +178,19 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
       add({ name, argv: runScript(manager, script, extra ?? []), source, ...(extra ? { reportPath } : {}) });
     } else add({ name, argv: runScript(manager, script), source });
   };
+  /** A test script that also lints: its runner, run directly with the repo's flags. */
+  const runnerCheck = (script: string, source: PlannedCheck["source"]) => {
+    const runner = runnerSegment(scripts[script] ?? "");
+    if (!runner) return;
+    const extra = reporterArgs(runner.join(" "), reportPath);
+    add({
+      name: "test",
+      argv: exec(manager, [...runner, ...(extra ?? [])]),
+      source,
+      ...(extra ? { reportPath } : {}),
+    });
+    notes.push(`test: \`${script}\` also lints; Teire runs its test runner \`${runner.join(" ")}\``);
+  };
 
   // 1. CI: scripts the workflows run through the package manager.
   for (const line of ciCommands(tree, project.root)) {
@@ -167,7 +201,8 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
     if (TYPECHECK_SCRIPTS.includes(script) || /\btsc\b/.test(scripts[script] ?? ""))
       scriptCheck("typecheck", script, "ci");
     else if (/^build/.test(script)) scriptCheck("build", script, "ci");
-    else if (/^test/.test(script) && !SKIP.test(scripts[script] ?? "")) scriptCheck("test", script, "ci");
+    else if (/^test/.test(script))
+      SKIP.test(scripts[script] ?? "") ? runnerCheck(script, "ci") : scriptCheck("test", script, "ci");
   }
 
   // 2. Scripts by convention.
@@ -177,6 +212,7 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
     (s) => s in scripts && !PLACEHOLDER.test(scripts[s] ?? "") && !SKIP.test(scripts[s] ?? ""),
   );
   if (test) scriptCheck("test", test, "script");
+  else for (const s of TEST_SCRIPTS.filter((s) => s in scripts)) runnerCheck(s, "script");
 
   // 3. Defaults.
   if (

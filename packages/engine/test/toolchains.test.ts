@@ -32,6 +32,22 @@ describe("toolchain versions from the repo", () => {
     ).toBe("3.13");
   });
 
+  it("prefers the Python the repo's CI sets up over a pyproject range", () => {
+    const poetry = '[tool.poetry.dependencies]\npython = "^3.8"\n';
+    const step = (version: string) =>
+      `jobs:\n  test:\n    steps:\n      - uses: actions/setup-python@v4\n        with:\n          python-version: ${version}\n`;
+    const single = pythonFor(
+      memoryTree({ "pyproject.toml": poetry, ".github/workflows/ci.yml": step('"3.8"') }),
+      ".",
+    );
+    expect(single).toMatchObject({ version: "3.10", source: "CI setup-python" });
+    expect(single?.note).toContain("CI runs Python 3.8");
+    const matrix = `jobs:\n  test:\n    strategy:\n      matrix:\n        python-version: ["3.9", "3.11"]\n    steps:\n      - uses: actions/setup-python@v5\n        with:\n          python-version: \${{ matrix.python-version }}\n`;
+    expect(
+      pythonFor(memoryTree({ "pyproject.toml": poetry, ".github/workflows/ci.yml": matrix }), ".")?.version,
+    ).toBe("3.11");
+  });
+
   it("reads a rust-toolchain channel", () => {
     expect(
       rustFor(memoryTree({ "rust-toolchain.toml": '[toolchain]\nchannel = "1.75.0"\n' }), ".")?.version,

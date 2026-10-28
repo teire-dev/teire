@@ -3,7 +3,7 @@
  * unchanged commit, in the sandbox, with the repo's own tool versions. A pass means Teire can prove
  * changes there; a failure is an environment stop to fix (or a fork to replace) before any PR.
  * Prints one block per project and a JSON summary line. No GitHub writes, no model calls.
- * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/baseline.ts owner/repo [--ref=<sha>] [--root=<dir>]
+ * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/baseline.ts owner/repo [--ref=<sha>] [--root=<dir>] [--verbose]
  */
 import { randomBytes } from "node:crypto";
 import {
@@ -93,7 +93,8 @@ for (const { ecosystem, root, plan } of plans) {
   });
   try {
     const side = await runSide(session, plan, "baseline", undefined, (line) => console.log(`  ${line}`));
-    if (!side.install.ok) console.log(`install output (tail):\n${side.install.output.slice(-3000)}`);
+    if (!side.install.ok || args.includes("--verbose"))
+      console.log(`install output (tail):\n${side.install.output.slice(-3000)}`);
     for (const c of side.checks.filter((c) => c.exitCode !== 0))
       console.log(`${c.name} output (tail):\n${c.output.slice(-3000)}`);
     const passed = side.install.ok && side.checks.every((c) => c.exitCode === 0);

@@ -28,6 +28,19 @@ use_ruby() {
   ruby -v
 }
 
+# Rubies tried when a repo pins none and the lockfile refuses the image's (newest first; rv builds).
+FALLBACK_RUBIES="3.4.12 3.3.13 3.2.11"
+
+# The Bundler the lockfile was written with (BUNDLED WITH), as Dependabot's helper follows it.
+bundler_from_lock() {
+  [ -f "$LOCK" ] || return 0
+  local bv
+  bv="$(awk '/^BUNDLED WITH/ {getline; gsub(/[[:space:]]/, ""); print; exit}' "$LOCK")"
+  if [ -n "$bv" ] && ! gem list -i bundler -v "$bv" >/dev/null 2>&1; then
+    gem install bundler -v "$bv" --no-document || return $?
+  fi
+}
+
 start_postgres() {
   export PGDATA=/var/lib/teire/pg
   if ! pg_isready -q -h 127.0.0.1 2>/dev/null; then
@@ -68,14 +81,27 @@ case "${1:-}" in
     if [ -f "$LOCK" ] && ! platforms | grep -qE '^(ruby|x86_64-linux)'; then
       bundle lock --add-platform x86_64-linux || exit $?
     fi
-    # The Bundler the lockfile was written with (BUNDLED WITH), as Dependabot's helper follows it.
-    if [ -f "$LOCK" ]; then
-      bv="$(awk '/^BUNDLED WITH/ {getline; gsub(/[[:space:]]/, ""); print; exit}' "$LOCK")"
-      if [ -n "$bv" ] && ! gem list -i bundler -v "$bv" >/dev/null 2>&1; then
-        gem install bundler -v "$bv" --no-document || exit $?
-      fi
+    bundler_from_lock || exit $?
+    # With no pin, the image's Ruby is a guess. When a locked gem refuses it ("minitest-5.20.0
+    # requires ruby version < 4.0, >= 2.6, which is incompatible with the current version"), the
+    # lockfile has said which Rubies it was resolved for: retry on the newest provided one it accepts.
+    out="$(bundle install --jobs 4 2>&1)"; status=$?
+    echo "$out"
+    if [ "$status" -ne 0 ]; then
+      req="$(tr '\n' ' ' <<<"$out" | grep -oE 'requires ruby version [<>=~!]+ ?[0-9][0-9.]*(, [<>=~!]+ ?[0-9][0-9.]*)*' | head -1 | sed 's/^requires ruby version //')"
+      [ -z "${TEIRE_RUBY_VERSION:-}" ] && [ -n "$req" ] || exit "$status"
+      pick=""
+      for v in $FALLBACK_RUBIES; do
+        if ruby -e 'exit Gem::Requirement.new(*ARGV[0].split(", ")).satisfied_by?(Gem::Version.new(ARGV[1]))' "$req" "$v"; then
+          pick="$v"; break
+        fi
+      done
+      [ -n "$pick" ] || { echo "teire-ruby: no provided Ruby satisfies $req"; exit "$status"; }
+      echo "teire-ruby: the lockfile needs Ruby $req; retrying on Ruby $pick"
+      use_ruby "$pick" || exit $?
+      bundler_from_lock || exit $?
+      bundle install --jobs 4 || exit $?
     fi
-    bundle install --jobs 4 || exit $?
     for s in ${TEIRE_SERVICES:+${TEIRE_SERVICES//,/ }}; do "start_$s" || exit $?; done
     if [ -n "${TEIRE_DB_SETUP:-}" ]; then
       echo "teire-ruby: $TEIRE_DB_SETUP"
