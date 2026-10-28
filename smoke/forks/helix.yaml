@@ -1,0 +1,16 @@
+repo: teire-dev/helix
+upstream: nicklaw5/helix
+ecosystem: go
+go: "1.25 directive; GOTOOLCHAIN=auto fetches it"
+baseline:
+  checks: go vet ./... and go test ./... (httptest, offline)
+  expected: pass
+upgrades:
+  - package: github.com/golang-jwt/jwt
+    from: v4.5.2
+    to: v5 latest (research saw v5.3.1)
+    resolver: Dependabot never proposes a Go major (new import path); this is Teire's own Go transaction (D104)
+    bump_alone: compile fails; extension_jwt.go embeds jwt.StandardClaims, which v5 removed for RegisteredClaims
+    teire: affected; import path rewritten to /v5, StandardClaims → RegisteredClaims in extension_jwt.go; ready PR
+providers:
+  - Twitch Helix API, discovered from the code (seen in the first production scan)

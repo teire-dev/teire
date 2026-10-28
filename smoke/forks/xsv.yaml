@@ -1,0 +1,18 @@
+repo: teire-dev/xsv
+upstream: BurntSushi/xsv
+ecosystem: cargo
+rust: no rust-toolchain file; edition 2015 and a 2018-era lockfile on today's stable
+baseline:
+  checks: cargo test (tests run the built binary on fixtures, offline)
+  expected: UNVERIFIED; if it does not build on current stable, replace the fork with diskonaut (named in the plan)
+upgrades:
+  - package: rand
+    from: 0.5.5
+    to: 0.10.x
+    bump_alone: compile fails; src/cmd/sample.rs uses rng.shuffle, gen_range(a, b), StdRng::from_rng(thread_rng())
+    teire: affected; sites in src/cmd/sample.rs; agent fix; ready PR or draft naming the failing check
+  - package: quickcheck
+    from: 0.7.1
+    to: 1.x
+    bump_alone: tests fail to compile; tests/tests.rs uses StdGen and Arbitrary<G: Gen>
+    teire: affected (dev-dependency); sites in tests/tests.rs

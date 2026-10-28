@@ -1,0 +1,27 @@
+repo: teire-dev/devchat
+upstream: devchat-ai/devchat
+ecosystem: pypi
+manager: poetry (poetry.lock)
+python: "^3.8 in pyproject; the sandbox picks the newest Python it has that the range accepts"
+baseline:
+  checks: pytest; ruff is lint and is skipped
+  network: tests/test_cli_prompt.py reads OPENAI_API_KEY and calls the live API, so it fails offline before and after
+  expected: pass except the live-API test, which Teire must mark needs-live-access rather than count against the change
+upgrades:
+  - package: pydantic
+    from: 1.10.16
+    to: newest 2.x that supports the repo's Python range (^3.8 caps it below 2.14, which needs Python 3.10)
+    reason_in_pr: the repo's requires-python, quoted
+    bump_alone: import fails; devchat/_service/config.py does `from pydantic import BaseSettings`
+    teire: affected; BaseSettings moves to pydantic-settings (a new dependency the agent requests), .dict() and .parse_obj() sites migrated
+    pr_mode: draft labelled needs-live-access, never "verified", because one test needs the live API
+  - package: openai
+    from: 1.35.15
+    to: latest major at walk time
+    teire: decided by the surface diff
+  - package: urllib3
+    from: 1.26.20
+    to: 2.x
+    teire: pyproject pins urllib3 <2.0; Teire widens the constraint only if the resolver can resolve it, else a named stop quoting the resolver
+models:
+  - retired model IDs in the code (see the AI section of the research notes) become model-retirement findings

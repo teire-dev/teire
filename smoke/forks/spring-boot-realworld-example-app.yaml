@@ -1,0 +1,20 @@
+repo: teire-dev/spring-boot-realworld-example-app
+upstream: gothinkster/spring-boot-realworld-example-app
+ecosystem: maven (Gradle build)
+java: "source level 11; Gradle wrapper 7.4"
+baseline:
+  checks: ./gradlew test (JUnit 5, SQLite file database, offline after the dependency download)
+  expected: pass on JDK 11 or 17 with the repo's wrapper
+upgrades:
+  - package: org.springframework.boot (plugin and BOM)
+    from: 2.6.3
+    to: 4.x
+    needs: Java 17 and Gradle >= 8 (toolchain co-upgrade, S15.10)
+    bump_alone: compile fails; javax.* imports (about 40 in src/main), WebSecurityConfigurerAdapter and antMatchers removed in Spring Security 6
+    teire_until_s15: a named stop stating the Java and Gradle versions the target needs
+    teire_from_s15: wrapper, toolchain and code migrated in one PR, or a named stop quoting what failed
+  - package: io.jsonwebtoken:jjwt-api
+    from: 0.11.2
+    to: 0.13.x
+    bump_alone: DefaultJwtService uses parserBuilder().setSigningKey(...).parseClaimsJws
+    teire: affected; sites located; agent fix

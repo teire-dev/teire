@@ -11,7 +11,7 @@ case "${1:-install}" in
     check
     install -d /etc/teire-resolver /usr/local/lib/teire-resolver
     install -m 0644 daemon.json /etc/teire-resolver/daemon.json
-    install -m 0755 firewall.sh /usr/local/lib/teire-resolver/firewall.sh
+    install -m 0755 firewall.sh runsc-wrapper.sh /usr/local/lib/teire-resolver/
     install -m 0644 teire-resolver.slice docker-resolver.service /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable --now docker-resolver.service

@@ -1,0 +1,25 @@
+repo: teire-dev/ai-test-reporter
+upstream: ctrf-io/ai-test-reporter
+ecosystem: npm
+manager: npm (package-lock.json)
+baseline:
+  checks: "typecheck: npm run build:check (tsc --noEmit); test: npm test (tsup build, then vitest run)"
+  expected: pass
+models:
+  - id: claude-3-5-sonnet-20240620
+    where: src/index.ts and src/models
+    status: retired by Anthropic on 2025-10-28
+    teire: model-retirement finding; swapped to the replacement Anthropic names; verified PR
+  - id: gemini-pro
+    status: Gemini 1.0 Pro no longer supported (2025-02-18); the alias itself has no shutdown entry
+    teire: finding only if the catalog record names the alias; otherwise not claimed
+  - id: grok-beta, llama-3.1-sonar-small-128k-online
+    status: UNVERIFIED
+    teire: no claim without a catalog record
+providers:
+  - xAI, Mistral, OpenRouter, Perplexity discovered from the code (first production scan)
+upgrades:
+  - package: "@anthropic-ai/sdk"
+    from: 0.133.0
+    to: 1.x
+    teire: decided by the surface diff

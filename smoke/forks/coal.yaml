@@ -1,0 +1,19 @@
+repo: teire-dev/coal
+upstream: locomotivecms/coal
+ecosystem: rubygems
+manager: bundler 2.4.22 (BUNDLED WITH)
+baseline:
+  setup: the lockfile's PLATFORMS lists only x86_64-darwin-22, so the sandbox adds x86_64-linux before a frozen install (S-M16)
+  checks: bundle exec rake spec (rspec, VCR cassettes, webmock, offline)
+  expected: pass
+upgrades:
+  - package: faraday
+    from: 1.10.3
+    to: 2.x latest
+    resolver: the gemspec pins faraday ~> 1.0 and faraday_middleware ~> 1.2; the resolver must widen the gemspec requirement or report it cannot
+    bump_alone: load or spec failures; request.rb uses faraday.basic_auth, FaradayMiddleware::ParseJson, adapter :httpclient, request :multipart; upload_io.rb uses Faraday::UploadIO
+    teire: affected; co-upgrades faraday-multipart and faraday-httpclient (or a named stop), code fixed, gemspec + lock + code in one PR
+  - package: activesupport
+    from: 7.1.2
+    to: 8.x
+    teire: decided by the surface diff
