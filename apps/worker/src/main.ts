@@ -59,6 +59,12 @@ const server = createServer(async (req, res) => {
 /** In the image MIGRATIONS_DIR is an absolute path; in dev it is the db package folder. */
 /** When the worker fails jobs a replaced container left active (after Coolify's overlap window). */
 const STALE_JOB_SWEEP_MS = 3 * 60_000;
+/**
+ * How often failed scan and fix jobs are sent back. key_strict_fifo holds every later job of a
+ * repository behind a failed one, and the handlers never throw, so a failed job only ever means it
+ * expired or a sweep failed it; the run and scan rows decide whether any work is left.
+ */
+const UNBLOCK_MS = 5 * 60_000;
 
 const migrationsDir = process.env.MIGRATIONS_DIR ?? resolve(process.cwd(), "../../packages/db/drizzle");
 
@@ -86,6 +92,22 @@ async function main() {
       if (rows.length) console.log(`[worker] failed ${rows.length} job(s) a previous container left active`);
     })().catch((error) => console.error(`[worker] stale jobs: ${error}`));
   }, STALE_JOB_SWEEP_MS);
+  const unblock = setInterval(() => {
+    void (async () => {
+      const { rows } = await db.execute<{ id: string; name: string }>(sql`
+        select id, name from pgboss.job
+        where name in ('fix', 'scan') and state = 'failed' and created_on > now() - interval '2 days'
+      `);
+      for (const name of new Set(rows.map((r) => r.name)))
+        await boss.retry(
+          name,
+          rows.filter((r) => r.name === name).map((r) => r.id),
+        );
+      if (rows.length)
+        console.log(`[worker] sent ${rows.length} failed job(s) back so their repositories' queues move`);
+    })().catch((error) => console.error(`[worker] unblock: ${error}`));
+  }, UNBLOCK_MS);
+  unblock.unref();
 
   // GitHub App: scans, fixes and the webhook outbox (S02b). Without the App's credentials the
   // worker only answers its health checks.
