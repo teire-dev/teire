@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import YAML from "yaml";
 import type { JvmProject } from "../inventory/jvm";
 import type { RepoTree } from "../inventory/tree";
+import { ciJobsFor } from "./ci";
 import type { CheckPlan, PlannedCheck } from "./commands";
 
 /**
@@ -16,46 +16,31 @@ import type { CheckPlan, PlannedCheck } from "./commands";
  */
 const JDKS_IN_IMAGE = ["17", "21", "25"];
 
-function ciJava(tree: RepoTree) {
-  for (const file of tree.files().filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f))) {
-    let doc: {
-      jobs?: Record<
-        string,
-        {
-          steps?: { uses?: string; with?: Record<string, unknown> }[];
-          strategy?: { matrix?: Record<string, unknown> };
-        }
-      >;
-    };
-    try {
-      doc = (YAML.parse(tree.read(file) ?? "") ?? {}) as typeof doc;
-    } catch {
-      continue;
-    }
-    for (const job of Object.values(doc.jobs ?? {}))
-      for (const step of job.steps ?? []) {
-        if (!step.uses?.startsWith("actions/setup-java")) continue;
-        const v = String(step.with?.["java-version"] ?? "");
-        const matrix = /\$\{\{\s*matrix\.(\w+)\s*\}\}/.exec(v)?.[1];
-        const values = matrix ? (job.strategy?.matrix?.[matrix] as unknown[] | undefined) : undefined;
-        // A matrix: the highest JDK it tests, which is the one most likely to be current.
-        const pick = values?.length ? String(values.map(String).sort((a, b) => Number(b) - Number(a))[0]) : v;
-        const major = /^(\d+)/.exec(pick)?.[1];
-        if (major) return major;
-        const file = step.with?.["java-version-file"];
-        if (typeof file === "string") {
-          const text = tree.read(file)?.trim();
-          const m = text && /(\d+)/.exec(text)?.[1];
-          if (m) return m;
-        }
+function ciJava(tree: RepoTree, root: string) {
+  // The jobs that build this project (a monorepo's folder job), not every workflow's.
+  for (const job of ciJobsFor(tree, root))
+    for (const step of job.steps) {
+      if (!step.uses?.startsWith("actions/setup-java")) continue;
+      const v = String(step.with?.["java-version"] ?? "");
+      const matrix = /\$\{\{\s*matrix\.(\w+)\s*\}\}/.exec(v)?.[1];
+      const values = matrix ? (job.strategy?.matrix?.[matrix] as unknown[] | undefined) : undefined;
+      // A matrix: the highest JDK it tests, which is the one most likely to be current.
+      const pick = values?.length ? String(values.map(String).sort((a, b) => Number(b) - Number(a))[0]) : v;
+      const major = /^(\d+)/.exec(pick)?.[1];
+      if (major) return major;
+      const file = step.with?.["java-version-file"];
+      if (typeof file === "string") {
+        const text = tree.read(file)?.trim();
+        const m = text && /(\d+)/.exec(text)?.[1];
+        if (m) return m;
       }
-  }
+    }
   return null;
 }
 
 /** The JDK the build expects, and where the answer came from. */
 export function javaVersionFor(tree: RepoTree, project: JvmProject): { major: string; source: string } {
-  const ci = ciJava(tree);
+  const ci = ciJava(tree, project.root);
   if (ci) return { major: ci, source: "CI setup-java" };
   const at = (p: string) => (project.root === "." ? p : join(project.root, p));
   const file = tree.read(at(".java-version")) ?? tree.read(".java-version");

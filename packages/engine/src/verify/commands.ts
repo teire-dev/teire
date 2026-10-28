@@ -1,6 +1,6 @@
-import YAML from "yaml";
 import type { JsManager, JsProject } from "../inventory/js";
 import type { RepoTree } from "../inventory/tree";
+import { ciJobsFor, runLines } from "./ci";
 import type { CheckName } from "./evidence";
 import { nodeEnv, nodeFor } from "./toolchains";
 
@@ -129,23 +129,9 @@ function reporterArgs(script: string, path: string): string[] | null {
   return null;
 }
 
-/** `run:` lines of every workflow job, one command per line. */
-function ciCommands(tree: RepoTree): string[] {
-  const out: string[] = [];
-  for (const file of tree.files()) {
-    if (!/^\.github\/workflows\/[^/]+\.ya?ml$/.test(file)) continue;
-    let doc: { jobs?: Record<string, { steps?: { run?: unknown }[] }> };
-    try {
-      doc = YAML.parse(tree.read(file) ?? "") ?? {};
-    } catch {
-      continue;
-    }
-    for (const job of Object.values(doc.jobs ?? {}))
-      for (const step of job.steps ?? [])
-        if (typeof step.run === "string")
-          for (const line of step.run.split("\n")) if (line.trim()) out.push(line.trim());
-  }
-  return out;
+/** `run:` lines of the CI jobs that test this project, one command per line (monorepos: its folder's jobs). */
+function ciCommands(tree: RepoTree, root: string): string[] {
+  return ciJobsFor(tree, root).flatMap((job) => job.steps.flatMap((step) => runLines(step, root)));
 }
 
 export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot = "/work"): CheckPlan {
@@ -173,7 +159,7 @@ export function detectJsChecks(tree: RepoTree, project: JsProject, sandboxRoot =
   };
 
   // 1. CI: scripts the workflows run through the package manager.
-  for (const line of ciCommands(tree)) {
+  for (const line of ciCommands(tree, project.root)) {
     if (SKIP.test(line)) continue;
     const m = /^(?:npm|pnpm|yarn|bun)(?:\s+--?\S+)*\s+(?:run\s+)?([\w:.-]+)/.exec(line);
     const script = m?.[1];

@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import YAML from "yaml";
 import type { RubyProject } from "../inventory/ruby";
 import type { RepoTree } from "../inventory/tree";
+import { ciJobsFor } from "./ci";
 import type { CheckPlan, PlannedCheck } from "./commands";
 
 /**
@@ -46,28 +46,19 @@ function fromCi(tree: RepoTree, root: string) {
     services: new Set<string>(),
     env: {} as Record<string, string>,
   };
-  for (const file of tree.files().filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f))) {
-    let doc: { jobs?: Record<string, Job> };
-    try {
-      doc = (YAML.parse(tree.read(file) ?? "") ?? {}) as typeof doc;
-    } catch {
-      continue;
-    }
-    for (const job of Object.values(doc.jobs ?? {})) {
-      const lines = (job.steps ?? []).flatMap((s) => (s.run ?? "").split("\n").map((l) => l.trim()));
-      const tests = lines.filter((l) => TEST.test(l) && !/system|rubocop|standardrb|brakeman|audit/.test(l));
-      if (!tests.length) continue;
-      // The job that runs the tests: its services, env and database setup.
-      for (const t of tests) if (!found.tests.includes(t)) found.tests.push(t);
-      for (const l of lines.filter((l) => DB_SETUP.test(l)))
-        if (!found.setup.includes(l)) found.setup.push(l);
-      for (const [name, service] of Object.entries(job.services ?? {}))
-        for (const [re, kind] of SERVICE_OF)
-          if (re.test(`${name} ${service.image ?? ""}`)) found.services.add(kind);
-      Object.assign(found.env, plainEnv(job.env));
-      for (const s of job.steps ?? [])
-        if (s.run && TEST.test(s.run.trim())) Object.assign(found.env, plainEnv(s.env));
-    }
+  for (const job of ciJobsFor(tree, root) as unknown as Job[]) {
+    const lines = (job.steps ?? []).flatMap((s) => (s.run ?? "").split("\n").map((l) => l.trim()));
+    const tests = lines.filter((l) => TEST.test(l) && !/system|rubocop|standardrb|brakeman|audit/.test(l));
+    if (!tests.length) continue;
+    // The job that runs the tests: its services, env and database setup.
+    for (const t of tests) if (!found.tests.includes(t)) found.tests.push(t);
+    for (const l of lines.filter((l) => DB_SETUP.test(l))) if (!found.setup.includes(l)) found.setup.push(l);
+    for (const [name, service] of Object.entries(job.services ?? {}))
+      for (const [re, kind] of SERVICE_OF)
+        if (re.test(`${name} ${service.image ?? ""}`)) found.services.add(kind);
+    Object.assign(found.env, plainEnv(job.env));
+    for (const s of job.steps ?? [])
+      if (s.run && TEST.test(s.run.trim())) Object.assign(found.env, plainEnv(s.env));
   }
   if (root !== ".") found.tests = found.tests.filter((t) => !t.includes("cd ") || t.includes(root));
   return found;
