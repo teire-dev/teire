@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { matchesTarget, readTeireConfig, type TeireConfig } from "@teire/engine/config";
 import { RUNS } from "@teire/engine/constants";
-import { type CallSite, type Ecosystem, lineageKey } from "@teire/engine/contract";
+import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
 import type { FixRun, Transaction } from "@teire/engine/fix";
 import {
   branchFor,
@@ -109,6 +109,43 @@ function dependabotCannotParse(tree: RepoTree, project: { manager: string; root:
   return !!version && Number(version) < 6;
 }
 
+/**
+ * The updater's security job from the advisories Teire matched (S15.7). Only affected ranges are
+ * given, since a safe range overrides them in dependabot-core: GitHub's own range where the advisory
+ * has one (the format Dependabot reads), else everything below Teire's lowest published fix.
+ */
+function securityAdvisories(name: string, records: ChangeV2[], target: string) {
+  return records
+    .filter((r) => r.kind === "security-advisory")
+    .map((r) => ({
+      dependencyName: name,
+      affectedVersions: [r.applicability.affectedRange ?? `< ${target}`],
+      patchedVersions: [],
+      unaffectedVersions: [],
+    }));
+}
+
+/**
+ * Why the updater stopped below T (D103), named where the cause is known rather than restated:
+ * Maven keeps a version's qualifier (D-6), so a target that adds or changes one is never taken.
+ */
+function belowTargetReason(
+  ecosystem: Ecosystem,
+  name: string,
+  from: string | null,
+  lead: string | null,
+  target: string,
+  warnings: string[],
+) {
+  const base = `dependabot-core's updater resolves ${name} only up to ${lead}, not ${target}`;
+  const qualifier = (v: string | null) => v?.match(/^[\d.]+([-.]?[A-Za-z].*)?$/)?.[1] ?? "";
+  const cause =
+    ecosystem === "maven" && qualifier(target) !== qualifier(from)
+      ? `it keeps a Maven version's qualifier, and ${target} has "${qualifier(target)}" where ${from} has ${qualifier(from) ? `"${qualifier(from)}"` : "none"}`
+      : null;
+  return [cause ? `${base}: ${cause}` : base, ...warnings].join("; ");
+}
+
 /** The updater refused the upgrade, with its typed reason, quoted on the run and in an issue. */
 class ResolverStopError extends Error {
   constructor(
@@ -195,7 +232,6 @@ async function resolverTransactionFor(
     !manager ||
     !!assessment.instance.aliasName ||
     dependabotCannotParse(tree, assessment.project) ||
-    assessment.purpose === "security" ||
     (ecosystem === "go" && assessment.decision?.kind === "upgrade" && assessment.decision.isMajor);
   if (keep || !manager || !resolverDecides(ecosystem)) return null;
   const roots = [
@@ -217,7 +253,14 @@ async function resolverTransactionFor(
       repo: `${common.repo.owner}/${common.repo.repo}`,
       commit: common.repo.baseSha,
       roots,
-      shape: { kind: "version", dependency: packageName, target },
+      shape:
+        assessment.purpose === "security"
+          ? {
+              kind: "security",
+              dependency: packageName,
+              advisories: securityAdvisories(packageName, assessment.records, target),
+            }
+          : { kind: "version", dependency: packageName, target },
       ...options,
       ...(repo.isPrivate ? { repoPrivate: true } : {}),
     },
@@ -234,11 +277,21 @@ async function resolverTransactionFor(
     );
   const bare = (v: string | null) => v?.replace(/^v(?=\d)/, "") ?? null;
   if (bare(r.leadVersion) !== bare(target)) {
+    // A security job's lowest resolvable fix differs from Teire's lowest published fix: named, not guessed.
+    if (assessment.purpose === "security")
+      throw new ResolverStopError(
+        "security_fix_differs",
+        `the lowest fix of ${packageName} the updater can resolve is ${r.leadVersion}, not ${target}`,
+      );
     // D103: below T becomes the target, diffed again; the reason goes on the run and the PR.
-    const reason = [
-      `dependabot-core's updater resolves ${packageName} only up to ${r.leadVersion}, not ${target}`,
-      ...r.warnings,
-    ].join("; ");
+    const reason = belowTargetReason(
+      ecosystem,
+      packageName,
+      assessment.instance.version,
+      r.leadVersion,
+      target,
+      r.warnings,
+    );
     common.onEvent?.({ step: "transaction", detail: reason });
     return r.leadVersion ? { cap: { version: r.leadVersion, reason } } : null;
   }
