@@ -2,15 +2,20 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
+import { memoryTree } from "../src/inventory/tree";
 import {
   buildJob,
   dependabotDirectory,
   guardedPath,
+  jobSettings,
   jobYaml,
   normalisePypi,
   parseEvents,
+  readDependabotConfig,
   resultOf,
+  teireIgnore,
   UnsafePathError,
+  updateFor,
 } from "../src/resolver";
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, "fixtures/resolver", name), "utf8");
@@ -228,5 +233,78 @@ describe("resolver events", () => {
       ["/", "a\0b"],
     ] as const)
       expect(() => guardedPath(dir, name)).toThrow(UnsafePathError);
+  });
+});
+
+describe("dependabot.yml and teire.yml", () => {
+  const yml = `version: 2
+updates:
+  - package-ecosystem: npm
+    directories: ["/", "/apps/*"]
+    schedule: { interval: weekly }
+    ignore:
+      - dependency-name: express
+        versions: [">= 5", "< 4.1"]
+      - dependency-name: "@types/*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      dev:
+        dependency-type: development
+        applies-to: version-updates
+    open-pull-requests-limit: 10
+    commit-message: { prefix: "deps", include: scope }
+    insecure-external-code-execution: allow
+    reviewers: ["octocat"]
+  - package-ecosystem: pip
+    directory: /svc
+multi-ecosystem-groups:
+  all: { schedule: { interval: weekly } }
+`;
+  const tree = memoryTree({ ".github/dependabot.yml": yml });
+
+  it("reads every update entry and reports what it doesn't apply", () => {
+    const config = readDependabotConfig(tree);
+    expect(config.updates).toHaveLength(2);
+    expect(config.updates[0]?.ignore).toEqual([
+      { dependencyName: "express", versionRequirement: ">= 5" },
+      { dependencyName: "express", versionRequirement: "< 4.1" },
+      { dependencyName: "@types/*", updateTypes: ["version-update:semver-major"] },
+    ]);
+    expect(config.updates[0]?.groups).toEqual([
+      { name: "dev", appliesTo: "version-updates", rules: { "dependency-type": "development" } },
+    ]);
+    expect(config.problems.join("\n")).toMatch(/multi-ecosystem-groups/);
+    expect(config.problems.join("\n")).toMatch(/`reviewers` \(npm\) is not applied by Teire yet/);
+    expect(updateFor(config, "pnpm", "apps/web")?.ecosystem).toBe("npm");
+    expect(updateFor(config, "pnpm", "packages/x")).toBeNull();
+    expect(updateFor(config, "uv", "svc")?.ecosystem).toBe("pip");
+  });
+
+  it("lets teire.yml win and says so", () => {
+    const update = updateFor(readDependabotConfig(tree), "npm", ".");
+    const { options, conflicts } = jobSettings(update, {
+      present: true,
+      ignore: ["npm:lodash", "npm/zod/4.6.7", "provider:openai", "npm/x/1.0.0..2.0.0/symbol-removed"],
+      schedule: "daily",
+      pullRequests: {
+        limit: 5,
+        perHour: 2,
+        labels: [],
+        commitMessage: { prefix: "chore" },
+        targetBranch: null,
+      },
+    });
+    expect(options.allowExternalCode).toBe(true);
+    expect(options.commitMessage).toEqual({ prefix: "chore", includeScope: true });
+    expect(options.ignore).toContainEqual({ dependencyName: "lodash" });
+    expect(options.ignore).toContainEqual({ dependencyName: "zod", versionRequirement: "= 4.6.7" });
+    expect(conflicts).toEqual([
+      'commit-message prefix: teire.yml\'s "chore" is used, not dependabot.yml\'s "deps"',
+      "open pull requests: teire.yml's limit of 5 is used, not dependabot.yml's 10",
+    ]);
+    expect(teireIgnore("go/github.com/golang-jwt/jwt/v4")).toEqual({
+      dependencyName: "github.com/golang-jwt/jwt/v4",
+    });
+    expect(teireIgnore("npm/@types/react")).toEqual({ dependencyName: "@types/react" });
   });
 });
