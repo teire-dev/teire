@@ -12,6 +12,7 @@
   "dependencies": {
     "@octokit/webhooks-methods": "6.0.0",
     "@tanstack/react-query": "5.104.2",
+    "@tanstack/react-table": "8.21.3",
     "@tanstack/react-virtual": "3.14.18",
     "@teire/db": "workspace:*",
     "@teire/engine": "workspace:*",

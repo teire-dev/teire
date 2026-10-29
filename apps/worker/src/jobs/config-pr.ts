@@ -1,6 +1,6 @@
-import { type ConfigPrKey, setConfigKey } from "@teire/engine/config";
+import { CONFIG_PR_KEYS, type ConfigPrKey, isValidConfigText, setConfigKey } from "@teire/engine/config";
 import { branchFor, commitToBranch, DEFAULT_CONFIG, openOrUpdatePullRequest } from "@teire/engine/github";
-import type { getRepo } from "../store";
+import { type getRepo, upsertArtifact } from "../store";
 import type { WorkerContext } from "./scan";
 
 type Octokit = Awaited<ReturnType<WorkerContext["gh"]["installation"]>>["octokit"];
@@ -50,6 +50,9 @@ export async function configPr(
   if (kind === "starter-config-pr") {
     if (current?.trim() === DEFAULT_CONFIG.trim())
       return { status: "done", result: `${path} is already Teire's starter` };
+    // The starter replaces only a missing or broken file (U3 review): a valid one keeps its settings.
+    if (current !== null && isValidConfigText(current))
+      return { status: "refused", result: `${path} is valid; change a setting instead of replacing it` };
     text = DEFAULT_CONFIG;
     title = current === null ? `Add Teire's starter ${path}` : `Replace ${path} with Teire's starter`;
     branchKey = "config/starter";
@@ -61,7 +64,12 @@ export async function configPr(
     if (!edited.changed && current !== null)
       return { status: "done", result: `${key} is already ${String(params.value)} in ${path}` };
     text = edited.text;
-    title = `Set ${key} to ${String(params.value)} in ${path}`;
+    const shown = String(params.value).trim();
+    const entries = shown.split(/[\n,]/).filter((x) => x.trim()).length;
+    title =
+      CONFIG_PR_KEYS[key].kind === "list"
+        ? `Set ${key} (${entries} ${entries === 1 ? "entry" : "entries"}) in ${path}`
+        : `Set ${key} to ${shown} in ${path}`;
     branchKey = `config/${key}`;
   }
   const branch = branchFor(branchKey);
@@ -87,12 +95,32 @@ export async function configPr(
       `@${login} asked for this from the Teire dashboard.`,
       kind === "starter-config-pr"
         ? `It ${current === null ? "adds" : "replaces"} \`${path}\` with Teire's starter: every key at its default, each one commented.`
-        : `It sets \`${String(params.key)}\` to \`${String(params.value)}\` in \`${path}\`; the rest of the file, its comments included, is unchanged, and the result is checked against [the schema](https://teire.vercel.app/schema.json).`,
+        : `It sets \`${String(params.key)}\` to ${
+            CONFIG_PR_KEYS[params.key as ConfigPrKey].kind === "list"
+              ? String(params.value)
+                  .split(/[\n,]/)
+                  .map((x) => x.trim())
+                  .filter(Boolean)
+                  .map((x) => `\`${x}\``)
+                  .join(", ") || "an empty list"
+              : `\`${String(params.value)}\``
+          } in \`${path}\`. The other keys and the comments are kept (YAML spacing may be tidied), and the result is checked against [the schema](https://teire.vercel.app/schema.json).`,
       "Merging it is what changes the setting: Teire reads the file at the next scan.",
       `<sub>Commit ${commit.oid.slice(0, 7)}.</sub>`,
     ].join("\n\n"),
     draft: false,
     labels: ["teire"],
+  });
+  // Recorded so the repository's Pull requests tab lists it and its close or merge is kept.
+  await upsertArtifact(ctx.db, {
+    repoId: repo.id,
+    kind: "config",
+    changeKey: branchKey,
+    number: pr.number,
+    branch,
+    headSha: commit.oid,
+    state: "open",
+    url: pr.url,
   });
   return {
     status: "done",

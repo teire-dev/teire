@@ -51,6 +51,21 @@ export const userInstallations = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.installationId] })],
 );
 
+/**
+ * The repositories a signed-in person can access inside each installation (U3 review), from GitHub with
+ * their own token. A private repository's data is shown only to people listed here.
+ */
+export const userRepos = pgTable(
+  "user_repos",
+  {
+    userId: text("user_id").notNull(),
+    repoId: githubId("repo_id").notNull(),
+    installationId: githubId("installation_id").notNull(),
+    refreshedAt: timestamp("refreshed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.repoId] }), index("user_repos_repo_idx").on(t.repoId)],
+);
+
 export type RepoStatus = "detected" | "onboarding" | "active" | "paused" | "disabled";
 
 /** A repository Teire knows about. The id is GitHub's repository id. Public-scan repos have no installation. */
@@ -410,7 +425,8 @@ export const resolverResults = pgTable(
   (t) => [index("resolver_results_repo_idx").on(t.repoId)],
 );
 
-export type ArtifactKind = "pr" | "issue" | "dashboard" | "onboarding";
+/** `config`: a teire.yml pull request asked for from the dashboard (U3), not a fix; it has no lineage. */
+export type ArtifactKind = "pr" | "issue" | "dashboard" | "onboarding" | "config";
 
 /** Every GitHub object Teire creates. `changeKey` is '' for per-repo artifacts so uniqueness holds. */
 export const artifacts = pgTable(

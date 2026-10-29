@@ -1,6 +1,7 @@
 import type { ScanUpgrade } from "@teire/db";
 import { inArray, runs } from "@teire/db";
 import { type ActionKind, describeAction } from "@teire/engine/actions";
+import { CONFIG_PR_KEYS } from "@teire/engine/config-keys";
 import { lineageKey } from "@teire/engine/contract";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -16,13 +17,16 @@ import { FindingGroupCard } from "@/components/findings/finding-group";
 import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { ago, RunRowItem } from "@/components/teire/run-row";
 import { StatusChip } from "@/components/teire/status-chip";
-import { myScope } from "@/lib/app-shell";
 import { ecosystemOf } from "@/lib/brands";
 import { repoDetailCached } from "@/lib/dashboard";
 import { bucketGroups, groupFindings } from "@/lib/findings";
+import { configCurrent } from "@/lib/fix-mode";
 import { providerLogo } from "@/lib/logos";
 import { getSession } from "@/lib/session";
-import { rowsOf } from "@/lib/workspace";
+import { rowsOf, type Scope } from "@/lib/workspace";
+
+/** What the repository's Activity tab shows (the latest actions; dashboard.ts reads this many). */
+const ACTIVITY_SHOWN = 40;
 
 const TABS = ["findings", "prs", "runs", "inventory", "providers", "config", "activity"] as const;
 type Tab = (typeof TABS)[number];
@@ -52,6 +56,17 @@ export default function RepoTabPage(props: PageProps<"/app/repos/[owner]/[repo]/
 }
 
 type Data = NonNullable<Awaited<ReturnType<typeof repoDetailCached>>>;
+
+/**
+ * The repository's own installation, whichever one the switcher shows (U3 review): the page was
+ * authorized for this repository, so its tabs read it there.
+ */
+const repoScope = (data: Data, userId: string): Scope => ({
+  installationId: data.repo.installationId,
+  account: null,
+  publicOnly: false,
+  userId,
+});
 
 async function TabBody({ params, searchParams }: PageProps<"/app/repos/[owner]/[repo]/[tab]">) {
   await connection();
@@ -112,9 +127,9 @@ async function Findings({
 }) {
   const { repo, scan, fixMode } = data;
   // Each group's proof chain: its newest run (plan revision 3.3, "the proof chain on every finding").
-  const mine = await myScope(userId);
+  const mine = { scope: repoScope(data, userId) };
   const latest = new Map<string, Awaited<ReturnType<typeof rowsOf>>[number]>();
-  if (mine && data.runs.length)
+  if (data.runs.length)
     for (const r of await rowsOf(
       mine.scope,
       inArray(
@@ -336,12 +351,18 @@ async function Findings({
 }
 
 async function Prs({ data, fullName, userId }: { data: Data; fullName: string; userId: string }) {
-  const mine = await myScope(userId);
+  const mine = { scope: repoScope(data, userId) };
   const ids = data.artifacts.map((a) => a.runId).filter((x): x is string => !!x);
-  const rows = mine && ids.length ? await rowsOf(mine.scope, inArray(runs.id, ids), ids.length) : [];
+  const rows = ids.length ? await rowsOf(mine.scope, inArray(runs.id, ids), ids.length) : [];
   const byRun = new Map(rows.map((r) => [r.id, r]));
   const label = (kind: string) =>
-    kind === "issue" ? "Issue" : kind === "onboarding" ? "Onboarding PR" : "PR";
+    kind === "issue"
+      ? "Issue"
+      : kind === "onboarding"
+        ? "Onboarding PR"
+        : kind === "config"
+          ? "Config PR"
+          : "PR";
   const list = [...data.artifacts].sort((a, b) => Number(b.state === "open") - Number(a.state === "open"));
   if (!list.length)
     return (
@@ -396,15 +417,24 @@ async function Prs({ data, fullName, userId }: { data: Data; fullName: string; u
 }
 
 async function Runs({ data, userId }: { data: Data; userId: string }) {
-  const mine = await myScope(userId);
+  const mine = { scope: repoScope(data, userId) };
   const ids = data.runs.map((r) => r.id);
-  const rows = mine && ids.length ? await rowsOf(mine.scope, inArray(runs.id, ids), ids.length) : [];
+  const rows = ids.length ? await rowsOf(mine.scope, inArray(runs.id, ids), ids.length) : [];
   return rows.length ? (
-    <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-      {rows.map((r) => (
-        <RunRowItem key={r.id} row={r} href={`/runs/${r.id}`} />
-      ))}
-    </ul>
+    <div className="flex flex-col gap-2">
+      <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
+        {rows.map((r) => (
+          <RunRowItem key={r.id} row={r} href={`/runs/${r.id}`} />
+        ))}
+      </ul>
+      {/* The newest few here; every run of the repository, paged, on Runs. */}
+      <Link
+        href={`/app/runs?repo=${encodeURIComponent(data.repo.fullName)}`}
+        className="self-end font-mono text-xs text-ink-2 hover:text-ink"
+      >
+        Every run of {data.repo.fullName} →
+      </Link>
+    </div>
   ) : (
     <p className="rounded-xl bg-sheet px-4 py-6 text-center text-sm text-ink-3 shadow-card">No runs yet.</p>
   );
@@ -536,7 +566,7 @@ function Config({ data, fullName }: { data: Data; fullName: string }) {
       ) : null}
       <section className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
         <Heading>Change a setting</Heading>
-        <ConfigPrForm repo={fullName} />
+        <ConfigPrForm repo={fullName} current={configCurrent(config, Object.keys(CONFIG_PR_KEYS))} />
         {!present || problems.length ? (
           <div className="flex items-center justify-between gap-3 border-t border-rule pt-3 text-sm text-ink-2">
             <span>
@@ -580,53 +610,60 @@ function Config({ data, fullName }: { data: Data; fullName: string }) {
 
 function Activity({ data }: { data: Data }) {
   return data.activity.length ? (
-    <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-      {data.activity.map((a) => (
-        <li key={a.id} className="grid gap-1 px-4 py-2.5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
-          <div className="min-w-0">
-            <span className="text-sm text-ink">{describeAction(a.kind as ActionKind, a.params)}</span>{" "}
-            <span className="text-xs text-ink-3">
-              ·{" "}
-              {a.source === "teire"
-                ? "Teire"
-                : a.actor
-                  ? `@${a.actor}`
-                  : a.requester.startsWith("github:")
-                    ? `@${a.requester.slice(7)}`
-                    : "someone signed in"}{" "}
-              ·{" "}
-              {a.source === "web"
-                ? "dashboard"
-                : a.source === "dashboard"
-                  ? "Dashboard issue"
-                  : a.source === "teire"
-                    ? "on its own"
-                    : a.source}
-            </span>
-            {a.result ? <p className="truncate text-xs text-ink-3">{a.result}</p> : null}
-          </div>
-          <div className="flex items-center gap-3 text-xs">
-            {a.links.map((l) => (
-              <a key={l.href} href={l.href} className="text-link hover:underline">
-                {l.label}
-              </a>
-            ))}
-            <StatusChip
-              tone={
-                a.status === "done"
-                  ? "proven"
-                  : a.status === "refused" || a.status === "failed"
-                    ? "broke"
-                    : "signal"
-              }
-            >
-              {a.status}
-            </StatusChip>
-            <span className="font-mono text-ink-3">{ago(a.createdAt)}</span>
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-2">
+      {data.activity.length >= ACTIVITY_SHOWN ? (
+        <p className="font-mono text-xs text-ink-3">
+          The latest {ACTIVITY_SHOWN} actions on this repository.
+        </p>
+      ) : null}
+      <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
+        {data.activity.map((a) => (
+          <li key={a.id} className="grid gap-1 px-4 py-2.5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
+            <div className="min-w-0">
+              <span className="text-sm text-ink">{describeAction(a.kind as ActionKind, a.params)}</span>{" "}
+              <span className="text-xs text-ink-3">
+                ·{" "}
+                {a.source === "teire"
+                  ? "Teire"
+                  : a.actor
+                    ? `@${a.actor}`
+                    : a.requester.startsWith("github:")
+                      ? `@${a.requester.slice(7)}`
+                      : "someone signed in"}{" "}
+                ·{" "}
+                {a.source === "web"
+                  ? "dashboard"
+                  : a.source === "dashboard"
+                    ? "Dashboard issue"
+                    : a.source === "teire"
+                      ? "on its own"
+                      : a.source}
+              </span>
+              {a.result ? <p className="truncate text-xs text-ink-3">{a.result}</p> : null}
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              {a.links.map((l) => (
+                <a key={l.href} href={l.href} className="text-link hover:underline">
+                  {l.label}
+                </a>
+              ))}
+              <StatusChip
+                tone={
+                  a.status === "done"
+                    ? "proven"
+                    : a.status === "refused" || a.status === "failed"
+                      ? "broke"
+                      : "signal"
+                }
+              >
+                {a.status}
+              </StatusChip>
+              <span className="font-mono text-ink-3">{ago(a.createdAt)}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   ) : (
     <p className="rounded-xl bg-sheet px-4 py-6 text-center text-sm text-ink-3 shadow-card">
       Nothing yet. Rescans, fixes, ignores and fix-mode changes show here, whether asked on this page, in a

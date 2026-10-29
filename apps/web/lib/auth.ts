@@ -1,4 +1,4 @@
-import { account, and, eq, session, user, userInstallations, verification } from "@teire/db";
+import { account, and, asc, eq, session, user, userInstallations, userRepos, verification } from "@teire/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -59,10 +59,67 @@ export async function refreshInstallations(userId: string) {
   });
   if (!res.ok) return;
   const { installations } = (await res.json()) as { installations: { id: number }[] };
-  await db.delete(userInstallations).where(eq(userInstallations.userId, userId));
-  if (installations.length)
-    await db
-      .insert(userInstallations)
-      .values(installations.map((i) => ({ userId, installationId: i.id, refreshedAt: new Date() })))
-      .onConflictDoNothing();
+  // Inside each installation, the repositories this person can access (U3 review): an organisation
+  // member may see the installation without access to every private repository in it.
+  const repoIds = new Map<number, number[]>();
+  for (const i of installations) {
+    const ids: number[] = [];
+    for (let page = 1; page <= ACCESS_PAGES; page++) {
+      const r = await fetch(
+        `https://api.github.com/user/installations/${i.id}/repositories?per_page=100&page=${page}`,
+        {
+          headers: {
+            authorization: `Bearer ${row.token}`,
+            accept: "application/vnd.github+json",
+            "x-github-api-version": "2022-11-28",
+          },
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      // An answer GitHub didn't give keeps the last known access rather than granting any.
+      if (!r.ok) return;
+      const body = (await r.json()) as { repositories: { id: number }[]; total_count: number };
+      ids.push(...body.repositories.map((x) => x.id));
+      if (ids.length >= body.total_count || !body.repositories.length) break;
+    }
+    repoIds.set(i.id, ids);
+  }
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx.delete(userInstallations).where(eq(userInstallations.userId, userId));
+    await tx.delete(userRepos).where(eq(userRepos.userId, userId));
+    if (installations.length)
+      await tx
+        .insert(userInstallations)
+        .values(installations.map((i) => ({ userId, installationId: i.id, refreshedAt: now })))
+        .onConflictDoNothing();
+    const rows = [...repoIds].flatMap(([installationId, ids]) =>
+      ids.map((repoId) => ({ userId, repoId, installationId, refreshedAt: now })),
+    );
+    for (let i = 0; i < rows.length; i += 500)
+      await tx
+        .insert(userRepos)
+        .values(rows.slice(i, i + 500))
+        .onConflictDoNothing();
+  });
+}
+
+/** Pages of 100 repositories read per installation (10 000 repositories). */
+const ACCESS_PAGES = 100;
+/** What GitHub said a person can access is read again after this long (plan: ten minutes). */
+const ACCESS_FRESH_MS = 10 * 60_000;
+
+/**
+ * Re-reads this person's installations and repositories from GitHub when the last read is older than
+ * ten minutes, before a page shows private repository data. A failed read keeps the last answer.
+ */
+export async function freshAccess(userId: string) {
+  const [last] = await database()
+    .select({ at: userInstallations.refreshedAt })
+    .from(userInstallations)
+    .where(eq(userInstallations.userId, userId))
+    .orderBy(asc(userInstallations.refreshedAt))
+    .limit(1);
+  if (!last || Date.now() - last.at.getTime() > ACCESS_FRESH_MS)
+    await refreshInstallations(userId).catch((error) => console.warn("[auth] access", error));
 }

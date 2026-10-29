@@ -2,12 +2,8 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { BulkFixMode } from "@/components/app/bulk-fix-mode";
-import { FixModeControl } from "@/components/app/fix-mode-control";
-import { MarkStack } from "@/components/teire/mark";
-import { ago } from "@/components/teire/run-row";
-import { StatusChip } from "@/components/teire/status-chip";
+import { ReposTable } from "@/components/app/repos-table";
 import { myScope } from "@/lib/app-shell";
-import { languageMarks } from "@/lib/marks";
 import { getSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { type RepoListRow, reposOf } from "@/lib/workspace";
@@ -87,7 +83,7 @@ async function Repos({ searchParams }: { searchParams: PageProps<"/app/repos">["
   const shown = rows.filter((r) => {
     const s = stateOf(r).label;
     if (q && !r.fullName.toLowerCase().includes(q)) return false;
-    if (state === "active" && s !== "Active") return false;
+    if (state === "active" && r.status !== "active") return false;
     if (state === "onboarding" && s !== "Onboarding") return false;
     if (state === "paused" && r.status !== "paused") return false;
     if (state === "working" && !r.live) return false;
@@ -115,18 +111,6 @@ async function Repos({ searchParams }: { searchParams: PageProps<"/app/repos">["
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <form action="/app/repos" className="flex">
-            {Object.entries({ state, mode, more, eco }).map(([k, v]) =>
-              v && v !== "all" ? <input key={k} type="hidden" name={k} value={v} /> : null,
-            )}
-            <input
-              name="q"
-              defaultValue={q}
-              placeholder="Search repositories"
-              aria-label="Search repositories"
-              className="h-8 w-56 rounded-md bg-sheet px-2.5 text-sm ring-1 ring-rule ring-inset outline-none focus-visible:ring-signal"
-            />
-          </form>
           <BulkFixMode repos={shown.map((r) => r.fullName)} />
         </div>
       </div>
@@ -170,83 +154,20 @@ async function Repos({ searchParams }: { searchParams: PageProps<"/app/repos">["
         ) : null}
       </nav>
       {shown.length ? (
-        <div className="overflow-x-auto rounded-xl bg-sheet shadow-card">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead>
-              <tr className="border-b border-rule text-left">
-                {["Repository", "Fix mode", "State", "Reaching code", "Open PRs", "Needs you", "Scanned"].map(
-                  (h) => (
-                    <th key={h} scope="col" className="eyebrow px-4 py-2.5 font-normal">
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-rule">
-              {shown.map((r) => {
-                const s = stateOf(r);
-                return (
-                  <tr key={r.id} className="hover:bg-hover">
-                    <td className="px-4 py-2.5">
-                      <Link href={`/app/repos/${r.fullName}`} className="flex min-w-0 items-center gap-2">
-                        <MarkStack brands={languageMarks(r.languages)} />
-                        <span className="truncate font-mono text-xs text-ink hover:underline">
-                          {r.fullName}
-                        </span>
-                        {r.isPrivate ? <span className="text-[10px] text-ink-3">private</span> : null}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2">
-                      <FixModeControl
-                        repo={r.fullName}
-                        mode={r.fixMode.mode}
-                        origin={r.fixMode.origin}
-                        file={r.fixMode.file}
-                      />
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span className="flex flex-col gap-0.5">
-                        <StatusChip tone={s.tone}>{s.label}</StatusChip>
-                        {s.why ? <span className="text-[11px] text-ink-3">{s.why}</span> : null}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs tabular-nums">
-                      <Link
-                        href={`/app/repos/${r.fullName}/findings`}
-                        className={r.affected ? "text-ink" : "text-ink-3"}
-                      >
-                        {r.affected}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs tabular-nums">
-                      <Link
-                        href={`/app/repos/${r.fullName}/prs`}
-                        className={r.openPrs ? "text-ink" : "text-ink-3"}
-                      >
-                        {r.openPrs}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs tabular-nums">
-                      <Link
-                        href={`/app/runs?show=needs-you&repo=${encodeURIComponent(r.fullName)}`}
-                        className={r.needsYou ? "text-attention" : "text-ink-3"}
-                      >
-                        {r.needsYou}
-                      </Link>
-                    </td>
-                    <td
-                      className="px-4 py-2.5 font-mono text-[11px] text-ink-3"
-                      title={r.lastScannedAt?.toISOString()}
-                    >
-                      {r.lastScannedAt ? ago(r.lastScannedAt) : "not yet"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ReposTable
+          rows={shown.map((r) => ({
+            id: r.id,
+            fullName: r.fullName,
+            isPrivate: r.isPrivate,
+            languages: langs(r),
+            fixMode: { mode: r.fixMode.mode, origin: r.fixMode.origin, file: r.fixMode.file },
+            state: stateOf(r),
+            affected: r.affected,
+            openPrs: r.openPrs,
+            needsYou: r.needsYou,
+            lastScannedAt: r.lastScannedAt?.toISOString() ?? null,
+          }))}
+        />
       ) : (
         <p className="rounded-xl bg-sheet px-4 py-10 text-center text-sm text-ink-3 shadow-card">
           No repository matches.{" "}

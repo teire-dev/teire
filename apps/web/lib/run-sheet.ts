@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   and,
   artifacts,
@@ -12,6 +13,7 @@ import {
   sandboxExecs,
   sql,
   userInstallations,
+  userRepos,
   webhookDeliveries,
 } from "@teire/db";
 import { maskSecrets } from "@teire/engine/redact";
@@ -61,6 +63,8 @@ export interface RunSheetData {
     error: string | null;
     costUsd: string;
     diff: string | null;
+    /** The diff's MD5, echoed by the poll so a tick sends the diff only when it changed. */
+    diffHash: string;
     cancelledBy: string | null;
     startedAt: string | null;
     finishedAt: string | null;
@@ -206,7 +210,10 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
       backend: run.backend,
       error: run.error ? maskSecrets(run.error) : null,
       costUsd: run.costUsd,
-      diff: run.diff,
+      diff: run.diff ? maskSecrets(run.diff) : null,
+      diffHash: createHash("md5")
+        .update(run.diff ?? "", "utf8")
+        .digest("hex"),
       cancelledBy: run.cancelledBy,
       startedAt: iso(run.startedAt),
       finishedAt: iso(run.finishedAt),
@@ -253,7 +260,7 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
       createdAt: c.createdAt.toISOString(),
     })),
     reach: reach.get(reachKey(repo.id, run.groupKey)) ?? { sites: null, advisory: false },
-    preview: (preview?.payload as RunSheetData["preview"]) ?? null,
+    preview: masked((preview?.payload as RunSheetData["preview"]) ?? null),
     report: report?.id ?? null,
     member,
   };
@@ -290,16 +297,18 @@ const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 export async function runSheetTick(
   id: string,
   after: number,
-  diffLength: number,
+  diffHash: string,
 ): Promise<RunSheetTick | null> {
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const db = database();
   const { rows } = await db.execute<{ sheet: Row }>(sql`
     select json_build_object(
       'run', to_jsonb(r) - 'diff' || jsonb_build_object(
-        'diff', case when coalesce(length(r.diff), 0) = ${diffLength} then null else r.diff end,
-        'diff_changed', coalesce(length(r.diff), 0) <> ${diffLength}),
+        'diff', case when md5(coalesce(r.diff, '')) = ${diffHash} then null else r.diff end,
+        'diff_hash', md5(coalesce(r.diff, '')),
+        'diff_changed', md5(coalesce(r.diff, '')) <> ${diffHash}),
       'is_private', p.is_private,
+      'repo_id', p.id,
       'installation_id', p.installation_id,
       'artifact', (
         select to_jsonb(a) from artifacts a
@@ -323,13 +332,15 @@ export async function runSheetTick(
   if (sheet.is_private) {
     const session = await auth().api.getSession({ headers: await headers() });
     if (!session || !sheet.installation_id) return null;
+    // The person's own access to this private repository (U3 review), as on the first read.
     const [member] = await db
-      .select({ id: userInstallations.installationId })
-      .from(userInstallations)
+      .select({ id: userRepos.repoId })
+      .from(userRepos)
       .where(
         and(
-          eq(userInstallations.userId, session.user.id),
-          eq(userInstallations.installationId, Number(sheet.installation_id)),
+          eq(userRepos.userId, session.user.id),
+          eq(userRepos.repoId, Number(sheet.repo_id)),
+          eq(userRepos.installationId, Number(sheet.installation_id)),
         ),
       )
       .limit(1);
@@ -352,7 +363,8 @@ export async function runSheetTick(
       backend: str(r.backend),
       error: r.error ? maskSecrets(String(r.error)) : null,
       costUsd: String(r.cost_usd ?? "0"),
-      ...(r.diff_changed ? { diff: str(r.diff) } : {}),
+      ...(r.diff_changed ? { diff: r.diff ? maskSecrets(String(r.diff)) : null } : {}),
+      diffHash: String(r.diff_hash),
       cancelledBy: str(r.cancelled_by),
       startedAt: iso(r.started_at),
       finishedAt: iso(r.finished_at),

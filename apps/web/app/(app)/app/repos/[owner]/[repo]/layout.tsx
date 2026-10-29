@@ -1,4 +1,6 @@
+import { maskSecrets } from "@teire/engine/redact";
 import { ExternalLink, Lock } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -83,6 +85,9 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
           <ActionButton kind={repo.status === "paused" ? "resume" : "pause"} repo={fullName}>
             {repo.status === "paused" ? "Resume Teire here" : "Pause Teire here"}
           </ActionButton>
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`${base}/findings#ignored`}>Show ignores</Link>
+          </Button>
           <Button asChild variant="outline" size="sm">
             <a href={`https://github.com/${fullName}`}>
               GitHub <ExternalLink data-icon="inline-end" aria-hidden />
@@ -90,6 +95,19 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
           </Button>
         </div>
       </div>
+      {data.suspended ? (
+        <p className="rounded-lg bg-attention-soft px-4 py-2 text-sm text-attention">
+          The installation is suspended on GitHub: Teire scans nothing and opens nothing here until it is
+          unsuspended.
+        </p>
+      ) : null}
+      {data.latestScan?.status === "failed" ? (
+        <p className="rounded-lg bg-broke-soft px-4 py-2 text-sm text-broke">
+          The last scan failed
+          {data.latestScan.error ? `: ${maskSecrets(data.latestScan.error).slice(0, 300)}` : ""}. What shows
+          below is from the last scan that finished; Rescan tries again.
+        </p>
+      ) : null}
       <FixModeControl repo={fullName} mode={fixMode.mode} origin={fixMode.origin} file={fixMode.file} />
       <RepoTabs
         base={base}

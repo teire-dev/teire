@@ -10,7 +10,7 @@ export async function GET() {
   if (!session) return Response.json({ live: [] }, { status: 401 });
   const { current } = await currentInstallation(session.user.id);
   return Response.json(
-    { live: current ? await liveRepos(current.id) : [] },
+    { live: current ? await liveRepos(current.id, session.user.id) : [] },
     { headers: { "cache-control": "no-store" } },
   );
 }

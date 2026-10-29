@@ -19,6 +19,7 @@ import {
   fitBody,
   forGitHub,
   openOrUpdatePullRequest,
+  PullRequestMovedError,
   publishCheckRun,
   setPullRequestEvidence,
 } from "@teire/engine/github";
@@ -508,6 +509,15 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
       number: pr.number,
       evidence: evidence.kind,
       keepStale: !merge,
+      expect: { head, ...(merge ? { base: merge.base } : {}) },
+    }).catch((error: unknown) => {
+      // The PR moved between the last read and this write: its check run stands for the checked
+      // commit; nothing else on the PR changes.
+      if (error instanceof PullRequestMovedError)
+        throw new Error(
+          `${error.message} during the check; the check run stands for ${head.slice(0, 7)}, nothing else changed. Re-verify again`,
+        );
+      throw error;
     });
     const flipped = state.draft === state.was ? "" : state.draft ? " Now a draft." : " Ready for review.";
     await holdLease();

@@ -85,7 +85,12 @@ async function Changes() {
                         {left < 0 ? `passed ${-left} d ago` : `${left} d left`}
                       </StatusChip>
                     ) : null}
-                    <FixInAll title={c.title} reaches={c.reaches} />
+                    <FixInAll
+                      title={c.title}
+                      changeId={c.id}
+                      installationId={mine.installation.id}
+                      reaches={c.reaches}
+                    />
                   </div>
                 </div>
                 <ul className="flex flex-wrap gap-2">
@@ -101,7 +106,11 @@ async function Changes() {
                             ? `#${r.plan.number}`
                             : r.plan.kind === "off"
                               ? "fixes off"
-                              : `${r.sites} site${r.sites === 1 ? "" : "s"}`}
+                              : r.plan.kind === "paused"
+                                ? "paused"
+                                : r.plan.kind === "running"
+                                  ? "running"
+                                  : `${r.sites} site${r.sites === 1 ? "" : "s"}`}
                         </span>
                       </Link>
                     </li>

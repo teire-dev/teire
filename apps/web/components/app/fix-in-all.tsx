@@ -14,15 +14,25 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { ChangeReach } from "@/lib/workspace";
-import { runActions } from "./run-action";
+import { runAction } from "./run-action";
 
 /**
  * Fix in all (plan revision 3.3, U3; Sourcegraph's preview before a batch): each repository the
  * change reaches, with what Fix now does there, shown before anything starts; Confirm sends one Fix
  * now per repository that would start a run, each checked by the worker for write access and fix
- * mode, each with its own result.
+ * mode, all in one action whose result is a receipt per repository.
  */
-export function FixInAll({ title, reaches }: { title: string; reaches: ChangeReach[] }) {
+export function FixInAll({
+  title,
+  changeId,
+  installationId,
+  reaches,
+}: {
+  title: string;
+  changeId: string;
+  installationId: number;
+  reaches: ChangeReach[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -51,16 +61,20 @@ export function FixInAll({ title, reaches }: { title: string; reaches: ChangeRea
                 className={
                   r.plan.kind === "run"
                     ? "text-xs text-signal"
-                    : r.plan.kind === "open"
+                    : r.plan.kind === "open" || r.plan.kind === "running"
                       ? "text-xs text-ink-2"
                       : "text-xs text-ink-3"
                 }
               >
                 {r.plan.kind === "run"
-                  ? "starts a run"
+                  ? (r.plan.waits ?? "starts a run")
                   : r.plan.kind === "open"
                     ? `#${r.plan.number} is open`
-                    : `fixes off (${r.plan.why})`}
+                    : r.plan.kind === "running"
+                      ? "a run is already going"
+                      : r.plan.kind === "paused"
+                        ? "Teire is paused here"
+                        : `fixes off (${r.plan.why})`}
               </span>
             </li>
           ))}
@@ -77,10 +91,12 @@ export function FixInAll({ title, reaches }: { title: string; reaches: ChangeRea
             onClick={async () => {
               setBusy(true);
               try {
-                await runActions(
-                  starts.map((r) => ({ kind: "fix", params: { target: r.groupKey }, repo: r.repo })),
-                  `Fix in all: ${title}`,
-                );
+                // One action: the worker starts each repository's run and answers with a receipt per repository.
+                await runAction({
+                  kind: "fix-in-all",
+                  params: { changeId, title, repos: starts.map((r) => r.repo) },
+                  installationId,
+                });
                 setOpen(false);
                 router.refresh();
               } finally {

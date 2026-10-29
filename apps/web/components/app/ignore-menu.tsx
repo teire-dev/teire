@@ -22,6 +22,38 @@ export function IgnoreMenu({ repo, group }: { repo: string; group: string }) {
   const router = useRouter();
   const [head, ...rest] = group.split("/");
   const provider = head === "models" || head === "api" || head === "runtime";
+  // `advisory/<ecosystem>/<package>/<advisory id>` (U3 review): the advisory, or the package's findings.
+  if (head === "advisory") {
+    const name = rest.slice(1, -1).join("/");
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm">
+            Ignore
+            <ChevronDown data-icon="inline-end" aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuLabel className="eyebrow">Ignore</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() =>
+              void runAction({ kind: "ignore", params: { target: group }, repo }).then(() => router.refresh())
+            }
+          >
+            This advisory ({rest.at(-1)})
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() =>
+              void runAction({ kind: "ignore", params: { target: name }, repo }).then(() => router.refresh())
+            }
+          >
+            Everything about {name}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
   const pkg = provider ? null : rest.slice(0, -1).join("/");
   const version = provider ? null : rest.at(-1);
   const choose = async (params: Record<string, unknown>) => {

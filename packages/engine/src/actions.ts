@@ -22,6 +22,7 @@ export const ACTION_KINDS = [
   "open-draft-anyway",
   "config-pr",
   "starter-config-pr",
+  "fix-in-all",
   "feedback",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
@@ -38,7 +39,10 @@ export type ActionStatus =
 export const TERMINAL: ReadonlySet<ActionStatus> = new Set(["done", "refused", "failed"]);
 
 /** Actions on a whole installation rather than one repository (D126: an org admin or the owner). */
-export const INSTALLATION_ACTIONS: ReadonlySet<ActionKind> = new Set(["set-installation-fix-mode"]);
+export const INSTALLATION_ACTIONS: ReadonlySet<ActionKind> = new Set([
+  "set-installation-fix-mode",
+  "fix-in-all",
+]);
 
 /**
  * The action that undoes a done one, when there is one (an undo toast): pause ↔ resume, ignore ↔
@@ -103,6 +107,8 @@ export function describeAction(kind: ActionKind, params: Record<string, unknown>
       return `Open a config PR: ${String(params.key)} = ${String(params.value)}`;
     case "starter-config-pr":
       return "Open a starter config PR";
+    case "fix-in-all":
+      return `Fix in all: ${String(params.title ?? params.changeId)}`;
     case "feedback":
       return "Report a wrong finding";
     default:

@@ -6,10 +6,12 @@ import { RunRowItem } from "@/components/teire/run-row";
 import { myScope } from "@/lib/app-shell";
 import { getSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
-import { NEEDS_YOU, runsOf } from "@/lib/workspace";
+import { countRuns, NEEDS_YOU, runsOf } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "../gate";
 
 export const metadata = { title: "Runs" };
+
+const PAGE = 50;
 
 /** The lists the Overview's sections go to, and the evidence a run ended with (plan revision 3.3, U3). */
 const SHOW = {
@@ -55,18 +57,22 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
   const show = (one("show") ?? "all") as keyof typeof SHOW;
   const evidence = one("evidence");
   const repo = one("repo");
-  const rows = await runsOf(
-    mine.scope,
-    and(
-      (SHOW[show] ?? SHOW.all).where,
-      evidence && evidence in EVIDENCE ? eq(runs.evidenceKind, evidence as keyof typeof EVIDENCE) : undefined,
-      repo ? eq(repos.fullName, repo) : undefined,
-    ),
-    80,
+  const page = Math.max(1, Number(one("page") ?? 1) || 1);
+  const where = and(
+    (SHOW[show] ?? SHOW.all).where,
+    evidence && evidence in EVIDENCE ? eq(runs.evidenceKind, evidence as keyof typeof EVIDENCE) : undefined,
+    repo ? eq(repos.fullName, repo) : undefined,
   );
+  // A page of runs at a time, and how many there are in all (U3 review: "every run" is every run).
+  const [rows, total] = await Promise.all([
+    runsOf(mine.scope, where, PAGE, (page - 1) * PAGE),
+    countRuns(mine.scope, where),
+  ]);
+  const pages = Math.max(1, Math.ceil(total / PAGE));
   const href = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries({ show, evidence, repo, ...patch }))
+    // A filter change starts again at the first page.
+    for (const [k, v] of Object.entries({ show, evidence, repo, page: null, ...patch }))
       if (v && !(k === "show" && v === "all")) next.set(k, v);
     const q = next.toString();
     return `/app/runs${q ? `?${q}` : ""}`;
@@ -77,6 +83,7 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
         <span className="eyebrow">Runs</span>
         <h1 className="heading text-2xl text-ink">
           {SHOW[show]?.label === "All" ? "Every run, newest first" : SHOW[show]?.label}
+          <span className="ml-2 font-mono text-sm text-ink-3">{total}</span>
           {repo ? <span className="text-ink-3"> · {repo.split("/")[1]}</span> : null}
         </h1>
       </div>
@@ -106,7 +113,29 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
             <RunRowItem key={r.id} row={r} href={`/runs/${r.id}`} />
           ))}
         </ul>
-      ) : (
+      ) : null}
+      {rows.length && pages > 1 ? (
+        <nav aria-label="Pages" className="flex items-center justify-between font-mono text-xs text-ink-3">
+          {page > 1 ? (
+            <Link href={href({ page: String(page - 1) })} className="text-ink hover:underline">
+              ← Newer
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span>
+            page {page} of {pages}
+          </span>
+          {page < pages ? (
+            <Link href={href({ page: String(page + 1) })} className="text-ink hover:underline">
+              Older →
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
+      ) : null}
+      {rows.length ? null : (
         <p className="rounded-xl bg-sheet px-4 py-10 text-center text-sm text-ink-3 shadow-card">
           No run matches these filters.{" "}
           <Link href="/app/runs" className="text-link hover:underline">

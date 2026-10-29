@@ -1,4 +1,4 @@
-import { and, desc, eq, repos, scans, userInstallations } from "@teire/db";
+import { and, desc, eq, repos, scans, sql, userInstallations } from "@teire/db";
 import { CheckCircle2, Loader } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -78,8 +78,18 @@ async function Progress({ searchParams }: { searchParams: PageProps<"/welcome">[
     await refreshInstallations(session.user.id).catch(() => undefined);
     allowed = await visible();
   }
+  // A private repository shows only to people GitHub lists for it (U3 review).
   const rows = allowed
-    ? await db.select().from(repos).where(eq(repos.installationId, installationId)).orderBy(repos.fullName)
+    ? await db
+        .select()
+        .from(repos)
+        .where(
+          and(
+            eq(repos.installationId, installationId),
+            sql`(not "repos"."is_private" or exists (select 1 from user_repos ur where ur.user_id = ${session.user.id} and ur.repo_id = "repos"."id"))`,
+          ),
+        )
+        .orderBy(repos.fullName)
     : [];
   const latest = await Promise.all(
     rows.map(async (r) => {

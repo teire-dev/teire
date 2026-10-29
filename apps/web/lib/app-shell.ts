@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, installations, repos, sql, systemState } from "@teire/db";
 import { cookies } from "next/headers";
+import { freshAccess } from "./auth";
 import { myInstallations } from "./dashboard";
 import { database } from "./db";
 import { repoFixMode } from "./fix-mode";
@@ -14,11 +15,15 @@ export async function currentInstallation(userId: string) {
   return { all, current: all.find((i) => String(i.id) === chosen) ?? all[0] ?? null };
 }
 
+/** A private repository counts only when GitHub lists it for this person (U3 review); `r` is `repos`. */
+const readable = (userId: string) =>
+  sql`(not r.is_private or exists (select 1 from user_repos ur where ur.user_id = ${userId} and ur.repo_id = r.id))`;
+
 /** Repositories with a run Teire is working on now (the sidebar's live dots and the live poll). */
-export async function liveRepos(installationId: number) {
+export async function liveRepos(installationId: number, userId: string) {
   const { rows } = await database().execute<{ full_name: string }>(sql`
     select r.full_name from repos r
-    where r.installation_id = ${installationId}
+    where r.installation_id = ${installationId} and ${readable(userId)}
       and exists (select 1 from runs x where x.repo_id = r.id and x.status in ('running', 'stopping'))
   `);
   return rows.map((r) => r.full_name);
@@ -46,6 +51,7 @@ export async function systemLine() {
  * now) and the worker's heartbeat.
  */
 export async function appShell(userId: string) {
+  await freshAccess(userId);
   const { all, current } = await currentInstallation(userId);
   if (!current)
     return {
@@ -76,20 +82,22 @@ export async function appShell(userId: string) {
       and(
         eq(repos.installationId, current.id),
         inArray(repos.status, ["active", "onboarding", "paused", "detected"]),
+        // Qualified by hand: with no join, Drizzle would leave these columns bare inside the subquery.
+        sql`(not "repos"."is_private" or exists (select 1 from user_repos ur where ur.user_id = ${userId} and ur.repo_id = "repos"."id"))`,
       ),
     )
     .orderBy(asc(repos.fullName));
   const [live, system, recent, reaching] = await Promise.all([
-    liveRepos(current.id),
+    liveRepos(current.id, userId),
     systemLine(),
     // For ⌘K: the installation's latest runs and the changes that reach its code.
     database().execute<{ id: string; full_name: string; group_key: string | null; status: string }>(sql`
       select x.id, r.full_name, x.group_key, x.status from runs x join repos r on r.id = x.repo_id
-      where r.installation_id = ${current.id} and x.kind = 'fix' order by x.created_at desc limit 12`),
+      where r.installation_id = ${current.id} and ${readable(userId)} and x.kind = 'fix' order by x.created_at desc limit 12`),
     database().execute<{ change_id: string; title: string | null; repos: number }>(sql`
       select f.change_id, c.title, count(distinct f.repo_id)::int as repos
       from findings f join repos r on r.id = f.repo_id left join changes c on c.id = f.change_id
-      where r.installation_id = ${current.id} and f.verdict = 'affected' and f.state = 'open'
+      where r.installation_id = ${current.id} and ${readable(userId)} and f.verdict = 'affected' and f.state = 'open'
       group by f.change_id, c.title order by repos desc limit 12`),
   ]);
   return {
@@ -115,10 +123,12 @@ export type AppShellData = Awaited<ReturnType<typeof appShell>>;
  * repositories included (GitHub said they can see it when they signed in). Null with none.
  */
 export async function myScope(userId: string) {
+  // What GitHub says this person can access, read again when older than ten minutes (U3 review).
+  await freshAccess(userId);
   const { current } = await currentInstallation(userId);
   if (!current) return null;
   return {
-    scope: { installationId: current.id, account: null, publicOnly: false } satisfies Scope,
+    scope: { installationId: current.id, account: null, publicOnly: false, userId } satisfies Scope,
     installation: current,
   };
 }

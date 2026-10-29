@@ -35,10 +35,19 @@ export const ACTION_PARAMS: Record<ActionKind, z.ZodObject> = {
   /** One `teire.yml` setting changed through a pull request (U3). */
   "config-pr": z.object({
     key: z.enum(Object.keys(CONFIG_PR_KEYS) as [ConfigPrKey, ...ConfigPrKey[]]),
-    value: z.string().trim().min(1).max(40),
+    value: z.string().trim().max(12_000),
   }),
   /** Teire's starter `teire.yml` (every key at its default) through a pull request (U3). */
   "starter-config-pr": z.object({}),
+  /** One Fix now per repository a change reaches (U3), each authorized there, with a receipt per repository. */
+  "fix-in-all": z.object({
+    changeId: z.string().trim().min(1).max(300),
+    title: z.string().max(300).optional(),
+    repos: z
+      .array(z.string().regex(/^[\w.-]+\/[\w.-]+$/))
+      .min(1)
+      .max(100),
+  }),
   feedback: z.object({
     reason: z.string().trim().min(1).max(2000),
     groupKey: z.string().max(300).optional(),

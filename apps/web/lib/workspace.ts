@@ -16,6 +16,7 @@ import {
   sql,
   systemState,
   userInstallations,
+  userRepos,
 } from "@teire/db";
 import { notFound } from "next/navigation";
 import type { LedgerCheck } from "@/components/teire/ledger";
@@ -37,9 +38,19 @@ export interface Scope {
   installationId: number | null;
   account: string | null;
   publicOnly: boolean;
+  /**
+   * Whose access decides private repositories (U3 review): only those GitHub lists for this person
+   * (`user_repos`); public ones in the installation are open to its members.
+   */
+  userId: string | null;
 }
 
-export const KIT_SCOPE: Scope = { installationId: null, account: KIT_ACCOUNT, publicOnly: true };
+export const KIT_SCOPE: Scope = {
+  installationId: null,
+  account: KIT_ACCOUNT,
+  publicOnly: true,
+  userId: null,
+};
 
 /** The scope as a condition on `repos` joined to `installations`. */
 function scopeWhere(s: Scope) {
@@ -47,7 +58,9 @@ function scopeWhere(s: Scope) {
     s.installationId !== null
       ? eq(repos.installationId, s.installationId)
       : eq(installations.accountLogin, s.account ?? ""),
-    s.publicOnly ? eq(repos.isPrivate, false) : undefined,
+    s.publicOnly || !s.userId
+      ? eq(repos.isPrivate, false)
+      : sql`(not ${repos.isPrivate} or exists (select 1 from user_repos ur where ur.user_id = ${s.userId} and ur.repo_id = ${repos.id}))`,
   );
 }
 
@@ -58,10 +71,23 @@ function scopeRaw(s: Scope, repo: string, inst: string) {
       s.installationId !== null
         ? sql`${sql.raw(repo)}.installation_id = ${s.installationId}`
         : sql`${sql.raw(inst)}.account_login = ${s.account ?? ""}`,
-      ...(s.publicOnly ? [sql`not ${sql.raw(repo)}.is_private`] : []),
+      s.publicOnly || !s.userId
+        ? sql`not ${sql.raw(repo)}.is_private`
+        : sql`(not ${sql.raw(repo)}.is_private or exists (select 1 from user_repos ur where ur.user_id = ${s.userId} and ur.repo_id = ${sql.raw(repo)}.id))`,
     ],
     sql` and `,
   );
+}
+
+/** Whether a person may read a repository's data: public, or listed for them by GitHub (U3 review). */
+export async function canRead(userId: string, repo: { id: number; isPrivate: boolean }) {
+  if (!repo.isPrivate) return true;
+  const [row] = await database()
+    .select({ id: userRepos.repoId })
+    .from(userRepos)
+    .where(and(eq(userRepos.userId, userId), eq(userRepos.repoId, repo.id)))
+    .limit(1);
+  return !!row;
 }
 
 /** The kit is for the people building Teire: members of the teire-dev installation, or local dev. */
@@ -200,7 +226,12 @@ export interface RunRow {
   pr: { number: number | null; url: string | null; kind: string } | null;
 }
 
-export async function rowsOf(scope: Scope, where: ReturnType<typeof and>, limit: number): Promise<RunRow[]> {
+export async function rowsOf(
+  scope: Scope,
+  where: ReturnType<typeof and>,
+  limit: number,
+  offset = 0,
+): Promise<RunRow[]> {
   const db = database();
   const rows = await db
     .select({ run: runs, repo: repos.fullName, repoId: repos.id })
@@ -208,8 +239,9 @@ export async function rowsOf(scope: Scope, where: ReturnType<typeof and>, limit:
     .innerJoin(repos, eq(repos.id, runs.repoId))
     .innerJoin(installations, eq(installations.id, repos.installationId))
     .where(and(scopeWhere(scope), where))
-    .orderBy(desc(runs.updatedAt))
-    .limit(limit);
+    .orderBy(desc(runs.updatedAt), desc(runs.id))
+    .limit(limit)
+    .offset(offset);
   const ids = rows.map((r) => r.run.id);
   const [arts, reach] = await Promise.all([
     ids.length ? db.select().from(artifacts).where(inArray(artifacts.runId, ids)) : [],
@@ -275,7 +307,7 @@ export async function overviewOf(scope: Scope) {
     rowsOf(
       scope,
       and(
-        eq(runs.status, "succeeded"),
+        // Every run that holds an open PR now, whatever it ended as: the list its count counts.
         sql`exists (select 1 from artifacts a where a.run_id = ${runs.id} and a.kind = 'pr' and a.state = 'open')`,
       ),
       8,
@@ -316,7 +348,7 @@ export async function overviewOf(scope: Scope) {
         pausedReason: repos.pausedReason,
         lastScannedAt: repos.lastScannedAt,
         languages: repos.languages,
-        affected: sql<number>`(select count(distinct f.group_key)::int from findings f where f.repo_id = ${repos.id} and f.verdict = 'affected')`,
+        affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f where f.repo_id = ${repos.id} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand'))`,
         openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
         live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status = 'running')`,
       })
@@ -352,7 +384,8 @@ export async function overviewOf(scope: Scope) {
       return { repo: row.full_name, said, unresolved: c.unresolvedSites ?? 0 };
     })
     .filter((g) => g.said.length);
-  // Every figure counts the same public repositories of the installation its lists show (round 2).
+  // Every figure counts the same repositories its lists show (round 2); "reaching code" is the Findings
+  // tab's own count, per repository: open groups that are affected or need a person (U3 review).
   const [counts] = (
     await db.execute<{ proven: number; open: number; reaching: number }>(sql`
       select
@@ -360,8 +393,8 @@ export async function overviewOf(scope: Scope) {
           where ${scopeRaw(scope, "p", "i")} and a.kind = 'pr' and a.state = 'open' and r.evidence_kind = 'verified') as proven,
         (select count(*)::int from artifacts a join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
           where ${scopeRaw(scope, "p", "i")} and a.kind = 'pr' and a.state = 'open') as open,
-        (select count(distinct f.group_key)::int from findings f join repos p on p.id = f.repo_id join installations i on i.id = p.installation_id
-          where ${scopeRaw(scope, "p", "i")} and f.verdict = 'affected') as reaching`)
+        (select count(distinct (f.repo_id, coalesce(f.group_key, f.change_id)))::int from findings f join repos p on p.id = f.repo_id join installations i on i.id = p.installation_id
+          where ${scopeRaw(scope, "p", "i")} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand')) as reaching`)
   ).rows;
   return {
     needsYou,
@@ -470,8 +503,8 @@ export async function requireKit() {
 }
 
 /** Every recent run across the scope, newest first, for the Runs page. */
-export function runsOf(scope: Scope, where: ReturnType<typeof and> = sql`true`, limit = 60) {
-  return rowsOf(scope, where, limit);
+export function runsOf(scope: Scope, where: ReturnType<typeof and> = sql`true`, limit = 60, offset = 0) {
+  return rowsOf(scope, where, limit, offset);
 }
 
 /** The kit compositions read the same queries over the kit's scope. */
@@ -484,8 +517,16 @@ export interface ChangeReach {
   repo: string;
   groupKey: string;
   sites: number;
-  /** "run": Fix now starts one; "open": its PR is open; "off": fixes are off there (and where it's set). */
-  plan: { kind: "run" } | { kind: "open"; number: number; url: string | null } | { kind: "off"; why: string };
+  /**
+   * What Fix now does there, as the worker decides it (U3 review): starts a run (or waits for the PR
+   * limit), its PR is already open, a run for it is already going, fixes are off, or Teire is paused.
+   */
+  plan:
+    | { kind: "run"; waits?: string }
+    | { kind: "open"; number: number; url: string | null }
+    | { kind: "running"; runId: string }
+    | { kind: "off"; why: string }
+    | { kind: "paused" };
 }
 
 /**
@@ -507,6 +548,7 @@ export async function changesFor(scope: Scope) {
       deadline: changes.deadline,
       repo: repos.fullName,
       repoId: repos.id,
+      repoStatus: repos.status,
       config: repos.config,
       fixMode: repos.fixMode,
       defaultFixMode: installations.defaultFixMode,
@@ -519,6 +561,19 @@ export async function changesFor(scope: Scope) {
     .innerJoin(repos, eq(repos.id, findings.repoId))
     .innerJoin(installations, eq(installations.id, repos.installationId))
     .where(and(scopeWhere(scope), eq(findings.verdict, "affected"), eq(findings.state, "open")));
+  const ids = [...new Set(rows.map((r) => r.repoId))];
+  const going = ids.length
+    ? await db
+        .select({ id: runs.id, repoId: runs.repoId, groupKey: runs.groupKey })
+        .from(runs)
+        .where(
+          and(
+            inArray(runs.repoId, ids),
+            eq(runs.kind, "fix"),
+            inArray(runs.status, ["queued", "running", "stopping"]),
+          ),
+        )
+    : [];
   const open = rows.length
     ? await db
         .select({
@@ -568,23 +623,34 @@ export async function changesFor(scope: Scope) {
     byChange.set(r.changeId, entry);
     if (entry.reaches.some((x) => x.repo === r.repo && x.groupKey === r.groupKey)) continue;
     const pr = open.find((a) => a.repoId === r.repoId && a.changeKey === r.groupKey);
+    const run = going.find((x) => x.repoId === r.repoId && x.groupKey === r.groupKey);
     const mode = repoFixMode({ config: r.config, fixMode: r.fixMode, fullName: r.repo }, r);
+    // The open-PR limit (teire.yml `pullRequests.limit`, 5 by default): a new PR waits for it.
+    const limit = (r.config as { pullRequests?: { limit?: number } } | null)?.pullRequests?.limit ?? 5;
+    const openHere = open.filter((a) => a.repoId === r.repoId).length;
     entry.reaches.push({
       repo: r.repo,
       groupKey: r.groupKey,
       sites: Array.isArray(r.callSites) ? r.callSites.length : 0,
-      plan: pr?.number
-        ? { kind: "open", number: pr.number, url: pr.url }
-        : mode.mode === "off"
-          ? {
-              kind: "off",
-              why: mode.file
-                ? `set in ${mode.file}`
-                : mode.origin === "dashboard"
-                  ? "set here"
-                  : "the installation's default",
-            }
-          : { kind: "run" },
+      plan:
+        r.repoStatus === "paused"
+          ? { kind: "paused" }
+          : pr?.number
+            ? { kind: "open", number: pr.number, url: pr.url }
+            : run
+              ? { kind: "running", runId: run.id }
+              : mode.mode === "off"
+                ? {
+                    kind: "off",
+                    why: mode.file
+                      ? `set in ${mode.file}`
+                      : mode.origin === "dashboard"
+                        ? "set here"
+                        : "the installation's default",
+                  }
+                : openHere >= limit
+                  ? { kind: "run", waits: `waits for the PR limit (${openHere} of ${limit} open)` }
+                  : { kind: "run" },
     });
   }
   // Most urgent first: the soonest deadline ahead, then the most recently passed, then undated by reach.
@@ -618,7 +684,7 @@ export async function reposOf(scope: Scope) {
       pausedReason: repos.pausedReason,
       lastScannedAt: repos.lastScannedAt,
       languages: repos.languages,
-      affected: sql<number>`(select count(distinct f.group_key)::int from findings f where f.repo_id = ${repos.id} and f.verdict = 'affected' and f.state = 'open')`,
+      affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f where f.repo_id = ${repos.id} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand'))`,
       openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
       needsYou: sql<number>`(select count(*)::int from runs r where r.repo_id = ${repos.id} and ${sql.raw("r.finished_at > now() - interval '7 days' and (r.evidence_kind in ('environment_mismatch','needs_live_access','needs_local_service','typecheck_only','pre_existing_failure','regression','timeout','unverified') or (r.status = 'failed' and r.error like 'stopped:%'))")})`,
       live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status in ('running', 'stopping'))`,
@@ -630,6 +696,7 @@ export async function reposOf(scope: Scope) {
     .orderBy(asc(repos.fullName));
   return rows.map(({ config, defaultFixMode, securityFixMode, fixMode, ...r }) => ({
     ...r,
+    config,
     fixMode: repoFixMode({ config, fixMode, fullName: r.fullName }, { defaultFixMode, securityFixMode }),
   }));
 }

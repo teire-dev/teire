@@ -164,6 +164,7 @@ export async function handleAction(ctx: EventContext, payload: { actionId?: stri
     const login = await githubLogin(await requesterToken(db, action.requester));
     if (!login) return refused("Teire couldn't read your GitHub account; sign in again");
     await setAction(db, action.id, { actor: login });
+    if (parsed.kind === "fix-in-all") return fixInAll(ctx, action, parsed.params, login);
     if (INSTALLATION_ACTIONS.has(parsed.kind)) return installationAction(ctx, action, parsed, login);
     const repo = action.repoId ? await getRepo(db, action.repoId) : null;
     if (!repo?.installationId) return refused("Teire is no longer installed on this repository");
@@ -286,9 +287,10 @@ async function repoAction(
         await setIgnore(db, repo.id, `${target}@${update}`, on);
         return {
           status: "done",
+          // The next scan applies it; what's open now stays until then (U3 review).
           result: on
-            ? `Ignoring ${update} updates of ${target}; other updates still come`
-            : `${update} updates of ${target} come again`,
+            ? `Ignoring ${update} updates of ${target} from the next scan; other updates still come`
+            : `${update} updates of ${target} come again from the next scan`,
         };
       }
       await setIgnore(db, repo.id, target, on);
@@ -479,5 +481,84 @@ async function installationAction(
     status: "done",
     result: `Installation default: ${names[mode]}${security === "ask" ? " (security fixes ask first)" : ""}; ${follow} repositor${follow === 1 ? "y follows" : "ies follow"} it${cancelled ? `; ${cancelled} queued run${cancelled === 1 ? "" : "s"} cancelled` : ""}`,
     params: { ...parsed.params, previous },
+  };
+}
+
+/**
+ * Fix in all (plan revision 3.3, U3): one action, one Fix now per repository the change reaches, each
+ * decided there as Fix now is: paused, fixes off, your write access on GitHub, a PR already open, a
+ * run already going. Authority is each repository's own write access (a person can fix only where
+ * they can write). The result is a receipt per repository, with every run it started linked.
+ */
+async function fixInAll(
+  ctx: EventContext,
+  action: ActionRow,
+  params: Record<string, unknown>,
+  login: string,
+): Promise<Outcome> {
+  const { db } = ctx;
+  if (!action.installationId || !(await sees(db, action.requester, action.installationId)))
+    return refused("You no longer have access to this installation");
+  const changeId = String(params.changeId);
+  const names = (params.repos as string[]) ?? [];
+  const lines: string[] = [];
+  const links: { label: string; href: string }[] = [];
+  let started = 0;
+  for (const fullName of names) {
+    const short = fullName.split("/")[1] ?? fullName;
+    const [repo] = await db
+      .select()
+      .from(repos)
+      .where(and(eq(repos.fullName, fullName), eq(repos.installationId, action.installationId)))
+      .limit(1);
+    if (!repo?.installationId) {
+      lines.push(`${short}: not in this installation`);
+      continue;
+    }
+    if (repo.status === "paused") {
+      lines.push(`${short}: paused`);
+      continue;
+    }
+    const mode = await fixModeOf(db, repo);
+    if (!personMayStart(mode)) {
+      lines.push(`${short}: fixes off`);
+      continue;
+    }
+    const [owner = "", name = ""] = fullName.split("/");
+    const { octokit } = await ctx.gh.installation(repo.installationId);
+    if (!(await canWrite(octokit, owner, name, login))) {
+      lines.push(`${short}: needs your write access`);
+      continue;
+    }
+    const group = (await findingsWithChanges(db, repo.id)).find(
+      (f) => f.changeId === changeId && f.groupKey,
+    )?.groupKey;
+    if (!group) {
+      lines.push(`${short}: no longer reaches the code`);
+      continue;
+    }
+    const open = await getArtifact(db, repo.id, "pr", group);
+    if (open?.state === "open" && open.number) {
+      lines.push(`${short}: #${open.number} is open`);
+      if (open.url) links.push({ label: `${short} #${open.number}`, href: open.url });
+      continue;
+    }
+    const begun = await startRun(ctx, repo, octokit, group, "fix", login).catch((error: unknown) => {
+      if (error instanceof FixesOffError) return error;
+      throw error;
+    });
+    if (begun instanceof FixesOffError) {
+      lines.push(`${short}: ${begun.message}`);
+      continue;
+    }
+    started++;
+    lines.push(`${short}: ${begun.created ? "run queued" : runState(begun.run)}`);
+    links.push({ label: short, href: `/runs/${begun.run.id}` });
+    await syncDashboard(ctx, repo.id).catch(() => undefined);
+  }
+  return {
+    status: started ? "done" : "refused",
+    result: `${started} of ${names.length} started: ${lines.join("; ")}`.slice(0, 1500),
+    links,
   };
 }

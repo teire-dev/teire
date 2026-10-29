@@ -24,5 +24,18 @@ describe("setConfigKey (config PRs from the dashboard)", () => {
       error: expect.stringContaining("0 to 50"),
     });
     expect(setConfigKey(file, "pullRequests.limit", "5")).toMatchObject({ changed: false });
+    // A parent that isn't a mapping is a refusal, not a crash.
+    expect(setConfigKey("upgrades: true\n", "upgrades.majors", "false")).toMatchObject({
+      error: expect.any(String),
+    });
+  });
+
+  it("sets a list from lines or commas, deduplicated, and knows when it's the same", () => {
+    const out = setConfigKey(file, "ignore", "openai\nnpm:zod, openai");
+    expect(out).toMatchObject({ changed: true });
+    if ("text" in out) {
+      expect(out.text).toMatch(/ignore:\n\s+- openai\n\s+- npm:zod/);
+      expect(setConfigKey(out.text, "ignore", "openai, npm:zod")).toMatchObject({ changed: false });
+    }
   });
 });

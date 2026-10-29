@@ -1,3 +1,4 @@
+import { CONFIG_PR_KEYS } from "@teire/engine/config-keys";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -14,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { myScope } from "@/lib/app-shell";
 import { myInstallations } from "@/lib/dashboard";
+import { configCurrent } from "@/lib/fix-mode";
 import { getSession } from "@/lib/session";
 import { APP_SLUG, INSTALL_URL } from "@/lib/site";
 import { reposOf, usageOf } from "@/lib/workspace";
@@ -92,7 +94,10 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
                   </Link>{" "}
                   holds them; each repository&apos;s Config tab shows which values came from it.
                 </span>
-                <ConfigPrForm repo={config.fullName} />
+                <ConfigPrForm
+                  repo={config.fullName}
+                  current={configCurrent(config.config, Object.keys(CONFIG_PR_KEYS))}
+                />
               </div>
             ) : (
               <p className="rounded-xl bg-sheet p-4 text-sm text-ink-3 shadow-card">

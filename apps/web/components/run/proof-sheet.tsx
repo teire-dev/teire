@@ -68,10 +68,9 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
     queryFn: async () => {
       const held = client.getQueryData<RunSheetData>(key) ?? initial;
       const after = held.events.at(-1)?.seq ?? 0;
-      const res = await fetch(
-        `/api/runs/${initial.run.id}/sheet?after=${after}&diff=${held.run.diff?.length ?? 0}`,
-        { cache: "no-store" },
-      );
+      const res = await fetch(`/api/runs/${initial.run.id}/sheet?after=${after}&dh=${held.run.diffHash}`, {
+        cache: "no-store",
+      });
       if (res.status === 404) throw new Error("gone");
       if (!res.ok) throw new Error("unreachable");
       const tick = (await res.json()) as RunSheetTick;

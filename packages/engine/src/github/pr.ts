@@ -98,18 +98,39 @@ async function dropStaleLabels(
  * verifies is marked ready, a ready PR its checks no longer prove becomes a draft, and Teire's
  * evidence label follows. Labels people added stay.
  */
+/** The PR is no longer the one the evidence is about (closed, or its head or base moved). */
+export class PullRequestMovedError extends Error {}
+
 export async function setPullRequestEvidence(input: {
   octokit: Octokit;
   owner: string;
   repo: string;
   number: number;
   evidence: keyof typeof PR_MODE_BY_EVIDENCE;
-  /** The base as it is now wasn't checked (a conflicting PR): `stale-evidence` stays. */
+  /**
+   * The base as it is now wasn't checked (a conflicting PR): `stale-evidence` stays and a draft is not
+   * made ready, since only the branch was proven (U3 review).
+   */
   keepStale?: boolean;
+  /** The head (and base) the evidence is about: a PR that moved since is left as it is (U3 review). */
+  expect?: { head: string; base?: string };
 }): Promise<{ draft: boolean; was: boolean }> {
   const { octokit, owner, repo } = input;
   const { data: pr } = await octokit.rest.pulls.get({ owner, repo, pull_number: input.number });
-  const draft = PR_MODE_BY_EVIDENCE[input.evidence] !== "ready";
+  if (
+    input.expect &&
+    (pr.state !== "open" ||
+      pr.head.sha !== input.expect.head ||
+      (input.expect.base && pr.base.sha !== input.expect.base))
+  )
+    throw new PullRequestMovedError(
+      pr.state !== "open"
+        ? `#${input.number} was closed`
+        : pr.head.sha !== input.expect.head
+          ? `#${input.number}'s branch moved to ${pr.head.sha.slice(0, 7)}`
+          : `the base moved to ${pr.base.sha.slice(0, 7)}`,
+    );
+  const draft = PR_MODE_BY_EVIDENCE[input.evidence] !== "ready" || (!!input.keepStale && !!pr.draft);
   if (!!pr.draft !== draft)
     await octokit.graphql(
       draft

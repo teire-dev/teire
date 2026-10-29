@@ -1,4 +1,4 @@
-import { and, eq, repos, runs, userInstallations } from "@teire/db";
+import { and, eq, repos, runs, userRepos } from "@teire/db";
 import { headers } from "next/headers";
 import { auth } from "./auth";
 import { database } from "./db";
@@ -20,13 +20,16 @@ export async function visibleRun(runId: string) {
   if (!row.repo.isPrivate) return row;
   const session = await auth().api.getSession({ headers: await headers() });
   if (!session || !row.repo.installationId) return null;
+  // The person's own access to this private repository, as GitHub listed it (U3 review); being able
+  // to see its installation is not enough.
   const [member] = await db
-    .select()
-    .from(userInstallations)
+    .select({ id: userRepos.repoId })
+    .from(userRepos)
     .where(
       and(
-        eq(userInstallations.userId, session.user.id),
-        eq(userInstallations.installationId, row.repo.installationId),
+        eq(userRepos.userId, session.user.id),
+        eq(userRepos.repoId, row.repo.id),
+        eq(userRepos.installationId, row.repo.installationId),
       ),
     )
     .limit(1);
