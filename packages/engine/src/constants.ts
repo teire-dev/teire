@@ -49,6 +49,8 @@ export const MODEL_DEFAULTS: Record<keyof typeof MODEL_ENV, string> = {
 export const ASSISTANT = {
   /** One reply's model time and tool steps. */
   replyMs: 60_000,
+  /** Lower than the agent's 1.0: chat answers read tool data back and must not wander from it. */
+  temperature: 0.3,
   maxSteps: 8,
   maxOutputTokens: 2_000,
   /** What a reply is reserved at before it runs; the receipt replaces it with what it cost. */

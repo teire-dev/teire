@@ -14,7 +14,7 @@ export async function searchDocs(query: string, limit = 5) {
   const results: { title: string; url: string; snippet: string }[] = [];
   for (const hit of hits) {
     const page = hit.url.split("#")[0] ?? hit.url;
-    if (hit.type === "page" && seen.has(page)) continue;
+    if (seen.has(page)) continue;
     seen.add(page);
     const title =
       source.getPage(

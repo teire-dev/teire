@@ -201,6 +201,47 @@ export function OverviewCard({ o }: { o: Out<"get_overview"> }) {
   );
 }
 
+export function FindCard({ o }: { o: Out<"find"> }) {
+  const empty = !o.findings.length && !o.runs.length && !o.prs.length;
+  return (
+    <Card eyebrow={`Found · ${o.query}`} asOf={o.asOf}>
+      {empty ? <p className="text-sm text-ink-3">Nothing in Teire matches.</p> : null}
+      {o.findings.length ? (
+        <ul className="flex flex-col gap-1">
+          {o.findings.slice(0, 4).map((f) => (
+            <li key={`${f.repo}:${f.key}`} className="flex items-center gap-2 text-xs">
+              <SafeLink href={f.link} className="min-w-0 truncate text-ink">
+                {f.key}
+              </SafeLink>
+              <span className="ml-auto shrink-0">
+                <VerdictChip verdict={f.verdict} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {o.runs.length ? (
+        <div className="flex flex-col">
+          {o.runs.slice(0, 4).map((r) => (
+            <RunLine key={r.id} run={r} />
+          ))}
+        </div>
+      ) : null}
+      {o.prs.length ? (
+        <ul className="flex flex-wrap gap-x-3 gap-y-1">
+          {o.prs.map((p) => (
+            <li key={`${p.repo}:${p.number}`} className="text-xs">
+              <SafeLink href={p.url}>
+                {p.kind === "issue" ? "Issue" : "PR"} #{p.number} · {p.state}
+              </SafeLink>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Card>
+  );
+}
+
 export function ReposCard({ o }: { o: Out<"list_repos"> }) {
   return (
     <Card eyebrow={`${o.total} repositor${o.total === 1 ? "y" : "ies"}`} asOf={o.asOf} link={o.link}>

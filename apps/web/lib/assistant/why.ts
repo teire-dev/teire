@@ -39,6 +39,16 @@ export function keyHas(column: Parameters<typeof eq>[0], asked: string) {
   return sql`(${column} = ${t} or ${column} like ${`${t}/%`} or ${column} like ${`%/${t}`} or ${column} like ${`%/${t}/%`})`;
 }
 
+/** Why a PR is a draft, in the PR's own words (`compose.ts`). */
+const EVIDENCE_SAID: Record<string, string> = {
+  typecheck_only: "the typecheck passes, but there are no tests to confirm behaviour",
+  pre_existing_failure: "some checks fail on the base branch too (none got worse)",
+  needs_live_access: "tests that call real services can't run in the sandbox (network off)",
+  needs_local_service: "tests need a database or cache the sandbox doesn't run",
+  environment_mismatch: "not everything could be checked in the sandbox",
+  unverified: "the change couldn't be verified",
+};
+
 const ISSUE_EVIDENCE = new Set(["regression", "unverified", "timeout", "pre_existing_failure"]);
 
 export async function whyNoPr(repo: ReadableRepo, asked: string) {
@@ -79,12 +89,59 @@ export async function whyNoPr(repo: ReadableRepo, asked: string) {
       .limit(1),
     db.select().from(systemState).where(eq(systemState.key, "credits")).limit(1),
   ]);
-  const upgrade = ((scan?.upgrades as ScanUpgrade[] | null) ?? []).find(
-    (u) =>
-      u.groupKey.split("/").includes(target) || u.groupKey === target || u.groupKey.startsWith(`${target}/`),
-  );
+  // Nothing by key segment: a looser match ("langchain4j" finds `maven/dev.langchain4j:langchain4j/…`).
+  if (!rows.length && target.length >= 3) {
+    const loose = `%${target.replace(/[%_\\]/g, "")}%`;
+    rows.push(
+      ...(await db
+        .select()
+        .from(findings)
+        .where(
+          and(
+            eq(findings.repoId, repo.id),
+            or(
+              sql`${findings.groupKey} ilike ${loose}`,
+              sql`${findings.dependencyKey} ilike ${loose}`,
+              sql`${findings.changeId} ilike ${loose}`,
+            ),
+          ),
+        )
+        .orderBy(findings.priority)
+        .limit(20)),
+    );
+  }
+  const upgrades = (scan?.upgrades as ScanUpgrade[] | null) ?? [];
+  const upgrade =
+    upgrades.find(
+      (u) =>
+        u.groupKey.split("/").includes(target) ||
+        u.groupKey === target ||
+        u.groupKey.startsWith(`${target}/`),
+    ) ??
+    (target.length >= 3
+      ? upgrades.find((u) => u.groupKey.toLowerCase().includes(target.toLowerCase()))
+      : undefined);
   const finding = rows.find((f) => f.state === "open") ?? rows[0];
-  const group = finding?.groupKey ?? upgrade?.groupKey ?? null;
+  // Neither a finding nor an upgrade on the latest scan: a PR or issue Teire opened for it still names it.
+  const [named] =
+    finding || upgrade
+      ? []
+      : await db
+          .select({ changeKey: artifacts.changeKey })
+          .from(artifacts)
+          .where(
+            and(
+              eq(artifacts.repoId, repo.id),
+              sql`${artifacts.kind} in ('pr', 'issue')`,
+              or(
+                keyHas(artifacts.changeKey, target),
+                sql`${artifacts.changeKey} ilike ${`%${target.replace(/[%_\\]/g, "")}%`}`,
+              ),
+            ),
+          )
+          .orderBy(desc(artifacts.updatedAt))
+          .limit(1);
+  const group = finding?.groupKey ?? upgrade?.groupKey ?? named?.changeKey ?? null;
   const gates: Gate[] = [];
   const hold = (gate: string, said: string, href?: string) =>
     gates.push({ gate, state: "holds", said, href });
@@ -108,7 +165,9 @@ export async function whyNoPr(repo: ReadableRepo, asked: string) {
   else hold("Teire here", `The repository is ${repo.status}; its first scan hasn't finished`, base);
 
   // 2. What the latest scan found.
-  if (!finding && !upgrade)
+  if (!finding && !upgrade && named)
+    note("Finding", "Not on the latest scan's list; Teire's PR or issue for it is below", `${base}/prs`);
+  else if (!finding && !upgrade)
     hold("Finding", `The latest scan has no finding or upgrade matching "${target}"`, `${base}/findings`);
   else if (!finding && upgrade)
     ok(
@@ -199,8 +258,18 @@ export async function whyNoPr(repo: ReadableRepo, asked: string) {
         .orderBy(desc(artifacts.updatedAt))
         .limit(1)
     : [];
-  if (pr?.kind === "pr" && pr.state === "open")
-    ok("Pull request", `PR #${pr.number} is open for it`, pr.url ?? undefined);
+  // The run whose evidence the PR carries: a draft says why from it (rule 13: evidence decides the PR).
+  const [carrier] = pr?.runId ? await db.select().from(runs).where(eq(runs.id, pr.runId)).limit(1) : [];
+  const draft =
+    !!carrier && (carrier.prMode === "draft" || (carrier.evidenceKind ?? "verified") !== "verified");
+  const prSaid =
+    pr?.kind === "pr" && pr.state === "open"
+      ? draft
+        ? `PR #${pr.number} is open as a draft: ${EVIDENCE_SAID[carrier?.evidenceKind ?? ""] ?? (carrier?.evidenceKind ?? "the evidence didn't prove it").replace(/_/g, " ")}`
+        : `PR #${pr.number} is open, verified`
+      : null;
+  if (pr?.kind === "pr" && pr.state === "open" && prSaid)
+    ok("Pull request", prSaid, carrier ? `/runs/${carrier.id}` : (pr.url ?? undefined));
   else if (pr?.kind === "pr" && pr.state === "closed")
     hold(
       "Pull request",
@@ -305,7 +374,7 @@ export async function whyNoPr(repo: ReadableRepo, asked: string) {
     group,
     title: finding?.changeId ?? upgrade?.groupKey ?? target,
     answer: opened
-      ? `There is a PR: #${pr?.number}`
+      ? (prSaid ?? `There is a PR: #${pr?.number}`)
       : first
         ? first.said
         : run && (run.status === "queued" || run.status === "running")

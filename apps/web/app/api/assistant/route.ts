@@ -171,6 +171,10 @@ export async function POST(request: Request) {
       name: viewer.name,
       account: viewer.account,
       context: context ?? (thread.context as AssistantContext | null),
+      lost:
+        !context && typeof (body.context as { id?: unknown } | null)?.id === "string"
+          ? String((body.context as { id: string }).id).slice(0, 120)
+          : null,
     }),
     messages: await convertToModelMessages(messages, { tools: all, ignoreIncompleteToolCalls: true }),
     tools,
@@ -178,7 +182,8 @@ export async function POST(request: Request) {
     maxOutputTokens: ASSISTANT.maxOutputTokens,
     abortSignal: request.signal,
     timeout: { totalMs: ASSISTANT.replyMs },
-    ...nemotronSampling,
+    temperature: ASSISTANT.temperature,
+    topP: nemotronSampling.topP,
     providerOptions: nemotronOptions({ thinking: false }),
     onStepEnd: ({ usage: step }) => {
       steps.inputTokens += step.inputTokens ?? 0;

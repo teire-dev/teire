@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, installations, repos, userInstallations, userRepos } from "@teire/db";
+import { and, eq, installations, repos, sql, userInstallations, userRepos } from "@teire/db";
 import { myScope } from "../app-shell";
 import { auth } from "../auth";
 import { database } from "../db";
@@ -72,7 +72,8 @@ export async function readableRepo(
     .select({ repo: repos, account: installations.accountLogin })
     .from(repos)
     .leftJoin(installations, eq(installations.id, repos.installationId))
-    .where(eq(repos.fullName, fullName))
+    // GitHub names are case-insensitive: "Teire-Dev/NLSH" is teire-dev/nlsh.
+    .where(sql`lower(${repos.fullName}) = lower(${fullName})`)
     .limit(1);
   const nope = { error: `You don't have access to ${fullName} in Teire (or Teire isn't installed there)` };
   if (!row?.repo.installationId) return nope;

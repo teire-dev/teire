@@ -32,6 +32,7 @@ import {
   ConfigCard,
   ConfigSnippet,
   DocsCard,
+  FindCard,
   FindingCard,
   FindingsCard,
   NoticeCard,
@@ -248,6 +249,10 @@ function stepTitle(name: string, input: Record<string, unknown> | undefined, out
   const repo = typeof input?.repo === "string" ? input.repo : "";
   if (done && typeof o.error === "string") return o.error;
   switch (name) {
+    case "find":
+      return done
+        ? `Found ${n("findings")} findings, ${n("runs")} runs, ${n("prs")} PRs for "${String(input?.query ?? "")}"`
+        : `Looking up "${String(input?.query ?? "")}"…`;
     case "get_overview":
       return done ? "Read the overview" : "Reading what needs you…";
     case "list_repos":
@@ -291,6 +296,8 @@ function stepTitle(name: string, input: Record<string, unknown> | undefined, out
 function cardFor(name: string, output: unknown, onPick: (v: string) => void, busy: boolean) {
   const o = output as never;
   switch (name) {
+    case "find":
+      return <FindCard o={o} />;
     case "get_overview":
       return <OverviewCard o={o} />;
     case "list_repos":
@@ -334,11 +341,26 @@ function cardFor(name: string, output: unknown, onPick: (v: string) => void, bus
 }
 
 /** Markdown links: inside Teire, or Teire's PRs and issues on GitHub; anything else is text. */
-const markdownComponents = {
-  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
-    <SafeLink href={href}>{children}</SafeLink>
-  ),
-};
+/** Every link a reply's tools returned: the only links its Markdown may make (a made-up path is text). */
+function linksOf(message: AssistantMessage) {
+  const found = new Set<string>();
+  const walk = (v: unknown) => {
+    if (typeof v === "string") {
+      if (v.startsWith("/") || v.startsWith("https://github.com/")) found.add(v);
+    } else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  for (const p of message.parts) if (isToolUIPart(p) && p.state === "output-available") walk(p.output);
+  return found;
+}
+
+function markdownFor(allowed: Set<string>) {
+  return {
+    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+      <SafeLink href={href && allowed.has(href) ? href : undefined}>{children}</SafeLink>
+    ),
+  };
+}
 
 function Turn({
   message,
@@ -367,6 +389,7 @@ function Turn({
       </Message>
     );
   const text = message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
+  const markdownComponents = markdownFor(linksOf(message));
   return (
     <Message from="assistant" className="max-w-full">
       <MessageContent className="w-full gap-3 text-[13.5px] leading-relaxed text-ink">

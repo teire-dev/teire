@@ -418,10 +418,10 @@ export function assistantTools(viewer: Viewer) {
 
     list_runs: tool({
       description:
-        "Teire's runs (fix attempts) across the person's repositories or on one: the latest, the ones going now, those needing a person, or the failed ones. Each has its proof chain.",
+        "Teire's runs (fix attempts) across the person's repositories or on one: the latest (recent, queued ones included), the finished ones, the ones going now, those needing a person, or the failed ones. Each has its proof chain and its id for explain_run.",
       inputSchema: z.object({
         repo: repoName.optional(),
-        which: z.enum(["recent", "live", "needs_you", "failed"]).default("recent"),
+        which: z.enum(["recent", "finished", "live", "needs_you", "failed"]).default("recent"),
         limit: z.number().int().min(1).max(20).default(8),
       }),
       execute: ({ repo, which, limit }) =>
@@ -443,7 +443,9 @@ export function assistantTools(viewer: Viewer) {
                 ? NEEDS_YOU
                 : which === "failed"
                   ? eq(runs.status, "failed")
-                  : sql`true`;
+                  : which === "finished"
+                    ? inArray(runs.status, ["succeeded", "failed", "cancelled"])
+                    : sql`true`;
           const rows = await rowsOf(scope, and(where, filter), limit);
           return { asOf: now(), which, runs: rows.map(runLite), link: "/app/runs" };
         }),
@@ -629,6 +631,107 @@ export function assistantTools(viewer: Viewer) {
       inputSchema: z.object({ query: z.string().min(2).max(200) }),
       execute: ({ query }) => safely(async () => ({ query, ...(await searchDocs(query)) })),
       toModelOutput: fenced("search_docs"),
+    }),
+
+    find: tool({
+      description:
+        "Find what Teire has for a name the person uses (a package, model, provider, change or version: 'minitest 6', 'langchain4j', 'anthropic', 'gpt-4-turbo'): its findings, its runs (with ids for explain_run) and its PRs and issues, on one repository or across the installation. Call it first whenever they name something.",
+      inputSchema: z.object({
+        query: z.string().min(2).max(120),
+        repo: repoName.optional(),
+      }),
+      execute: ({ query, repo }) =>
+        safely(async () => {
+          let scope = viewer.scope;
+          let repoId: number | null = null;
+          if (repo) {
+            const got = await readableRepo(viewer, repo);
+            if ("error" in got) return got;
+            scope = scopeOfRepo(viewer, got.repo);
+            repoId = got.repo.id;
+          }
+          if (!scope)
+            return { error: "Teire isn't installed on an account you can see yet", link: "/welcome" };
+          // Words of the query, each matched loosely: "minitest 6" finds rubygems/minitest/6.0.6.
+          const words = query
+            .toLowerCase()
+            .split(/[\s,]+/)
+            .map((w) => w.replace(/[%_\\]/g, ""))
+            .filter((w) => w.length >= 2);
+          const like = (col: Parameters<typeof eq>[0]) =>
+            and(...words.map((w) => sql`lower(${col}) like ${`%${w}%`}`));
+          const here = repoId !== null ? sql`${runs.repoId} = ${repoId}` : sql`true`;
+          const [runRows, found, prs] = await Promise.all([
+            rowsOf(scope, and(here, like(runs.groupKey)), 6),
+            database().execute<{
+              full_name: string;
+              group_key: string | null;
+              change_id: string;
+              verdict: string;
+              state: string;
+              sites: number;
+            }>(sql`
+              select r.full_name, f.group_key, f.change_id, f.verdict, f.state,
+                jsonb_array_length(coalesce(f.call_sites, '[]'::jsonb))::int as sites
+              from findings f join repos r on r.id = f.repo_id
+              where ${repoId !== null ? sql`f.repo_id = ${repoId}` : sql`r.installation_id = ${scope.installationId ?? -1}`}
+                and (${and(...words.map((w) => sql`(lower(coalesce(f.group_key, '')) like ${`%${w}%`} or lower(f.change_id) like ${`%${w}%`})`))})
+              order by f.priority limit 8`),
+            database().execute<{
+              full_name: string;
+              number: number | null;
+              url: string | null;
+              state: string;
+              kind: string;
+              change_key: string;
+              run_id: string | null;
+            }>(sql`
+              select r.full_name, a.number, a.url, a.state, a.kind, a.change_key, a.run_id from artifacts a join repos r on r.id = a.repo_id
+              where a.kind in ('pr', 'issue') and ${repoId !== null ? sql`a.repo_id = ${repoId}` : sql`r.installation_id = ${scope.installationId ?? -1}`}
+                and (${and(...words.map((w) => sql`lower(a.change_key) like ${`%${w}%`}`))})
+              order by a.updated_at desc limit 6`),
+          ]);
+          // Private repositories the person can't see stay out (the lists above filter runs; these two by repo).
+          const visible = new Set(
+            (
+              await Promise.all(
+                [...new Set([...found.rows, ...prs.rows].map((r) => r.full_name))].map(async (n) =>
+                  "error" in (await readableRepo(viewer, n)) ? null : n,
+                ),
+              )
+            ).filter(Boolean),
+          );
+          return {
+            asOf: now(),
+            query,
+            findings: found.rows
+              .filter((f) => visible.has(f.full_name))
+              .map((f) => ({
+                repo: f.full_name,
+                key: f.group_key ?? f.change_id,
+                verdict: f.verdict,
+                state: f.state,
+                callSites: f.sites,
+                link: groupLink(f.full_name, f.group_key ?? f.change_id),
+              })),
+            runs: runRows.map((r) => ({
+              ...runLite(r),
+              meaning: r.evidence ? (EVIDENCE_MEANING[r.evidence] ?? null) : null,
+            })),
+            prs: prs.rows
+              .filter((p) => visible.has(p.full_name))
+              .map((p) => ({
+                repo: p.full_name,
+                kind: p.kind,
+                number: p.number,
+                url: p.url,
+                state: p.state,
+                group: p.change_key,
+                runId: p.run_id,
+              })),
+          };
+        }),
+      toModelOutput: fenced("find"),
     }),
 
     why_no_pr: tool({
