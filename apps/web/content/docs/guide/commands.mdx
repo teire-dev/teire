@@ -4,6 +4,12 @@ description: Comment on any issue or pull request to rescan, fix, ignore, rebase
 icon: MessageSquareText
 ---
 
+<Diagram
+  name="commands"
+  alt="A comment such as '@teire fix zod' on GitHub; Teire reacts with eyes at once, checks your write access on GitHub, starts the run (live on its page) and replies in the thread with the run's link."
+  caption="Every command: read at once, checked against your access, answered in the thread."
+/>
+
 Start a line of a comment with the command, on any issue or pull request in the repository. Teire reacts with 👀 as soon as it reads the comment, then replies. Commands need **write**, **maintain** or **admin** access to the repository. Anyone else gets "Teire commands need write access to this repository, so nothing was run."
 
 `@teire help` replies with this table:
@@ -84,7 +90,7 @@ Records the feedback (up to 2,000 characters) against the repository. The reply 
 The same actions exist in two other places:
 
 - **The Dashboard issue.** Tick **Rescan now**, **Fix now**, **Upgrade and check**, **Rebase** or **Unignore**.
-- **The web dashboard.** **Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore** and **Unignore** on the repository page.
+- **The web dashboard.** **Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore** and **Unignore** on the repository page, Fix now from the estate on the Overview, Fix in all on Changes for you, and every one of them through [Ask Teire](/docs/guide/ask-teire) with Confirm.
 
 Both apply the same write-access rule. See [Dashboard](/docs/guide/dashboard).
 

@@ -1,24 +1,30 @@
 ---
 title: Dashboard
-description: Every installed repository in one place, in the web app and as a Teire Dashboard issue in each repository, with buttons and checkboxes for the main @teire commands.
+description: Every installed repository in one place, drawn as flows, and a Teire Dashboard issue in each repository with checkboxes for the main @teire commands.
 icon: LayoutDashboard
 ---
 
-There are two dashboards. The web one at [/app](/app) covers every repository you can see. The **Teire Dashboard** issue lives inside each repository on GitHub. Both show the same findings, and both can start most actions: the issue adds Rebase, and the web adds Pause, Resume, Ignore, the fix mode, Cancel and Retry.
+<Diagram
+  name="dashboard"
+  alt="Overview, then your estate, then a repository's findings, then Fix now, then the run with your checks before and after, then the pull request you merge."
+  caption="The usual path: from what needs you to a proven pull request, in four clicks."
+/>
+
+There are two dashboards. The web one at [/app](/app) covers every repository you can see. The **Teire Dashboard** issue lives inside each repository on GitHub. Both show the same findings and can start most actions.
 
 ## The web dashboard
 
-Sign in with GitHub. When you sign in, Teire asks GitHub which installations you can see and shows only those repositories. If you install Teire somewhere new, choose **Refresh from GitHub** in the switcher or in Settings.
+Sign in with GitHub. Teire asks GitHub which installations you can see and shows only those repositories. Installed somewhere new? Choose **Refresh from GitHub** in the switcher or in Settings.
 
-The sidebar holds the installation switcher (the account whose repositories you're looking at, and **Add an account on GitHub**), Overview, Repositories, Changes, Runs and Settings, and that installation's repositories. A blue dot marks a repository Teire is working on right now. Press <kbd>⌘K</kbd> (<kbd>Ctrl K</kbd>) to jump to a page or a repository, act on the repository you're on (each action asks once), or search these docs. Press <kbd>⌘I</kbd> to [Ask Teire](/docs/guide/ask-teire) about any of it. Every list and every tab has its own address, so it can be linked and shared.
+The sidebar holds the installation switcher, the five pages and the installation's repositories, each with its main language's logo. A blue dot marks a repository Teire is working on now. <kbd>⌘K</kbd> (<kbd>Ctrl K</kbd>) jumps to a page, a repository, a change or a run, acts on the repository you're on, or searches these docs. <kbd>⌘I</kbd> opens [Ask Teire](/docs/guide/ask-teire). Every list, tab and filter has its own address.
 
 <Tabs items={["Overview", "Repositories", "A repository", "Changes for you", "Runs", "Settings"]}>
 <Tab value="Overview">
 
 <Shot
   name="dashboard"
-  alt="Overview for teire-dev: 25 proven and ready to merge, 43 needing you, 40 open pull requests, 123 changes reaching code; Needs you lists regressions, a stopped run and drafts with their proof chains; Open pull requests lists proven PRs; Working now lists live and queued runs; What Teire couldn't check lists repositories located by syntax."
-  caption="The Overview, most urgent first: what needs you, open PRs with their proof chains, what Teire is doing now, deadlines, recent runs and what it couldn't check."
+  alt="Overview for teire-dev: 25 ready to merge, 43 need you, 40 open pull requests, 155 reaching your code; Your estate draws the changes on the left, the repositories in the middle and ready, draft and issue on the right, joined by lines weighted by call sites."
+  caption="Four figures with what is new this week, then your estate: changes, repositories and what is open now."
 />
 
 </Tab>
@@ -26,8 +32,8 @@ The sidebar holds the installation switcher (the account whose repositories you'
 
 <Shot
   name="repos"
-  alt="Repositories, 37 of 37, with filters for state, fix mode, outcome and language, a search box and Set fix mode; a table of repositories with the fix mode set inline, the state, changes reaching code, open PRs, runs needing you and the last scan."
-  caption="Repositories: each one's fix mode (changed in place), state, what reaches its code, open PRs and what needs you, with filters and Set fix mode for those shown."
+  alt="Repositories, 15, with filters for state, fix mode, outcome and language and a Table or Map toggle; each row has its language logo, an Auto, Ask, Off picker, its state, what reaches its code, open PRs, what needs you, its latest run as a chain of five tiles and its last scan."
+  caption="Repositories: fix mode in place, and each one's latest run as its chain."
 />
 
 </Tab>
@@ -35,20 +41,20 @@ The sidebar holds the installation switcher (the account whose repositories you'
 
 <Shot
   name="repo-findings"
-  alt="teire-dev/bristow's Findings tab: security advisories for faraday, rexml, uri and json reaching the code, each with its proof chain, Fix now and an Ignore menu."
-  caption="A repository's findings: each change with its proof chain, Fix now (or Open PR #n) and Ignore ▾."
+  alt="teire-dev/serve-handler's Findings: one row per change with the npm logo, its title, a strip of four tiles from the change to its pull request, Fix now, Ignore and Ask."
+  caption="Findings: one row per change; it opens to the full flow and the lines it reaches."
 />
 
 <Shot
   name="repo-prs"
-  alt="teire-dev/bristow's Pull requests tab: PRs and needs-a-human issues with their proof chains and state, and Re-verify and Refresh on each open PR."
-  caption="Pull requests: each PR and issue with its proof chain, Re-verify and Refresh while it's open, Recreate once closed."
+  alt="teire-dev/examples's Pull requests: each PR as a breadcrumb of chevrons, the package, dependabot-core, Token Factory, the checks before and after, Review and PR #24, with Re-verify and Refresh."
+  caption="Pull requests as breadcrumbs: tap a step to see its evidence without leaving the list."
 />
 
 <Shot
   name="repo-config"
-  alt="teire-dev/bristow's Config tab: Change a setting with a key and value and Open config PR, then every resolved key with its value and where it came from."
-  caption="Config: change one setting through a pull request, and every resolved key with where it came from."
+  alt="teire-dev/examples's Config: a setting picker with before and after chips and Open config PR, then every key as a cell grouped into Fixes, Scans, Upgrades, Pull requests and Ecosystems, each with a dot for where it came from."
+  caption="Config: every key as a cell, coloured by where it was set; pick one to change it by pull request."
 />
 
 </Tab>
@@ -56,8 +62,8 @@ The sidebar holds the installation switcher (the account whose repositories you'
 
 <Shot
   name="changes-for-you"
-  alt="Changes for you: catalog changes that reach teire-dev's code, soonest deadline first, each with how many repositories it affects, which ones (with their PR or 'fixes off'), its deadline and Fix in all."
-  caption="Changes for you: every change that reaches your code, which repositories it reaches, and Fix in all."
+  alt="Changes for you, 290: each change with its countdown, its provider's logo fanning out to the repositories it reaches, each branch in what Fix now would do there, and Fix in all."
+  caption="Changes for you: each change fans out to the repositories it reaches."
 />
 
 </Tab>
@@ -65,8 +71,8 @@ The sidebar holds the installation switcher (the account whose repositories you'
 
 <Shot
   name="app-runs"
-  alt="Runs filtered to Needs you: regressions, drafts and runs with no evidence yet, each with its repository, subject, versions, proof chain, evidence and PR."
-  caption="Runs: every run across the installation, filtered by what needs you, open PRs, working now, failed, cancelled, evidence or repository."
+  alt="Runs filtered to Needs you: each run as its breadcrumb trail, the package, the repository, dependabot-core, Token Factory, the checks, and the issue or draft it ended in."
+  caption="Runs: every run as its trail, filtered by what needs you, evidence or repository."
 />
 
 </Tab>
@@ -74,76 +80,70 @@ The sidebar holds the installation switcher (the account whose repositories you'
 
 <Shot
   name="settings"
-  alt="Settings, Usage section: 147 runs, 170 minutes of sandbox time and $4.62 of model spend in the last 30 days, then model calls, tokens and cost by purpose: fix, notes, review."
-  caption="Settings › Usage: runs, sandbox time and model spend by purpose over 30 days, from the runs' own receipts."
+  alt="Settings › Usage: 147 runs, 170 sandbox minutes and $4.62 of model spend in 30 days, a daily bar chart by purpose, the calls, tokens and cost of fixes, release notes and review, and today's Ask Teire meter."
+  caption="Settings › Usage: runs, sandbox time and model spend by purpose, from the runs' own receipts."
 />
 
 </Tab>
 </Tabs>
 
-**Overview** shows a few rows per section and goes to the full list: Needs you (regressions, needs-a-human issues, drafts and stops from the last week), Open pull requests, Deadlines, Working now, Recent runs, and What Teire couldn't check (repositories whose last scan located calls by syntax rather than types, partial advisory data, or files it couldn't read).
+**Overview.** Four figures: ready to merge, needs you, open pull requests, reaching your code, each with what is new this week. Below them, **Your estate** draws three columns. The changes reaching your code (or, with **By source**, the providers and ecosystems they come from) sit on the left. Your repositories are in the middle and what is open now (ready, drafts, issues) on the right, joined by lines weighted by call sites. Drag a change onto a repository, or select it and press <kbd>Enter</kbd>, to see what **Fix now** would do there and start it. On a phone the estate is a list. **Needs you** and **Working now** follow, each run as its chain.
 
-**Repositories** filters by state (active, onboarding, paused, working), fix mode, open PRs, runs needing you, changes reaching code and language. Each row's fix mode changes in place; **Set fix mode…** applies one mode to every repository shown, each with its own result.
+**Repositories** filters by state, fix mode, outcome and language, and switches between **Table** and **Map**. Each row's fix mode changes in place (Auto · Ask · Off, with a reset to the installation's default). **Set fix mode…** applies one mode to every repository shown, each with its own result.
 
-**Changes for you** lists each catalog change that reaches code in the installation, soonest deadline first, with the repositories it reaches. **Fix in all** first shows, for each repository, what Fix now would do there (start a run, a PR already open, or fixes off and where that is set), then sends one Fix now per repository that would start a run. Each needs your write access on that repository and gets its own result.
+**Changes for you** lists each catalog change that reaches your code, filtered by source and kind. Each change fans out to the repositories it reaches. A solid branch is an open PR, a pulsing one a run in progress, a dashed one a run Fix now would start, a grey one fixes off. **Fix in all** shows that plan per repository first, then starts one Fix now for each repository that would run. Each needs your write access there and gets its own result.
 
-**Runs** lists every run, newest first, with the same filters the Overview's sections link to.
+**Runs** lists every run as its trail, newest first, with the same filters the Overview links to.
 
-**Settings** has four sections: **Organization** (the installation's default fix mode, which only an organisation admin or the account's owner can change, and the organisation's `teire-config` defaults, changed through a config PR there), **Repositories** (each repository's fix mode), **Installations** (where Teire is installed, Refresh from GitHub, and changing repository access on GitHub) and **Usage**.
+**Settings** has four sections. **Organization** holds the installation's default fix mode and whether security fixes start on their own; only an organisation admin or the account's owner can change these. **Repositories** holds each repository's fix mode, **Installations** is where Teire is installed (with Refresh from GitHub), and **Usage** is above.
 
 A repository page has seven tabs, each with its own address (`/app/repos/<owner>/<name>/<tab>`):
 
-| Tab | What it holds |
+| Tab | What it draws |
 |---|---|
-| **Findings** | Changes reaching the code, each with its proof chain, **Fix now** or **Open PR #n**, and **Ignore ▾** (this version, major, minor or patch updates, or every update of the package); those decided in the sandbox (**Upgrade and check**); what the scan couldn't check; the changes checked and ruled out; and the ignored ones with **Unignore**. A link from Changes for you opens with its change first |
-| **Pull requests** | Teire's PRs, its "needs a human" issues and the onboarding PR, each with its proof chain and state; an open PR has **Re-verify** and **Refresh**, a closed one **Recreate** |
-| **Runs** | The latest runs with their proof chains and evidence |
-| **Inventory** | Every dependency the last scan read, filtered by ecosystem and name, with its version (or "unresolved"), scope and workspace; long lists scroll without loading every row |
-| **Providers** | The APIs and model providers the code calls, each with the changes from it that reach the code |
-| **Config** | **Change a setting** (one `teire.yml` key and its value, sent as a pull request that keeps the file's comments and is checked against the schema), **Open starter config PR** when the file is missing or has problems, and every resolved key with whether it came from the repository, the organisation or the defaults |
-| **Activity** | Every action on the repository, from this page, a comment or the Dashboard issue: who, what Teire answered, and the run or PR it produced |
+| **Findings** | One row per change: its logo, its title and a change → code → fix → PR strip, with **Fix now** (or the open PR), **Ignore** and **Explain**. A row opens to the full flow and the lines it reaches. Also: what the sandbox decides (**Upgrade and check**), what couldn't be checked, what was ruled out, and what you ignored (**Unignore**) |
+| **Pull requests** | Each PR and issue as a breadcrumb trail; a step opens its evidence. An open PR has **Re-verify** and **Refresh**, a closed one **Recreate** |
+| **Runs** | The latest runs as trails |
+| **Inventory** | Every dependency the last scan read, filtered by ecosystem logo and name |
+| **Providers** | The APIs and model providers the code calls, each ringed by what reaches the code |
+| **Config** | Every `teire.yml` key as a cell, with where it came from (the file, the organisation, the default); pick one, see before → after, confirm, and Teire opens the config PR. **Open starter config PR** when the file is missing or has problems |
+| **Activity** | Every action on the repository (from this page, a comment or the Dashboard issue): who, where, and the result when it failed |
 
-Above the tabs, **Fixes** sets the repository's fix mode: **Automatic**, **Ask first** or **Off** (see [`fix-mode`](/docs/guide/commands)). It always shows the mode in force and where it was set. When `fixes:` in `.github/teire.yml` sets it, the control is locked and says so. Under Ask first and Off, the Findings tab lists **Upgrades available**: what Automatic would have started, each with **Upgrade** (Ask first) or none (Off).
+Above the tabs, **Fixes** sets the repository's fix mode: **Automatic**, **Ask first** or **Off** (see [`fix-mode`](/docs/guide/commands)). It always shows the mode in force and where it was set. It is locked when `fixes:` in `.github/teire.yml` sets it. Under Ask first and Off, Findings lists **Upgrades available**: what Automatic would have started.
 
 ### Buttons
 
-**Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore**, **Unignore** and the fix mode work like their [`@teire` commands](/docs/guide/commands). A message in the corner follows each one to what actually happened: "Rescan finished: 3 changes reach your code", "Refused: you need write access", or the run it started, with **Undo** where it can be undone (pause, ignore, a fix-mode change). A repository's **Activity** tab keeps every outcome.
+**Rescan**, **Pause**, **Resume**, **Fix now**, **Ignore**, **Unignore** and the fix mode work like their [`@teire` commands](/docs/guide/commands). A message in the corner follows each one to what happened ("Rescan finished: 3 changes reach your code", "Refused: you need write access", or the run it started), with **Undo** where it can be undone. Teire checks with GitHub, when it acts, that you have write access. **Ignore** also closes that change's open PR.
 
-The same rule applies as for a comment: Teire checks with GitHub, when it acts, that you have write access to the repository. **Ignore** also closes that change's open PR.
+A run page has **Cancel** while the run works: within seconds the model calls and the updater stop, its sandboxes close, and nothing is published after it. A failed or cancelled run has **Retry**.
 
-**Repositories** has **Set fix mode…** for every repository the list shows, with each repository's own result. **Settings** has each installation's default fix mode and whether security fixes start on their own; only an admin of the organisation (or the account's owner) can change them, and Teire checks that on GitHub.
-
-A run page has **Cancel** while the run works: within seconds the model calls and the updater stop and its sandboxes are closed, and nothing is published after it. A cancel that arrives after the PR opened says it came too late. A failed or cancelled run has **Retry**.
-
-A run whose PR is open has **Re-verify**: both sides run again on what the PR would merge, your own commits on its branch included, with its code unchanged. The after side is GitHub's test merge of the PR into the base branch as it is now, and the baseline is that base. A PR that conflicts with the base is checked as its branch stands, against the commit it branched from, and says so. Every project the PR's files touch runs its own checks; the weakest result decides. The result lands on the PR only if the PR is still open with the same head and base: a new **Teire** check run (failing for a regression), a comment, and the draft state and evidence label set to what the checks now show (a draft that verifies becomes ready; a ready PR that no longer verifies becomes a draft). Re-verify runs under every fix mode, since it changes no code; under Off it is how a PR marked `stale-evidence` gets current evidence, and the label comes off only when the merge with today's base was checked.
+A run whose PR is open has **Re-verify**: both sides run again on what the PR would merge, with its code unchanged. The after side is GitHub's test merge of the PR into the base branch as it is now; the baseline is that base. The result lands on the PR only if it still has the same head and base: a new **Teire** check run, a comment, and the draft state and evidence label set to what the checks now show. Re-verify runs under every fix mode, since it changes no code.
 
 <Shot
   name="run-reverify"
-  alt="A Re-verify run for github.com/BurntSushi/toml v1.4.0 → v1.6.0 on teire-dev/nlsh: Finished, Proven, on Token Factory Sandboxes in 1m 22s with no model calls; the chain reads FIXED as the PR's code, unchanged, and PR #7; build, typecheck and test pass before and after, 10/11 tests, one skipped."
+  alt="A Re-verify run for github.com/BurntSushi/toml v1.4.0 → v1.6.0 on teire-dev/nlsh: Finished, Proven, on Token Factory Sandboxes in 1m 22s with no model calls; build, typecheck and test pass before and after."
   caption="Re-verify on teire-dev/nlsh #7: the PR merged into today's base, checked again; verified, so it stayed ready."
 />
 
-A run that ended in a "needs a human" issue has **Open draft anyway**: Teire opens its best diff as a draft PR titled **Unconfirmed**, labelled `unconfirmed` and with the evidence that stopped it, for you to finish by hand. It follows the fix mode and the PR limits as **Fix now** does, and it refuses, naming the file, when the diff holds a binary file or no longer applies.
-
-**Share** copies the run's link and says who can open it: anyone, for a public repository; people with access to the installation, for a private one.
+A run that ended in a "needs a human" issue has **Open draft anyway**: Teire opens its best diff as a draft PR titled **Unconfirmed**, with the evidence that stopped it, for you to finish by hand. **Share** copies the run's link and says who can open it.
 
 ## The Teire Dashboard issue
 
-Once a repository is active, Teire keeps one issue named **Teire Dashboard** up to date. It is refreshed after every scan, every PR or issue Teire opens or updates, every ticked box, dashboard button and state-changing command.
+Once a repository is active, Teire keeps one issue named **Teire Dashboard** up to date, after every scan, every PR or issue it opens or updates, every ticked box and every state-changing command.
 
 | Section | Content | Tick the box to |
 |---|---|---|
-| Header | The last scan's commit and time, whether the repo is paused, the fix mode in force and where it was set, a link to Teire | **Rescan now** |
+| Header | The last scan's commit and time, paused or not, the fix mode and where it was set | **Rescan now** |
 | Upcoming deadlines | Each dated change, with its PR or verdict | |
 | Affected | Each change with no PR yet: title, sites, priority | **Fix now** |
-| Decided in the sandbox | Upgrades where some references could not be resolved, so the code alone doesn't settle them; the upgrade's run checks the repo before and after | **Upgrade and check** |
+| Decided in the sandbox | Upgrades the code alone doesn't settle | **Upgrade and check** |
 | Upgrades available | Under Ask first and Off: what Automatic would have started | **Upgrade** (Ask first) |
 | Open PRs | Each Teire PR | **Rebase** |
 | Needs a human | Links to Teire's issues | |
-| Not affected, Not applicable | Collapsed lists with the reason for each; "not affected" only when every reference was resolved | |
+| Not affected, Not applicable | Collapsed, with the reason for each | |
 | Ignored | What you ignored | **Unignore** |
 | Inventory | Dependencies per ecosystem | |
 | Config problems | Keys that fell back to their defaults, and why | |
 | Commands | The `@teire` command list | |
 
-Ticking a box runs the action if you have write access. Teire then clears the ticks and comments `@you: …` with what started. Without write access nothing runs and the ticks are cleared. Set `dashboardIssue: false` in `teire.yml` to close the issue.
+Ticking a box runs the action if you have write access; Teire clears the ticks and comments `@you: …` with what started. Set `dashboardIssue: false` in `teire.yml` to close the issue.

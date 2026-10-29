@@ -4,10 +4,10 @@ description: Five steps from a notice to a reviewed fix. Teire reads only what y
 icon: Workflow
 ---
 
-<Shot
-  name="landing-steps"
-  alt="Five columns: Notice, Impact, Fix, Verify, Pull request, each with a one-line description and the tools that do it."
-  caption="The five steps every run takes, as the landing page shows them."
+<Diagram
+  name="five-steps"
+  alt="Notice: registries, provider pages and OSV for what your code uses; Impact: the exact call sites; Fix: a swap or Nemotron; Verify: your checks before vs after with the network off; Pull request: the evidence decides ready, draft or issue."
+  caption="The five steps every run takes."
 />
 
 ## 1. Notice
@@ -65,8 +65,6 @@ Otherwise NVIDIA Nemotron 3 Ultra works as an agent with six tools: `read_file`,
 
 <Diagram
   name="fix-loop"
-  width={1568}
-  height={242}
   alt="Flow: upgrade transaction, deterministic edits, your checks before vs after; pass goes to the pull request, fail goes to the Nemotron agent, which loops until checks pass or attempts run out; a passing fix goes through the review pass."
   caption="How a fix run decides what to do next."
 />

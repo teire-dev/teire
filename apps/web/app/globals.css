@@ -335,12 +335,34 @@
   --sidebar-ring: var(--signal);
 }
 
-/* In the docs the active page and links take the signal colour (never the CTA's chartreuse). */
+/* In the docs links take the signal colour; the active page takes the app's marker (below). */
 :root,
 .dark {
   --color-fd-primary: var(--signal);
   --color-fd-primary-foreground: var(--sheet);
   --fd-layout-width: 1400px;
+}
+
+/*
+ * The docs sidebar's active page as the app's sidebar marks it (plan revision 3.4, B8 and V6): a sheet
+ * row in ink with the chartreuse bar on its left edge, not a tinted row in blue.
+ */
+:is(#nd-sidebar, #nd-sidebar-mobile) a[data-active="true"] {
+  position: relative;
+  background: var(--sheet);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: var(--tile-shadow);
+}
+:is(#nd-sidebar, #nd-sidebar-mobile) a[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  inset-block: 0.375rem;
+  left: 0;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--cta);
+  box-shadow: 0 0 0 1px var(--cta-edge);
 }
 
 /*

@@ -1,44 +1,25 @@
-import { ImageZoom } from "fumadocs-ui/components/image-zoom";
+import { StaticFlow } from "@/components/flow/static-flow";
+import { DOC_FLOWS } from "./doc-flows";
 
 /**
- * An architecture diagram rendered from its Mermaid source (.github/diagrams) in Teire's own
- * colours: the light picture in light mode, the dark one in dark; either opens full size on a tap.
+ * An architecture diagram as a live flow (plan revision 3.4, V6): the app's own tiles in Teire's
+ * colours, light and dark by the tokens, one lane per path. It renders on the server, so it reads
+ * without JavaScript; on phones each lane becomes a vertical timeline.
  */
-const SIZE: Record<string, { width: number; height: number }> = {};
-
-export function Diagram({
-  name,
-  alt,
-  caption,
-  width = 1600,
-  height = 900,
-}: {
-  name: string;
-  alt: string;
-  caption?: string;
-  width?: number;
-  height?: number;
-}) {
-  const size = SIZE[name] ?? { width, height };
+export function Diagram({ name, alt, caption }: { name: string; alt: string; caption?: string }) {
+  const lanes = DOC_FLOWS[name];
+  if (!lanes) return null;
   return (
     <figure className="not-prose my-8">
-      <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card">
-        <ImageZoom
-          src={`/diagrams/${name}-light.png`}
-          alt={alt}
-          {...size}
-          className="block w-full dark:hidden"
-        />
-        <ImageZoom
-          src={`/diagrams/${name}-dark.png`}
-          alt={alt}
-          {...size}
-          className="hidden w-full dark:block"
-        />
+      <div className="flex flex-col gap-6 rounded-card bg-sheet p-5 shadow-card sm:p-6">
+        {lanes.map((l) => (
+          <div key={l.title} className="flex flex-col gap-3">
+            {lanes.length > 1 ? <span className="eyebrow">{l.title}</span> : null}
+            <StaticFlow graph={l.graph} size="sm" label={`${l.title}. ${alt}`} />
+          </div>
+        ))}
       </div>
-      {caption ? (
-        <figcaption className="mt-2.5 text-[13px] text-fd-muted-foreground">{caption}</figcaption>
-      ) : null}
+      {caption ? <figcaption className="mt-2.5 text-[13px] text-ink-3">{caption}</figcaption> : null}
     </figure>
   );
 }

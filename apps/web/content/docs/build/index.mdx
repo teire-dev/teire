@@ -6,8 +6,6 @@ icon: Network
 
 <Diagram
   name="system"
-  width={1568}
-  height={552}
   alt="System: developers install the GitHub App and use the web app; GitHub webhooks reach the web app, which writes to a Postgres outbox; the worker claims them, reads registries, provider pages and Tavily, calls Nemotron on Token Factory, verifies in Cloudflare Containers, and writes branches, PRs, check runs and issues back to GitHub."
   caption="Every part of Teire and every outside service it calls."
 />

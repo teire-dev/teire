@@ -40,7 +40,8 @@ async function DocsContent({ params }: Pick<PageProps<"/docs/[[...slug]]">, "par
       tableOfContent={{ style: "clerk" }}
       breadcrumb={{ includeRoot: true }}
     >
-      <DocsTitle>{page.data.title}</DocsTitle>
+      {/* The serif, as every public headline (plan revision 3.4, B8: 32px and up). */}
+      <DocsTitle className="display text-[2.5rem] font-normal">{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
       <div className="flex flex-row flex-wrap items-center gap-2 border-b border-fd-border pt-4 pb-6">
         <MarkdownCopyButton markdownUrl={markdownUrl} />

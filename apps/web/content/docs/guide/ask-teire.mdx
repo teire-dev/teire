@@ -4,7 +4,13 @@ description: Ask about your repositories, findings, runs and changes in plain wo
 icon: MessageSquare
 ---
 
-Ask Teire is the assistant inside the dashboard. It answers from Teire's own records (your findings, runs, pull requests, the catalog of changes, your `teire.yml` and these docs) and shows each answer with the same cards the dashboard uses. It reads freely. It never changes anything on its own: when you want something done, it shows the exact action and you click **Confirm**.
+<Diagram
+  name="ask-teire"
+  alt="You ask in plain words; Nemotron 3 Ultra on Token Factory calls Teire's read tools over only what you can see; the answer comes back as cards drawn from the real rows; nothing changes until you click Confirm."
+  caption="Ask Teire reads freely and acts only on your click."
+/>
+
+Ask Teire is the assistant inside the dashboard. It answers from Teire's own records: your findings, runs, pull requests, the catalog of changes, your `teire.yml` and these docs. Each answer comes back as cards drawn with the dashboard's own flows: a run as its breadcrumb trail, a change as its fan-out to your repositories, figures as tiles. When you want something done, it shows the exact action and you click **Confirm**.
 
 <Shot
   name="ask-overview"
@@ -16,7 +22,7 @@ Ask Teire is the assistant inside the dashboard. It answers from Teire's own rec
 
 - **The launcher** sits in the bottom-right corner of every dashboard page, every run, scan and change page once you're signed in, and these docs. Press <kbd>⌘I</kbd> (<kbd>Ctrl I</kbd>) anywhere it's offered.
 - **⌘K** ends with **Ask Teire: …**, which sends what you typed there.
-- **Explain** on a finding, or on a repository's header, opens it with the question already asked.
+- **Explain** (the sparkle) on a finding row, or on a repository's header, opens it with the question already asked.
 
 The panel opens above the launcher. **Dock** it to make it a right sidebar you can resize (360 to 600 pixels): on a wide screen the page moves over to make room, and it stays docked, with your thread, as you move between pages. On a phone it opens full height.
 
@@ -36,15 +42,15 @@ Type <kbd>@</kbd> to mention a repository, run, change or open pull request by n
 
 | You ask | It reads | You see |
 |---|---|---|
-| What needs me today? | The Overview | Runs needing a person (and why), runs going now, open PRs, deadlines |
-| What reaches the code in owner/repo? | The repository's findings | Each change with its verdict and first call site |
-| Explain the zod finding | The finding | The change, the provider's own words, every call site with its code |
-| Was the minitest 6 upgrade proven? Why is this PR a draft? | The run | The proof chain, the before and after ledger, what wasn't covered |
-| Why is there no PR for anthropic? | Teire's gates, in the worker's order | Each gate as passed or holding it, and the first one that holds |
-| Which repositories does the gpt-4-turbo shutdown reach? | The catalog and your findings | Each repository, its call sites, and what Fix now would do there |
-| What would turning off plain bumps do? | Your `teire.yml` | The lines that change and what that does to your findings and runs |
+| What needs me today? | The Overview | Four figure tiles, then each run that needs a person as its chain, with why |
+| What reaches the code in owner/repo? | The repository's findings | Count pills, then one row per change with its logo |
+| Explain the zod finding | The finding | Its run as a breadcrumb trail (or change → code → fix → PR before any run), old → new, the lines and the provider's words folded |
+| Was the minitest 6 upgrade proven? Why is this PR a draft? | The run | The run's trail, each check before → after, what wasn't covered |
+| Why is there no PR for anthropic? | Teire's gates, in the worker's order | The gates as a trail, the one that holds in red |
+| Which repositories does the gpt-4-turbo shutdown reach? | The catalog and your findings | The change's logo fanning out to each repository, each branch in what Fix now would do |
+| What would turning off plain bumps do? | Your `teire.yml` | The − and + lines and what they do to your findings and runs |
 | How do I make Teire ask before fixing? | These docs | The answer in the docs' words, with a link to the page |
-| What has this cost? | Receipts | Runs, sandbox time, model spend, and your Ask Teire spend today |
+| What has this cost? | Receipts | Runs, sandbox minutes, model and Ask Teire spend, a bar by purpose, today's meter |
 
 Every card says when its record was read ("as of 3 min ago") and links to where it lives in Teire. Links in an answer go only to pages a card returned, so Ask Teire can't send you to a page that doesn't exist or to a site a repository mentions.
 
@@ -56,7 +62,7 @@ Every card says when its record was read ("as of 3 min ago") and links to where 
 
 ## It acts only when you click
 
-Ask Teire can propose: set the fix mode (one repository or the installation's default), Fix now, Rescan, Pause and Resume, Ignore and Unignore, Refresh, Rebase or Recreate a PR, Cancel, Retry or Re-verify a run, Open draft anyway, a config PR, a starter config PR, and Fix in all. Each proposal is a card with the exact action and what it means. Nothing happens until you click **Confirm**, and the card then follows the action to Teire's answer, the same way the dashboard's buttons do (see [Dashboard](/docs/guide/dashboard)).
+Ask Teire can propose: set the fix mode (one repository or the installation's default), Fix now, Rescan, Pause and Resume, Ignore and Unignore, Refresh, Rebase or Recreate a PR, Cancel, Retry or Re-verify a run, Open draft anyway, a config PR, a starter config PR, and Fix in all. Each proposal is a card with the exact action, what it means, and a trail of what Confirm sets going (dashed until you click). Nothing happens until you click **Confirm**; the trail's first step then pulses while Teire works and reads its answer, the same way the dashboard's buttons do (see [Dashboard](/docs/guide/dashboard)).
 
 <Shot
   name="ask-action"

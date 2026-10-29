@@ -4,6 +4,12 @@ description: See what would break in any public repository without installing an
 icon: ScanSearch
 ---
 
+<Diagram
+  name="public-scan"
+  alt="Paste any public owner/name; the scan takes one to five minutes, three a day; the report shows the lines each change reaches at one commit; a dry run checks one change in the sandbox, once a day; the PR preview is never opened."
+  caption="A public scan and a dry run, with no install and nothing written to GitHub."
+/>
+
 A public scan runs the same assessment as an installed repository. It reads every dependency, every API host and model ID, and the runtime pins. It asks for no repository access and writes nothing to GitHub.
 
 <Shot

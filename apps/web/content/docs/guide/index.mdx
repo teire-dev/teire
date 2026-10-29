@@ -10,10 +10,8 @@ Teire watches every dependency and API your repository uses. That covers six pac
 
 <Diagram
   name="model-retirement"
-  width={1568}
-  height={474}
   alt="Sequence: Teire scans teire-dev/examples/wrapped-models, finds Groq's deprecations page, has Nemotron read it with verbatim quotes, traces the wrapped model IDs to the request, swaps the one with a single named replacement and has Nemotron choose between two for the other, verifies 0/4 → 4/4 tests in the sandbox, and composes the ready PR it would open."
-  caption="A real evaluation run, numbered in order; installed, the last step opens the PR. Groq shut down two Llama models on 2026-08-16. The repository keeps both IDs in a tier registry, not in a model: argument."
+  caption="A real evaluation run: the repository keeps both IDs in a tier registry, not in a model: argument. Installed, the last step opens the PR."
 />
 
 ## One change, end to end
@@ -87,8 +85,6 @@ Node.js and Python runtimes are checked against their end-of-life dates. Those a
 
 <Diagram
   name="system"
-  width={1568}
-  height={552}
   alt="System: developers install the GitHub App and use the web app; GitHub webhooks reach the web app, which writes to a Postgres outbox; the worker claims them, reads registries, provider pages and Tavily, calls Nemotron on Token Factory, verifies in Cloudflare Containers, and writes branches, PRs, check runs and issues back to GitHub."
   caption="The web app on Vercel, the worker and Postgres on Coolify, the sandbox on Cloudflare Containers, and every model call on Nebius Token Factory."
 />
