@@ -1,10 +1,10 @@
-import { and, asc, eq, inArray, installations, repos, sql, systemState } from "@teire/db";
+import { and, asc, eq, inArray, installations, repos, runs, sql, systemState } from "@teire/db";
 import { cookies } from "next/headers";
 import { freshAccess } from "./auth";
 import { myInstallations } from "./dashboard";
 import { database } from "./db";
 import { repoFixMode } from "./fix-mode";
-import type { Scope } from "./workspace";
+import { runsOf, type Scope } from "./workspace";
 
 /** The installation the person last chose in the switcher (U1); the first they can see otherwise. */
 export const INSTALLATION_COOKIE = "teire-installation";
@@ -91,21 +91,31 @@ export async function appShell(userId: string) {
   const [live, system, recent, prs, reaching] = await Promise.all([
     liveRepos(current.id, userId),
     systemLine(),
-    // For ⌘K: the installation's latest runs and the changes that reach its code.
-    database().execute<{ id: string; full_name: string; group_key: string | null; status: string }>(sql`
-      select x.id, r.full_name, x.group_key, x.status from runs x join repos r on r.id = x.repo_id
-      where r.installation_id = ${current.id} and ${readable(userId)} and x.kind = 'fix' order by x.created_at desc limit 12`),
+    // For ⌘K: the installation's latest runs, each with its proof chain as every run row draws it,
+    // and the changes that reach its code.
+    runsOf(
+      { installationId: current.id, account: null, publicOnly: false, userId },
+      eq(runs.kind, "fix"),
+      12,
+    ),
     // For Ask Teire's @-mentions: the installation's open Teire PRs.
     database().execute<{ number: number; full_name: string; change_key: string }>(sql`
       select a.number, r.full_name, a.change_key from artifacts a join repos r on r.id = a.repo_id
       where r.installation_id = ${current.id} and ${readable(userId)} and a.kind = 'pr' and a.state = 'open'
         and a.number is not null
       order by a.updated_at desc limit 20`),
-    database().execute<{ change_id: string; title: string | null; repos: number }>(sql`
-      select f.change_id, c.title, count(distinct f.repo_id)::int as repos
+    database().execute<{
+      change_id: string;
+      title: string | null;
+      repos: number;
+      provider: string | null;
+      ecosystem: string | null;
+    }>(sql`
+      select f.change_id, c.title, count(distinct f.repo_id)::int as repos,
+        c.provider_slug as provider, c.ecosystem
       from findings f join repos r on r.id = f.repo_id left join changes c on c.id = f.change_id
       where r.installation_id = ${current.id} and ${readable(userId)} and f.verdict = 'affected' and f.state = 'open'
-      group by f.change_id, c.title order by repos desc limit 12`),
+      group by f.change_id, c.title, c.provider_slug, c.ecosystem order by repos desc limit 12`),
   ]);
   return {
     installations: all,
@@ -118,8 +128,20 @@ export async function appShell(userId: string) {
       fixMode: repoFixMode(r, inst ?? null).mode,
     })),
     system,
-    runs: recent.rows.map((r) => ({ id: r.id, repo: r.full_name, groupKey: r.group_key, status: r.status })),
-    changes: reaching.rows.map((c) => ({ id: c.change_id, title: c.title ?? c.change_id, repos: c.repos })),
+    runs: recent.map((r) => ({
+      id: r.id,
+      repo: r.repo,
+      groupKey: r.groupKey,
+      status: r.status,
+      proof: r.proof,
+    })),
+    changes: reaching.rows.map((c) => ({
+      id: c.change_id,
+      title: c.title ?? c.change_id,
+      repos: c.repos,
+      provider: c.provider,
+      ecosystem: c.ecosystem,
+    })),
     prs: prs.rows.map((p) => ({ number: p.number, repo: p.full_name, group: p.change_key })),
   };
 }

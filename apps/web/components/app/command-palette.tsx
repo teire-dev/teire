@@ -20,7 +20,10 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAssistant } from "@/components/assistant/assistant-provider";
+import { MiniFlow } from "@/components/flow/mini-flow";
 import { LogoMark } from "@/components/logo";
+import { LiveDot } from "@/components/teire/live-dot";
+import { Mark } from "@/components/teire/mark";
 import {
   Command,
   CommandDialog,
@@ -31,7 +34,12 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { FIX_MODES } from "@/lib/fix-mode-options";
+import type { Brand } from "@/lib/brands";
+import { changeBrand } from "@/lib/estate";
+import { FIX_MODE_LABEL, FIX_MODES } from "@/lib/fix-mode-options";
+import { languageMarks, subjectMark } from "@/lib/marks";
+import type { Proof } from "@/lib/proof";
+import { cn } from "@/lib/utils";
 import { runAction } from "./run-action";
 
 interface DocHit {
@@ -73,6 +81,38 @@ function Snippet({ text, query }: { text: string; query: string }) {
   );
 }
 
+/** A row's icon on a small tile, so every row starts with the same square (pages, actions, docs). */
+function Square({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-sunken text-ink-2 ring-1 ring-rule ring-inset [&_svg]:size-3.5">
+      {children}
+    </span>
+  );
+}
+
+/** A repository by its main language's logo, as the sidebar marks it. */
+function RepoMark({ languages }: { languages: unknown }) {
+  const mark = languageMarks(languages)[0];
+  return mark ? (
+    <Mark brand={mark} size="sm" className="size-6 shrink-0 rounded-md" />
+  ) : (
+    <Square>
+      <FolderGit2 />
+    </Square>
+  );
+}
+
+/** A change by its provider's or ecosystem's logo. */
+function ChangeMark({ brand }: { brand: Brand | undefined }) {
+  return brand ? (
+    <Mark brand={brand} size="sm" className="size-6 shrink-0 rounded-md" />
+  ) : (
+    <Square>
+      <GitPullRequestArrow />
+    </Square>
+  );
+}
+
 /**
  * ⌘K (plan revision 3.3, "App shell"): jump to a page or a repository, act on the repository you're
  * on (each action asks once before it runs), and search the docs: each hit with its breadcrumb, title
@@ -87,9 +127,9 @@ export function CommandPalette({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  repos: { fullName: string; fixMode: string; status?: string }[];
-  runs?: { id: string; repo: string; groupKey: string | null; status: string }[];
-  changes?: { id: string; title: string; repos: number }[];
+  repos: { fullName: string; fixMode: string; status?: string; languages?: unknown; live?: boolean }[];
+  runs?: { id: string; repo: string; groupKey: string | null; status: string; proof: Proof }[];
+  changes?: { id: string; title: string; repos: number; provider: string | null; ecosystem: string | null }[];
 }) {
   const router = useRouter();
   const path = usePathname();
@@ -175,7 +215,10 @@ export function CommandPalette({
                 value={`rescan ${repo.fullName}`}
                 onSelect={() => setConfirm({ kind: "rescan", params: {}, repo: repo.fullName })}
               >
-                <RefreshCw /> Rescan now
+                <Square>
+                  <RefreshCw />
+                </Square>
+                Rescan now
               </CommandItem>
               <CommandItem
                 value={`pause ${repo.fullName}`}
@@ -187,7 +230,10 @@ export function CommandPalette({
                   })
                 }
               >
-                <PauseCircle /> {repo.status === "paused" ? "Resume Teire here" : "Pause Teire here"}
+                <Square>
+                  <PauseCircle />
+                </Square>
+                {repo.status === "paused" ? "Resume Teire here" : "Pause Teire here"}
               </CommandItem>
               {MODES.filter(([m]) => m !== repo.fixMode).map(([m, label]) => (
                 <CommandItem
@@ -197,7 +243,15 @@ export function CommandPalette({
                     setConfirm({ kind: "set-fix-mode", params: { mode: m }, repo: repo.fullName })
                   }
                 >
-                  <Wrench /> Fix mode: {label}
+                  <Square>
+                    <Wrench />
+                  </Square>
+                  <span className="flex items-center gap-1.5 font-mono text-xs">
+                    <span className="text-ink-3 line-through">
+                      {FIX_MODE_LABEL[repo.fixMode as keyof typeof FIX_MODE_LABEL] ?? repo.fixMode}
+                    </span>
+                    →<span className="text-ink">{label}</span>
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -205,7 +259,10 @@ export function CommandPalette({
           <CommandGroup heading="Go to">
             {PAGES.map((p) => (
               <CommandItem key={p.href} value={`go ${p.label}`} onSelect={() => go(p.href)}>
-                <p.icon /> {p.label}
+                <Square>
+                  <p.icon />
+                </Square>
+                {p.label}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -217,8 +274,14 @@ export function CommandPalette({
                   value={`repo ${r.fullName}`}
                   onSelect={() => go(`/app/repos/${r.fullName}`)}
                 >
-                  <FolderGit2 />
+                  <RepoMark languages={r.languages} />
                   <span className="truncate">{r.fullName}</span>
+                  {r.live ? <LiveDot className="ml-1" /> : null}
+                  <CommandShortcut>
+                    <span className={cn(r.fixMode === "auto" ? "text-proven" : "text-ink-3")}>
+                      {FIX_MODE_LABEL[r.fixMode as keyof typeof FIX_MODE_LABEL] ?? r.fixMode}
+                    </span>
+                  </CommandShortcut>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -231,9 +294,9 @@ export function CommandPalette({
                   value={`change ${c.title} ${c.id}`}
                   onSelect={() => go(`/changes/${c.id}`)}
                 >
-                  <GitPullRequestArrow />
+                  <ChangeMark brand={changeBrand(c)} />
                   <span className="truncate">{c.title}</span>
-                  <CommandShortcut>
+                  <CommandShortcut className="whitespace-nowrap">
                     {c.repos} repo{c.repos === 1 ? "" : "s"}
                   </CommandShortcut>
                 </CommandItem>
@@ -248,11 +311,14 @@ export function CommandPalette({
                   value={`run ${r.repo} ${r.groupKey ?? ""}`}
                   onSelect={() => go(`/runs/${r.id}`)}
                 >
-                  <PlayCircle />
-                  <span className="truncate">{r.groupKey ?? r.repo}</span>
-                  <CommandShortcut>
-                    {r.repo.split("/")[1]} · {r.status}
-                  </CommandShortcut>
+                  <MiniFlow
+                    proof={r.proof}
+                    subject={subjectMark(r.groupKey)}
+                    size="xs"
+                    className="shrink-0"
+                  />
+                  <span className="truncate font-mono text-xs">{r.groupKey ?? r.repo}</span>
+                  <CommandShortcut>{r.repo.split("/")[1]}</CommandShortcut>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -265,13 +331,18 @@ export function CommandPalette({
                   value={`doc ${h.id}`}
                   forceMount
                   onSelect={() => go(h.url)}
-                  className="flex-col items-start gap-0.5"
+                  className="items-start"
                 >
-                  <span className="font-mono text-[10px] text-ink-3">
-                    {(h.breadcrumbs ?? []).join(" › ")}
-                  </span>
-                  <span className="line-clamp-2 text-sm text-ink-2">
-                    <Snippet text={h.content} query={query.trim()} />
+                  <Square>
+                    <BookOpen />
+                  </Square>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="font-mono text-[10px] text-ink-3">
+                      {(h.breadcrumbs ?? []).join(" › ")}
+                    </span>
+                    <span className="line-clamp-2 text-sm text-ink-2">
+                      <Snippet text={h.content} query={query.trim()} />
+                    </span>
                   </span>
                 </CommandItem>
               ))}
