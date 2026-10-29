@@ -1,15 +1,21 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { BrandLogo } from "@/components/brand-logo";
-import { Badge } from "@/components/ui/badge";
-import { ecosystemOf } from "@/lib/brands";
+import { GhostFlow } from "@/components/flow/ghost-flow";
+import { StaticFlow } from "@/components/flow/static-flow";
+import { TileSquare } from "@/components/flow/tile";
+import { Mark } from "@/components/teire/mark";
+import { ecosystemOf, STACK } from "@/lib/brands";
 import { listChanges } from "@/lib/catalog";
 import { providerPage } from "@/lib/entities";
+import type { FlowGraph } from "@/lib/flow/model";
 import { providerLogo } from "@/lib/logos";
+import { ago, until } from "@/lib/time";
+import { cn } from "@/lib/utils";
 import { ClassChip } from "../../changes/class-chip";
 
 export async function generateMetadata({ params }: PageProps<"/providers/[slug]">): Promise<Metadata> {
@@ -17,21 +23,29 @@ export async function generateMetadata({ params }: PageProps<"/providers/[slug]"
   return { title: `${providerLogo(slug).name} changes` };
 }
 
-/** A provider (C10): the pages Teire reads for it and their health, its models, SDKs and changes. */
+/**
+ * A provider (plan revision 3.4, V5): how Teire reads it as a flow, the pages it watches with each
+ * one's status and last check, its models with a change as old → new with a countdown, its SDKs as
+ * chips, and its changes.
+ */
 export default function ProviderPage({ params }: PageProps<"/providers/[slug]">) {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12">
-      <Link href="/changes" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/changes" className="text-sm text-ink-3 hover:text-ink">
         ← All changes
       </Link>
-      <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" aria-hidden />}>
+      <Suspense
+        fallback={
+          <div className="flex h-96 items-center justify-center rounded-xl bg-sheet shadow-card" aria-hidden>
+            <GhostFlow tiles={4} />
+          </div>
+        }
+      >
         <Provider params={params} />
       </Suspense>
     </main>
   );
 }
-
-const TONE = { ok: "bg-clear", stale: "bg-human", failing: "bg-affected" } as const;
 
 async function Provider({ params }: { params: PageProps<"/providers/[slug]">["params"] }) {
   const { slug } = await params;
@@ -53,129 +67,176 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
     .filter((m, i, list) => list.findIndex((x) => x.id === m.id) === i);
   const discovered = Boolean(record.discovery);
 
+  const failing = sources.filter((x) => x.status === "failing").length;
+  const checked = sources
+    .map((x) => x.lastCheckedAt)
+    .filter((x): x is string => !!x)
+    .sort()
+    .at(-1);
+  const graph: FlowGraph = {
+    tiles: [
+      {
+        id: "pages",
+        entity: "change",
+        state: failing ? "not_proven" : "done",
+        label: `${record.sources.length} page${record.sources.length === 1 ? "" : "s"}`,
+        meta: checked ? `checked ${ago(checked)}` : "not read yet",
+        brand: { label: record.name, light: logo.light, dark: logo.dark },
+      },
+      {
+        id: "reader",
+        entity: "fix",
+        state: "done",
+        label: discovered ? "Nemotron reads" : "Teire's reader",
+        ...(discovered ? { brand: STACK.nemotron } : {}),
+      },
+      { id: "quote", entity: "check", state: "proven", label: "Quotes checked" },
+      {
+        id: "changes",
+        entity: "outcome",
+        state: rows.length ? "done" : "pending",
+        label: `${rows.length} change${rows.length === 1 ? "" : "s"}`,
+        ...(upcoming.length ? { caption: `${upcoming.length} upcoming` } : {}),
+      },
+    ],
+    links: [
+      { from: "pages", to: "reader", state: "done" },
+      { from: "reader", to: "quote", state: "done" },
+      { from: "quote", to: "changes", state: "proven" },
+    ],
+  };
+
   return (
     <>
-      <header className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <BrandLogo light={logo.light} dark={logo.dark} alt="" className="h-8" />
-          <h1 className="text-3xl font-semibold tracking-tight">{record.name}</h1>
-          {discovered ? <Badge variant="outline">discovered from code</Badge> : null}
+      <header className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Mark brand={{ label: record.name, light: logo.light, dark: logo.dark }} size="lg" />
+          <h1 className="heading text-3xl text-ink">{record.name}</h1>
+          <span className="rounded-full bg-sunken px-2.5 py-0.5 text-xs text-ink-2">
+            {discovered ? "discovered in code" : "hand-written reader"}
+          </span>
+          <a href={record.homepage} className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink">
+            {new URL(record.homepage).host} <ExternalLink className="size-3" aria-hidden />
+          </a>
         </div>
-        <p className="text-subtle">
-          {discovered
-            ? `Teire found ${record.name} in a scanned repository's code or SDKs and read its notices with Nemotron, keeping only quotes that match each page.`
-            : `Teire reads ${record.name}'s change pages with a reader written for them, and keeps only quotes that match each page.`}{" "}
-          It reads them again whenever a scanned repository uses {record.name}.
-        </p>
-        <a href={record.homepage} className="flex w-fit items-center gap-1 text-sm text-link hover:underline">
-          {new URL(record.homepage).host} <ExternalLink className="size-3" aria-hidden />
-        </a>
+        <div className="rounded-xl bg-sheet p-5 shadow-card">
+          <StaticFlow graph={graph} size="sm" label={`How Teire reads ${record.name}`} />
+        </div>
       </header>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">Pages Teire reads</h2>
-        <ul className="divide-y overflow-hidden rounded-lg bg-card shadow-card">
-          {record.sources.map((s) => {
-            const health = sources.find((x) => x.url === s.url);
+      <section className="flex flex-col gap-3" aria-label="Pages Teire watches">
+        <h2 className="heading text-xl text-ink">Pages it watches</h2>
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {record.sources.map((src) => {
+            const health = sources.find((x) => x.url === src.url);
+            const status = health?.status ?? "stale";
             return (
-              <li
-                key={s.url}
-                className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    className={`size-2 shrink-0 rounded-full ${health ? (TONE[health.status as keyof typeof TONE] ?? "bg-muted-foreground") : "bg-muted-foreground"}`}
-                    aria-hidden
-                  />
-                  <a href={s.url} className="truncate text-link hover:underline">
-                    {new URL(s.url).host}
-                    {new URL(s.url).pathname}
-                  </a>
-                </span>
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                  {s.kind} ·{" "}
-                  {health?.lastCheckedAt
-                    ? `${health.status} · checked ${health.lastCheckedAt.slice(0, 10)}`
-                    : "not read yet"}
-                </span>
+              <li key={src.url}>
+                <a
+                  href={src.url}
+                  className="flex items-center gap-3 rounded-xl bg-sheet p-3 shadow-card hover:shadow-card-hover"
+                >
+                  <span className="relative flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sunken">
+                    <FileText className="size-4 text-ink-2" aria-hidden />
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "absolute -right-1 -bottom-1 size-3 rounded-full ring-2 ring-sheet",
+                        status === "ok" ? "bg-proven" : status === "failing" ? "bg-broke" : "bg-attention",
+                      )}
+                    />
+                  </span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm text-ink">
+                      {new URL(src.url).host}
+                      <span className="text-ink-3">{new URL(src.url).pathname}</span>
+                    </span>
+                    <span className="font-mono text-[11px] text-ink-3">
+                      {src.kind} ·{" "}
+                      {health?.lastCheckedAt ? `${status} · ${ago(health.lastCheckedAt)}` : "not read yet"}
+                    </span>
+                  </span>
+                </a>
               </li>
             );
           })}
         </ul>
       </section>
 
-      {models.length || record.sdks.length ? (
-        <section className="grid gap-6 md:grid-cols-2">
-          {models.length ? (
-            <div className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium">Models with a change</h2>
-              <ul className="divide-y overflow-hidden rounded-lg bg-card font-mono text-xs shadow-card">
-                {models.slice(0, 40).map((m) => (
-                  <li key={m.id}>
-                    <Link
-                      href={`/changes/${m.change.id}`}
-                      className="row-link flex flex-col gap-0.5 px-4 py-2 pr-10 hover:bg-accent"
-                    >
-                      <span>
-                        <span className="text-muted-foreground line-through decoration-affected/60">
-                          {m.id}
-                        </span>
-                        {m.replacement ? ` → ${m.replacement}` : ""}
+      {models.length ? (
+        <section className="flex flex-col gap-3" aria-label="Models with a change">
+          <h2 className="heading text-xl text-ink">Models with a change</h2>
+          <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
+            {models.slice(0, 40).map((m) => (
+              <li key={m.id}>
+                <Link
+                  href={`/changes/${m.change.id}`}
+                  className="flex flex-wrap items-center gap-2 px-4 py-2.5 font-mono text-xs hover:bg-hover"
+                >
+                  <span className="text-ink-3 line-through decoration-broke/60">{m.id}</span>
+                  {m.replacement ? (
+                    <>
+                      <span className="text-ink-3" aria-hidden>
+                        →
                       </span>
-                      {m.change.deadline ? (
-                        <span className="text-human">{m.change.deadline.slice(0, 10)}</span>
-                      ) : null}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {record.sdks.length ? (
-            <div className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium">SDK packages Teire recognises</h2>
-              <ul className="divide-y overflow-hidden rounded-lg bg-card text-sm shadow-card">
-                {record.sdks.map((s) => {
-                  const e = ecosystemOf(s.ecosystem);
-                  return (
-                    <li key={`${s.ecosystem}:${s.name}`}>
-                      <Link
-                        href={`/packages/${s.ecosystem}/${s.name.split("/").map(encodeURIComponent).join("/")}`}
-                        className="row-link flex items-center gap-2 px-4 py-2 pr-10 hover:bg-accent"
-                      >
-                        {e ? <BrandLogo light={e.light} dark={e.dark} alt="" className="h-3.5" /> : null}
-                        <span className="font-mono text-xs">{s.name}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ) : null}
+                      <span className="text-ink">{m.replacement}</span>
+                    </>
+                  ) : null}
+                  {m.change.deadline ? (
+                    <span className="ml-auto rounded-full bg-attention-soft px-2 py-0.5 text-[11px] text-attention">
+                      {until(m.change.deadline)}
+                    </span>
+                  ) : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">
-          Changes{" "}
-          <span className="text-muted-foreground">
-            ({rows.length}
-            {upcoming.length ? `, ${upcoming.length} upcoming` : ""})
-          </span>
+      {record.sdks.length ? (
+        <section className="flex flex-col gap-3" aria-label="SDK packages">
+          <h2 className="heading text-xl text-ink">Its SDKs</h2>
+          <ul className="flex flex-wrap gap-2">
+            {record.sdks.map((sdk) => {
+              const e = ecosystemOf(sdk.ecosystem);
+              return (
+                <li key={`${sdk.ecosystem}:${sdk.name}`}>
+                  <Link
+                    href={`/packages/${sdk.ecosystem}/${sdk.name.split("/").map(encodeURIComponent).join("/")}`}
+                    className="flex items-center gap-2 rounded-full bg-sheet py-1 pr-3 pl-1.5 text-xs shadow-tile ring-1 ring-rule hover:ring-rule-strong"
+                  >
+                    {e ? (
+                      <span className="flex size-5 items-center justify-center rounded-full bg-sunken">
+                        <BrandLogo light={e.light} dark={e.dark} alt="" className="h-3 w-auto" />
+                      </span>
+                    ) : null}
+                    <span className="font-mono text-ink">{sdk.name}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="flex flex-col gap-3" aria-label="Changes">
+        <h2 className="heading text-xl text-ink">
+          Changes <span className="font-mono text-sm text-ink-3">{rows.length}</span>
         </h2>
         {rows.length ? (
-          <ul className="divide-y overflow-hidden rounded-lg bg-card shadow-card">
+          <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
             {rows.slice(0, 100).map((r) => (
               <li key={r.id}>
                 <Link
                   href={`/changes/${r.id}`}
-                  className="row-link flex flex-col gap-1 px-4 py-3 pr-10 hover:bg-accent sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-1 px-4 py-2.5 hover:bg-hover sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <span className="text-sm">{r.title}</span>
+                  <span className="text-sm text-ink">{r.title}</span>
                   <span className="flex shrink-0 items-center gap-2">
                     <ClassChip value={r.class} />
                     {r.deadline ? (
-                      <span className="font-mono text-xs text-human">{r.deadline.slice(0, 10)}</span>
+                      <span className="font-mono text-[11px] text-attention">{until(r.deadline)}</span>
                     ) : null}
                   </span>
                 </Link>
@@ -183,13 +244,13 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            No confirmed public change yet. Teire reads these pages the next time a scanned repository uses{" "}
-            {record.name}.{" "}
-            <Link href="/scan" className="text-link hover:underline">
-              Scan a public repository
+          <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+            <TileSquare tile={{ entity: "change", state: "pending", label: "" }} size="sm" />
+            <span className="text-sm text-ink-2">Read again when a scanned repository uses it</span>
+            <Link href="/scan" className="ml-auto text-xs text-ink-2 hover:text-ink">
+              Scan ›
             </Link>
-          </p>
+          </div>
         )}
       </section>
     </>
