@@ -80,7 +80,7 @@ import {
 } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
 import { cancellableBackend, selectBackend, unsupportedToolchain } from "@teire/engine/verify";
-import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
+import { cachedSurfaceDiff, dependencyCacheFor, postgresRegistryCache } from "../caches";
 import { markCreditsExhausted, modelWorkBlocked } from "../reliability";
 import { resolveForRepo } from "../resolver";
 import {
@@ -1067,6 +1067,17 @@ async function packageOutcome(
     ...(co?.findings.length ? { extraFindings: co.findings, extraRecords: co.records } : {}),
     ...(co?.notes.length ? { movedNotes: co.notes } : {}),
     ...(config.sources.length ? { declaredSources: config.sources } : {}),
+    // This repository's own download cache, on backends that keep one (R21.11).
+    ...((cacheHooks) => (cacheHooks ? { depCache: cacheHooks } : {}))(
+      dependencyCacheFor(
+        ctx.db,
+        repo.id,
+        ecosystem,
+        assessment.project.root,
+        assessment.project.manager,
+        common.backend.name,
+      ),
+    ),
     ...(transaction && resolved
       ? {
           requestUpgrade: upgradeRequests(

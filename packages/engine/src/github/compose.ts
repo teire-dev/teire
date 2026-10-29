@@ -317,6 +317,7 @@ function receiptLines(
   out.push(
     `| Sandboxes: install + checks, both sides | ${backendNote.split(" (")[0]} | — | ${Math.round(sandboxMs / 1000)} s |`,
   );
+  if (run.depCache) out.push(`| Package cache: ${run.depCache.note} | — | — | — |`);
   out.push(`Model total: **${usd(run.costUsd + (notesReceipt?.costUsd ?? 0))}**.`);
   return out;
 }

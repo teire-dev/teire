@@ -1,6 +1,7 @@
 import { RunCancelledError } from "../cancel";
 import { SCAN, VERIFY } from "../constants";
 import {
+  type CacheRecord,
   CloudflareSandbox,
   type EgressEvent,
   type InstanceType,
@@ -31,6 +32,12 @@ export interface VerifySession {
   writeFile(path: string, content: Uint8Array): Promise<void>;
   egress(): Promise<EgressEvent[]>;
   close(): Promise<void>;
+  /** Cloudflare only (R21.11): the download cache saved to and restored from R2. */
+  depCache?: {
+    save(dir: string, name: string): Promise<{ record: CacheRecord; ms: number }>;
+    restore(record: CacheRecord): Promise<{ ms: number }>;
+    remove(record: CacheRecord): Promise<void>;
+  };
 }
 
 export interface VerifyBackend {
@@ -82,6 +89,18 @@ export function cancellableBackend(backend: VerifyBackend, signal: AbortSignal):
         readFile: (path) => guarded(() => session.readFile(path)),
         writeFile: (path, content) => guarded(() => session.writeFile(path, content)),
         egress: () => session.egress(),
+        ...(session.depCache
+          ? {
+              depCache: {
+                save: (dir: string, name: string) =>
+                  guarded(() => (session.depCache as NonNullable<VerifySession["depCache"]>).save(dir, name)),
+                restore: (record: CacheRecord) =>
+                  guarded(() => (session.depCache as NonNullable<VerifySession["depCache"]>).restore(record)),
+                remove: (record: CacheRecord) =>
+                  guarded(() => (session.depCache as NonNullable<VerifySession["depCache"]>).remove(record)),
+              },
+            }
+          : {}),
         close: async () => {
           sessions.delete(session);
           await session.close();
@@ -118,6 +137,13 @@ export function cloudflareBackend(config = sandboxConfigFromEnv()): VerifyBacken
           await sandbox.writeFile(path, content);
         },
         egress: () => sandbox.egress(),
+        depCache: {
+          save: (dir, name) => sandbox.saveCache(name, dir),
+          restore: (record) => sandbox.restoreCache(record),
+          remove: async (record) => {
+            await sandbox.deleteCache(record);
+          },
+        },
         close: async () => {
           await sandbox.destroy().catch(() => undefined);
         },

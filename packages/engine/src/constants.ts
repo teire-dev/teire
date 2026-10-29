@@ -87,6 +87,26 @@ export const ASSISTANT = {
   maxToolChars: 12_000,
 } as const;
 
+/**
+ * Each package manager's download cache in the sandbox (HOME=/home/teire during the install), the
+ * only thing saved between runs (R21.11): packages as downloaded, never built output or the tree.
+ * Bundler has none here: gems install into the Ruby's own directory, so it isn't cached.
+ */
+export const DOWNLOAD_CACHE: Record<string, string> = {
+  npm: "/home/teire/.npm/_cacache",
+  pnpm: "/home/teire/.local/share/pnpm/store",
+  yarn: "/home/teire/.cache/yarn",
+  bun: "/home/teire/.bun/install/cache",
+  pip: "/home/teire/.cache/pip",
+  pipenv: "/home/teire/.cache/pip",
+  uv: "/home/teire/.cache/uv",
+  poetry: "/home/teire/.cache/pypoetry",
+  go: "/home/teire/go/pkg/mod/cache/download",
+  cargo: "/home/teire/.cargo/registry/cache",
+  maven: "/home/teire/.m2/repository",
+  gradle: "/home/teire/.gradle/caches/modules-2/files-2.1",
+};
+
 export const FIX = {
   /**
    * Co-upgrades whose API is diffed and located like the lead's (D-10): the largest version jumps

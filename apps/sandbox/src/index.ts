@@ -333,6 +333,16 @@ export class VerifySandbox extends DurableObject<Env> {
     return { ms: Date.now() - started };
   }
 
+  async deleteCache(record: DirectoryBackupRecord) {
+    await this.#backups.delete(record);
+    return { ok: true as const };
+  }
+
+  /** Whether an R2 bucket is bound for the download cache (R21.11): until then every cache route says so. */
+  cacheBound() {
+    return !!(this.env as { DEP_CACHE?: unknown }).DEP_CACHE;
+  }
+
   async recordEgress(event: EgressEvent) {
     this.ctx.storage.sql.exec(
       "INSERT INTO egress (at, phase, method, host, path) VALUES (?, ?, ?, ?, ?)",
@@ -535,6 +545,12 @@ export default {
       }
       if (route === "POST snapshot")
         return json(await sandbox.snapshot((await request.json<{ name: string }>()).name));
+      if (route.startsWith("POST cache/") && !(await sandbox.cacheBound()))
+        return json({ error: "no cache bucket is bound (R2 is not enabled)" }, 501);
+      if (route === "POST cache/delete") {
+        const body = await request.json<{ record: DirectoryBackupRecord }>();
+        return json(await sandbox.deleteCache(body.record));
+      }
       if (route === "POST cache/save") {
         const body = await request.json<{ name: string; dir: string }>();
         return json(await sandbox.saveCache(body.name, body.dir));

@@ -211,6 +211,8 @@ export interface FixDependencyInput {
   requestUpgrade?: RequestUpgrade;
   /** teire.yml `sources`: a package's own changelog the repository names (S16.1). */
   declaredSources?: DeclaredSource[];
+  /** The repository's download cache, on backends that keep one (R21.11). */
+  depCache?: Parameters<typeof runFix>[0]["depCache"];
   /** teire.yml `verify` commands, which replace the detected ones per workspace (C8). */
   verify?: { workspace: string; install?: string; typecheck?: string; test?: string }[];
   /**
@@ -316,6 +318,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? []), ...(input.movedNotes ?? [])],
     ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
+    ...(input.depCache ? { depCache: input.depCache } : {}),
     targetDir: targetLayout.link.dir,
     targetPaths: new Set([
       ...Object.keys(targetSurface.surface.symbols),

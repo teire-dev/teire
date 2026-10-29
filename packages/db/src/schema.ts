@@ -427,6 +427,26 @@ export const resolverResults = pgTable(
   (t) => [index("resolver_results_repo_idx").on(t.repoId)],
 );
 
+/**
+ * A repository's saved download cache (R21.11): the DirectoryBackup record of one root's package
+ * downloads in R2. The worker restores only records of the run's own repository, so a cache never
+ * crosses repositories; the newest per root is restored, older ones pruned.
+ */
+export const dependencyCaches = pgTable(
+  "dependency_caches",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    repoId: githubId("repo_id").notNull(),
+    ecosystem: text("ecosystem").notNull(),
+    root: text("root").notNull(),
+    /** `CacheRecord`: object id, directory, size, sha256 (checked on every restore). */
+    record: jsonb("record").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("dependency_caches_key_idx").on(t.repoId, t.ecosystem, t.root, t.createdAt)],
+);
+
 /** `config`: a teire.yml pull request asked for from the dashboard (U3), not a fix; it has no lineage. */
 export type ArtifactKind = "pr" | "issue" | "dashboard" | "onboarding" | "config";
 

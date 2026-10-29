@@ -739,6 +739,8 @@ export async function removeInstallationData(db: Database, installationId: numbe
       "sandbox_snapshots",
       // Which providers the repo used: the fan-out must not rescan a repo that left (D95).
       "repo_providers",
+      // Its saved download caches (R21.11): the objects expire by the bucket's lifecycle rule.
+      "dependency_caches",
     ])
       await tx.execute(sql`delete from ${sql.identifier(table)} where repo_id in ${ids}`);
     await tx.execute(sql`

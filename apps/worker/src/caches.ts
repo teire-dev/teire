@@ -1,5 +1,15 @@
-import { and, type Database, eq, extractionCache, registryCache, surfaceDiffs } from "@teire/db";
-import { GO, JVM, PYTHON, RUBY, RUST, SURFACE } from "@teire/engine/constants";
+import {
+  and,
+  type Database,
+  dependencyCaches,
+  desc,
+  eq,
+  extractionCache,
+  inArray,
+  registryCache,
+  surfaceDiffs,
+} from "@teire/db";
+import { DOWNLOAD_CACHE, GO, JVM, PYTHON, RUBY, RUST, SURFACE } from "@teire/engine/constants";
 import type { RegistryCache } from "@teire/engine/registry";
 import {
   jvmSurfaceDiff,
@@ -9,6 +19,7 @@ import {
   rubySurfaceDiff,
   type SurfaceDiff,
 } from "@teire/engine/surface";
+import type { CacheRecord, VerifySession } from "@teire/engine/verify";
 
 /** `registry_cache` in Postgres: one row per (ecosystem, key), shared by every repo the worker scans. */
 export function postgresRegistryCache(db: Database): RegistryCache {
@@ -131,4 +142,70 @@ export async function cachedExtraction<T>(
     .values({ key, model, records: value, costUsd: costUsd.toFixed(6) })
     .onConflictDoNothing();
   return { value, cached: false };
+}
+
+/** How many saved caches a root keeps: the newest restores; one more covers a save that fails half-way. */
+const CACHES_KEPT = 2;
+
+/**
+ * A repository's download cache for one root (R21.11). Every restore is looked up here, by the run's
+ * own repository, never handed in, so a cache can't cross repositories (R21 reviews: a public
+ * lockfile would otherwise let one repository write the cache another restores). Only the package
+ * manager's download directory is saved, after the baseline installs; older records are pruned.
+ * Undefined where the backend keeps no cache or the manager has no download directory.
+ */
+export function dependencyCacheFor(
+  db: Database,
+  repoId: number,
+  ecosystem: string,
+  root: string,
+  manager: string,
+  backend: string,
+) {
+  const dir = DOWNLOAD_CACHE[manager];
+  // On only once the sandbox Worker has its R2 bucket (`TEIRE_DEP_CACHE=on`, set when R2 is enabled).
+  if (process.env.TEIRE_DEP_CACHE !== "on" || backend !== "cloudflare" || !dir) return undefined;
+  const key = and(
+    eq(dependencyCaches.repoId, repoId),
+    eq(dependencyCaches.ecosystem, ecosystem),
+    eq(dependencyCaches.root, root),
+  );
+  return {
+    async restore(session: VerifySession) {
+      if (!session.depCache) return null;
+      const [row] = await db
+        .select()
+        .from(dependencyCaches)
+        .where(key)
+        .orderBy(desc(dependencyCaches.createdAt))
+        .limit(1);
+      if (!row) return null;
+      const { ms } = await session.depCache.restore(row.record as CacheRecord);
+      return { ms, savedAt: row.createdAt.toISOString() };
+    },
+    async save(session: VerifySession) {
+      if (!session.depCache) return null;
+      const name = `${repoId}-${ecosystem}-${root}`.replace(/[^\w.-]/g, "_");
+      const { record, ms } = await session.depCache.save(dir, name);
+      await db.insert(dependencyCaches).values({ repoId, ecosystem, root, record, sizeBytes: record.size });
+      const old = (
+        await db.select().from(dependencyCaches).where(key).orderBy(desc(dependencyCaches.createdAt))
+      ).slice(CACHES_KEPT);
+      for (const row of old) await session.depCache.remove(row.record as CacheRecord).catch(() => undefined);
+      if (old.length)
+        await db.delete(dependencyCaches).where(
+          inArray(
+            dependencyCaches.id,
+            old.map((r) => r.id),
+          ),
+        );
+      return { ms };
+    },
+  };
+}
+
+/** A repository's cache records, gone when it is removed or uninstalled (R21.11). */
+export async function forgetDependencyCaches(db: Database, repoIds: number[]) {
+  if (!repoIds.length) return;
+  await db.delete(dependencyCaches).where(inArray(dependencyCaches.repoId, repoIds));
 }

@@ -282,6 +282,7 @@ export async function fixPyDependency(
     records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? []), ...(input.movedNotes ?? [])],
     ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
+    ...(input.depCache ? { depCache: input.depCache } : {}),
     targetDir: targetWheel.dir,
     targetPaths: new Set(),
     docs: pythonDocsLookup({

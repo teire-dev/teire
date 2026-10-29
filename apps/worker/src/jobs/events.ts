@@ -1,4 +1,5 @@
 import { STALE_EVIDENCE_LABEL } from "@teire/engine/github";
+import { forgetDependencyCaches } from "../caches";
 import type { Delivery } from "../outbox";
 import {
   appendEvent,
@@ -107,8 +108,10 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
         if (repo.status === "disabled") await setRepo(db, repo.id, { status: "detected" });
         await ctx.enqueueScan(repo.id, "install");
       }
-      for (const r of (p.repositories_removed ?? []) as RepoPayload[])
+      for (const r of (p.repositories_removed ?? []) as RepoPayload[]) {
         await setRepo(db, r.id, { status: "disabled" });
+        await forgetDependencyCaches(db, [r.id]);
+      }
       return;
     }
     case "repository": {

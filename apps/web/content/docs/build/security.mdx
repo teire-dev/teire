@@ -29,6 +29,10 @@ On Cloudflare Containers:
 
 The worker never runs your repository's code. It reads packages with static tools: TypeScript declarations, griffe, apidiff, Prism, japicmp on jars, and ast-grep. Tarballs are integrity-checked and unpacked by Teire's own extractor, which refuses links and `..` paths.
 
+### The package cache
+
+On Cloudflare Containers, a repository can keep its package manager's download cache between runs, saved to R2 after the baseline installs and restored before the next run's installs. It is keyed by the repository, never by a lockfile: the worker looks up every restore by the run's own repository, so one repository's cache can never reach another's checks. Only the download directory is saved (npm's `_cacache`, pip's and uv's caches, Go's module download cache, Cargo's registry cache, Maven's repository, Gradle's files cache), never built output or your code. A root keeps its two newest caches; uninstalling the app, or removing a repository from it, deletes its records, and the bucket expires objects after 30 days. The receipt says whether a run restored a cache and how long it took. It is off until R2 is enabled for the deployment.
+
 ## The dependency updater
 
 Manifest and lockfile changes are moving to dependabot-core's updater ([How Teire updates dependency files](/docs/build/dependency-files)). It runs on Teire's own server, not in the verification sandbox:

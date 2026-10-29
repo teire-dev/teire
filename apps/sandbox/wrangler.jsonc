@@ -24,6 +24,9 @@
   ],
   "durable_objects": { "bindings": [{ "name": "SANDBOX", "class_name": "VerifySandbox" }] },
   "exports": { "VerifySandbox": { "type": "durable-object", "storage": "sqlite" } }
-  // R2 dependency cache: add {"r2_buckets": [{"binding": "DEP_CACHE", "bucket_name": "teire-dep-cache"}]}
-  // once R2 is enabled on the account (the DirectoryBackup routes need it).
+  // R2 dependency cache (R21.11): once R2 is enabled on the account, create the bucket with an expiry
+  // (`wrangler r2 bucket create teire-dep-cache`, then
+  // `wrangler r2 bucket lifecycle add teire-dep-cache expire-30d --expire-days 30`), add
+  // {"r2_buckets": [{"binding": "DEP_CACHE", "bucket_name": "teire-dep-cache"}]}, deploy, and set
+  // TEIRE_DEP_CACHE=on on the worker. Until then the cache routes answer 501.
 }

@@ -225,6 +225,19 @@ export class CloudflareSandbox {
     );
   }
 
+  /** The package manager's download cache, saved to R2 through the Worker's DirectoryBackup (R21.11). */
+  saveCache(name: string, dir: string) {
+    return this.#json<{ record: CacheRecord; ms: number }>("POST", "/cache/save", { name, dir });
+  }
+
+  restoreCache(record: CacheRecord) {
+    return this.#json<{ ms: number }>("POST", "/cache/restore", { record });
+  }
+
+  deleteCache(record: CacheRecord) {
+    return this.#json<{ ok: true }>("POST", "/cache/delete", { record });
+  }
+
   snapshot(name: string) {
     return this.#json<{ id: string; size: number; name?: string; ms: number }>("POST", "/snapshot", { name });
   }
@@ -236,4 +249,14 @@ export class CloudflareSandbox {
   destroy() {
     return this.#json<{ destroyed: boolean }>("DELETE", "");
   }
+}
+
+/** A saved download cache, as DirectoryBackup records it: the object, its size and its sha256. */
+export interface CacheRecord {
+  id: string;
+  dir: string;
+  size: number;
+  name?: string;
+  sha256: string;
+  format: string;
 }

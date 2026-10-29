@@ -162,6 +162,13 @@
       "when": 1793300000000,
       "tag": "0022_v5_scan_step",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793390000000,
+      "tag": "0023_r21_dependency_caches",
+      "breakpoints": true
     }
   ]
 }

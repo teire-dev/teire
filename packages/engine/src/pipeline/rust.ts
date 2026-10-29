@@ -233,6 +233,7 @@ export async function fixRustDependency(
     records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? []), ...(input.movedNotes ?? [])],
     ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
+    ...(input.depCache ? { depCache: input.depCache } : {}),
     targetDir: "",
     targetPaths: new Set(),
     docs: rustDocsLookup(a.instance.name, from, target),

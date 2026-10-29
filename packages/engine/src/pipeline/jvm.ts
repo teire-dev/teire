@@ -314,6 +314,7 @@ export async function fixJvmDependency(
     records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? []), ...(input.movedNotes ?? [])],
     ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
+    ...(input.depCache ? { depCache: input.depCache } : {}),
     targetDir: "",
     targetPaths: new Set(),
     docs: jvmDocsLookup(a.instance.name, target, a.diff?.changes ?? []),

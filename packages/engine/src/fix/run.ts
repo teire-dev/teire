@@ -107,6 +107,14 @@ export interface FixInput {
   targetDir: string;
   targetPaths: ReadonlySet<string>;
   docs: (query: string) => Promise<string>;
+  /**
+   * The repository's own download cache (R21.11), looked up and authorised by the caller: restored
+   * into both sessions before their installs, saved after the baseline installs.
+   */
+  depCache?: {
+    restore(session: VerifySession): Promise<{ ms: number; savedAt: string } | null>;
+    save(session: VerifySession): Promise<{ ms: number } | null>;
+  };
   /** Other upgrades the agent may ask for (S15.2); absent when the updater is off for this ecosystem. */
   requestUpgrade?: RequestUpgrade;
   /**
@@ -166,6 +174,8 @@ export interface FixRun {
   transactionFiles: string[];
   /** Packages the transaction moved besides the lead (co-upgrades, D-10). */
   moved: NonNullable<Transaction["moved"]>;
+  /** The repository's download cache this run restored or saved (R21.11), for the receipt. */
+  depCache?: { note: string; restoredMs?: number; savedMs?: number };
   /** Nemotron's reading of a failed after-side install (S15.5), when the upgrade broke the install. */
   triage?: InstallTriage;
   /** Upstream commits between the versions (D-13), when the updater listed them. */
@@ -650,7 +660,21 @@ async function runLead(input: FixInput): Promise<FixRun> {
       ...(input.plan.instance ? { instance: input.plan.instance } : {}),
     });
   const [base, after] = await Promise.all([open("base"), open("after")]);
+  let cache: NonNullable<FixRun["depCache"]> = { note: "no cache" };
   try {
+    // The repository's saved download cache, into both sessions before their installs (R21.11).
+    if (input.depCache) {
+      const quiet = (session: VerifySession) =>
+        (input.depCache as NonNullable<FixInput["depCache"]>).restore(session).catch(() => null);
+      const [restored] = await Promise.all([quiet(base), quiet(after)]);
+      cache = restored
+        ? {
+            note: `restored in ${(restored.ms / 1000).toFixed(1)} s, saved by a run on ${restored.savedAt.slice(0, 10)}`,
+            restoredMs: restored.ms,
+          }
+        : { note: "no saved cache yet" };
+      emit({ step: "install", detail: `package cache: ${cache.note}` });
+    }
     const log = (line: string) =>
       emit({ step: line.startsWith("baseline") ? "baseline" : "install", detail: line });
     const probeBaseline = async () => {
@@ -671,8 +695,20 @@ async function runLead(input: FixInput): Promise<FixRun> {
       log(`baseline: probe exit ${run.exitCode} in ${run.ms} ms`);
       return { side, probe: run.exitCode === 0 ? run.stdout : null };
     };
+    // The baseline installed: its download cache is the one the next run of this repository restores.
+    const savedAfterBaseline = async () => {
+      const result = await probeBaseline();
+      if (input.depCache && result.side.install.ok) {
+        const saved = await input.depCache.save(base).catch(() => null);
+        if (saved) {
+          cache = { ...cache, savedMs: saved.ms };
+          emit({ step: "baseline", detail: `package cache saved in ${(saved.ms / 1000).toFixed(1)} s` });
+        }
+      }
+      return result;
+    };
     const [{ side: baseline, probe: baselineProbe }, txn] = await Promise.all([
-      probeBaseline(),
+      savedAfterBaseline(),
       prepareTransaction(after, input.plan, input.transaction, log, applyManifest),
     ]);
     const prepared = txn.side;
@@ -795,6 +831,7 @@ async function runLead(input: FixInput): Promise<FixRun> {
           ...extraMoved,
         ],
         upstream: input.transaction.upstream ?? null,
+        ...(input.depCache ? { depCache: cache } : {}),
         files,
         codemods,
         attempts,
