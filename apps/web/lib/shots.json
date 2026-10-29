@@ -24,8 +24,8 @@
     "height": 1688
   },
   "wide/change-detail": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/changes": {
     "width": 1280,
@@ -60,16 +60,16 @@
     "height": 1080
   },
   "wide/package-anthropic": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/provider-anthropic": {
     "width": 1280,
     "height": 1080
   },
   "wide/provider-groq": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/repo-findings": {
     "width": 1600,
@@ -100,40 +100,40 @@
     "height": 1000
   },
   "wide/scan": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/settings": {
     "width": 1600,
     "height": 1000
   },
   "wide/trust": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/welcome": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/run-sheet": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/run-sheet-steps": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1935
   },
   "wide/run-sheet-receipt": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 761
   },
   "phone/run-sheet": {
     "width": 780,
     "height": 1688
   },
   "wide/run-reverify": {
-    "width": 1280,
-    "height": 1080
+    "width": 1600,
+    "height": 1000
   },
   "wide/repo-prs": {
     "width": 1600,

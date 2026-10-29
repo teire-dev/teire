@@ -37,7 +37,7 @@ At most 3 pages are kept per provider, deprecations first. Every fetch and redir
 
 <Shot
   name="provider-groq"
-  alt="Groq, discovered from code: pages Teire reads (console.groq.com deprecations, changelog, legacy changelog, all ok, checked 2026-10-25), models with a change and their replacements and dates, and the SDK package groq-sdk."
+  alt="Groq, discovered in code: its three pages as a flow (Nemotron reads them, quotes checked, 43 changes), each page with its status and last check, the retirement timeline with the latest past shutdown, and the models with no date yet."
   caption="Groq has no hand-written reader. Teire found it through groq-sdk, read its three pages with Nemotron, and lists every model change it confirmed."
 />
 
@@ -91,13 +91,13 @@ A change only appears once a scanned repository depends on it. The same records 
 
 <Shot
   name="change-detail"
-  alt="Change page: Anthropic, breaks on a date, model retirement: claude-sonnet-4-5-20250929 shutdown on 2026-11-30, replacement claude-sonnet-5-5, the source's own words with a link to platform.claude.com, checked date and page hash, and what Teire searches your code for."
+  alt="Change page: Anthropic, breaks on a date: claude-sonnet-4-5-20250929 shutdown, its life as a flow (platform.claude.com, quote checked → claude-sonnet-5-5 → 2026-11-30 in 31 days → your code → swapped in code), the source's own words folded, what Teire looks for, and Fix in all."
   caption="One change: the replacement, the date, the exact quote the gate checked with the page's hash, and the model ID Teire looks for."
 />
 
 <Shot
   name="package-anthropic"
-  alt="Package page for anthropic on PyPI: the tool that diffs it, three changes computed for 1.15.0, and the version list with publish dates."
+  alt="Package page for anthropic on PyPI: read with griffe, its version tiles from the registry, and the changes Teire computed per target version (1.16.0, 1.17.0, 2.0.0), each breaking on upgrade."
   caption="A package page: what Teire computed for each target version, and the registry's versions."
 />
 
