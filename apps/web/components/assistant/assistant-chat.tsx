@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
-import { AtSign, Copy, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AtSign, Copy, RotateCcw, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Conversation,
@@ -180,21 +180,23 @@ function Thread({
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="gap-5 px-4 py-4">
           {messages.length === 0 ? (
-            <div className="flex flex-col gap-3 pt-6">
-              <p className="text-sm text-ink-2">
+            <div className="flex flex-col gap-4 pt-6">
+              {/* The intro is ten words at most (plan revision 3.4, V6): the chips say the rest. */}
+              <p className="flex items-center gap-2 text-sm text-ink-2">
+                <Sparkles className="size-4 shrink-0 text-signal" aria-hidden />
                 {a.mode === "docs"
-                  ? "Ask about how Teire works. Answers come from the docs and the public catalog."
-                  : "Ask about your repositories, findings, runs and changes. Teire reads freely and acts only when you confirm."}
+                  ? "Answers from the docs and the catalog."
+                  : "Reads everything. Acts only on your click."}
               </p>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {suggestions.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => send(s)}
-                    className="w-fit rounded-md px-2 py-1 text-left text-sm text-ink hover:bg-hover"
+                    className="rounded-full bg-sheet px-3 py-1.5 text-left text-xs text-ink ring-1 ring-rule transition-colors hover:bg-hover hover:ring-rule-strong"
                   >
-                    {s} <span className="text-ink-3">›</span>
+                    {s}
                   </button>
                 ))}
               </div>
