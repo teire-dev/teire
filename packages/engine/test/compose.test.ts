@@ -7,8 +7,10 @@ import {
   composeOnboarding,
   displayQuote,
   fitBody,
+  foldSections,
   joinBlocks,
   link,
+  runFlowImage,
   safeUrl,
   sanitizeUpstream,
   upgradeGroups,
@@ -176,5 +178,38 @@ describe("onboarding upgrades", () => {
     });
     expect(body.match(/\| `anthropic` \| 0\.125\.0 → 1\.17\.0/g)).toHaveLength(1);
     expect(body).toContain("across 2 projects");
+  });
+});
+
+describe("the body's flow image and folds", () => {
+  it("links the run's image to the run page, and draws none without a page", () => {
+    const id = "6611b070-513d-4a06-8bc4-ff8e964a9fd8";
+    expect(runFlowImage(`https://teire.vercel.app/runs/${id}`)).toBe(
+      `[![The run as Teire drew it: the change, your code, the fix, your checks before and after, and this outcome](https://teire.vercel.app/og/run/${id})](https://teire.vercel.app/runs/${id})`,
+    );
+    expect(runFlowImage(undefined)).toBeNull();
+    expect(runFlowImage("https://teire.vercel.app/runs/not-a-run")).toBeNull();
+  });
+
+  it("folds only the checking sections, keeps their tables whole, and stops at the next heading", () => {
+    const out = joinBlocks(
+      foldSections([
+        "### Why this repo",
+        "a call site",
+        "### Receipt",
+        "| Step | Cost |",
+        "|---|---|",
+        "| fix | $0.10 |",
+        "### Risks not covered",
+        "- lint",
+        "<sub>Teire · live run</sub>",
+      ]),
+    );
+    expect(out).toContain("### Why this repo\n\na call site");
+    expect(out).toContain(
+      "<details><summary><b>Receipt</b></summary>\n\n| Step | Cost |\n|---|---|\n| fix | $0.10 |\n\n</details>",
+    );
+    expect(out).toContain("### Risks not covered");
+    expect(out).not.toContain("### Receipt");
   });
 });

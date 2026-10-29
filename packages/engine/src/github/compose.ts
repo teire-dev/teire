@@ -62,6 +62,40 @@ function cell(side: SideResult, name: string) {
 
 /** The Verification section: one table, both sides, then the evidence that decided the PR. */
 /** Blocks joined by blank lines, except table rows, which must stay on consecutive lines to render as a table. */
+/**
+ * The run's flow as the body's first picture (plan revision 3.4, V6 and C12): Teire's own image of
+ * the run (`/og/run/<id>`), linked to the live run page. A private repository's image draws only the
+ * steps' states. Nothing when the run has no page.
+ */
+export function runFlowImage(runUrl: string | undefined) {
+  const image = runUrl?.replace(/\/runs\/([0-9a-f-]{36})$/, "/og/run/$1");
+  if (!runUrl || !image || image === runUrl) return null;
+  return `[![The run as Teire drew it: the change, your code, the fix, your checks before and after, and this outcome](${image})](${runUrl})`;
+}
+
+/** The sections a reviewer reads only to check something: folded under their own heading. */
+const FOLDED = new Set(["What changed upstream", "Supply chain", "Receipt"]);
+
+/**
+ * Each folded section (a "### Title" block and the blocks under it, up to the next heading or the
+ * footer) as one <details>, so the body opens on the verdict, why, verification and risks.
+ */
+export function foldSections(blocks: string[]) {
+  const out: string[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const head = /^### (.+)$/.exec(blocks[i] ?? "");
+    if (!head?.[1] || !FOLDED.has(head[1])) {
+      out.push(blocks[i] as string);
+      continue;
+    }
+    const inner: string[] = [];
+    while (i + 1 < blocks.length && !/^### |^<sub>Teire/.test(blocks[i + 1] ?? ""))
+      inner.push(blocks[++i] as string);
+    out.push(`<details><summary><b>${head[1]}</b></summary>\n\n${joinBlocks(inner)}\n\n</details>`);
+  }
+  return out;
+}
+
 export function joinBlocks(blocks: string[]) {
   return blocks.join("\n\n").replace(/^(\|.*\|)\n\n(?=\|)/gm, "$1\n");
 }
@@ -361,7 +395,12 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     ? `Upgrade ${instance.name} from ${instance.version} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
     : `Upgrade ${instance.name} from ${instance.version} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
   const sections = (withDiff: boolean, siteCap: number, noteCap: number) => {
-    const out: string[] = [`<!-- teire:group=${input.groupKey} run=${input.runId} -->`, verdictLine(input)];
+    const image = runFlowImage(input.runUrl);
+    const out: string[] = [
+      `<!-- teire:group=${input.groupKey} run=${input.runId} -->`,
+      verdictLine(input),
+      ...(image ? [image] : []),
+    ];
     if (input.fallbackFrom)
       out.push(
         `**Why ${run.target}, not ${input.fallbackFrom.version}.** Teire tried ${input.fallbackFrom.version} first; the repo's checks still failed after the agent's attempts (${sanitizeUpstream(forGitHub(input.fallbackFrom.reason, 400), null)}), so this PR moves to the newest version of the previous major.`,
@@ -531,7 +570,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       `\`@teire rebase\` · \`@teire recreate\` · \`@teire explain\` · \`@teire ignore ${instance.name}\``,
     );
     out.push(footer(input.runUrl, run, [input.notesReceipt?.model]));
-    return joinBlocks(out);
+    return joinBlocks(foldSections(out));
   };
   for (const [diff, sites, notes] of [
     [true, PULL_REQUESTS.maxSitesPerFinding, 8],
@@ -600,7 +639,12 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
         ? `**Draft: ${run.evidence.kind.replace(/_/g, " ")}.** ${what}. ${saidReasons(run.evidence.reasons)}.`
         : `**Needs a human.** ${what}. ${saidReasons(run.evidence.reasons)}.`;
   const sections = (withDiff: boolean, siteCap: number) => {
-    const out: string[] = [`<!-- teire:group=${input.groupKey} run=${input.runId} -->`, verdict];
+    const image = runFlowImage(input.runUrl);
+    const out: string[] = [
+      `<!-- teire:group=${input.groupKey} run=${input.runId} -->`,
+      verdict,
+      ...(image ? [image] : []),
+    ];
     out.push("### Why this repo");
     for (const f of affected) {
       const record = input.records.find((r) => r.id === f.changeId);
@@ -671,7 +715,7 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     out.push("### Commands");
     out.push("`@teire rebase` · `@teire recreate` · `@teire explain` · `@teire ignore`");
     out.push(footer(input.runUrl, run));
-    return joinBlocks(out);
+    return joinBlocks(foldSections(out));
   };
   for (const [diff, sites] of [
     [true, PULL_REQUESTS.maxSitesPerFinding],

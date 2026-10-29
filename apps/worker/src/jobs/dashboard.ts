@@ -219,14 +219,32 @@ export function composeDashboard(d: DashboardInput) {
   };
   collapsed("Not affected", notAffected);
   collapsed("Not applicable (installed version outside the change)", notApplicable);
-  if (ignored.length) {
-    lines.push("## Ignored", "");
-    for (const k of ignored) lines.push(box("unignore", k, `Unignore \`${k}\``));
-    lines.push("");
-  }
+  // A long list folds under its heading, the boxes still tickable inside (plan revision 3.4, C12).
+  const fold = (heading: string, rows: string[], over: number) => {
+    if (!rows.length) return;
+    if (rows.length <= over) lines.push(`## ${heading}`, "", ...rows, "");
+    else
+      lines.push(
+        `<details><summary><b>${heading}</b> (${rows.length})</summary>`,
+        "",
+        ...rows,
+        "",
+        "</details>",
+        "",
+      );
+  };
+  fold(
+    "Ignored",
+    ignored.map((k) => box("unignore", k, `Unignore \`${k}\``)),
+    8,
+  );
   if (d.inventory.length)
     lines.push("## Inventory", "", d.inventory.map((i) => `${i.ecosystem}: ${i.n}`).join(" · "), "");
-  if (d.gaps?.length) lines.push("## What Teire could not check", "", ...d.gaps.map((g) => `- ${g}`), "");
+  fold(
+    "What Teire could not check",
+    (d.gaps ?? []).map((g) => `- ${g}`),
+    5,
+  );
   if (d.configProblems.length)
     lines.push("## Config problems (defaults used)", "", ...d.configProblems.map((p) => `- ${p}`), "");
   lines.push("<details><summary>Commands</summary>", "", HELP, "", "</details>");
