@@ -1,14 +1,17 @@
-import { ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink, Quote as QuoteIcon, ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { BrandLogo } from "@/components/brand-logo";
 import { YourPackageReach } from "@/components/catalog/your-reach";
-import { Badge } from "@/components/ui/badge";
+import { GhostFlow } from "@/components/flow/ghost-flow";
+import { StaticFlow } from "@/components/flow/static-flow";
+import { TileSquare } from "@/components/flow/tile";
+import { Mark } from "@/components/teire/mark";
 import { ECOSYSTEMS } from "@/lib/brands";
 import { listChanges } from "@/lib/catalog";
 import { packageVersions } from "@/lib/entities";
+import { cn } from "@/lib/utils";
 import { ClassChip } from "../../../changes/class-chip";
 
 type Params = PageProps<"/packages/[ecosystem]/[...name]">["params"];
@@ -42,14 +45,24 @@ function registryUrl(ecosystem: string, name: string) {
   }
 }
 
-/** A package (C2, C10): its versions as the registry lists them, and every change Teire computed for it. */
+/**
+ * A package (plan revision 3.4, V5): how Teire reads it as a small flow, its versions as a rail (latest,
+ * deprecated, the ones with computed changes), its advisories, the changes per target and the release
+ * notes' own words folded; every version in a fold.
+ */
 export default function PackagePage({ params }: { params: Params }) {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12">
-      <Link href="/changes" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/changes" className="text-sm text-ink-3 hover:text-ink">
         ← All changes
       </Link>
-      <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" aria-hidden />}>
+      <Suspense
+        fallback={
+          <div className="flex h-96 items-center justify-center rounded-xl bg-sheet shadow-card" aria-hidden>
+            <GhostFlow tiles={3} />
+          </div>
+        }
+      >
         <Package params={params} />
       </Suspense>
     </main>
@@ -90,79 +103,131 @@ async function Package({ params }: { params: Params }) {
     byTarget.set(t, [...(byTarget.get(t) ?? []), r]);
   }
 
+  const targets = new Set(byTarget.keys());
+  // The rail: oldest left to newest right, the last 16 the registry lists.
+  const rail = [...(versions?.info.versions ?? [])].slice(-16);
+  const anchor = (v: string) => `target-${v.replace(/[^\w.-]/g, "-")}`;
+
   return (
     <>
-      <header className="flex flex-col gap-3">
+      <header className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <BrandLogo light={eco.light} dark={eco.dark} alt="" className="h-7" />
-          <h1 className="font-mono text-2xl font-semibold tracking-tight break-all">{name}</h1>
-          <Badge variant="outline">{eco.label}</Badge>
+          <Mark brand={eco} size="lg" />
+          <h1 className="heading font-mono text-3xl break-all text-ink">{name}</h1>
+          <span className="rounded-full bg-sunken px-2.5 py-0.5 text-xs text-ink-2">{eco.label}</span>
+          {registry ? (
+            <a href={registry} className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink">
+              {new URL(registry).host} <ExternalLink className="size-3" aria-hidden />
+            </a>
+          ) : null}
         </div>
-        <p className="text-subtle">
-          Teire diffs the public API between versions with {eco.reads}, locates each change in the code of the
-          repositories it scans, and reads the release notes for what the diff cannot show.
-        </p>
-        {registry ? (
-          <a href={registry} className="flex w-fit items-center gap-1 text-sm text-link hover:underline">
-            {new URL(registry).host} <ExternalLink className="size-3" aria-hidden />
-          </a>
-        ) : null}
+        <StaticFlow
+          size="sm"
+          className="max-w-2xl"
+          label={`How Teire reads ${name}`}
+          graph={{
+            tiles: [
+              { id: "diff", entity: "update", state: "done", label: "API diff", meta: eco.reads, brand: eco },
+              { id: "code", entity: "code", state: "done", label: "Your code", meta: "each change located" },
+              {
+                id: "notes",
+                entity: "change",
+                state: "done",
+                label: "Release notes",
+                meta: "what a diff can't show",
+              },
+            ],
+            links: [
+              { from: "diff", to: "code", state: "done" },
+              { from: "code", to: "notes", state: "done" },
+            ],
+          }}
+        />
       </header>
 
       <YourPackageReach pkg={`${ecosystem}/${name}`} />
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">
-          Security advisories <span className="text-muted-foreground">({advisories.length})</span>
-        </h2>
-        {advisories.length ? (
-          <ul className="divide-y overflow-hidden rounded-lg bg-card shadow-card">
+      {rail.length ? (
+        <section className="flex flex-col gap-2" aria-label="Versions">
+          <div className="relative overflow-x-auto rounded-xl bg-sheet px-5 pt-6 pb-4 shadow-card">
+            <span aria-hidden className="absolute top-[30px] right-5 left-5 h-px bg-rule-strong" />
+            <ol className="relative flex min-w-max justify-between gap-6">
+              {rail.map((v) => {
+                const changed = targets.has(v.version);
+                const dot = v.isDefault
+                  ? "bg-proven ring-proven"
+                  : v.deprecated !== null
+                    ? "bg-attention ring-attention"
+                    : changed
+                      ? "bg-sheet ring-signal ring-2"
+                      : "bg-sheet ring-rule-strong";
+                const body = (
+                  <>
+                    <span className={cn("size-3 rounded-full ring-1", dot)} />
+                    <span className={cn("font-mono text-[11px]", changed ? "text-ink" : "text-ink-3")}>
+                      {v.version}
+                    </span>
+                    <span className="font-mono text-[10px] text-ink-3">
+                      {v.isDefault
+                        ? "latest"
+                        : v.deprecated !== null
+                          ? "deprecated"
+                          : (v.publishedAt?.slice(0, 7) ?? "")}
+                    </span>
+                  </>
+                );
+                return (
+                  <li key={v.version} className="flex flex-col items-center gap-1.5">
+                    {changed ? (
+                      <a
+                        href={`#${anchor(v.version)}`}
+                        className="flex flex-col items-center gap-1.5 hover:opacity-80"
+                        title="Its changes"
+                      >
+                        {body}
+                      </a>
+                    ) : (
+                      body
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+          {versions ? (
+            <p className="font-mono text-[11px] text-ink-3">
+              {versions.info.source.name} · read {versions.fetchedAt?.slice(0, 10)}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {advisories.length ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
+            <ShieldAlert className="size-4 text-broke" aria-hidden />
+            Security advisories
+            <span className="font-mono text-xs text-ink-3">{advisories.length}</span>
+          </h2>
+          <ul className="flex flex-col gap-2">
             {advisories.map((r) => (
               <li key={r.id}>
                 <Link
                   href={`/changes/${r.id}`}
-                  className="row-link flex flex-col gap-1 px-4 py-3 pr-10 hover:bg-accent"
+                  className="flex flex-wrap items-center gap-2 rounded-xl bg-sheet px-4 py-3 shadow-card hover:shadow-card-hover"
                 >
-                  <span className="text-sm">{r.title}</span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {r.record.applicability.affectedRange
-                      ? `affects ${r.record.applicability.affectedRange}`
-                      : null}
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{r.title}</span>
+                  {r.record.applicability.affectedRange ? (
+                    <span className="rounded-full bg-broke-soft px-2 py-0.5 font-mono text-[11px] text-broke">
+                      {r.record.applicability.affectedRange}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-proven-soft px-2 py-0.5 font-mono text-[11px] text-proven">
                     {r.record.applicability.fixedIn.length
-                      ? ` · fixed in ${r.record.applicability.fixedIn.join(", ")}`
-                      : " · no fixed version yet"}
+                      ? `fixed in ${r.record.applicability.fixedIn.join(", ")}`
+                      : "no fix yet"}
                   </span>
                 </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            None in Teire's catalog for the versions it has read; advisories are read when a scanned
-            repository uses this package.
-          </p>
-        )}
-      </section>
-
-      {notes.length ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium">From the release notes</h2>
-          <ul className="flex flex-col gap-2">
-            {notes.map((n) => (
-              <li
-                key={`${n.changeId}-${n.url}`}
-                className="flex flex-col gap-1.5 rounded-lg bg-card p-4 shadow-card"
-              >
-                <blockquote className="border-l-2 pl-3 text-sm break-words text-subtle">
-                  “{n.quote.length > 320 ? `${n.quote.slice(0, 320)}…` : n.quote}”
-                </blockquote>
-                <span className="text-xs text-muted-foreground">
-                  {n.version ? <span className="font-mono">{n.version} · </span> : null}
-                  {n.host} · checked {n.checkedAt.slice(0, 10)} ·{" "}
-                  <Link href={`/changes/${n.changeId}`} className="entity-link">
-                    the change
-                  </Link>
-                </span>
               </li>
             ))}
           </ul>
@@ -170,27 +235,22 @@ async function Package({ params }: { params: Params }) {
       ) : null}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">
-          Changes Teire computed <span className="text-muted-foreground">({rows.length})</span>
+        <h2 className="text-sm font-medium text-ink">
+          Changes Teire computed <span className="font-mono text-xs text-ink-3">{rows.length}</span>
         </h2>
         {rows.length ? (
           [...byTarget].map(([target, list]) => (
-            <div key={target} className="flex flex-col gap-2">
-              <p className="font-mono text-xs text-muted-foreground">→ {target}</p>
-              <ul className="divide-y overflow-hidden rounded-lg bg-card shadow-card">
+            <div key={target} id={anchor(target)} className="flex scroll-mt-24 flex-col gap-2">
+              <p className="font-mono text-xs text-ink-3">→ {target}</p>
+              <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
                 {list.map((r) => (
                   <li key={r.id}>
                     <Link
                       href={`/changes/${r.id}`}
-                      className="row-link flex flex-col gap-1 px-4 py-3 pr-10 hover:bg-accent sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-1 px-4 py-2.5 hover:bg-hover sm:flex-row sm:items-center sm:justify-between"
                     >
-                      <span className="text-sm">{r.title}</span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <ClassChip value={r.class} />
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {r.kind.replace(/-/g, " ")}
-                        </span>
-                      </span>
+                      <span className="text-sm text-ink">{r.title}</span>
+                      <ClassChip value={r.class} />
                     </Link>
                   </li>
                 ))}
@@ -198,46 +258,65 @@ async function Package({ params }: { params: Params }) {
             </div>
           ))
         ) : (
-          <p className="text-sm text-muted-foreground">
-            No change computed yet: Teire diffs a version only when a scanned repository could upgrade to it.
-          </p>
+          <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+            <TileSquare tile={{ entity: "update", state: "pending", label: "" }} size="sm" />
+            <span className="text-sm text-ink-2">Diffed when a scanned repository could upgrade</span>
+          </div>
         )}
       </section>
 
-      {listed.length ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium">Versions</h2>
-          <table className="w-full overflow-hidden rounded-lg bg-card font-mono text-xs shadow-card">
-            <thead className="bg-muted/60 text-muted-foreground">
-              <tr>
-                <th className="px-4 py-2 text-left font-normal">version</th>
-                <th className="px-4 py-2 text-left font-normal">published</th>
-                <th className="px-4 py-2 text-left font-normal">flags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listed.map((v) => (
-                <tr key={v.version} className="border-t">
-                  <td className="px-4 py-2">{v.version}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{v.publishedAt?.slice(0, 10) ?? "—"}</td>
-                  <td className="px-4 py-2">
-                    {v.isDefault ? <span className="text-clear">latest </span> : null}
-                    {v.deprecated !== null ? (
-                      <span className="text-human" title={v.deprecated || undefined}>
-                        deprecated
-                      </span>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {versions ? (
-            <p className="text-xs text-muted-foreground">
-              From {versions.info.source.name}, read {versions.fetchedAt?.slice(0, 10)}. Newest 30 shown.
-            </p>
-          ) : null}
+      {notes.length ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
+            <QuoteIcon className="size-4 text-ink-3" aria-hidden />
+            From the release notes
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {notes.map((n) => (
+              <li key={`${n.changeId}-${n.url}`}>
+                <details className="group/note rounded-xl bg-sheet shadow-card">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-xs text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+                    {n.version ? <span className="font-mono text-ink">{n.version}</span> : null}
+                    <span>{n.host}</span>
+                    <span className="font-mono text-ink-3">{n.checkedAt.slice(0, 10)}</span>
+                    <ChevronDown
+                      aria-hidden
+                      className="ml-auto size-3.5 transition-transform group-open/note:rotate-180"
+                    />
+                  </summary>
+                  <div className="flex flex-col gap-2 border-t border-rule px-4 py-3">
+                    <blockquote className="border-l-2 border-rule-strong pl-3 text-sm break-words text-ink-2">
+                      “{n.quote.length > 480 ? `${n.quote.slice(0, 480)}…` : n.quote}”
+                    </blockquote>
+                    <Link href={`/changes/${n.changeId}`} className="w-fit text-xs text-ink-3 hover:text-ink">
+                      The change ›
+                    </Link>
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
         </section>
+      ) : null}
+
+      {listed.length > rail.length ? (
+        <details className="group/all rounded-xl bg-sheet shadow-card">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+            All versions <span className="font-mono text-xs text-ink-3">{listed.length}</span>
+            <ChevronDown
+              aria-hidden
+              className="ml-auto size-3.5 transition-transform group-open/all:rotate-180"
+            />
+          </summary>
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-1 border-t border-rule px-4 py-3 font-mono text-xs sm:grid-cols-3">
+            {listed.map((v) => (
+              <li key={v.version} className="flex justify-between gap-2">
+                <span className="text-ink">{v.version}</span>
+                <span className="text-ink-3">{v.publishedAt?.slice(0, 10) ?? "—"}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : null}
     </>
   );

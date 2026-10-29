@@ -3,9 +3,10 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { FilterSelect } from "@/components/app/filter-select";
+import { ActivityLanes, WatchBand, WhatsNew, watchedOf } from "@/components/catalog/pulse";
 import { YourReach } from "@/components/catalog/your-reach";
+import { DeadlineRail } from "@/components/deadline-rail";
 import { GhostFlow } from "@/components/flow/ghost-flow";
-import { StaticFlow } from "@/components/flow/static-flow";
 import { TileSquare } from "@/components/flow/tile";
 import { Mark } from "@/components/teire/mark";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import {
   sourceLabel,
   sourceLogo,
   sourceOf,
+  watchedSources,
 } from "@/lib/catalog";
 import { packageHref, providerHref } from "@/lib/links";
 import { until } from "@/lib/time";
@@ -29,7 +31,7 @@ export const metadata = {
     "Every package, API and model change Teire has read for the repositories it scans, each confirmed against a quote from its source.",
 };
 
-const PAGE = 120;
+const PAGE = 60;
 
 /**
  * The public catalog (plan revision 3.4, V5): why a change is here as one small flow, the filters as
@@ -38,48 +40,11 @@ const PAGE = 120;
  */
 export default function ChangesPage({ searchParams }: PageProps<"/changes">) {
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-12">
-      <header className="flex flex-col gap-5">
-        <h1 className="display text-5xl text-ink">Changes</h1>
-        <StaticFlow
-          size="sm"
-          className="max-w-2xl"
-          label="Why a change is in the catalog"
-          graph={{
-            tiles: [
-              {
-                id: "dep",
-                entity: "repository",
-                state: "done",
-                label: "A repo uses it",
-                meta: "package or API",
-              },
-              {
-                id: "quote",
-                entity: "check",
-                state: "proven",
-                label: "Quote matches",
-                meta: "its source page",
-              },
-              {
-                id: "code",
-                entity: "code",
-                state: "done",
-                label: "Teire searches",
-                meta: "your code for it",
-              },
-            ],
-            links: [
-              { from: "dep", to: "quote", state: "done" },
-              { from: "quote", to: "code", state: "proven" },
-            ],
-          }}
-        />
-      </header>
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 py-10">
       <Suspense
         fallback={
-          <div className="flex h-96 items-center justify-center rounded-xl bg-sheet shadow-card" aria-hidden>
-            <GhostFlow tiles={3} />
+          <div className="flex h-96 items-center justify-center rounded-feature bg-hero" aria-hidden>
+            <GhostFlow tiles={4} />
           </div>
         }
       >
@@ -95,7 +60,7 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
   // Countdowns read the clock, so the list renders per request; the catalog itself stays cached.
   await connection();
   const params = await searchParams;
-  const [all, names] = await Promise.all([listChanges(), providerNames()]);
+  const [all, names, pages] = await Promise.all([listChanges(), providerNames(), watchedSources()]);
   if (!all.length)
     return (
       <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
@@ -130,122 +95,144 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
     months.set(when, [...(months.get(when) ?? []), r]);
   }
 
+  const watched = watchedOf(all, pages, names);
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const today = new Date().toISOString().slice(0, 10);
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Filter changes">
-        <form action="/changes" className="relative">
-          {source ? <input type="hidden" name="source" value={source} /> : null}
-          {cls ? <input type="hidden" name="class" value={cls} /> : null}
-          <Search className="pointer-events-none absolute top-2 left-2.5 size-3.5 text-ink-3" aria-hidden />
-          <Input
-            name="q"
-            defaultValue={q}
-            placeholder="Model, package, title"
-            aria-label="Search changes"
-            className="h-7 w-56 rounded-full pl-8 text-xs"
-          />
-        </form>
-        <FilterSelect
-          label="Source"
-          value={source ?? "all"}
-          options={[
-            { value: "all", label: "Every source", href: href({ source: null }) },
-            ...sources.map((key) => {
-              const logo = sourceLogo(key);
-              return {
-                value: key,
-                label: sourceLabel(key, names),
-                href: href({ source: key }),
-                brand: { label: sourceLabel(key, names), light: logo.light, dark: logo.dark },
-              };
-            }),
-          ]}
-        />
-        <FilterSelect
-          label="Class"
-          value={cls ?? "all"}
-          options={[
-            { value: "all", label: "Any class", href: href({ class: null }) },
-            ...CLASSES.map((c) => ({ value: c.value, label: c.label, href: href({ class: c.value }) })),
-          ]}
-        />
-        <span className="ml-auto font-mono text-xs text-ink-3">
-          {rows.length}
-          {rows.length > PAGE ? ` · first ${PAGE}` : ""}
-        </span>
+    <>
+      <WatchBand
+        watched={watched}
+        total={all.length}
+        week={all.filter((r) => r.createdAt >= weekAgo).length}
+        ahead={all.filter((r) => r.deadline && r.deadline >= today).length}
+      />
+      <WhatsNew rows={all} names={names} />
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <ActivityLanes rows={all} watched={watched} />
+        <section className="flex flex-col gap-3" aria-label="Coming up">
+          <h2 className="heading text-xl text-ink">Coming up</h2>
+          <div className="rounded-xl bg-sheet p-5 shadow-card">
+            <DeadlineRail max={5} />
+          </div>
+        </section>
       </div>
-      {rows.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
-          <TileSquare tile={{ entity: "change", state: "pending", label: "" }} size="sm" />
-          <span className="text-sm text-ink-2">Nothing matches</span>
-          <Link href="/changes" className="ml-auto text-xs text-ink-2 hover:text-ink">
-            Clear
-          </Link>
+      <section id="browse" className="flex scroll-mt-24 flex-col gap-4">
+        <h2 className="heading text-xl text-ink">Every change</h2>
+        <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Filter changes">
+          <form action="/changes" className="relative">
+            {source ? <input type="hidden" name="source" value={source} /> : null}
+            {cls ? <input type="hidden" name="class" value={cls} /> : null}
+            <Search className="pointer-events-none absolute top-2 left-2.5 size-3.5 text-ink-3" aria-hidden />
+            <Input
+              name="q"
+              defaultValue={q}
+              placeholder="Model, package, title"
+              aria-label="Search changes"
+              className="h-7 w-56 rounded-full pl-8 text-xs"
+            />
+          </form>
+          <FilterSelect
+            label="Source"
+            value={source ?? "all"}
+            options={[
+              { value: "all", label: "Every source", href: href({ source: null }) },
+              ...sources.map((key) => {
+                const logo = sourceLogo(key);
+                return {
+                  value: key,
+                  label: sourceLabel(key, names),
+                  href: href({ source: key }),
+                  brand: { label: sourceLabel(key, names), light: logo.light, dark: logo.dark },
+                };
+              }),
+            ]}
+          />
+          <FilterSelect
+            label="Class"
+            value={cls ?? "all"}
+            options={[
+              { value: "all", label: "Any class", href: href({ class: null }) },
+              ...CLASSES.map((c) => ({ value: c.value, label: c.label, href: href({ class: c.value }) })),
+            ]}
+          />
+          <span className="ml-auto font-mono text-xs text-ink-3">
+            {rows.length}
+            {rows.length > PAGE ? ` · first ${PAGE}` : ""}
+          </span>
         </div>
-      ) : null}
-      {[...months].map(([month, list]) => (
-        <div key={month} className="grid gap-3 sm:grid-cols-[5.5rem_1fr]">
-          <p className="pt-3 font-mono text-xs text-ink-3 sm:sticky sm:top-24 sm:self-start">{month}</p>
-          <ul className="flex flex-col gap-2">
-            {list.map((r) => {
-              const key = sourceOf(r);
-              const logo = sourceLogo(key);
-              const raw = r.record.sources.find((s) => s.quote)?.quote;
-              const quote = raw ? plainQuote(raw) : null;
-              const from =
-                r.record.signatures.find((s) => s.kind === "string-literal")?.value ??
-                r.record.applicability.fromVersion ??
-                null;
-              return (
-                <li key={r.id} className="flex flex-col gap-2 rounded-xl bg-sheet p-4 shadow-card">
-                  <div className="flex items-start gap-3">
-                    <Mark brand={{ label: sourceLabel(key, names), light: logo.light, dark: logo.dark }} />
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <Link
-                        href={`/changes/${r.id}`}
-                        className="text-sm font-medium text-ink hover:underline"
-                      >
-                        {r.title}
-                      </Link>
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-3">
-                        <SourceName row={r} sourceKey={key} names={names} />
-                        <ClassChip value={r.class} />
-                        {r.deadline ? (
-                          <span className="rounded-full bg-attention-soft px-2 py-0.5 font-mono text-[11px] text-attention">
-                            {until(r.deadline)}
-                          </span>
-                        ) : null}
-                        {r.record.replacement ? (
-                          <span className="rounded-full bg-sunken px-2 py-0.5 font-mono text-[11px]">
-                            {from ? (
-                              <span className="text-ink-3 line-through decoration-broke/60">{from}</span>
-                            ) : null}
-                            {from ? " → " : "→ "}
-                            <span className="text-ink">{r.record.replacement.value}</span>
-                          </span>
-                        ) : null}
-                        <YourReach changeId={r.id} />
+        {rows.length === 0 ? (
+          <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+            <TileSquare tile={{ entity: "change", state: "pending", label: "" }} size="sm" />
+            <span className="text-sm text-ink-2">Nothing matches</span>
+            <Link href="/changes" className="ml-auto text-xs text-ink-2 hover:text-ink">
+              Clear
+            </Link>
+          </div>
+        ) : null}
+        {[...months].map(([month, list]) => (
+          <div key={month} className="grid gap-3 sm:grid-cols-[5.5rem_1fr]">
+            <p className="pt-3 font-mono text-xs text-ink-3 sm:sticky sm:top-24 sm:self-start">{month}</p>
+            <ul className="flex flex-col gap-2">
+              {list.map((r) => {
+                const key = sourceOf(r);
+                const logo = sourceLogo(key);
+                const raw = r.record.sources.find((s) => s.quote)?.quote;
+                const quote = raw ? plainQuote(raw) : null;
+                const from =
+                  r.record.signatures.find((s) => s.kind === "string-literal")?.value ??
+                  r.record.applicability.fromVersion ??
+                  null;
+                return (
+                  <li key={r.id} className="flex flex-col gap-2 rounded-xl bg-sheet p-4 shadow-card">
+                    <div className="flex items-start gap-3">
+                      <Mark brand={{ label: sourceLabel(key, names), light: logo.light, dark: logo.dark }} />
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        <Link
+                          href={`/changes/${r.id}`}
+                          className="text-sm font-medium text-ink hover:underline"
+                        >
+                          {r.title}
+                        </Link>
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-3">
+                          <SourceName row={r} sourceKey={key} names={names} />
+                          <ClassChip value={r.class} />
+                          {r.deadline ? (
+                            <span className="rounded-full bg-attention-soft px-2 py-0.5 font-mono text-[11px] text-attention">
+                              {until(r.deadline)}
+                            </span>
+                          ) : null}
+                          {r.record.replacement ? (
+                            <span className="rounded-full bg-sunken px-2 py-0.5 font-mono text-[11px]">
+                              {from ? (
+                                <span className="text-ink-3 line-through decoration-broke/60">{from}</span>
+                              ) : null}
+                              {from ? " → " : "→ "}
+                              <span className="text-ink">{r.record.replacement.value}</span>
+                            </span>
+                          ) : null}
+                          <YourReach changeId={r.id} />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {quote ? (
-                    <details className="group/quote">
-                      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-full bg-sunken px-2.5 py-0.5 text-[11px] text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
-                        <QuoteIcon className="size-3" aria-hidden />
-                        Quote
-                      </summary>
-                      <blockquote className="mt-2 border-l-2 border-rule-strong pl-3 text-sm break-words text-ink-2">
-                        “{quote.length > 400 ? `${quote.slice(0, 400)}…` : quote}”
-                      </blockquote>
-                    </details>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </section>
+                    {quote ? (
+                      <details className="group/quote">
+                        <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-full bg-sunken px-2.5 py-0.5 text-[11px] text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+                          <QuoteIcon className="size-3" aria-hidden />
+                          Quote
+                        </summary>
+                        <blockquote className="mt-2 border-l-2 border-rule-strong pl-3 text-sm break-words text-ink-2">
+                          “{quote.length > 400 ? `${quote.slice(0, 400)}…` : quote}”
+                        </blockquote>
+                      </details>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </section>
+    </>
   );
 }
 

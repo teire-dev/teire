@@ -17,6 +17,8 @@ export interface CatalogRow {
   class: string | null;
   title: string;
   deadline: string | null;
+  /** When Teire first read it (ISO): "new this week" and the activity lanes count from this. */
+  createdAt: string;
   record: ChangeV2;
 }
 
@@ -60,7 +62,21 @@ export function sourceOf(row: Pick<CatalogRow, "provider" | "record">) {
 export function sourceLabel(key: string, names: Record<string, string>) {
   if (key.startsWith("pkg:")) return `${ECOSYSTEMS[key.slice(4)]?.label ?? key.slice(4)} packages`;
   if (key === "runtime") return "Runtimes";
-  return names[key] ?? key;
+  return names[key] ?? readableSlug(key);
+}
+
+/**
+ * A provider Teire discovered in someone's code has a slug, not yet a name: `perplexity-ai` reads
+ * "Perplexity", `github-com` "GitHub". Curated providers keep their own names.
+ */
+export function readableSlug(slug: string) {
+  const curated = providerLogo(slug).name;
+  if (curated !== slug) return curated;
+  const words = slug
+    .split("-")
+    .filter((w, i, all) => !(i === all.length - 1 && /^(com|ai|io|tv|dev|net|org|co|app)$/.test(w)));
+  const KNOWN: Record<string, string> = { github: "GitHub", openai: "OpenAI", openrouter: "OpenRouter" };
+  return words.map((w) => KNOWN[w] ?? `${w[0]?.toUpperCase() ?? ""}${w.slice(1)}`).join(" ");
 }
 
 /** The logo for a source: the provider's own mark, the package ecosystem's, or a generic glyph. */
@@ -87,6 +103,7 @@ export async function listChanges(): Promise<CatalogRow[]> {
       class: changes.class,
       title: changes.title,
       deadline: changes.deadline,
+      createdAt: changes.createdAt,
       record: changes.record,
     })
     .from(changes)
@@ -103,8 +120,34 @@ export async function listChanges(): Promise<CatalogRow[]> {
   return rows.map((r) => ({
     ...r,
     deadline: r.deadline?.toISOString().slice(0, 10) ?? null,
+    createdAt: r.createdAt.toISOString(),
     record: r.record as ChangeV2,
   }));
+}
+
+/**
+ * The upstream pages Teire checks for each provider (changelogs, deprecation pages, feeds), with when
+ * each was last checked and whether it answered: the catalog's "watching" band. Cached for minutes,
+ * since its point is that the checking is live.
+ */
+export async function watchedSources() {
+  "use cache";
+  cacheTag("catalog");
+  cacheLife("minutes");
+  const { rows } = await database().execute<{
+    slug: string;
+    kinds: string[];
+    pages: number;
+    failing: number;
+    stale: number;
+    checked: string | null;
+  }>(sql`
+    select provider_slug as slug, array_agg(distinct kind) as kinds, count(*)::int as pages,
+      count(*) filter (where status = 'failing')::int as failing,
+      count(*) filter (where status = 'stale')::int as stale,
+      to_char(max(last_checked_at) at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as checked
+    from provider_sources group by provider_slug order by max(last_checked_at) desc nulls last`);
+  return rows;
 }
 
 export async function getChange(id: string): Promise<ChangeV2 | null> {
