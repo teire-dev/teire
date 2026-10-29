@@ -17,8 +17,10 @@ export function NavLinks({ links }: { links: readonly { href: string; label: str
             href={l.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-2.5 py-1.5 transition-colors hover:bg-accent hover:text-foreground",
-              active ? "text-link" : "text-muted-foreground",
+              "rounded-full px-3 py-1.5 transition-colors hover:bg-hover hover:text-ink over-hero:hover:bg-white/10 over-hero:hover:text-hero-ink",
+              active
+                ? "bg-hover text-ink over-hero:bg-white/12 over-hero:text-hero-ink"
+                : "text-ink-2 over-hero:text-hero-ink-2",
             )}
           >
             {l.label}

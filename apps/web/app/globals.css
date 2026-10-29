@@ -22,6 +22,8 @@
  */
 /* Dark inside `.dark`, except inside a region pinned `.light` within it (the kit's side-by-side boards). */
 @custom-variant dark (&:where(.dark, .dark *):not(:where(.dark .light, .dark .light *)));
+/* The site header while it floats over a navy hero band (set by components/header-tone.tsx). */
+@custom-variant over-hero (&:where(html[data-over-hero] *));
 
 @theme inline {
   --color-canvas: var(--canvas);

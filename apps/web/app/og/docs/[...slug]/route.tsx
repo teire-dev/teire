@@ -2,7 +2,7 @@ import { generateOGImage } from "fumadocs-ui/og";
 import { notFound } from "next/navigation";
 import { getPageImage, source } from "@/lib/source";
 
-/** A docs page's link preview: its title and description on Teire's dark canvas, the link accent. */
+/** A docs page's link preview: its title and description on the hero navy, the chartreuse accent (3.4). */
 export async function GET(_req: Request, { params }: RouteContext<"/og/docs/[...slug]">) {
   const { slug } = await params;
   const page = source.getPage(slug.slice(0, -1));
@@ -11,8 +11,8 @@ export async function GET(_req: Request, { params }: RouteContext<"/og/docs/[...
     title: page.data.title,
     description: page.data.description,
     site: "Teire docs",
-    primaryColor: "rgba(82, 168, 255, 0.22)",
-    primaryTextColor: "#52a8ff",
+    primaryColor: "rgba(0, 80, 248, 0.45)",
+    primaryTextColor: "#d0f100",
   });
 }
 

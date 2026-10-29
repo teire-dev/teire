@@ -2,9 +2,10 @@
 
 import { RotateCcw } from "lucide-react";
 import Link from "next/link";
+import { BrokenFlow } from "@/components/state-page";
 import { Button } from "@/components/ui/button";
 
-/** The run page failed to render: said in the page, with a retry, the site around it kept. */
+/** The run page failed to render: the broken flow, one line, a retry; the run itself is unaffected. */
 export default function RunError({
   error,
   reset,
@@ -13,27 +14,22 @@ export default function RunError({
   reset: () => void;
 }) {
   return (
-    <main className="flex w-full flex-1 flex-col items-center px-4 py-16">
-      <section
-        className="flex w-full max-w-xl flex-col gap-3 rounded-xl bg-sheet p-6 shadow-card"
-        role="alert"
-      >
-        <span className="eyebrow">Run</span>
-        <h1 className="text-lg font-semibold">This run couldn't be shown.</h1>
-        <p className="text-sm text-ink-2">
-          Reading it failed on our side; the run itself is unaffected.
-          {error.digest ? <span className="font-mono text-xs text-ink-3"> ref {error.digest}</span> : null}
-        </p>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={reset}>
-            <RotateCcw data-icon="inline-start" />
-            Try again
-          </Button>
-          <Button size="sm" variant="outline" asChild>
-            <Link href="/scan">Public scans</Link>
-          </Button>
-        </div>
-      </section>
+    <main className="flex w-full flex-1 flex-col items-center gap-6 px-4 py-20 text-center" role="alert">
+      <BrokenFlow kind="error" />
+      <div className="flex flex-col gap-1.5">
+        <h1 className="heading text-2xl">This run couldn&apos;t be shown.</h1>
+        <p className="text-sm text-ink-2">The run itself is unaffected.</p>
+        {error.digest ? <p className="font-mono text-xs text-ink-3">ref {error.digest}</p> : null}
+      </div>
+      <div className="flex gap-2">
+        <Button onClick={reset}>
+          <RotateCcw data-icon="inline-start" />
+          Try again
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/">Head home</Link>
+        </Button>
+      </div>
     </main>
   );
 }

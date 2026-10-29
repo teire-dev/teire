@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { HeaderTone } from "@/components/header-tone";
 import { Logo } from "@/components/logo";
+import { MobileMenu } from "@/components/mobile-menu";
 import { NavLinks } from "@/components/nav-links";
 import { SignInButton, SignOutButton } from "@/components/sign-in-button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -17,28 +19,29 @@ import {
 import { getSession } from "@/lib/session";
 import { NAV } from "@/lib/site";
 
-/** Sticky top bar on every page: home, the public sections, theme, and the person's menu. */
+/**
+ * The floating pill bar on every page (plan revision 3.4, V1): home, the public sections, theme and
+ * the person's menu. Over a navy hero band it turns transparent with ice-white ink (`over-hero`); on
+ * phones the sections move into a sheet.
+ */
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4">
-        <Logo />
+    <header data-site-header className="sticky top-0 z-40 h-16 px-3 pt-3">
+      <HeaderTone />
+      <div className="mx-auto flex h-[52px] w-full max-w-6xl items-center gap-3 rounded-full bg-sheet/85 pr-2 pl-4 shadow-float backdrop-blur-md transition-[background-color,box-shadow] duration-300 over-hero:bg-white/6 over-hero:shadow-[inset_0_0_0_1px_var(--hero-rule)]">
+        <Logo className="over-hero:text-hero-ink" />
         <div className="hidden md:block">
           <Suspense fallback={<StaticNav />}>
             <NavLinks links={NAV} />
           </Suspense>
         </div>
         <div className="ml-auto flex items-center gap-1">
-          <ThemeToggle />
-          <Suspense fallback={<div className="h-8 w-20 rounded-md bg-muted" aria-hidden />}>
+          <ThemeToggle className="over-hero:text-hero-ink-2 over-hero:hover:bg-white/10 over-hero:hover:text-hero-ink" />
+          <Suspense fallback={<div className="h-8 w-20 rounded-full shimmer" aria-hidden />}>
             <Account />
           </Suspense>
+          <MobileMenu links={NAV} />
         </div>
-      </div>
-      <div className="border-t px-2 py-1 md:hidden">
-        <Suspense fallback={<StaticNav />}>
-          <NavLinks links={NAV} />
-        </Suspense>
       </div>
     </header>
   );
@@ -52,7 +55,7 @@ function StaticNav() {
         <Link
           key={l.href}
           href={l.href}
-          className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="rounded-full px-3 py-1.5 text-ink-2 hover:bg-hover hover:text-ink over-hero:text-hero-ink-2"
         >
           {l.label}
         </Link>
@@ -63,11 +66,24 @@ function StaticNav() {
 
 async function Account() {
   const session = await getSession();
-  if (!session) return <SignInButton variant="outline" size="sm" next="/app" />;
+  if (!session)
+    return (
+      <SignInButton
+        shape="pill"
+        size="sm"
+        next="/app"
+        className="h-8 px-3.5 over-hero:bg-white over-hero:text-brand over-hero:hover:bg-white/90"
+      />
+    );
   const { name, image, email } = session.user;
   return (
     <div className="flex items-center gap-2">
-      <Button asChild size="sm" variant="outline">
+      <Button
+        asChild
+        size="sm"
+        shape="pill"
+        className="hidden h-8 sm:inline-flex over-hero:bg-white over-hero:text-brand"
+      >
         <Link href="/app">Dashboard</Link>
       </Button>
       <DropdownMenu>

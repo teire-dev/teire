@@ -3,15 +3,20 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { ConnectDiagram } from "@/components/brand/beam";
+import { BrandLogo } from "@/components/brand-logo";
 import { LogoMark } from "@/components/logo";
 import { SignInButton } from "@/components/sign-in-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ECOSYSTEMS } from "@/lib/brands";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 
 /**
- * Sign in (plan revision 3.3, U5): GitHub only, and when GitHub or the sign-in fails, why, said here
+ * Sign in (plan revision 3.4, V1; 21st "Split Sign In Form" 39096's two-panel layout, OAuth only): the
+ * GitHub button on the left, and on the right what signing in means, drawn: GitHub tells Teire which
+ * repositories you can see. When GitHub or the sign-in fails, why is said here in full (decision text),
  * rather than on a default error page (Better Auth sends its errors to this page, `onAPIError`).
  */
 const SAID: Record<string, string> = {
@@ -36,10 +41,28 @@ const safeNext = (next: unknown) =>
 
 export default function SignInPage({ searchParams }: PageProps<"/signin">) {
   return (
-    <div className="flex flex-1 items-start justify-center px-4 py-16 sm:items-center">
-      <Suspense fallback={<Skeleton className="h-72 w-full max-w-sm" />}>
+    <div className="mx-auto grid w-full max-w-6xl flex-1 items-stretch gap-6 px-4 py-10 lg:grid-cols-2 lg:py-14">
+      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
         <SignIn searchParams={searchParams} />
       </Suspense>
+      <aside className="relative hidden overflow-hidden rounded-feature bg-hero p-10 text-hero-ink lg:flex lg:flex-col lg:justify-between">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_70%_at_70%_20%,#0a2a8a_0%,transparent_70%)]" />
+        <p className="relative max-w-xs text-[15px] text-hero-ink-2">
+          GitHub tells Teire which repositories you can see.
+        </p>
+        <ConnectDiagram
+          className="relative my-10 px-4"
+          repos={[ECOSYSTEMS.npm, ECOSYSTEMS.pypi, ECOSYSTEMS.go].filter(Boolean).map((e) => ({
+            key: e?.label ?? "",
+            node: (
+              <BrandLogo light={e?.light ?? ""} dark={e?.dark} alt={e?.label ?? ""} className="h-5 max-w-7" />
+            ),
+          }))}
+        />
+        <p className="relative font-mono text-[12px] text-hero-ink-2/80">
+          Nothing else is asked of your account.
+        </p>
+      </aside>
     </div>
   );
 }
@@ -54,30 +77,36 @@ async function SignIn({ searchParams }: { searchParams: PageProps<"/signin">["se
     ? (SAID[code] ?? `Signing in didn't finish (${code.slice(0, 60)}). Try again from here.`)
     : null;
   return (
-    <section className="flex w-full max-w-sm flex-col gap-6 rounded-xl bg-sheet p-7 shadow-card ring-1 ring-rule ring-inset">
-      <div className="flex flex-col gap-3">
-        <LogoMark className="size-9" />
-        <span className="eyebrow">Sign in</span>
-        <h1 className="heading text-2xl text-ink">Sign in to Teire</h1>
-        <p className="text-sm text-ink-2">
-          GitHub tells Teire which installations and repositories you can see. Teire asks your account for
-          nothing else.
-        </p>
-      </div>
+    <section className="flex flex-col justify-center gap-8 rounded-feature bg-sheet p-8 shadow-card sm:p-12">
+      <LogoMark className="size-11" />
+      <h1 className="display text-5xl">Sign in</h1>
       {said ? (
-        <p role="alert" className="rounded-lg bg-broke-soft px-3 py-2 text-sm text-broke">
+        <p role="alert" className="rounded-card bg-broke-soft px-4 py-3 text-sm text-broke">
           {said}
         </p>
       ) : null}
-      <SignInButton next={next} label="Continue with GitHub" className="w-full" />
-      <div className="flex flex-col gap-1.5 border-t border-rule pt-4 text-xs text-ink-3">
-        <Link href="/trust" className="w-fit hover:text-ink">
-          What Teire can see and do ›
+      <SignInButton
+        next={next}
+        label="Continue with GitHub"
+        variant="cta"
+        size="xl"
+        shape="pill"
+        className="w-full sm:w-auto sm:self-start"
+      />
+      <nav aria-label="Without signing in" className="flex flex-wrap gap-2">
+        <Link
+          href="/trust"
+          className="rounded-full bg-sunken px-3 py-1 text-[13px] text-ink-2 hover:bg-hover hover:text-ink"
+        >
+          What Teire can see
         </Link>
-        <Link href="/scan" className="w-fit hover:text-ink">
-          Scan a public repository without signing in ›
+        <Link
+          href="/scan"
+          className="rounded-full bg-sunken px-3 py-1 text-[13px] text-ink-2 hover:bg-hover hover:text-ink"
+        >
+          Scan without signing in
         </Link>
-      </div>
+      </nav>
     </section>
   );
 }

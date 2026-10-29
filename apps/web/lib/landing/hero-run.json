@@ -1,0 +1,195 @@
+{
+  "takenAt": "2026-10-29T11:22:57.536Z",
+  "run": {
+    "id": "d1b0c4d8-a46e-4e9d-b057-30b6d12be23b",
+    "href": "/runs/d1b0c4d8-a46e-4e9d-b057-30b6d12be23b",
+    "groupKey": "npm/zod/4.6.6",
+    "package": "zod",
+    "ecosystem": "npm",
+    "from": "3.25.76",
+    "to": "4.6.6",
+    "backend": "tokenfactory",
+    "finishedAt": "2026-10-28T19:38:20.751Z"
+  },
+  "repo": "teire-dev/examples",
+  "advisory": {
+    "id": "GHSA-mrhx-c7xc-m3w5",
+    "severity": "high"
+  },
+  "reach": {
+    "sites": 0,
+    "advisory": true
+  },
+  "updaterSeconds": 100,
+  "fix": {
+    "calls": 22,
+    "fixCalls": 20,
+    "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+    "costUsd": 0.163
+  },
+  "diff": {
+    "files": 4,
+    "sourceFiles": 2,
+    "added": 8,
+    "removed": 8,
+    "peek": {
+      "file": "npm-zod/src/schema.ts",
+      "lines": [
+        {
+          "kind": "ctx",
+          "text": "    email: z.string().email(),"
+        },
+        {
+          "kind": "ctx",
+          "text": "    channel: z.nativeEnum(Channel),"
+        },
+        {
+          "kind": "ctx",
+          "text": "    subject: z.string().min(1),"
+        },
+        {
+          "kind": "del",
+          "text": "    labels: z.record(z.string()).default({}),"
+        },
+        {
+          "kind": "add",
+          "text": "    labels: z.record(z.string(), z.unknown()).default({}),"
+        },
+        {
+          "kind": "ctx",
+          "text": "  })"
+        },
+        {
+          "kind": "ctx",
+          "text": "  .strict();"
+        },
+        {
+          "kind": "ctx",
+          "text": ""
+        }
+      ]
+    }
+  },
+  "checks": {
+    "tests": {
+      "before": "4/4",
+      "after": "4/4"
+    },
+    "typecheck": {
+      "before": true,
+      "after": true
+    }
+  },
+  "pr": {
+    "number": 30,
+    "url": "https://github.com/teire-dev/examples/pull/30",
+    "title": "Upgrade zod from 3.25.76 to 4.6.6 to fix GHSA-mrhx-c7xc-m3w5",
+    "state": "open"
+  },
+  "steps": [
+    {
+      "step": "queue",
+      "at": "2026-10-28T16:38:21.345Z"
+    },
+    {
+      "step": "assess",
+      "at": "2026-10-28T19:34:26.524Z"
+    },
+    {
+      "step": "resolver",
+      "at": "2026-10-28T19:34:30.259Z"
+    },
+    {
+      "step": "transaction",
+      "at": "2026-10-28T19:35:20.383Z"
+    },
+    {
+      "step": "baseline",
+      "at": "2026-10-28T19:36:10.178Z"
+    },
+    {
+      "step": "install",
+      "at": "2026-10-28T19:36:10.240Z"
+    },
+    {
+      "step": "baseline",
+      "at": "2026-10-28T19:36:15.781Z"
+    },
+    {
+      "step": "transaction",
+      "at": "2026-10-28T19:36:18.045Z"
+    },
+    {
+      "step": "check",
+      "at": "2026-10-28T19:36:21.742Z"
+    },
+    {
+      "step": "verify",
+      "at": "2026-10-28T19:36:23.746Z"
+    },
+    {
+      "step": "agent",
+      "at": "2026-10-28T19:36:24.898Z"
+    },
+    {
+      "step": "check",
+      "at": "2026-10-28T19:37:19.945Z"
+    },
+    {
+      "step": "verify",
+      "at": "2026-10-28T19:37:34.040Z"
+    },
+    {
+      "step": "agent",
+      "at": "2026-10-28T19:37:34.043Z"
+    },
+    {
+      "step": "check",
+      "at": "2026-10-28T19:37:55.168Z"
+    },
+    {
+      "step": "verify",
+      "at": "2026-10-28T19:38:09.019Z"
+    },
+    {
+      "step": "review",
+      "at": "2026-10-28T19:38:13.350Z"
+    },
+    {
+      "step": "pr",
+      "at": "2026-10-28T19:38:20.754Z"
+    }
+  ],
+  "more": [
+    {
+      "repo": "teire-dev/nlsh",
+      "number": 6,
+      "title": "Replace retired model gemini-2.0-flash with gemini-3.6-flash",
+      "url": "https://github.com/teire-dev/nlsh/pull/6",
+      "state": "open",
+      "draft": false,
+      "verified": true,
+      "run": "7e9d2d48-21ba-4811-80e9-a58fa53dd6f2"
+    },
+    {
+      "repo": "teire-dev/examples",
+      "number": 16,
+      "title": "Upgrade pydantic from 1.10.18 to 2.14.1 and adapt the code",
+      "url": "https://github.com/teire-dev/examples/pull/16",
+      "state": "open",
+      "draft": false,
+      "verified": true,
+      "run": "190c9ecf-5303-48fb-a5ed-76ef07f986e8"
+    },
+    {
+      "repo": "teire-dev/serve-handler",
+      "number": 16,
+      "title": "Upgrade form-data from 2.3.3 to 2.5.6 to fix 2 advisories",
+      "url": "https://github.com/teire-dev/serve-handler/pull/16",
+      "state": "open",
+      "draft": false,
+      "verified": true,
+      "run": "a90850f3-91c1-4e6f-a391-ca8ac4a8620d"
+    }
+  ]
+}

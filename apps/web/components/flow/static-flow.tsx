@@ -39,38 +39,48 @@ const HANDLE: Record<FlowState, string> = {
 
 export function Connector({
   link,
+  axis = "responsive",
   className,
 }: {
   link: Pick<FlowLink, "state" | "label">;
+  /** `x` keeps it horizontal at every width (short flows that fit a phone). */
+  axis?: "responsive" | "x";
   className?: string;
 }) {
+  const x = axis === "x";
   return (
     <span
       aria-hidden
       className={cn(
         "relative flex shrink-0",
         // Phones: a vertical segment under the squares' centre. md+: a horizontal one at their middle.
-        "h-9 w-[var(--tile)] md:h-[var(--tile)] md:w-auto md:min-w-24 md:flex-1",
+        x
+          ? "h-[var(--tile)] w-12 sm:w-16"
+          : "h-9 w-[var(--tile)] md:h-[var(--tile)] md:w-auto md:min-w-24 md:flex-1",
         className,
       )}
     >
       <span
         className={cn(
-          "absolute top-0 bottom-0 left-[calc(var(--tile)/2)] border-l-[1.5px]",
-          "md:top-1/2 md:right-1.5 md:bottom-auto md:left-1.5 md:border-t-[1.5px] md:border-l-0",
+          "absolute",
+          x
+            ? "top-1/2 right-1.5 left-1.5 border-t-[1.5px]"
+            : "top-0 bottom-0 left-[calc(var(--tile)/2)] border-l-[1.5px] md:top-1/2 md:right-1.5 md:bottom-auto md:left-1.5 md:border-t-[1.5px] md:border-l-0",
           LINE[link.state],
         )}
       />
-      {/* n8n's handles: a small ring where the line meets each square (md+, where lines are horizontal). */}
+      {/* n8n's handles: a small ring where the line meets each square (where lines are horizontal). */}
       <span
         className={cn(
-          "absolute top-1/2 left-0 hidden size-2 -translate-y-1/2 rounded-full ring-[1.5px] md:block",
+          "absolute top-1/2 left-0 size-2 -translate-y-1/2 rounded-full ring-[1.5px]",
+          x ? "block" : "hidden md:block",
           HANDLE[link.state],
         )}
       />
       <span
         className={cn(
-          "absolute top-1/2 right-0 hidden size-2 -translate-y-1/2 rounded-full ring-[1.5px] md:block",
+          "absolute top-1/2 right-0 size-2 -translate-y-1/2 rounded-full ring-[1.5px]",
+          x ? "block" : "hidden md:block",
           HANDLE[link.state],
         )}
       />

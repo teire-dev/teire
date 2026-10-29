@@ -9,7 +9,7 @@ export const NPM_URL = "https://www.npmjs.com/package/teire-cli";
 
 export const NAV = [
   { href: "/changes", label: "Changes" },
-  { href: "/scan", label: "Scan a repo" },
+  { href: "/scan", label: "Scan" },
   { href: "/docs", label: "Docs" },
   { href: "/trust", label: "Trust" },
 ] as const;

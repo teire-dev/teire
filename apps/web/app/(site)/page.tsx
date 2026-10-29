@@ -1,323 +1,470 @@
-import { ArrowRight, FileSearch, GitPullRequest, ScanSearch, ShieldCheck, Wrench } from "lucide-react";
+import { ArrowRight, ArrowUpRight, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { HeroShader } from "@/components/brand/dot-grid";
 import { BrandLogo } from "@/components/brand-logo";
+import { DeadlineRail } from "@/components/deadline-rail";
+import { MiniFlow } from "@/components/flow/mini-flow";
+import { Connector } from "@/components/flow/static-flow";
+import { TileLabel, TileSquare } from "@/components/flow/tile";
 import { GithubMark } from "@/components/icons";
-import { DeadlineStrip, DeadlineStripSkeleton } from "@/components/landing/deadline-strip";
-import { ExamplePr } from "@/components/landing/example-pr";
-import { RowChevron } from "@/components/row-chevron";
+import { CopyCommand } from "@/components/landing/copy-command";
+import { Reveal, ScrollSpine } from "@/components/landing/scroll-flow";
 import { Button } from "@/components/ui/button";
-import { ECOSYSTEMS, SPONSORS } from "@/lib/brands";
-import { CURATED } from "@/lib/logos";
+import { ECOSYSTEMS, SPONSORS, STACK } from "@/lib/brands";
+import type { FlowTile } from "@/lib/flow/model";
+import hero from "@/lib/landing/hero-run.json";
+import { CURATED, providerLogo } from "@/lib/logos";
+import { subjectMark } from "@/lib/marks";
+import type { Proof } from "@/lib/proof";
 import { INSTALL_URL } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 export const metadata = {
-  title: { absolute: "Teire: when a package, API or model changes, Teire fixes your code" },
+  title: { absolute: "Teire: when upstream breaks, Teire fixes your code" },
 };
 
-/** The five steps every run takes (C3–C6), each with the tool or model that does it. */
-const STEPS = [
-  {
-    icon: FileSearch,
-    title: "Notice",
-    body: "Reads only what your code uses: registries for every locked package, and the change pages of the APIs your code calls.",
-    tool: "registries · provider pages · OSV",
-  },
-  {
-    icon: ScanSearch,
-    title: "Impact",
-    body: "For a new major, diffs the API surface between your version and the target, then finds the exact lines that use what changed.",
-    tool: "tsc · griffe · apidiff · japicmp",
-  },
-  {
-    icon: Wrench,
-    title: "Fix",
-    body: "Applies the replacement the source names, and lets a coding agent edit what a rename cannot.",
-    tool: "Nemotron 3 Ultra",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Verify",
-    body: "Installs in a sandbox, then runs your own typecheck and tests before and after the change, with the network off.",
-    tool: "your checks · sandbox",
-  },
-  {
-    icon: GitPullRequest,
-    title: "Pull request",
-    body: "Opens a ready PR when your checks pass before and after, a draft that says what could not be checked, or an issue for a person.",
-    tool: "quoted sources · receipt",
-  },
-] as const;
+/**
+ * The landing is one flow (plan revision 3.4, B1/C3–C5): the stations of a real verified run, read
+ * from its committed snapshot (`lib/landing/hero-run.json`, `pnpm hero-run`), joined by one line that
+ * draws as you scroll. What belongs to a station hangs at its side: other change kinds and the live
+ * deadlines at the change, what Teire reads at the repository, the model and its platform at the fix,
+ * more real PRs at the PR. Words only where a sentence earns its place.
+ */
+const PROVEN: Proof = {
+  changed: { state: "done" },
+  reaches: { state: "done" },
+  fixed: { state: "done" },
+  proven: { state: "done", detail: "verified" },
+  pr: { state: "done" },
+};
 
-const FAQ = [
-  {
-    q: "What does Teire need from GitHub?",
-    a: "Contents (to read the code and push one branch per fix), pull requests, issues and checks to write, Actions logs to read when your CI fails on its PR, plus metadata and your email address for sign-in. The trust page explains each one.",
-  },
-  {
-    q: "Which model sees my code?",
-    a: "Only NVIDIA Nemotron on Nebius Token Factory: Nemotron 3 Ultra reads the pages and release notes Teire has no parser for, traces wrapped model IDs and fixes what a swap can't; Nemotron 3 Super takes over only while Ultra is unavailable. A fix's calls are on its run's receipt; scan-time readings are in the totals on the trust page.",
-  },
-  {
-    q: "Will it flood my repo with PRs?",
-    a: "One PR per package and target version, and one per provider for model and API changes, at most five open and two new per hour by default. teire.yml turns off plain version bumps or limits Teire to the packages you name, and a PR you close stays closed.",
-  },
-  {
-    q: "What if the fix cannot be proven?",
-    a: "Then the PR is not ready. When a check could not run in the sandbox, or already failed before the change, it is a draft that says so. When the fix breaks a check or runs out of attempts, Teire opens an issue for a person, with its best diff and the evidence.",
-  },
-] as const;
+const MORE_MARK: Record<string, { light: string; dark: string; label: string }> = {
+  "teire-dev/nlsh#6": { ...providerLogo("google-gemini"), label: "Google Gemini" },
+  "teire-dev/examples#16": ECOSYSTEMS.pypi as { light: string; dark: string; label: string },
+  "teire-dev/serve-handler#16": ECOSYSTEMS.npm as { light: string; dark: string; label: string },
+};
+
+const tile = (t: Omit<FlowTile, "id">): FlowTile => ({ id: t.entity, ...t });
 
 export default function Home() {
+  const subject = subjectMark(hero.run.groupKey);
+  const [owner, name] = hero.repo.split("/");
+  const tests = hero.checks.tests;
   return (
     <main className="flex flex-col">
-      <section className="relative overflow-hidden border-b">
-        <Schematic />
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-16 md:py-24 lg:grid-cols-[1.05fr_1fr]">
-          <div className="flex animate-enter flex-col gap-6">
-            <p className="font-mono text-xs text-muted-foreground">
-              npm · PyPI · Go · Cargo · RubyGems · Maven · APIs · models
-            </p>
-            <h1 className="text-4xl font-semibold tracking-[-0.045em] md:text-5xl md:leading-[1.08]">
-              When a package, API or model changes, Teire fixes your code.
-            </h1>
-            <p className="max-w-xl text-base text-subtle md:text-lg">
-              Teire finds the lines that break, and a Nemotron coding agent on Nebius Token Factory fixes what
-              a plain swap can&apos;t. Your own tests run before and after, and a pull request shows the
-              proof.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild shape="pill" size="lg">
-                <a href={INSTALL_URL}>
-                  <GithubMark className="size-4" />
-                  Install on GitHub
-                </a>
-              </Button>
-              <Button asChild shape="pill" size="lg" variant="outline">
-                <Link href="/scan">
-                  Scan a public repo
-                  <ArrowRight data-icon="inline-end" />
-                </Link>
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Or from a terminal: <code className="font-mono text-foreground">npx teire-cli scan</code>
-            </p>
-          </div>
-          <div className="animate-enter [animation-delay:80ms]">
-            <ExamplePr />
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-12">
-        <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-sm font-medium">Next shutdowns in the catalog</h2>
-          <Link href="/changes" className="text-sm text-link hover:underline">
-            All changes
+      {/* The one dark band (≤60vh): the promise, two actions, and the flow's first tile on its edge. */}
+      <section data-hero className="relative isolate -mt-16 overflow-hidden bg-hero pt-16 text-hero-ink">
+        <HeroShader className="absolute inset-0 -z-10" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-b from-transparent to-[#0a2a8a]/30" />
+        <div className="mx-auto flex min-h-[min(56vh,560px)] w-full max-w-6xl flex-col items-center justify-center gap-6 px-4 pt-10 pb-20 text-center">
+          <Link
+            href={hero.run.href}
+            className="group inline-flex items-center gap-2 rounded-full bg-white/8 py-1 pr-3 pl-1 text-[13px] text-hero-ink-2 shadow-[inset_0_0_0_1px_var(--hero-rule)] backdrop-blur transition-colors hover:text-hero-ink"
+          >
+            <span className="rounded-full bg-cta px-2 py-0.5 text-[11px] font-semibold text-cta-ink">
+              Live proof
+            </span>
+            {hero.repo} · PR #{hero.pr.number}
+            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
+          <h1 className="display max-w-4xl text-[44px] text-hero-ink sm:text-6xl md:text-[72px]">
+            When upstream breaks, Teire fixes your code.
+          </h1>
+          <p className="max-w-xl text-[17px] text-hero-ink-2">
+            Found, fixed by Nemotron, proven by your own tests.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button asChild variant="cta" size="xl" shape="pill">
+              <a href={INSTALL_URL}>
+                <GithubMark className="size-4" />
+                Install on GitHub
+              </a>
+            </Button>
+            <Button asChild variant="hero" size="xl" shape="pill">
+              <Link href="/scan">
+                Scan a repo
+                <ArrowRight data-icon="inline-end" />
+              </Link>
+            </Button>
+          </div>
+          <CopyCommand command="npx teire-cli scan" tone="hero" />
         </div>
-        <Suspense fallback={<DeadlineStripSkeleton />}>
-          <DeadlineStrip />
-        </Suspense>
       </section>
 
-      <section className="border-y bg-card/50">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-16">
-          <div className="flex max-w-2xl flex-col gap-3">
-            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
-              From a notice to a reviewed fix
-            </h2>
-            <p className="text-subtle">
-              A version bump is the easy part. Teire does the work after it: it finds what the new version
-              removes or renames, edits the lines that use it, and proves the result with the checks you
-              already trust.
-            </p>
-            <Link href="/docs/guide/how-it-works" className="w-fit text-sm text-link hover:underline">
-              How Teire works, step by step
-            </Link>
-          </div>
-          <ol className="grid gap-px overflow-hidden rounded-lg bg-border shadow-card md:grid-cols-5">
-            {STEPS.map((s, i) => (
-              <li key={s.title} className="flex flex-col gap-3 bg-card p-5">
-                <div className="flex items-center justify-between">
-                  <s.icon className="size-4" aria-hidden />
-                  <span className="font-mono text-xs text-muted-foreground">0{i + 1}</span>
+      {/* The run, station by station, on the spine. */}
+      <div className="relative -mt-12 bg-canvas">
+        <div className="mx-auto w-full max-w-6xl px-4 pb-8">
+          <ScrollSpine>
+            <Station
+              tile={tile({ entity: "change", state: "done", label: hero.run.package, brand: subject })}
+              title="Upstream changes"
+              line="A security advisory lands on a new major version."
+              side={
+                <div className="flex flex-col gap-3 md:items-end">
+                  <span className="eyebrow">Also</span>
+                  {hero.more.slice(0, 2).map((m) => {
+                    const mark = MORE_MARK[`${m.repo}#${m.number}`];
+                    return (
+                      <a
+                        key={m.url}
+                        href={m.url}
+                        className="flex items-center gap-2.5 rounded-full bg-sheet py-1 pr-3 pl-1 text-[13px] shadow-card hover:shadow-card-hover"
+                      >
+                        {mark ? (
+                          <span className="flex size-7 items-center justify-center rounded-full bg-sunken">
+                            <BrandLogo light={mark.light} dark={mark.dark} alt="" className="h-3.5 max-w-5" />
+                          </span>
+                        ) : null}
+                        <span className="max-w-56 truncate">
+                          {m.title.replace(/ and adapt the code$/, "")}
+                        </span>
+                      </a>
+                    );
+                  })}
                 </div>
-                <h3 className="font-medium">{s.title}</h3>
-                <p className="text-sm text-muted-foreground">{s.body}</p>
-                <p className="mt-auto font-mono text-xs text-subtle">{s.tool}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      <section className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-16 lg:grid-cols-2">
-        <div className="flex flex-col gap-4">
-          <h2 className="text-2xl font-semibold tracking-tight">
-            Six package ecosystems, read to the symbol
-          </h2>
-          <p className="text-subtle">
-            Teire reads the exact versions your lockfiles pin and, for a new major, compares the public API of
-            your version with the target, using each ecosystem's own tooling.
-          </p>
-          <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border shadow-card sm:grid-cols-3">
-            {Object.entries(ECOSYSTEMS).map(([key, e]) => (
-              <li key={key} className="bg-card">
-                <Link
-                  href={`/docs/ecosystems/${key}`}
-                  className="flex h-full flex-col gap-2 p-4 transition-colors hover:bg-accent"
-                >
-                  <span className="flex items-start justify-between">
-                    <BrandLogo light={e.light} dark={e.dark} alt="" className="h-6" />
-                    <RowChevron />
+              }
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-sheet px-3 py-1 font-mono text-[13px] shadow-card">
+                  {hero.run.package} {hero.run.from} → {hero.run.to}
+                </span>
+                {hero.advisory ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-broke-soft px-3 py-1 font-mono text-[12px] text-broke">
+                    <ShieldAlert className="size-3.5" />
+                    {hero.advisory.id} · {hero.advisory.severity}
                   </span>
-                  <span className="text-sm font-medium">{e.label}</span>
-                  <span className="font-mono text-xs text-muted-foreground">{e.reads}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="flex flex-col gap-4">
-          <h2 className="text-2xl font-semibold tracking-tight">Every API your code calls</h2>
-          <p className="text-subtle">
-            Model retirements and removed endpoints, read from each provider&apos;s own pages and kept only
-            when the quote matches the page, and breaking API changes from its OpenAPI spec. Teire reads a
-            provider only when a repository calls it.
-          </p>
-          <div className="rounded-lg bg-card p-5 shadow-card">
-            <p className="mb-4 text-xs text-muted-foreground">Readers built for their change pages</p>
-            <ul className="flex flex-wrap items-center gap-x-6 gap-y-4">
-              {CURATED.map((p) => (
-                <li key={p.slug}>
-                  <Link href={`/providers/${p.slug}`} className="flex items-center gap-2 text-sm">
-                    <BrandLogo light={p.light} dark={p.dark} alt="" className="h-5" />
-                    <span className="entity-link">{p.name}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-5 border-t pt-4 text-sm text-muted-foreground">
-              Any other API host in your code or your SDKs is discovered from the code itself, and its notices
-              are read by Nemotron the same way.{" "}
-              <Link href="/docs/ecosystems/providers" className="text-link hover:underline">
-                How providers are read
-              </Link>
-            </p>
-          </div>
-        </div>
-      </section>
+                ) : null}
+              </div>
+              <div className="mt-6">
+                <p className="eyebrow mb-3">Next shutdowns</p>
+                <Suspense fallback={<div className="h-16 shimmer rounded-card" />}>
+                  <DeadlineRail max={6} />
+                </Suspense>
+              </div>
+            </Station>
 
-      <section className="border-y bg-card/50">
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-16 lg:grid-cols-[1fr_1.1fr]">
-          <div className="flex flex-col gap-4">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              Built on NVIDIA Nemotron and Nebius Token Factory
-            </h2>
-            <p className="text-subtle">
-              Nemotron 3 Ultra reads the change pages and release notes Teire has no parser for, traces model
-              IDs kept in registries, and fixes what a plain swap can&apos;t; Nemotron 3 Super steps in only
-              while Ultra is unavailable. A fix&apos;s calls, tokens and cost appear on its run&apos;s
-              receipt.
-            </p>
-            <Link href="/docs/nemotron" className="w-fit text-sm text-link hover:underline">
-              What Nemotron does in Teire
-            </Link>
-            <div className="flex flex-wrap items-center gap-8 pt-2">
-              <BrandLogo
-                light={SPONSORS.nvidia.light}
-                dark={SPONSORS.nvidia.dark}
-                alt="NVIDIA"
-                className="h-6"
-              />
-              <BrandLogo
-                light={SPONSORS.nebius.light}
-                dark={SPONSORS.nebius.dark}
-                alt="Nebius"
-                className="h-5"
-              />
-              <BrandLogo
-                light={SPONSORS.tavily.light}
-                dark={SPONSORS.tavily.dark}
-                alt="Tavily"
-                className="h-5"
-              />
-            </div>
-          </div>
-          <div className="overflow-hidden rounded-lg bg-card shadow-card">
-            <div className="flex justify-between gap-1 border-b px-3 py-2 font-mono text-xs text-muted-foreground">
-              <span>terminal</span>
-              <Link href="/docs/build/cli" className="text-link hover:underline">
-                CLI and MCP docs
-              </Link>
-            </div>
-            <pre className="overflow-x-auto px-4 py-3 font-mono text-xs leading-6">
-              <span className="text-muted-foreground"># the same scan, on your machine</span>
-              {"\n"}npx teire-cli scan
-              {"\n"}
-              {"\n"}
-              <span className="text-muted-foreground">
-                # fail CI when an affected change is due within 60 days
+            <Station
+              tile={tile({
+                entity: "repository",
+                state: "done",
+                label: name ?? hero.repo,
+                meta: owner,
+                brand: SPONSORS.github,
+              })}
+              title={hero.repo}
+              line={`Its installed ${hero.run.package} is in the vulnerable range.`}
+              side={
+                <div className="flex flex-col gap-3 md:items-end">
+                  <span className="eyebrow">Teire reads</span>
+                  <div className="flex max-w-64 flex-wrap gap-2 md:justify-end">
+                    {Object.values(ECOSYSTEMS).map((e) => (
+                      <span
+                        key={e.label}
+                        title={e.label}
+                        className="flex size-9 items-center justify-center rounded-[11px] bg-sheet shadow-card"
+                      >
+                        <BrandLogo light={e.light} dark={e.dark} alt={e.label} className="h-4.5 max-w-6" />
+                      </span>
+                    ))}
+                    {CURATED.slice(0, 8 - Object.keys(ECOSYSTEMS).length + 2).map((p) => (
+                      <Link
+                        key={p.slug}
+                        href={`/providers/${p.slug}`}
+                        title={p.name}
+                        className="flex size-9 items-center justify-center rounded-[11px] bg-sheet shadow-card hover:shadow-card-hover"
+                      >
+                        <BrandLogo light={p.light} dark={p.dark} alt={p.name} className="h-4 max-w-6" />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              }
+            >
+              <span className="inline-flex items-center gap-2 self-start rounded-full bg-attention-soft px-3 py-1 font-mono text-[12px] text-attention">
+                {hero.run.package} {hero.run.from} installed
               </span>
-              {"\n"}npx teire-cli check --fail-on deadline --within 60
-              {"\n"}
-              {"\n"}
-              <span className="text-muted-foreground"># give your coding agent the same tools</span>
-              {"\n"}claude mcp add teire -- npx -y teire-cli mcp
-            </pre>
-          </div>
+            </Station>
+
+            <Station
+              tile={tile({ entity: "fix", state: "done", label: "Nemotron 3 Ultra", brand: STACK.nemotron })}
+              title="Nemotron fixes it"
+              line="dependabot-core moves the version; Nemotron rewrites what broke."
+              side={
+                <div className="flex flex-col gap-3 md:items-end">
+                  <span className="eyebrow">On</span>
+                  <div className="flex items-center gap-3">
+                    <BrandLogo
+                      light={SPONSORS.nvidia.light}
+                      dark={SPONSORS.nvidia.dark}
+                      alt="NVIDIA"
+                      className="h-5"
+                    />
+                    <BrandLogo
+                      light={SPONSORS.nebius.light}
+                      dark={SPONSORS.nebius.dark}
+                      alt="Nebius Token Factory"
+                      className="h-4"
+                    />
+                  </div>
+                </div>
+              }
+            >
+              <div className="flex flex-col gap-4">
+                <ol className="flex flex-col [--tile:44px] md:flex-row md:items-center">
+                  <li className="flex items-center gap-3">
+                    <TileSquare
+                      size="sm"
+                      tile={{
+                        entity: "update",
+                        state: "done",
+                        label: "dependabot-core",
+                        brand: STACK.dependabot,
+                      }}
+                    />
+                    <TileLabel
+                      size="sm"
+                      className="items-start text-left"
+                      tile={{
+                        label: "dependabot-core",
+                        meta: hero.updaterSeconds ? `${hero.updaterSeconds} s` : undefined,
+                        state: "done",
+                      }}
+                    />
+                  </li>
+                  <li aria-hidden className="contents">
+                    <Connector link={{ state: "done" }} className="md:max-w-16 md:min-w-12" />
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <TileSquare
+                      size="sm"
+                      tile={{ entity: "fix", state: "done", label: "Nemotron", brand: STACK.nemotron }}
+                    />
+                    <TileLabel
+                      size="sm"
+                      className="items-start text-left"
+                      tile={{
+                        label: "Nemotron 3 Ultra",
+                        meta: `${hero.fix.calls} calls · $${hero.fix.costUsd}`,
+                        state: "done",
+                      }}
+                    />
+                  </li>
+                </ol>
+                {hero.diff.peek ? (
+                  <figure className="overflow-hidden rounded-card bg-console font-mono text-[12px] text-console-ink shadow-tile">
+                    <figcaption className="flex items-center justify-between gap-3 border-b border-console-rule px-4 py-2 text-console-ink-2">
+                      <span className="truncate">{hero.diff.peek.file}</span>
+                      <span data-flow>
+                        {hero.diff.sourceFiles} files adapted ·{" "}
+                        <span className="text-console-add">+{hero.diff.added}</span>{" "}
+                        <span className="text-console-del">−{hero.diff.removed}</span>
+                      </span>
+                    </figcaption>
+                    <pre className="overflow-x-auto py-2 leading-6">
+                      {hero.diff.peek.lines.map((l, i) => (
+                        <span
+                          // biome-ignore lint/suspicious/noArrayIndexKey: a fixed snapshot's lines
+                          key={i}
+                          className={cn(
+                            "block px-4",
+                            l.kind === "add" && "bg-console-add/10 text-console-add",
+                            l.kind === "del" && "bg-console-del/10 text-console-del",
+                          )}
+                        >
+                          <span className="pr-3 opacity-60 select-none">
+                            {l.kind === "add" ? "+" : l.kind === "del" ? "−" : " "}
+                          </span>
+                          {l.text}
+                        </span>
+                      ))}
+                    </pre>
+                  </figure>
+                ) : null}
+              </div>
+            </Station>
+
+            <Station
+              tile={tile({ entity: "sandbox", state: "done", label: "Sandbox" })}
+              title="In a sandbox"
+              line="Installs with the network on, then runs your checks with it off."
+            >
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-sheet px-3 py-1 text-[13px] shadow-card">
+                  Token Factory Sandboxes
+                </span>
+                <span className="rounded-full bg-sheet px-3 py-1 text-[13px] shadow-card">
+                  Your repo&apos;s own commands
+                </span>
+              </div>
+            </Station>
+
+            <Station
+              tile={tile({ entity: "check", state: "proven", label: "Your checks" })}
+              title="Your tests prove it"
+              line="The same checks, before the change and after it."
+            >
+              <dl className="grid max-w-md grid-cols-2 gap-3">
+                <Figure label="tests" before={tests.before ?? "–"} after={tests.after ?? "–"} />
+                <Figure
+                  label="typecheck"
+                  before={hero.checks.typecheck.before ? "pass" : "fail"}
+                  after={hero.checks.typecheck.after ? "pass" : "fail"}
+                />
+              </dl>
+            </Station>
+
+            <Station
+              last
+              tile={tile({
+                entity: "outcome",
+                state: "proven",
+                label: "Pull request",
+                meta: `#${hero.pr.number}`,
+                href: hero.pr.url ?? undefined,
+              })}
+              title="One pull request"
+              line="Ready to merge, with the proof written into it."
+              side={
+                <div className="flex flex-col gap-3 md:items-end">
+                  <span className="eyebrow">More real PRs</span>
+                  {hero.more.map((m) => {
+                    const mark = MORE_MARK[`${m.repo}#${m.number}`];
+                    return (
+                      <a
+                        key={m.url}
+                        href={m.url}
+                        className="flex w-full max-w-72 items-center gap-3 rounded-card bg-sheet p-2.5 shadow-card hover:shadow-card-hover"
+                      >
+                        <MiniFlow size="xs" proof={PROVEN} {...(mark ? { subject: mark } : {})} />
+                        <span className="min-w-0 text-left">
+                          <span className="block truncate text-[13px] font-medium">{m.title}</span>
+                          <span className="block font-mono text-[11px] text-ink-3">
+                            {m.repo} #{m.number}
+                          </span>
+                        </span>
+                      </a>
+                    );
+                  })}
+                </div>
+              }
+            >
+              <a
+                href={hero.pr.url ?? undefined}
+                className="group flex max-w-lg items-start gap-3 rounded-card bg-sheet p-4 shadow-card hover:shadow-card-hover"
+              >
+                <GithubMark className="mt-0.5 size-5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-[15px] font-medium leading-snug">{hero.pr.title}</span>
+                  <span className="mt-1 block font-mono text-xs text-ink-3">
+                    {hero.repo} #{hero.pr.number} · ready
+                  </span>
+                </span>
+                <ArrowUpRight className="ml-auto size-4 shrink-0 text-ink-3 group-hover:text-ink" />
+              </a>
+              <Link
+                href={hero.run.href}
+                className="mt-3 inline-flex items-center gap-1 text-sm text-link hover:underline"
+              >
+                Open this run <ArrowRight className="size-3.5" />
+              </Link>
+            </Station>
+          </ScrollSpine>
         </div>
-      </section>
+      </div>
 
-      <section className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-16 lg:grid-cols-[1fr_2fr]">
-        <h2 className="text-2xl font-semibold tracking-tight">Questions</h2>
-        <dl className="grid gap-px overflow-hidden rounded-lg bg-border shadow-card sm:grid-cols-2">
-          {FAQ.map((f) => (
-            <div key={f.q} className="flex flex-col gap-2 bg-card p-5">
-              <dt className="font-medium">{f.q}</dt>
-              <dd className="text-sm text-muted-foreground">{f.a}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <section className="border-t">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-6 px-4 py-16 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-2xl font-semibold tracking-tight">See what would break in your repository</h2>
-            <p className="text-subtle">
-              Sign in with GitHub and paste a public repository; the report takes a few minutes.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button asChild shape="pill" size="lg">
-              <Link href="/scan">Scan a public repo</Link>
+      {/* Install band. The FAQ's facts live on the trust page; these chips go straight to them. */}
+      <section className="mx-auto w-full max-w-6xl px-4 pt-8 pb-24">
+        <div className="flex flex-col items-center gap-6 rounded-feature bg-sheet px-6 py-14 text-center shadow-tile">
+          <h2 className="display max-w-2xl text-4xl sm:text-5xl">Put Teire on your repos.</h2>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button asChild variant="cta" size="xl" shape="pill">
+              <a href={INSTALL_URL}>
+                <GithubMark className="size-4" />
+                Install on GitHub
+              </a>
             </Button>
-            <Button asChild shape="pill" size="lg" variant="outline">
-              <Link href="/trust">How Teire runs</Link>
+            <Button asChild variant="outline" size="xl" shape="pill">
+              <Link href="/scan">Scan a repo</Link>
             </Button>
           </div>
+          <CopyCommand command="npx teire-cli scan" />
+          <nav aria-label="How Teire runs" className="flex flex-wrap justify-center gap-2 pt-2">
+            {[
+              ["What Teire can touch", "/trust#permissions"],
+              ["Where your code goes", "/trust#code"],
+              ["How many PRs", "/docs/guide/configuration"],
+              ["Ready, draft or issue", "/docs/guide/anatomy-of-a-pr"],
+            ].map(([label, href]) => (
+              <Link
+                key={href}
+                href={href as string}
+                className="rounded-full bg-sunken px-3 py-1 text-[13px] text-ink-2 hover:bg-hover hover:text-ink"
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
         </div>
       </section>
     </main>
   );
 }
 
-/** One line-art schematic behind the hero (design ledger: at most one, never behind app UI). */
-function Schematic() {
+/** One station: the tile on the spine, its words beside it, what belongs to it on the other side. */
+function Station({
+  tile,
+  title,
+  line,
+  side,
+  last = false,
+  children,
+}: {
+  tile: FlowTile;
+  title: string;
+  line: string;
+  side?: React.ReactNode;
+  last?: boolean;
+  children?: React.ReactNode;
+}) {
   return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full text-border [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]"
+    <section
+      className={cn(
+        "relative grid grid-cols-[80px_1fr] gap-x-5 gap-y-6 py-10 md:grid-cols-[1fr_96px_1fr] md:gap-x-12 md:py-14",
+        last && "pb-4",
+      )}
     >
-      <defs>
-        <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-          <path d="M32 0H0V32" fill="none" stroke="currentColor" strokeWidth="1" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#grid)" />
-    </svg>
+      <div className="col-start-1 row-start-1 flex justify-center md:col-start-2">
+        <Reveal className="relative z-10">
+          <TileSquare tile={tile} size="lg" className="ring-offset-4 ring-offset-canvas" />
+        </Reveal>
+      </div>
+      <Reveal className="col-start-2 row-start-1 flex min-w-0 flex-col gap-4 md:col-start-3">
+        <div className="flex flex-col gap-2">
+          <h2 className="display text-[30px] md:text-[36px]">{title}</h2>
+          <p className="max-w-md text-[15px] text-ink-2">{line}</p>
+        </div>
+        {children}
+      </Reveal>
+      {side ? (
+        <Reveal className="col-start-2 row-start-2 min-w-0 md:col-start-1 md:row-start-1 md:flex md:justify-end md:pt-2">
+          {side}
+        </Reveal>
+      ) : null}
+    </section>
+  );
+}
+
+/** A before → after figure, huge: the proof in two numbers. */
+function Figure({ label, before, after }: { label: string; before: string; after: string }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-card bg-sheet p-4 shadow-card">
+      <dt className="font-mono text-[11px] text-ink-3">{label}</dt>
+      <dd className="flex items-baseline gap-2 font-mono">
+        <span className="text-xl text-ink-2">{before}</span>
+        <ArrowRight className="size-4 self-center text-ink-3" />
+        <span className="text-3xl font-medium text-proven">{after}</span>
+      </dd>
+    </div>
   );
 }
