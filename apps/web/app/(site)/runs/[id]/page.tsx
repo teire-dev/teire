@@ -12,7 +12,17 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { dryRunRequest, runSheet } from "@/lib/run-sheet";
 
-export const metadata: Metadata = { title: "Run", robots: { index: false } };
+export async function generateMetadata({ params }: PageProps<"/runs/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  // The run's flow as its preview: a private repository's run draws only its steps' states.
+  const image = `/og/run/${id}`;
+  return {
+    title: "Run",
+    robots: { index: false },
+    openGraph: { images: image },
+    twitter: { card: "summary_large_image", images: image },
+  };
+}
 
 /**
  * One run (plan revision 3.4, V3): its canvas, the selected tile's evidence and the console, live

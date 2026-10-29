@@ -1,5 +1,6 @@
 import type { ChangeV2 } from "@teire/engine/contract";
 import { ArrowRight, Quote as QuoteIcon, ScanSearch } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -14,6 +15,7 @@ import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
 import { ecosystemOf, STACK } from "@/lib/brands";
 import { getChange, providerNames } from "@/lib/catalog";
+import { changeLife } from "@/lib/change-flow";
 import type { FlowGraph } from "@/lib/flow/model";
 import { providerLogo } from "@/lib/logos";
 import { until } from "@/lib/time";
@@ -32,6 +34,19 @@ const TRUST_BASIS: Record<string, string> = {
   computed: "computed by Teire from the published code",
   "repo-config": "declared in a repository's teire.yml",
 };
+
+export async function generateMetadata({ params }: PageProps<"/changes/[...id]">): Promise<Metadata> {
+  const { id } = await params;
+  const record = await getChange(id.map(decodeURIComponent).join("/"));
+  if (!record) return { title: "Change" };
+  const image = `/og/change/${id.join("/")}`;
+  return {
+    title: record.title,
+    description: record.summary.slice(0, 200),
+    openGraph: { images: image },
+    twitter: { card: "summary_large_image", images: image },
+  };
+}
 
 export default function ChangePage({ params }: PageProps<"/changes/[...id]">) {
   return (
@@ -78,84 +93,7 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
     providerNames(),
   ]);
   if (!record) notFound();
-  const a = record.applicability;
-  const provider = record.subject.provider ?? null;
-  const eco = ecosystemOf(record.subject.ecosystem);
-  const logo = provider ? providerLogo(provider) : eco ? { light: eco.light, dark: eco.dark } : null;
-  const ownerHref = provider
-    ? `/providers/${provider}`
-    : record.subject.ecosystem
-      ? `/packages/${record.subject.ecosystem}/${encodeURIComponent(record.subject.name)}`
-      : null;
-  const ownerName = provider ? (names[provider] ?? provider) : record.subject.name;
-  const from = record.signatures.find((s) => s.kind === "string-literal")?.value ?? a.fromVersion ?? null;
-
-  const host = record.sources[0] ? new URL(record.sources[0].url).host : null;
-  const when = a.effectiveOn ?? null;
-  const graph: FlowGraph = {
-    tiles: [
-      {
-        id: "source",
-        entity: "change",
-        state:
-          record.status === "quarantined"
-            ? "failed"
-            : record.status === "candidate"
-              ? "not_proven"
-              : "proven",
-        label: host ?? "Its source",
-        meta:
-          record.status === "quarantined"
-            ? "quote failed"
-            : record.status === "candidate"
-              ? "computed"
-              : "quote checked",
-        ...(logo ? { brand: { label: ownerName, light: logo.light, dark: logo.dark } } : {}),
-      },
-      {
-        id: "what",
-        entity: "update",
-        state: "done",
-        label: record.replacement
-          ? record.replacement.value
-          : (a.toVersion ?? record.kind.replace(/-/g, " ")),
-        ...(from ? { meta: `from ${from}` } : {}),
-      },
-      ...(when
-        ? [
-            {
-              id: "when",
-              entity: "check" as const,
-              state: "not_proven" as const,
-              label: when.slice(0, 10),
-              caption: until(when),
-            },
-          ]
-        : []),
-      {
-        id: "code",
-        entity: "code",
-        state: record.signatures.length ? "done" : "skipped",
-        label: "Your code",
-        meta: record.signatures.length
-          ? `${record.signatures.length} thing${record.signatures.length === 1 ? "" : "s"} to find`
-          : "by hand",
-      },
-      {
-        id: "fix",
-        entity: "fix",
-        state: "pending",
-        label: record.replacement?.codemod ? "Swapped in code" : "Nemotron fixes",
-        ...(record.replacement?.codemod ? {} : { brand: STACK.nemotron }),
-      },
-    ],
-    links: [],
-  };
-  graph.links = graph.tiles.slice(1).map((t, i) => ({
-    from: graph.tiles[i]?.id as string,
-    to: t.id,
-    state: t.state === "skipped" ? "skipped" : t.state === "pending" ? "pending" : "done",
-  }));
+  const { graph, logo, ownerName, ownerHref, a } = changeLife(record, names);
 
   return (
     <article className="flex flex-col gap-8">

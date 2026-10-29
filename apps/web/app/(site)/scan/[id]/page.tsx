@@ -27,7 +27,13 @@ import { startDryRun } from "../actions";
 
 export async function generateMetadata({ params }: PageProps<"/scan/[id]">): Promise<Metadata> {
   const { id } = await params;
-  return { title: `Scan report ${id.slice(0, 8)}`, robots: { index: false } };
+  const image = `/og/scan/${id}`;
+  return {
+    title: `Scan report ${id.slice(0, 8)}`,
+    robots: { index: false },
+    openGraph: { images: image },
+    twitter: { card: "summary_large_image", images: image },
+  };
 }
 
 /**
