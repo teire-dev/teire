@@ -41,9 +41,10 @@ export async function reserve(input: {
     const everyone = Number(spent?.everyone ?? 0);
     const fixes = Number(spent?.fixes ?? 0);
     const next = ASSISTANT.estimateUsd;
-    if (mine + next > ASSISTANT.perUserDailyUsd)
+    const allowance = input.userId === null ? ASSISTANT.operatorDailyUsd : ASSISTANT.perUserDailyUsd;
+    if (mine + next > allowance)
       return {
-        blocked: `You've used today's Ask Teire budget ($${ASSISTANT.perUserDailyUsd.toFixed(2)} a day); it frees up over the next 24 hours.`,
+        blocked: `You've used today's Ask Teire budget ($${allowance.toFixed(2)} a day); it frees up over the next 24 hours.`,
       };
     if (everyone + next > ASSISTANT.totalDailyUsd)
       return {

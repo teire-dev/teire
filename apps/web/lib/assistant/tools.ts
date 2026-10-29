@@ -43,7 +43,9 @@ const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOStrin
 /** Tool output as the model reads it: inside a data fence, bounded. */
 function fenced(name: string) {
   return ({ output }: { output: unknown }) => {
-    const json = JSON.stringify(output);
+    // No "<" survives inside the fence (JSON's \u003c is the same character), so a reason or a quote
+    // that says "</data>" can't close it.
+    const json = JSON.stringify(output).replace(/</g, "\\u003c");
     const text =
       json.length > ASSISTANT.maxToolChars ? `${json.slice(0, ASSISTANT.maxToolChars)}… (truncated)` : json;
     return {
@@ -354,7 +356,7 @@ export function assistantTools(viewer: Viewer) {
               ? [...b.affected, ...b.human, ...b.undecided, ...b.quiet]
               : [...b.affected, ...b.human];
           return {
-            asOf: now(),
+            asOf: iso(got.repo.lastScannedAt) ?? now(),
             repo: got.repo.fullName,
             counts: {
               reaching: b.affected.length,
@@ -399,7 +401,7 @@ export function assistantTools(viewer: Viewer) {
           const scope = scopeOfRepo(viewer, got.repo);
           const [run] = await rowsOf(scope, and(eq(runs.repoId, got.repo.id), eq(runs.groupKey, g.key)), 1);
           return {
-            asOf: now(),
+            asOf: iso(got.repo.lastScannedAt) ?? now(),
             repo: got.repo.fullName,
             key: g.key,
             title: g.title,
@@ -939,12 +941,17 @@ async function previewConfig(repo: ReadableRepo, key: ConfigPrKey, raw: string) 
   const before = configCurrent(repo.config, [key])[key] ?? null;
   const after = parsed.value;
   const file = repo.fullName.endsWith("/teire-config") ? "teire.yml" : ".github/teire.yml";
+  // The YAML as the file has it: `upgrades.plainBumps` is `plainBumps` under `upgrades:`.
+  const path = key.split(".");
+  const leaf = path.at(-1) ?? key;
+  const pad = "  ".repeat(path.length - 1);
+  const parents = path.slice(0, -1).map((p, n) => `${"  ".repeat(n)}${p}:`);
   const yaml = (v: unknown) =>
-    Array.isArray(v)
-      ? [`${key}:`, ...v.map((x) => `  - ${x}`)]
-      : v === null || v === undefined
-        ? []
-        : [`${key}: ${String(v)}`];
+    v === null || v === undefined
+      ? []
+      : Array.isArray(v)
+        ? [...parents, `${pad}${leaf}:`, ...v.map((x) => `${pad}  - ${x}`)]
+        : [...parents, `${pad}${leaf}: ${String(v)}`];
   const effects: string[] = [];
   const open = (await findingRows(repo.id)).filter((f) => f.state === "open");
   const groups = groupFindings(open);
@@ -1031,6 +1038,21 @@ async function propose(
         if ("error" in got) return { refused: got.error };
       }
     }
+    // Every parameter the action uses, said on the card (the signature covers these words too).
+    const details =
+      kind === "set-installation-fix-mode"
+        ? [
+            `Fix mode for every repository that follows the installation: ${MODE_LABEL[String(valid.mode)] ?? valid.mode}`,
+            ...(valid.security
+              ? [`Security fixes: ${MODE_LABEL[String(valid.security)] ?? valid.security}`]
+              : ["Security fixes: unchanged"]),
+          ]
+        : kind === "fix-in-all"
+          ? [
+              `Change: ${String(valid.changeId)}`,
+              `On ${(valid.repos as string[]).length} repositor${(valid.repos as string[]).length === 1 ? "y" : "ies"}: ${(valid.repos as string[]).join(", ")}`,
+            ]
+          : [];
     const effect = `${describeAction(kind, valid)} (${viewer.account ?? "this installation"})`;
     const signed = signProposal({
       uid: viewer.userId,
@@ -1038,7 +1060,7 @@ async function propose(
       repo: null,
       installationId,
       params: valid,
-      effect,
+      effect: [effect, ...details].join(" · "),
     });
     return {
       proposal: signed.token,
@@ -1047,6 +1069,7 @@ async function propose(
       repo: null,
       scope: viewer.account,
       effect,
+      details,
       means: kind === "set-installation-fix-mode" ? (MODE_MEANS[String(valid.mode)] ?? null) : null,
       why: input.why ?? null,
       note:
@@ -1130,6 +1153,30 @@ async function propose(
         refused: `${repo.fullName} has no finding or upgrade "${String(valid.target).slice(0, 120)}" to fix`,
       };
   }
+  // Every parameter the action uses, said on the card (the signature covers these words too).
+  const details: string[] = [];
+  if (typeof valid.runId === "string") {
+    const [run] = await database()
+      .select({
+        groupKey: runs.groupKey,
+        from: runs.fromVersion,
+        to: runs.targetVersion,
+        status: runs.status,
+      })
+      .from(runs)
+      .where(eq(runs.id, valid.runId))
+      .limit(1);
+    if (run)
+      details.push(
+        `Run: ${run.groupKey ?? "run"}${run.from || run.to ? ` (${run.from ?? "?"} → ${run.to ?? "?"})` : ""}, ${run.status}, ${valid.runId.slice(0, 8)}`,
+      );
+  }
+  if (kind === "ignore" || kind === "unignore")
+    details.push(valid.update ? `Only ${String(valid.update)} updates of it` : "Every version of it");
+  if (kind === "config-pr")
+    details.push(
+      `In ${repo.fullName.endsWith("/teire-config") ? "teire.yml" : ".github/teire.yml"}, through a pull request`,
+    );
   const effect = `${describeAction(kind, valid)} on ${repo.fullName}`;
   const signed = signProposal({
     uid: viewer.userId,
@@ -1137,7 +1184,7 @@ async function propose(
     repo: repo.fullName,
     installationId: repo.installationId,
     params: valid,
-    effect,
+    effect: [effect, ...details].join(" · "),
   });
   return {
     proposal: signed.token,
@@ -1146,6 +1193,7 @@ async function propose(
     repo: repo.fullName,
     scope: repo.fullName,
     effect,
+    details,
     means:
       kind === "set-fix-mode"
         ? valid.mode

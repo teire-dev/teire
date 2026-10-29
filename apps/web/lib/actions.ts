@@ -122,3 +122,13 @@ export async function readAction(userId: string, id: string) {
     .limit(1);
   return seen ? row : null;
 }
+
+/** The action a person asked for under this key, if any (a confirmed Ask Teire proposal, read back). */
+export async function actionByKey(userId: string, idempotencyKey: string) {
+  const [row] = await database()
+    .select()
+    .from(actions)
+    .where(and(eq(actions.requester, userId), eq(actions.idempotencyKey, idempotencyKey)))
+    .limit(1);
+  return row ?? null;
+}

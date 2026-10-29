@@ -303,7 +303,8 @@ export async function overviewOf(scope: Scope) {
   const [needsYou, needsYouCount, liveCount, openPrs, live, recent, deadlines, repoRows] = await Promise.all([
     rowsOf(scope, NEEDS_YOU, 8),
     countRuns(scope, NEEDS_YOU),
-    countRuns(scope, inArray(runs.status, ["running", "stopping"])),
+    // The same runs the "Working now" list shows: queued, running and stopping (U4 review).
+    countRuns(scope, inArray(runs.status, ["queued", "running", "stopping"])),
     rowsOf(
       scope,
       and(
@@ -391,7 +392,7 @@ export async function overviewOf(scope: Scope) {
       select
         (select count(*)::int from artifacts a join runs r on r.id = a.run_id join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
           where ${scopeRaw(scope, "p", "i")} and a.kind = 'pr' and a.state = 'open' and r.evidence_kind = 'verified') as proven,
-        (select count(*)::int from artifacts a join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
+        (select count(*)::int from artifacts a join runs r on r.id = a.run_id join repos p on p.id = a.repo_id join installations i on i.id = p.installation_id
           where ${scopeRaw(scope, "p", "i")} and a.kind = 'pr' and a.state = 'open') as open,
         (select count(distinct (f.repo_id, coalesce(f.group_key, f.change_id)))::int from findings f join repos p on p.id = f.repo_id join installations i on i.id = p.installation_id
           where ${scopeRaw(scope, "p", "i")} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand')) as reaching`)

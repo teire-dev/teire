@@ -5,6 +5,7 @@ import {
   ownerOf,
   renameThread,
   threadOf,
+  visibleMessages,
 } from "@/lib/assistant/threads";
 import { viewerOf } from "@/lib/assistant/viewer";
 
@@ -15,7 +16,7 @@ async function owned(request: Request, params: Promise<{ id: string }>) {
   if (!viewer || !isThreadId(id)) return null;
   const owner = ownerOf(viewer.userId);
   const thread = await threadOf(owner, id);
-  return thread ? { owner, thread } : null;
+  return thread ? { owner, thread, viewer } : null;
 }
 
 export async function GET(request: Request, ctx: RouteContext<"/api/assistant/threads/[id]">) {
@@ -24,7 +25,8 @@ export async function GET(request: Request, ctx: RouteContext<"/api/assistant/th
   if (!found) return Response.json({ thread: null, messages: [] });
   return Response.json({
     thread: { id: found.thread.id, title: found.thread.title, context: found.thread.context },
-    messages: await messagesOf(found.thread.id),
+    // As this person may see it now: replies about repositories they lost are hidden (U4).
+    messages: await visibleMessages(found.viewer, found.thread, await messagesOf(found.thread.id)),
   });
 }
 

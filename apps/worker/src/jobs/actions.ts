@@ -558,7 +558,8 @@ async function fixInAll(
   }
   return {
     status: started ? "done" : "refused",
-    result: `${started} of ${names.length} started: ${lines.join("; ")}`.slice(0, 1500),
+    // Every repository's line is kept (up to 100 of them); the cap only guards a runaway message.
+    result: `${started} of ${names.length} started: ${lines.join("; ")}`.slice(0, 16_000),
     links,
   };
 }

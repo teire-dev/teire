@@ -1,6 +1,7 @@
 import { and, asc, assistantMessages, assistantThreads, desc, eq, gte, sql } from "@teire/db";
 import { database } from "../db";
 import type { AssistantContext, AssistantMessage } from "./message";
+import { readableNames, type Viewer } from "./viewer";
 
 /**
  * Ask Teire's threads (plan revision 3.3, U4): one person's conversations, each message stored as its
@@ -161,4 +162,57 @@ export async function rateMessage(owner: string, messageId: string, rating: 1 | 
     )
     .returning({ id: assistantMessages.id });
   return !!row;
+}
+
+/** Every repository a stored message's tools read or returned (inputs and outputs). */
+function reposIn(message: AssistantMessage) {
+  const found = new Set<string>();
+  const walk = (v: unknown, key = "") => {
+    if (typeof v === "string") {
+      if ((key === "repo" || key === "fullName" || key === "scope") && /^[\w.-]+\/[\w.-]+$/.test(v))
+        found.add(v);
+    } else if (Array.isArray(v)) for (const x of v) walk(x, key);
+    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, k);
+  };
+  for (const p of message.parts)
+    if (typeof p.type === "string" && p.type.startsWith("tool-")) {
+      const part = p as { input?: unknown; output?: unknown };
+      walk(part.input);
+      walk(part.output);
+    }
+  return [...found];
+}
+
+/**
+ * A thread as this person may see it now (plan revision 3.3, U4 "access lost"): a reply that read a
+ * repository they can no longer read is replaced by a note, on screen and in what the model is given
+ * again; a thread from an installation they can no longer see keeps only their own questions.
+ */
+export async function visibleMessages(
+  viewer: Viewer,
+  thread: { installationId: number | null },
+  messages: AssistantMessage[],
+): Promise<AssistantMessage[]> {
+  const lostInstallation =
+    viewer.userId !== null &&
+    thread.installationId !== null &&
+    !viewer.installationIds.includes(thread.installationId);
+  const named = messages.flatMap((m) => (m.role === "assistant" ? reposIn(m) : []));
+  const readable = await readableNames(viewer, named);
+  return messages.map((m) => {
+    if (m.role !== "assistant") return m;
+    const gone = lostInstallation
+      ? ["this installation"]
+      : reposIn(m).filter((r) => !readable.has(r.toLowerCase()));
+    if (!gone.length) return m;
+    return {
+      ...m,
+      parts: [
+        {
+          type: "text",
+          text: `Hidden: this answer read ${gone.join(", ")}, which you no longer have access to in Teire.`,
+        },
+      ],
+    };
+  });
 }

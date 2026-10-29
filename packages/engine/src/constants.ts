@@ -53,12 +53,20 @@ export const ASSISTANT = {
   temperature: 0.3,
   maxSteps: 8,
   maxOutputTokens: 2_000,
-  /** What a reply is reserved at before it runs; the receipt replaces it with what it cost. */
-  estimateUsd: 0.02,
+  /**
+   * What a reply is reserved at before it runs; the receipt replaces it with what it cost. Most
+   * replies on Ultra cost $0.005–0.025; a long one can pass this, so a cap is exceeded by at most
+   * one reply's difference.
+   */
+  estimateUsd: 0.05,
   /** Assistant spend per person per day, and across everyone, apart from fix runs' budget. */
   perUserDailyUsd: 0.5,
   totalDailyUsd: 5,
-  /** Threads and their messages are kept this long. */
+  /** The operator walk (scripted questions on production) has its own allowance. */
+  operatorDailyUsd: 2,
+  /** A reservation no reply settled (its function was stopped) counts at its estimate after this. */
+  staleReservationMs: 15 * 60_000,
+  /** Threads, their messages and their receipts are kept this long. */
   retentionDays: 90,
   /** Tool output handed to the model, per call. */
   maxToolChars: 12_000,

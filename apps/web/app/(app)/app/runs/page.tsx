@@ -32,7 +32,10 @@ const EVIDENCE = {
   pre_existing_failure: "Already failing",
   needs_live_access: "Needs live access",
   environment_mismatch: "Not checked everywhere",
+  needs_local_service: "Needs a local service",
   regression: "Regression",
+  timeout: "Timed out",
+  unverified: "Unverified",
 } as const;
 
 export default function RunsPage({ searchParams }: PageProps<"/app/runs">) {

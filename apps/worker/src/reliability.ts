@@ -232,6 +232,13 @@ export function startTicker(
         console.log(
           `[retention] removed ${rows[0].n} Ask Teire thread(s) older than ${ASSISTANT.retentionDays} days`,
         );
+      // Receipts go after the same 90 days (plan: retention), and a reservation whose reply never
+      // settled (its function stopped) is closed at its estimate, still counted against the budgets.
+      await db.execute(sql`
+        delete from assistant_calls where created_at < now() - make_interval(days => ${ASSISTANT.retentionDays})`);
+      await db.execute(sql`
+        update assistant_calls set status = 'done'
+        where status = 'reserved' and created_at < now() - make_interval(secs => ${ASSISTANT.staleReservationMs / 1000})`);
     }
     if (gh && Date.now() - lastRedelivery > RELIABILITY.redeliveryEveryMs) {
       lastRedelivery = Date.now();

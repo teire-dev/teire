@@ -1,4 +1,4 @@
-import { requestAction } from "@/lib/actions";
+import { actionByKey, requestAction } from "@/lib/actions";
 import { openProposal } from "@/lib/assistant/proposal";
 import { getSession } from "@/lib/session";
 
@@ -26,4 +26,20 @@ export async function POST(request: Request) {
     source: "assistant",
   });
   return Response.json(result, { status: result.ok ? 200 : 400 });
+}
+
+/** Whether a proposal was confirmed already (a reloaded card shows that action instead of Confirm). */
+export async function GET(request: Request) {
+  const session = await getSession();
+  const id = new URL(request.url).searchParams.get("id") ?? "";
+  if (!session || !/^[\w-]{8,64}$/.test(id)) return Response.json({ action: null });
+  const action = await actionByKey(session.user.id, `assistant:${id}`);
+  return Response.json(
+    {
+      action: action
+        ? { id: action.id, status: action.status, result: action.result, links: action.links }
+        : null,
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
 }

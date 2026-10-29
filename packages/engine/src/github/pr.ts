@@ -108,8 +108,8 @@ export async function setPullRequestEvidence(input: {
   number: number;
   evidence: keyof typeof PR_MODE_BY_EVIDENCE;
   /**
-   * The base as it is now wasn't checked (a conflicting PR): `stale-evidence` stays and a draft is not
-   * made ready, since only the branch was proven (U3 review).
+   * The base as it is now wasn't checked (a conflicting PR): `stale-evidence` stays and the PR is a
+   * draft, since only the branch was proven (U3, U4 reviews).
    */
   keepStale?: boolean;
   /** The head (and base) the evidence is about: a PR that moved since is left as it is (U3 review). */
@@ -130,7 +130,8 @@ export async function setPullRequestEvidence(input: {
           ? `#${input.number}'s branch moved to ${pr.head.sha.slice(0, 7)}`
           : `the base moved to ${pr.base.sha.slice(0, 7)}`,
     );
-  const draft = PR_MODE_BY_EVIDENCE[input.evidence] !== "ready" || (!!input.keepStale && !!pr.draft);
+  // Only the branch was checked, not the merge into today's base: a ready PR becomes a draft (U4 review).
+  const draft = PR_MODE_BY_EVIDENCE[input.evidence] !== "ready" || !!input.keepStale;
   if (!!pr.draft !== draft)
     await octokit.graphql(
       draft

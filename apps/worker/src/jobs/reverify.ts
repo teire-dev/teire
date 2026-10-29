@@ -492,9 +492,14 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
       owner,
       repo: name,
       headSha: head,
-      // Failing checks fail the check run; a draft's evidence is neutral (U2 review).
+      // Failing checks fail the check run; a draft's evidence is neutral (U2 review), and so is a branch
+      // checked without today's base (a conflict): its merge wasn't proven (U4 review).
       conclusion:
-        evidence.kind === "verified" ? "success" : evidence.prMode === "issue" ? "failure" : "neutral",
+        evidence.prMode === "issue"
+          ? "failure"
+          : evidence.kind === "verified" && merge
+            ? "success"
+            : "neutral",
       title: `${label}: re-verified at ${head.slice(0, 7)}`,
       summary: saidOnGitHub(evidence.reasons),
       ...(runUrl ? { detailsUrl: runUrl } : {}),

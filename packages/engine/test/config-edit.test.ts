@@ -38,4 +38,9 @@ describe("setConfigKey (config PRs from the dashboard)", () => {
       expect(setConfigKey(out.text, "ignore", "openai, npm:zod")).toMatchObject({ changed: false });
     }
   });
+
+  it("refuses an edit that an anchor would carry to another key", () => {
+    const out = setConfigKey("fixes: &a automatic\nsecurityFixes: *a\n", "fixes", "ask");
+    expect("error" in out && out.error).toMatch(/anchor/);
+  });
 });

@@ -96,3 +96,29 @@ export function scopeOfRepo(viewer: Viewer, repo: ReadableRepo): Scope {
   if (viewer.userId === null) return KIT_SCOPE;
   return { installationId: repo.installationId, account: null, publicOnly: false, userId: viewer.userId };
 }
+
+/**
+ * Which of these repositories the viewer may read now, in one query (the same rules as
+ * `readableRepo`): what a stored thread is checked against before it is shown or reused.
+ */
+export async function readableNames(viewer: Viewer, names: string[]): Promise<Set<string>> {
+  const wanted = [...new Set(names.filter((n) => /^[\w.-]+\/[\w.-]+$/.test(n)).map((n) => n.toLowerCase()))];
+  if (!wanted.length) return new Set();
+  const { rows } = await database().execute<{ full_name: string; ok: boolean }>(sql`
+    select r.full_name,
+      ${
+        viewer.userId === null
+          ? sql`(i.account_login = ${KIT_ACCOUNT} and not r.is_private)`
+          : sql`(r.installation_id in (${sql.join(
+              (viewer.installationIds.length ? viewer.installationIds : [-1]).map((id) => sql`${id}`),
+              sql`, `,
+            )})
+              and (not r.is_private or exists (select 1 from user_repos ur where ur.user_id = ${viewer.userId} and ur.repo_id = r.id)))`
+      } as ok
+    from repos r left join installations i on i.id = r.installation_id
+    where lower(r.full_name) in (${sql.join(
+      wanted.map((n) => sql`${n}`),
+      sql`, `,
+    )})`);
+  return new Set(rows.filter((r) => r.ok).map((r) => r.full_name.toLowerCase()));
+}

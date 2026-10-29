@@ -4,7 +4,7 @@ import { History, MessageSquare, PanelRightClose, PanelRightOpen, Plus, Search, 
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LogoMark } from "@/components/logo";
-import { Button } from "@/components/ui/button";
+import { SignInButton } from "@/components/sign-in-button";
 import { cn } from "@/lib/utils";
 import { SafeLink } from "./assistant-cards";
 import { AssistantChat } from "./assistant-chat";
@@ -253,9 +253,7 @@ function DocsOnly() {
         <p className="text-sm text-ink-2">
           Sign in to ask Teire about your repositories and how Teire works.
         </p>
-        <Button asChild size="sm" className="w-fit">
-          <a href={`/signin?next=${encodeURIComponent(path)}`}>Sign in to ask</a>
-        </Button>
+        <SignInButton size="sm" className="w-fit" next={path} label="Sign in to ask" />
       </div>
     </div>
   );

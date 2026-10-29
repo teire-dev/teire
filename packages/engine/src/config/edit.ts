@@ -28,7 +28,22 @@ export function setConfigKey(
         ) === JSON.stringify(parsed.value)
       : before === parsed.value;
     if (same) return { text, changed: false };
+    const others = (js: unknown) => {
+      const copy = structuredClone(js ?? {}) as Record<string, unknown>;
+      let at: Record<string, unknown> | undefined = copy;
+      for (const part of path.slice(0, -1))
+        at = at && typeof at[part] === "object" ? (at[part] as Record<string, unknown>) : undefined;
+      if (at) delete at[path.at(-1) as string];
+      return JSON.stringify(copy);
+    };
+    const rest = others(doc.toJS());
     doc.setIn(path, parsed.value);
+    // Every other setting must read the same after the edit: an anchor shared with another key
+    // (`fixes: &a automatic` … `securityFixes: *a`) would change both (U4 review).
+    if (others(doc.toJS()) !== rest)
+      return {
+        error: `${key} shares its value with another setting through a YAML anchor in this file; change it by hand`,
+      };
   } catch (error) {
     return {
       error: `${key} can't be set in this file (${error instanceof Error ? error.message : String(error)})`,

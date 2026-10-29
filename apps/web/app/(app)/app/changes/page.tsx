@@ -73,7 +73,8 @@ async function Changes() {
                           </span>
                         ) : null}
                         <span>
-                          affects {c.reaches.length} of your repositor{c.reaches.length === 1 ? "y" : "ies"}
+                          affects {new Set(c.reaches.map((r) => r.repo)).size} of your repositor
+                          {new Set(c.reaches.map((r) => r.repo)).size === 1 ? "y" : "ies"}
                         </span>
                       </span>
                     </div>

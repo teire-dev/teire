@@ -160,6 +160,12 @@ function Thread({
   });
 
   const lastModel = [...messages].reverse().find((m) => m.role === "assistant")?.metadata?.model;
+  const lastQuestion =
+    [...messages]
+      .reverse()
+      .find((m) => m.role === "user")
+      ?.parts.flatMap((p) => (p.type === "text" ? [p.text] : []))
+      .join(" ") ?? "";
   const asked = new Set(
     messages
       .filter((m) => m.role === "user")
@@ -207,17 +213,7 @@ function Thread({
             ))
           )}
           {status === "submitted" ? <Shimmer className="font-mono text-[11px]">Reading…</Shimmer> : null}
-          {error ? (
-            <div className="flex items-center gap-2 text-xs text-broke">
-              <span>{error.message || "Nemotron didn't answer this time."}</span>
-              <button type="button" className="entity-link text-ink" onClick={() => void regenerate()}>
-                Retry
-              </button>
-              <SafeLink href="/docs" className="text-ink-2">
-                Search the docs
-              </SafeLink>
-            </div>
-          ) : null}
+          {error ? <ModelDown question={lastQuestion} onRetry={() => void regenerate()} /> : null}
         </ConversationContent>
         <ConversationScrollButton className="bg-sheet" />
       </Conversation>
@@ -238,6 +234,67 @@ function Thread({
         model={modelName(lastModel)}
         docs={a.mode === "docs"}
       />
+    </div>
+  );
+}
+
+interface DocHit {
+  id: string;
+  url: string;
+  type: string;
+  content: string;
+}
+
+/**
+ * Nemotron didn't answer (Token Factory down, the time limit): said plainly, with Retry and the docs'
+ * search results for the question, labelled as search results, not as an answer (U4 "model down").
+ */
+function ModelDown({ question, onRetry }: { question: string; onRetry: () => void }) {
+  const [hits, setHits] = useState<DocHit[] | null>(null);
+  useEffect(() => {
+    if (!question) return setHits([]);
+    const ctrl = new AbortController();
+    fetch(`/api/search?query=${encodeURIComponent(question.slice(0, 200))}`, { signal: ctrl.signal })
+      .then(async (r) => (r.ok ? ((await r.json()) as DocHit[]) : []))
+      .then((h) => {
+        const seen = new Set<string>();
+        setHits(
+          h
+            .filter((x) => {
+              const page = x.url.split("#")[0] ?? x.url;
+              if (seen.has(page)) return false;
+              seen.add(page);
+              return true;
+            })
+            .slice(0, 4),
+        );
+      })
+      .catch(() => setHits([]));
+    return () => ctrl.abort();
+  }, [question]);
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-sheet p-3 ring-1 ring-rule ring-inset">
+      <span className="flex items-center gap-2 text-xs">
+        <span className="text-broke">Nemotron didn't answer this time.</span>
+        <button type="button" className="entity-link text-ink" onClick={onRetry}>
+          Retry
+        </button>
+      </span>
+      {hits?.length ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] text-ink-3">Search results from the docs (not an answer):</span>
+          {hits.map((h) => (
+            <SafeLink key={h.id} href={h.url} className="w-fit text-xs">
+              {h.content
+                .replace(/<[^>]+>/g, "")
+                .replace(/\|/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 90)}
+            </SafeLink>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -344,21 +401,27 @@ function cardFor(name: string, output: unknown, onPick: (v: string) => void, bus
 /** Every link a reply's tools returned: the only links its Markdown may make (a made-up path is text). */
 function linksOf(message: AssistantMessage) {
   const found = new Set<string>();
-  const walk = (v: unknown) => {
+  // Only the fields Teire fills with its own links: never a reason, a quote, code or a summary,
+  // which can carry text from a repository or a provider.
+  const walk = (v: unknown, key = "") => {
     if (typeof v === "string") {
-      if (v.startsWith("/") || v.startsWith("https://github.com/")) found.add(v);
-    } else if (Array.isArray(v)) v.forEach(walk);
-    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+      if (LINK_FIELDS.has(key) && (v.startsWith("/") || v.startsWith("https://github.com/"))) found.add(v);
+    } else if (Array.isArray(v)) for (const x of v) walk(x, key);
+    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, k);
   };
   for (const p of message.parts) if (isToolUIPart(p) && p.state === "output-available") walk(p.output);
   return found;
 }
+
+const LINK_FIELDS = new Set(["link", "href", "url"]);
 
 function markdownFor(allowed: Set<string>, withCards: boolean) {
   return {
     a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
       <SafeLink href={href && allowed.has(href) ? href : undefined}>{children}</SafeLink>
     ),
+    // No images in a reply: a picture's address would load without a click, wherever it points.
+    img: ({ alt }: { alt?: string }) => (alt ? <span>{alt}</span> : null),
     // With cards in the reply, a table only restates them (the cards are the tables): left out.
     ...(withCards ? { table: () => null } : {}),
   };
@@ -524,7 +587,7 @@ function ReplyActions({
   );
 }
 
-const PR_URL = /https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/;
+const PR_URL = /https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(?:pull|issues)\/(\d+)/;
 
 function Composer({
   text,
@@ -552,7 +615,45 @@ function Composer({
     ? mentions.filter((m) => m.label.toLowerCase().includes((at[1] ?? "").toLowerCase())).slice(0, 6)
     : [];
   const pr = PR_URL.exec(text);
-  const prKnown = pr ? mentions.some((m) => m.kind === "repo" && m.id === pr[1]) : false;
+  const prUrl = pr?.[0] ?? null;
+  // A pasted pull request is checked against Teire's own records as it's typed (U4).
+  const [prCheck, setPrCheck] = useState<{ url: string; said: string; ok: boolean } | null>(null);
+  useEffect(() => {
+    if (!prUrl) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      fetch(`/api/assistant/pr?url=${encodeURIComponent(prUrl)}`, { signal: ctrl.signal })
+        .then(
+          async (r) =>
+            (await r.json()) as {
+              state: string;
+              repo?: string;
+              number?: number;
+              kind?: string;
+              prState?: string;
+            },
+        )
+        .then((c) =>
+          setPrCheck({
+            url: prUrl,
+            ok: c.state === "teire",
+            said:
+              c.state === "teire"
+                ? `✓ Teire's ${c.kind === "issue" ? "issue" : "PR"} #${c.number} on ${c.repo} (${c.prState})`
+                : c.state === "other"
+                  ? `#${c.number} on ${c.repo} isn't one of Teire's pull requests`
+                  : c.state === "unwatched"
+                    ? `Teire doesn't watch ${c.repo} for you`
+                    : "That isn't a pull request link",
+          }),
+        )
+        .catch(() => {});
+    }, 300);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [prUrl]);
   const insert = (m: Mention) => setText(text.replace(/@([\w./-]*)$/, `@${m.label} `));
 
   return (
@@ -589,9 +690,14 @@ function Composer({
             aria-label="Ask Teire"
           />
         </PromptInputBody>
-        {pr ? (
-          <p className={cn("px-3 pb-1 font-mono text-[10px]", prKnown ? "text-proven" : "text-attention")}>
-            {prKnown ? `✓ PR #${pr[2]} on ${pr[1]}` : `Teire doesn't watch ${pr[1]} for you`}
+        {prUrl ? (
+          <p
+            className={cn(
+              "px-3 pb-1 font-mono text-[10px]",
+              prCheck?.url !== prUrl ? "text-ink-3" : prCheck.ok ? "text-proven" : "text-attention",
+            )}
+          >
+            {prCheck?.url === prUrl ? prCheck.said : "Checking the link…"}
           </p>
         ) : null}
         <PromptInputFooter className="px-2 pb-2">

@@ -827,6 +827,22 @@ export function ActionCard({ o }: { o: Proposed }) {
   const [action, setAction] = useState<ActionRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const proposal = "proposal" in o ? o : "alternative" in o ? o.alternative : null;
+  const proposalId = proposal && "id" in proposal ? String(proposal.id) : null;
+
+  // A card seen again (a reload, another tab) shows the action it already started, not Confirm.
+  useEffect(() => {
+    if (!proposalId) return;
+    let alive = true;
+    fetch(`/api/assistant/confirm?id=${encodeURIComponent(proposalId)}`, { cache: "no-store" })
+      .then(async (r) => (r.ok ? ((await r.json()) as { action: ActionRow | null }).action : null))
+      .then((a) => {
+        if (alive && a) setAction((current) => current ?? a);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [proposalId]);
 
   useEffect(() => {
     if (!action || TERMINAL.has(action.status as ActionStatus)) return;
@@ -869,6 +885,13 @@ export function ActionCard({ o }: { o: Proposed }) {
       {proposal ? (
         <>
           <p className="text-sm font-medium text-ink">{proposal.effect}</p>
+          {"details" in proposal && Array.isArray(proposal.details) && proposal.details.length ? (
+            <ul className="flex flex-col gap-0.5 font-mono text-[11px] text-ink-2">
+              {(proposal.details as string[]).map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          ) : null}
           {"means" in proposal && proposal.means ? (
             <p className="text-xs text-ink-2">{String(proposal.means)}</p>
           ) : null}

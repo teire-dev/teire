@@ -29,6 +29,7 @@ import {
   openThread,
   ownerOf,
   saveMessage,
+  visibleMessages,
 } from "@/lib/assistant/threads";
 import { assistantTools } from "@/lib/assistant/tools";
 import { readableRepo, type Viewer, viewerOf } from "@/lib/assistant/viewer";
@@ -103,7 +104,8 @@ export async function POST(request: Request) {
   if (regenerate && isMessageId(body.messageId)) await dropFrom(thread.id, body.messageId);
   if (message) await saveMessage(thread.id, message);
 
-  const all = assistantTools(viewer);
+  // On the docs: docs and the public catalog only, so a change never carries the person's own reach.
+  const all = assistantTools(mode === "docs" ? { ...viewer, scope: null } : viewer);
   const tools =
     mode === "docs"
       ? (Object.fromEntries(DOCS_TOOLS.map((k) => [k, all[k]])) as Pick<
@@ -112,7 +114,10 @@ export async function POST(request: Request) {
         >)
       : all;
   // The stored thread, checked against today's tools; a message that no longer fits is left out.
-  const stored = await messagesOf(thread.id);
+  // The thread as this person may see it now: replies about repositories they lost are hidden (U4).
+  // The chip the thread started with counts only while the person can still read what it names.
+  const savedContext = context ? null : await contextOf(viewer, thread.context);
+  const stored = await visibleMessages(viewer, thread, await messagesOf(thread.id));
   const messages = (
     await Promise.all(
       stored.map((m) =>
@@ -170,7 +175,7 @@ export async function POST(request: Request) {
       mode,
       name: viewer.name,
       account: viewer.account,
-      context: context ?? (thread.context as AssistantContext | null),
+      context: context ?? savedContext,
       lost:
         !context && typeof (body.context as { id?: unknown } | null)?.id === "string"
           ? String((body.context as { id: string }).id).slice(0, 120)
@@ -219,8 +224,12 @@ export async function POST(request: Request) {
         const interrupted = isAborted || outcome.status !== "completed";
         try {
           if (responseMessage.parts.length) {
+            // Its cost too, also when it stopped before the finish part carried it.
             responseMessage.metadata = {
               ...responseMessage.metadata,
+              tokensIn: r.tokensIn,
+              tokensOut: r.tokensOut,
+              costUsd: Number(r.costUsd.toFixed(5)),
               ...(interrupted ? { interrupted: true } : {}),
             };
             await saveMessage(thread.id, responseMessage, interrupted);

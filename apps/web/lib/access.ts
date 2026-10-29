@@ -1,6 +1,6 @@
 import { and, eq, repos, runs, userRepos } from "@teire/db";
 import { headers } from "next/headers";
-import { auth } from "./auth";
+import { auth, freshAccess } from "./auth";
 import { database } from "./db";
 
 /**
@@ -20,6 +20,8 @@ export async function visibleRun(runId: string) {
   if (!row.repo.isPrivate) return row;
   const session = await auth().api.getSession({ headers: await headers() });
   if (!session || !row.repo.installationId) return null;
+  // What GitHub says this person can access now, read again when stale (U4 review).
+  await freshAccess(session.user.id);
   // The person's own access to this private repository, as GitHub listed it (U3 review); being able
   // to see its installation is not enough.
   const [member] = await db

@@ -100,18 +100,31 @@ async function Overview() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <h1 className="heading text-3xl text-ink">Overview</h1>
         {data.counts.live ? (
-          <span className="flex items-center gap-2 rounded-full bg-signal-soft px-3 py-1 text-xs text-signal">
+          <Link
+            href="/app/runs?show=active"
+            className="flex items-center gap-2 rounded-full bg-signal-soft px-3 py-1 text-xs text-signal hover:bg-signal/15"
+          >
             <span className="size-1.5 rounded-full bg-signal animate-live" />
-            Teire is working on {data.counts.live}
-          </span>
+            {data.counts.live} run{data.counts.live === 1 ? "" : "s"} going or waiting their turn
+          </Link>
         ) : null}
       </header>
 
       <section className="grid animate-enter grid-cols-2 gap-px overflow-hidden rounded-xl bg-rule shadow-card lg:grid-cols-4">
-        <Kpi label="Proven, ready to merge" value={data.counts.proven} tone="proven" />
-        <Kpi label="Needs you" value={data.counts.needsYou} tone="attention" />
-        <Kpi label="Open pull requests" value={data.counts.open} />
-        <Kpi label="Changes reaching code" value={data.counts.reaching} />
+        <Kpi
+          label="Proven, ready to merge"
+          value={data.counts.proven}
+          tone="proven"
+          href="/app/runs?show=open-prs&evidence=verified"
+        />
+        <Kpi
+          label="Needs you"
+          value={data.counts.needsYou}
+          tone="attention"
+          href="/app/runs?show=needs-you"
+        />
+        <Kpi label="Open pull requests" value={data.counts.open} href="/app/runs?show=open-prs" />
+        <Kpi label="Changes reaching code" value={data.counts.reaching} href="/app/changes" />
       </section>
 
       <div className="grid animate-enter grid-cols-1 gap-6 [animation-delay:80ms] *:min-w-0 lg:grid-cols-[minmax(0,1fr)_340px]">

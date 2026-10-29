@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import NumberTicker from "@/components/ui/number-ticker";
 import { cn } from "@/lib/utils";
 
@@ -11,15 +12,22 @@ export function Kpi({
   label,
   value,
   tone = "ink",
+  href,
   children,
 }: {
   label: string;
   value: number;
   tone?: "ink" | "proven" | "attention" | "signal";
+  /** The list this figure counts (a figure always leads to its own list). */
+  href?: string;
   children?: React.ReactNode;
 }) {
+  const Box = href ? Link : "div";
   return (
-    <div className="flex min-w-0 flex-col justify-between gap-3 bg-sheet p-4">
+    <Box
+      href={href as string}
+      className={cn("flex min-w-0 flex-col justify-between gap-3 bg-sheet p-4", href && "hover:bg-hover")}
+    >
       <span className="eyebrow">{label}</span>
       <div className="flex items-end justify-between gap-3">
         <NumberTicker
@@ -35,6 +43,6 @@ export function Kpi({
         />
         {children}
       </div>
-    </div>
+    </Box>
   );
 }
