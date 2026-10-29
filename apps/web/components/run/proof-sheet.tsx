@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActionButton } from "@/components/app/action-button";
 import { BrandLogo } from "@/components/brand-logo";
 import { TileLabel, TileSquare } from "@/components/flow/tile";
@@ -187,6 +187,12 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   });
   const [picked, setPicked] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // A trail's step links here as `?tile=…`: open that step's evidence (after hydration, so the server's
+  // first paint and the client's agree).
+  useEffect(() => {
+    const tile = new URLSearchParams(window.location.search).get("tile");
+    if (tile) setPicked(tile);
+  }, []);
   const liveTile = graph.tiles.find((t) => t.state === "live")?.id;
   const selectedId =
     picked ??

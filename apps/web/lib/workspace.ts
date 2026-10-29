@@ -729,9 +729,9 @@ export type Estate = Awaited<ReturnType<typeof estateOf>>;
 /** A day's activity in the scope, for the Overview's sparklines (plan revision 3.4, B11). */
 export type DayCount = {
   day: string;
-  /** Fix runs that ended proven and opened a ready PR. */
+  /** Pull requests Teire opened that day whose run proved them (ready to merge). */
   ready: number;
-  /** Fix runs that ended with a PR (ready or draft). */
+  /** Pull requests Teire opened that day, ready or draft. */
   opened: number;
   /** Runs that ended needing a person (a draft, an issue or a stop), as NEEDS_YOU counts them. */
   needs: number;
@@ -740,8 +740,9 @@ export type DayCount = {
 };
 
 /**
- * What happened each day for the last `days` days, counted from stored rows: runs by the day they
- * finished, findings by the day they were found. These are flows per day, not a replayed stock, so a
+ * What happened each day for the last `days` days, counted from stored rows: pull requests by the day
+ * they were opened, runs that ended needing a person by the day they finished, findings by the day
+ * they were found. These are flows per day, not a replayed stock, so a
  * sparkline shows activity and the tile's number stays the count of what is open now.
  */
 export async function dailyCounts(scope: Scope, days = 14): Promise<DayCount[]> {
@@ -751,11 +752,19 @@ export async function dailyCounts(scope: Scope, days = 14): Promise<DayCount[]> 
     ),
     fin as (
       select r.finished_at::date as day,
-        count(*) filter (where r.kind = 'fix' and r.status = 'succeeded' and r.evidence_kind = 'verified')::int as ready,
-        count(*) filter (where r.kind = 'fix' and r.status = 'succeeded')::int as opened,
         count(*) filter (where r.evidence_kind in ('environment_mismatch','needs_live_access','needs_local_service','typecheck_only','pre_existing_failure','regression','timeout','unverified') or (r.status = 'failed' and r.error like 'stopped:%'))::int as needs
       from runs r join repos p on p.id = r.repo_id join installations i on i.id = p.installation_id
       where ${scopeRaw(scope, "p", "i")} and r.finished_at >= current_date - ${days - 1}::int
+      group by 1
+    ),
+    -- Pull requests by the day Teire opened them (one artifact per PR line), ready when its run proved it.
+    prs as (
+      select a.created_at::date as day,
+        count(*)::int as opened,
+        count(*) filter (where r.evidence_kind = 'verified')::int as ready
+      from artifacts a left join runs r on r.id = a.run_id join repos p on p.id = a.repo_id
+        join installations i on i.id = p.installation_id
+      where ${scopeRaw(scope, "p", "i")} and a.kind = 'pr' and a.created_at >= current_date - ${days - 1}::int
       group by 1
     ),
     found as (
@@ -767,9 +776,9 @@ export async function dailyCounts(scope: Scope, days = 14): Promise<DayCount[]> 
       group by 1
     )
     select to_char(days.day, 'YYYY-MM-DD') as day,
-      coalesce(fin.ready, 0) as ready, coalesce(fin.opened, 0) as opened,
+      coalesce(prs.ready, 0) as ready, coalesce(prs.opened, 0) as opened,
       coalesce(fin.needs, 0) as needs, coalesce(found.reaching, 0) as reaching
-    from days left join fin using (day) left join found using (day)
+    from days left join fin using (day) left join prs using (day) left join found using (day)
     order by days.day`);
   return rows;
 }

@@ -42,11 +42,22 @@ export async function runFlowsOf(scope: Scope, ids: string[]): Promise<Map<strin
   const [reach, events, calls, arts] = await Promise.all([
     reachOf(rows.map((r) => ({ repoId: r.repo_id, groupKey: r.group_key }))),
     db
-      .select({ runId: runEvents.runId, step: runEvents.step, seq: runEvents.seq })
+      .select({
+        runId: runEvents.runId,
+        step: runEvents.step,
+        seq: runEvents.seq,
+        // A dry run's PR preview, as the run page reads it (a `pr` event of type `dry-run` with a body).
+        preview: sql<boolean>`${runEvents.step} = 'pr' and ${runEvents.type} = 'dry-run' and ${runEvents.payload}->>'body' is not null`,
+      })
       .from(runEvents)
       .where(inArray(runEvents.runId, kept)),
     db
-      .select({ runId: llmCalls.runId, n: sql<number>`count(*)::int` })
+      .select({
+        runId: llmCalls.runId,
+        n: sql<number>`count(*)::int`,
+        // The agent's attempts: the distinct steps its fix calls ran under, as the run page counts them.
+        attempts: sql<number>`count(distinct ${llmCalls.step})::int`,
+      })
       .from(llmCalls)
       .where(sql`${inArray(llmCalls.runId, kept)} and ${llmCalls.purpose} = 'fix'`)
       .groupBy(llmCalls.runId),
@@ -77,11 +88,17 @@ export async function runFlowsOf(scope: Scope, ids: string[]): Promise<Map<strin
       subject: subjectMark(r.group_key),
       subjectLabel: subjectOfKey(r.group_key ?? "").name || "Change",
       repo: { fullName: r.full_name },
-      agent: agent ? { calls: calls.find((c) => c.runId === r.id)?.n ?? 0 } : null,
+      agent: agent
+        ? {
+            calls: calls.find((c) => c.runId === r.id)?.n ?? 0,
+            attempts: calls.find((c) => c.runId === r.id)?.attempts ?? 0,
+          }
+        : null,
       codemod: steps.some((e) => e.step === "codemod"),
       backend: r.backend,
       updater: !/^(models|api)\//.test(r.group_key ?? ""),
       lastStep: [...steps].reverse().find((e) => TILE_OF_STEP[e.step])?.step ?? null,
+      preview: steps.some((e) => e.preview),
       checkCount: new Set((r.verification?.after ?? []).map((c) => c.name)).size,
       ...(test && before
         ? { checksFigure: `${before.passed}/${before.collected} → ${test.passed}/${test.collected}` }

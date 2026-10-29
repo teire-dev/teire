@@ -27,11 +27,15 @@ export function subjectOfKey(key: string): { name: string; meta?: string } {
   if (head === "models" || head === "api")
     return { name: providerLogo(rest[0]).name, meta: head === "models" ? "models" : "API" };
   if (head === "runtime") return { name: rest[0] ?? head, meta: "runtime" };
-  if (head === "advisory") return { name: rest.slice(1, -1).join("/") || head, meta: "advisory" };
-  const full = rest.length >= 2 ? rest.slice(0, -1).join("/") : rest.join("/") || head;
   // A tile's name fits under its square: Maven's artifact (not group:artifact), then clipped.
-  const short = head === "maven" ? (full.split(":").at(-1) ?? full) : full;
-  const name = short.length > 18 ? `${short.slice(0, 17)}…` : short;
+  const fit = (full: string, maven: boolean) => {
+    const short = maven ? (full.split(":").at(-1) ?? full) : full;
+    return short.length > 18 ? `${short.slice(0, 17)}…` : short;
+  };
+  if (head === "advisory")
+    return { name: fit(rest.slice(1, -1).join("/") || head, rest[0] === "maven"), meta: "advisory" };
+  const full = rest.length >= 2 ? rest.slice(0, -1).join("/") : rest.join("/") || head;
+  const name = fit(full, head === "maven");
   return rest.length >= 2 ? { name, meta: `→ ${rest.at(-1)}` } : { name };
 }
 

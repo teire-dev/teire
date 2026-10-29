@@ -54,7 +54,7 @@ function Segment({ tile, first, runHref }: { tile: FlowTile; first: boolean; run
           type="button"
           aria-label={`${tile.label}: ${FLOW_STATE_LABEL[tile.state]}${tile.meta ? `, ${tile.meta}` : ""}`}
           className={cn(
-            "group/seg relative flex h-9 min-w-0 shrink items-center gap-1.5 text-xs transition-[filter] outline-none hover:brightness-95 focus-visible:brightness-90 dark:hover:brightness-125",
+            "group/seg relative flex h-9 min-w-0 shrink-0 items-center gap-1.5 text-xs transition-[filter] outline-none hover:brightness-95 dark:hover:brightness-125",
             first ? "pl-2.5" : "-ml-[7px] pl-4",
             "pr-4",
             FILL[tile.state],
@@ -62,6 +62,11 @@ function Segment({ tile, first, runHref }: { tile: FlowTile; first: boolean; run
           )}
           style={{ clipPath: shape(first) }}
         >
+          {/* Focus can't draw outside the chevron's clip, so it draws inside: a bar along its foot. */}
+          <span
+            aria-hidden
+            className="absolute inset-x-3 bottom-0.5 h-0.5 rounded-full bg-current opacity-0 group-focus-visible/seg:opacity-100"
+          />
           {tile.brand ? (
             <BrandLogo
               light={tile.brand.light}
@@ -72,7 +77,7 @@ function Segment({ tile, first, runHref }: { tile: FlowTile; first: boolean; run
           ) : (
             <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
           )}
-          <span className="truncate font-medium">{said.main}</span>
+          <span className="max-w-44 truncate font-medium">{said.main}</span>
           {said.sub ? (
             <span className="hidden min-w-0 truncate font-mono text-[10px] opacity-80 2xl:inline">
               {said.sub}
@@ -110,8 +115,11 @@ function Segment({ tile, first, runHref }: { tile: FlowTile; first: boolean; run
             </a>
           ) : null}
           {runHref ? (
-            <Link href={runHref} className="ml-auto text-ink-2 hover:text-ink">
-              The whole run ›
+            <Link
+              href={`${runHref}?tile=${encodeURIComponent(tile.id)}`}
+              className="ml-auto text-ink-2 hover:text-ink"
+            >
+              Its evidence on the run ›
             </Link>
           ) : null}
         </div>
@@ -139,9 +147,10 @@ export function Trail({
   );
   return (
     <nav aria-label={label} className={cn("min-w-0", className)}>
-      <ol className="flex min-w-0 items-center">
+      {/* Steps keep their size and the row scrolls sideways when it can't fit (a phone), never crushes. */}
+      <ol className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tiles.map((t, i) => (
-          <li key={t.id} className={cn("flex min-w-0", i === tiles.length - 1 ? "shrink-0" : "shrink")}>
+          <li key={t.id} className="flex shrink-0">
             <Segment tile={t} first={i === 0} runHref={runHref} />
           </li>
         ))}

@@ -1,7 +1,10 @@
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CallSites } from "@/components/findings/call-sites";
+import { GraphStrip } from "@/components/flow/mini-flow";
 import { StaticFlow } from "@/components/flow/static-flow";
+import { Mark } from "@/components/teire/mark";
 import type { FindingGroup } from "@/lib/findings";
 import { type FlowGraph, type FlowState, type FlowTile, flowStateOf, shortDetail } from "@/lib/flow/model";
 import { subjectMark, subjectOfKey } from "@/lib/marks";
@@ -29,6 +32,8 @@ export interface FindingFlowProps {
   undecided?: boolean;
   actions?: ReactNode;
   focus?: boolean;
+  /** One row that opens to the full card (plan revision 3.4, B6); the focused group stays open. */
+  compact?: boolean;
 }
 
 const HUMAN: Record<string, string> = { needs_human: "needs a person", check_by_hand: "check by hand" };
@@ -147,6 +152,34 @@ export function FindingFlow(p: FindingFlowProps) {
       { from: "fix", to: "out", state: out.state },
     ],
   };
+  if (p.compact && !p.focus)
+    return (
+      <div id={`group-${group.key}`} className="relative">
+        <details className="group/finding overflow-hidden rounded-xl bg-sheet shadow-card">
+          <summary className="flex cursor-pointer list-none items-center gap-3 py-2.5 pr-44 pl-3 hover:bg-hover [&::-webkit-details-marker]:hidden">
+            <Mark brand={subjectMark(group.key)} size="sm" />
+            <span className="min-w-0 flex-1 truncate text-sm text-ink">{group.title}</span>
+            <GraphStrip graph={graph} className="hidden shrink-0 md:inline-flex" />
+            <ChevronDown
+              aria-hidden
+              className="size-3.5 shrink-0 text-ink-3 transition-transform group-open/finding:rotate-180"
+            />
+          </summary>
+          <div className="flex flex-col gap-3 border-t border-rule p-4">
+            <StaticFlow
+              graph={graph}
+              size="sm"
+              label={`${group.title}: from the change to its pull request`}
+            />
+            {human && group.reason ? <p className="text-xs text-ink-3">{group.reason}</p> : null}
+            {sites ? <CallSites sites={group.sites} repo={p.repo} sha={p.sha} /> : null}
+          </div>
+        </details>
+        {p.actions ? (
+          <div className="absolute top-1.5 right-10 flex items-center gap-1">{p.actions}</div>
+        ) : null}
+      </div>
+    );
   return (
     <article
       id={`group-${group.key}`}

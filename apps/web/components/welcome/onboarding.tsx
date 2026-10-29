@@ -1,11 +1,21 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, ExternalLink, RotateCcw } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  LayoutGrid,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { followAction } from "@/components/app/follow-action";
+import { useAssistant } from "@/components/assistant/assistant-provider";
 import { FlowCanvas, type PlacedTile } from "@/components/flow/flow-canvas";
 import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -47,6 +57,8 @@ const MODES: { key: Mode; name: string; said: string; tag?: string }[] = FIX_MOD
 const keyOf = (s: string) => `welcome:${s}:${Math.floor(Date.now() / 60_000)}`;
 const short = (fullName: string) => fullName.split("/")[1] ?? fullName;
 const ok = (r?: Result) => !!r && !("error" in r) && r.status !== "refused" && r.status !== "failed";
+/** Confirmed: the worker said done. Still open is not on, and a refusal is not on. */
+const done = (r?: Result) => !!r && !("error" in r) && r.status === "done";
 
 function scanState(r: Repo): FlowState {
   if (!r.scan || r.scan.status === "queued" || r.scan.status === "running") return "live";
@@ -241,19 +253,13 @@ function layout(step: number, data: Data, chosen: Set<string>, mode: Mode, resul
     list.forEach((r, i) => {
       const res = results[r.fullName];
       const st: FlowState =
-        r.status === "active" || ok(res)
-          ? "proven"
-          : res && !ok(res)
-            ? "failed"
-            : step === 5
-              ? "proven"
-              : "pending";
+        r.status === "active" || done(res) ? "proven" : res && !ok(res) ? "failed" : res ? "live" : "pending";
       tiles.push({
         id: `r:${r.fullName}`,
         entity: "repository",
         state: st,
         label: short(r.fullName),
-        meta: st === "proven" ? "On" : st === "failed" ? "refused" : "Off",
+        meta: st === "proven" ? "On" : st === "failed" ? "refused" : st === "live" ? "turning on" : "Off",
         brand: languageMarks(r.languages)[0] ?? gh,
         x: 260,
         y: ry(i, list.length),
@@ -272,6 +278,7 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
   const router = useRouter();
   const store = `teire-welcome-${data.installation.id}`;
   const [step, setStep] = useState(0);
+  const { ask, available } = useAssistant();
   const [mode, setMode] = useState<Mode>(data.installation.defaultFixMode ?? "auto");
   const [security, setSecurity] = useState<"auto" | "ask">(data.installation.securityFixMode ?? "auto");
   const [closePrs, setClosePrs] = useState(true);
@@ -320,17 +327,28 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
         if ("error" in s || s.status === "refused") refused = true;
       },
     );
-    if (refused)
+    if (refused) {
+      // The You tile springs back to the mode that is actually set (plan revision 3.4, C7).
+      setMode(data.installation.defaultFixMode ?? "auto");
       toast("Needs an organization admin", {
         description: "Your choice wasn't saved; repos keep their mode.",
       });
+    }
   };
+
+  const turnOn = (repo: string) =>
+    followAction(
+      { kind: "activate", params: { keep: !closePrs }, repo, key: keyOf(`activate:${repo}:${!closePrs}`) },
+      (s) => setResults((r) => ({ ...r, [repo]: "error" in s ? s : { status: s.status, result: s.result } })),
+    );
 
   const activate = async () => {
     setBusy(true);
     const names = data.repos
       .filter((r) => chosen.has(r.fullName) && r.status !== "active")
       .map((r) => r.fullName);
+    // Each repository's own answer, kept here as well as in state, so the decision below reads it.
+    const answers = new Map<string, Result>();
     await Promise.all(
       names.map((repo) =>
         followAction(
@@ -340,15 +358,27 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
             repo,
             key: keyOf(`activate:${repo}:${!closePrs}`),
           },
-          (s) =>
-            setResults((r) => ({ ...r, [repo]: "error" in s ? s : { status: s.status, result: s.result } })),
+          (s) => {
+            const res: Result = "error" in s ? s : { status: s.status, result: s.result };
+            answers.set(repo, res);
+            setResults((r) => ({ ...r, [repo]: res }));
+          },
         ),
       ),
     );
-    try {
-      localStorage.setItem("teire-welcome-done", JSON.stringify({ at: Date.now(), repos: names.length }));
-    } catch {}
+    const on = names.filter((n) => done(answers.get(n))).length;
+    const already = data.repos.filter((r) => chosen.has(r.fullName) && r.status === "active").length;
     setBusy(false);
+    // Nothing turned on: stay here and say why, never "Teire is on".
+    if (names.length && !on && !already) {
+      const why = [...answers.values()].map((r) => ("error" in r ? r.error : r.result)).find(Boolean);
+      toast.error("Teire couldn't turn on", { description: why ?? "Try again in a moment." });
+      router.refresh();
+      return;
+    }
+    try {
+      localStorage.setItem("teire-welcome-done", JSON.stringify({ at: Date.now(), repos: on + already }));
+    } catch {}
     setStep(5);
     router.refresh();
   };
@@ -602,7 +632,7 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                 {[
                   [
                     "repos on",
-                    data.repos.filter((r) => r.status === "active" || ok(results[r.fullName])).length,
+                    data.repos.filter((r) => r.status === "active" || done(results[r.fullName])).length,
                   ],
                   ["packages", packages],
                   ["reaching", reaching],
@@ -615,21 +645,52 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   </div>
                 ))}
               </dl>
-              <nav className="flex flex-col gap-2">
-                {[
-                  ["Overview", "/app"],
-                  ["Changes for you", "/app/changes"],
-                  ["Runs", "/app/runs"],
-                ].map(([label, href]) => (
+              {data.repos.some(
+                (r) => chosen.has(r.fullName) && results[r.fullName] && !ok(results[r.fullName]),
+              ) ? (
+                <ul className="flex flex-col gap-1.5">
+                  {data.repos
+                    .filter((r) => chosen.has(r.fullName) && results[r.fullName] && !ok(results[r.fullName]))
+                    .map((r) => (
+                      <li
+                        key={r.fullName}
+                        className="flex items-center justify-between gap-2 rounded-card bg-broke-soft px-3 py-2 text-xs text-broke"
+                      >
+                        <span className="truncate font-mono">{short(r.fullName)}</span>
+                        <Button size="xs" variant="outline" onClick={() => void turnOn(r.fullName)}>
+                          Try again
+                        </Button>
+                      </li>
+                    ))}
+                </ul>
+              ) : null}
+              <nav aria-label="What next" className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    { label: "Overview", href: "/app", icon: LayoutGrid },
+                    { label: "Its runs", href: "/app/runs?show=active", icon: Activity },
+                  ] as const
+                ).map((n) => (
                   <Link
-                    key={href}
-                    href={href as string}
-                    className="group flex items-center justify-between rounded-card bg-sunken px-3.5 py-2.5 text-[14px] hover:bg-hover"
+                    key={n.href}
+                    href={n.href}
+                    className="flex flex-col items-center gap-2 rounded-card bg-sunken p-3 text-center text-[13px] hover:bg-hover"
                   >
-                    {label}
-                    <ArrowRight className="size-4 text-ink-3 group-hover:text-ink" />
+                    <n.icon className="size-5 text-ink-2" aria-hidden />
+                    {n.label}
                   </Link>
                 ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    ask("What does Teire see in my repositories, and what will it do first?", null)
+                  }
+                  disabled={!available}
+                  className="flex flex-col items-center gap-2 rounded-card bg-sunken p-3 text-center text-[13px] hover:bg-hover disabled:opacity-50"
+                >
+                  <Sparkles className="size-5 text-ink-2" aria-hidden />
+                  Ask Teire
+                </button>
               </nav>
             </div>
           ) : null}

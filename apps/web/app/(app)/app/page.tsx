@@ -56,11 +56,11 @@ function needChip(r: RunRow) {
  */
 function week(days: DayCount[], key: keyof Omit<DayCount, "day">) {
   const n = days.slice(-7).reduce((sum, d) => sum + d[key], 0);
-  return n ? `+${n} in 7 days` : null;
+  return n ? `+${n} new in 7 days` : null;
 }
 function today(days: DayCount[], key: keyof Omit<DayCount, "day">) {
   const n = days.at(-1)?.[key] ?? 0;
-  return n ? `+${n} today` : null;
+  return n ? `+${n} new today` : null;
 }
 
 function Heading({ title, go }: { title: string; go?: { label: string; href: string } | null }) {

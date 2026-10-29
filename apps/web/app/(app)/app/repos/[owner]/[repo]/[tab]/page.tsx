@@ -227,6 +227,7 @@ async function Findings({
         mode={fixMode.mode}
         undecided={undecided}
         focus={g.key === focus}
+        compact
         actions={
           <>
             {pr?.url && pr.state === "open" ? (
