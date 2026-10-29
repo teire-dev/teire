@@ -14,7 +14,10 @@ export default function AppError({
   reset: () => void;
 }) {
   return (
-    <section className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 py-16 text-center" role="alert">
+    <section
+      className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 py-16 text-center"
+      role="alert"
+    >
       <BrokenFlow kind="error" />
       <div className="flex flex-col gap-1.5">
         <h1 className="heading text-2xl text-ink">This page couldn&apos;t load.</h1>

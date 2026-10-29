@@ -61,6 +61,13 @@ const NAV = [
   { label: "Settings", href: "/app/settings", icon: Settings, exact: false },
 ] as const;
 
+/**
+ * The section you are in: navy text on a raised sheet with a chartreuse marker bar at its edge (plan
+ * revision 3.4, V4); the olive hairline keeps the chartreuse visible on white.
+ */
+const ACTIVE =
+  "relative before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-cta before:opacity-0 before:shadow-[0_0_0_1px_var(--cta-edge)] before:transition-opacity data-[active=true]:bg-sheet data-[active=true]:font-medium data-[active=true]:text-ink data-[active=true]:shadow-tile data-[active=true]:before:opacity-100";
+
 /** Live poll: every 3 s while Teire is working somewhere, every 30 s otherwise; never while hidden. */
 const LIVE_MS = 3000;
 const SLOW_LIVE_MS = 5000;
@@ -234,7 +241,11 @@ export function AppShell({
               <SidebarMenu>
                 {NAV.map((n) => (
                   <SidebarMenuItem key={n.label}>
-                    <SidebarMenuButton asChild isActive={n.exact ? path === n.href : path.startsWith(n.href)}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={n.exact ? path === n.href : path.startsWith(n.href)}
+                      className={ACTIVE}
+                    >
                       <Link href={n.href}>
                         <n.icon />
                         <span>{n.label}</span>

@@ -4,7 +4,7 @@ import type { FixMode } from "@teire/engine/config";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { FixModePicker } from "./fix-mode-picker";
 import { runAction } from "./run-action";
 
 /**
@@ -38,30 +38,12 @@ export function InstallationFixMode({
     <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
       <div className="flex items-center gap-3">
         <span className="eyebrow">Default</span>
-        <ToggleGroup
-          type="single"
+        <FixModePicker
           value={mode}
           disabled={busy}
-          onValueChange={(v) => v && v !== mode && void set({ mode: v as FixMode, security })}
-          aria-label="Default fix mode"
-          className="rounded-lg bg-sunken p-0.5 ring-1 ring-rule ring-inset"
-        >
-          {(
-            [
-              ["auto", "Automatic"],
-              ["ask", "Ask first"],
-              ["off", "Off"],
-            ] as const
-          ).map(([value, label]) => (
-            <ToggleGroupItem
-              key={value}
-              value={value}
-              className="h-7 rounded-md px-3 text-xs text-ink-2 data-[state=on]:bg-sheet data-[state=on]:text-ink data-[state=on]:shadow-card"
-            >
-              {label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+          onChange={(v) => void set({ mode: v, security })}
+          label="Default fix mode"
+        />
       </div>
       <div className="flex items-center gap-2 text-sm text-ink-2">
         <Switch

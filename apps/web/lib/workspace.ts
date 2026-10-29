@@ -8,13 +8,9 @@ import {
   findings,
   inArray,
   installations,
-  llmCalls,
   repos,
-  runEvents,
   runs,
-  sandboxExecs,
   sql,
-  systemState,
   userInstallations,
   userRepos,
 } from "@teire/db";
@@ -200,71 +196,16 @@ export const NEEDS_YOU = and(
   sql`(${runs.evidenceKind} in ('environment_mismatch','needs_live_access','needs_local_service','typecheck_only','pre_existing_failure','regression','timeout','unverified') or (${runs.status} = 'failed' and ${runs.error} like 'stopped:%'))`,
 );
 
-/** The Overview's sections, most urgent first (plan revision 3.3, "Overview"). */
-export async function overviewOf(scope: Scope) {
-  const db = database();
-  const [needsYou, needsYouCount, liveCount, openPrs, live, recent, deadlines, repoRows] = await Promise.all([
-    rowsOf(scope, NEEDS_YOU, 8),
-    countRuns(scope, NEEDS_YOU),
-    // The same runs the "Working now" list shows: queued, running and stopping (U4 review).
-    countRuns(scope, inArray(runs.status, ["queued", "running", "stopping"])),
-    rowsOf(
-      scope,
-      and(
-        // Every run that holds an open PR now, whatever it ended as: the list its count counts.
-        sql`exists (select 1 from artifacts a where a.run_id = ${runs.id} and a.kind = 'pr' and a.state = 'open')`,
-      ),
-      8,
-    ),
-    rowsOf(scope, inArray(runs.status, ["queued", "running", "stopping"]), 6),
-    rowsOf(scope, sql`${runs.finishedAt} > now() - interval '2 days'`, 8),
-    db
-      .select({
-        changeId: changes.id,
-        title: changes.title,
-        deadline: changes.deadline,
-        provider: changes.providerSlug,
-        repos: sql<number>`count(distinct ${findings.repoId})::int`,
-      })
-      .from(findings)
-      .innerJoin(changes, eq(changes.id, findings.changeId))
-      .innerJoin(repos, eq(repos.id, findings.repoId))
-      .innerJoin(installations, eq(installations.id, repos.installationId))
-      .where(
-        and(
-          scopeWhere(scope),
-          eq(findings.verdict, "affected"),
-          // Only what still needs fixing: an ignored or fixed finding has no deadline for you (U4 review).
-          eq(findings.state, "open"),
-          sql`${changes.deadline} > now() - interval '30 days'`,
-        ),
-      )
-      .groupBy(changes.id, changes.title, changes.deadline, changes.providerSlug)
-      .orderBy(asc(changes.deadline))
-      .limit(6),
-    db
-      .select({
-        id: repos.id,
-        fullName: repos.fullName,
-        status: repos.status,
-        config: repos.config,
-        fixMode: repos.fixMode,
-        defaultFixMode: installations.defaultFixMode,
-        securityFixMode: installations.securityFixMode,
-        pausedReason: repos.pausedReason,
-        lastScannedAt: repos.lastScannedAt,
-        languages: repos.languages,
-        affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f where f.repo_id = ${repos.id} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand'))`,
-        openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
-        live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status in ('running', 'stopping'))`,
-      })
-      .from(repos)
-      .innerJoin(installations, eq(installations.id, repos.installationId))
-      .where(scopeWhere(scope))
-      .orderBy(desc(repos.lastScannedAt)),
-  ]);
-  // What each repository's latest finished scan could not check (its coverage record).
-  const coverage = await db.execute<{
+/** One repository's coverage gaps: what its latest finished scan could not check, in its own words. */
+export interface CoverageGap {
+  repo: string;
+  said: string[];
+  unresolved: number;
+}
+
+/** What each repository's latest finished scan could not check (its coverage record). */
+export async function gapsOf(scope: Scope): Promise<CoverageGap[]> {
+  const coverage = await database().execute<{
     full_name: string;
     coverage: {
       gaps?: string[];
@@ -278,7 +219,7 @@ export async function overviewOf(scope: Scope) {
     from scans s join repos r on r.id = s.repo_id join installations i on i.id = r.installation_id
     where ${scopeRaw(scope, "r", "i")} and s.status = 'done' and s.coverage is not null
     order by r.id, s.created_at desc`);
-  const gaps = coverage.rows
+  return coverage.rows
     .map((row) => {
       const c = row.coverage ?? {};
       const said: string[] = [];
@@ -290,6 +231,73 @@ export async function overviewOf(scope: Scope) {
       return { repo: row.full_name, said, unresolved: c.unresolvedSites ?? 0 };
     })
     .filter((g) => g.said.length);
+}
+
+/** The Overview's sections, most urgent first (plan revision 3.3, "Overview"). */
+export async function overviewOf(scope: Scope) {
+  const db = database();
+  const [needsYou, needsYouCount, liveCount, openPrs, live, recent, deadlines, repoRows, gaps] =
+    await Promise.all([
+      rowsOf(scope, NEEDS_YOU, 8),
+      countRuns(scope, NEEDS_YOU),
+      // The same runs the "Working now" list shows: queued, running and stopping (U4 review).
+      countRuns(scope, inArray(runs.status, ["queued", "running", "stopping"])),
+      rowsOf(
+        scope,
+        and(
+          // Every run that holds an open PR now, whatever it ended as: the list its count counts.
+          sql`exists (select 1 from artifacts a where a.run_id = ${runs.id} and a.kind = 'pr' and a.state = 'open')`,
+        ),
+        8,
+      ),
+      rowsOf(scope, inArray(runs.status, ["queued", "running", "stopping"]), 6),
+      rowsOf(scope, sql`${runs.finishedAt} > now() - interval '2 days'`, 8),
+      db
+        .select({
+          changeId: changes.id,
+          title: changes.title,
+          deadline: changes.deadline,
+          provider: changes.providerSlug,
+          repos: sql<number>`count(distinct ${findings.repoId})::int`,
+        })
+        .from(findings)
+        .innerJoin(changes, eq(changes.id, findings.changeId))
+        .innerJoin(repos, eq(repos.id, findings.repoId))
+        .innerJoin(installations, eq(installations.id, repos.installationId))
+        .where(
+          and(
+            scopeWhere(scope),
+            eq(findings.verdict, "affected"),
+            // Only what still needs fixing: an ignored or fixed finding has no deadline for you (U4 review).
+            eq(findings.state, "open"),
+            sql`${changes.deadline} > now() - interval '30 days'`,
+          ),
+        )
+        .groupBy(changes.id, changes.title, changes.deadline, changes.providerSlug)
+        .orderBy(asc(changes.deadline))
+        .limit(6),
+      db
+        .select({
+          id: repos.id,
+          fullName: repos.fullName,
+          status: repos.status,
+          config: repos.config,
+          fixMode: repos.fixMode,
+          defaultFixMode: installations.defaultFixMode,
+          securityFixMode: installations.securityFixMode,
+          pausedReason: repos.pausedReason,
+          lastScannedAt: repos.lastScannedAt,
+          languages: repos.languages,
+          affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f where f.repo_id = ${repos.id} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand'))`,
+          openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
+          live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status in ('running', 'stopping'))`,
+        })
+        .from(repos)
+        .innerJoin(installations, eq(installations.id, repos.installationId))
+        .where(scopeWhere(scope))
+        .orderBy(desc(repos.lastScannedAt)),
+      gapsOf(scope),
+    ]);
   // Every figure counts the same repositories its lists show (round 2); "reaching code" is the Findings
   // tab's own count, per repository: open groups that are affected or need a person (U3 review).
   const [counts] = (
@@ -594,4 +602,262 @@ export async function repoNamesOf(scope: Scope) {
     .where(scopeWhere(scope))
     .orderBy(asc(repos.fullName));
   return rows.map((r) => r.fullName);
+}
+
+/** How many changes, repositories and sources the estate map draws before "N more" (plan 3.4, C5). */
+export const ESTATE_CHANGES = 6;
+export const ESTATE_REPOS = 8;
+export const ESTATE_SOURCES = 6;
+
+/** A repository on the estate map, with what Teire has open there now. */
+export interface EstateRepo {
+  fullName: string;
+  live: boolean;
+  /** Open groups that reach its code (the Findings tab's own count). */
+  reaching: number;
+  ready: number;
+  drafts: number;
+  issues: number;
+}
+
+/** Where changes come from on the map's second view: a provider, an ecosystem, a kind, or the gaps. */
+export interface EstateSource {
+  key: string;
+  kind: "provider" | "ecosystem" | "kind" | "gaps";
+  slug: string;
+  changes: number;
+  reaches: { repo: string; n: number }[];
+}
+
+/**
+ * The Overview's estate map (plan revision 3.4, B11 and C8): the changes reaching code on the left,
+ * most urgent first as Changes for you orders them; the repositories they reach in the middle; what
+ * Teire has open on the right (PRs ready to merge, drafts, issues for a person). The second view groups
+ * the same reaches by source (provider, ecosystem), with what Teire couldn't check as its own source.
+ * Every figure counts stored rows. `gaps` can be passed when the caller already read them.
+ */
+export async function estateOf(scope: Scope, gaps?: CoverageGap[]) {
+  const db = database();
+  const [all, outcomeRows, repoRows, gapList] = await Promise.all([
+    changesFor(scope),
+    db.execute<{ repo: string; ready: number; drafts: number; issues: number }>(sql`
+      select p.full_name as repo,
+        count(*) filter (where a.kind = 'pr' and r.evidence_kind = 'verified')::int as ready,
+        count(*) filter (where a.kind = 'pr' and r.evidence_kind is distinct from 'verified')::int as drafts,
+        count(*) filter (where a.kind = 'issue')::int as issues
+      from artifacts a join runs r on r.id = a.run_id join repos p on p.id = a.repo_id
+        join installations i on i.id = p.installation_id
+      where ${scopeRaw(scope, "p", "i")} and a.state = 'open' and a.kind in ('pr', 'issue')
+      group by p.full_name`),
+    db
+      .select({
+        fullName: repos.fullName,
+        live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status in ('running', 'stopping'))`,
+        reaching: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f where f.repo_id = ${repos.id} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand'))`,
+      })
+      .from(repos)
+      .innerJoin(installations, eq(installations.id, repos.installationId))
+      .where(scopeWhere(scope)),
+    gaps ?? gapsOf(scope),
+  ]);
+  const outcome = new Map(outcomeRows.rows.map((o) => [o.repo, o]));
+  const top = all.slice(0, ESTATE_CHANGES);
+  const reachedByTop = (repo: string) => top.filter((c) => c.reaches.some((x) => x.repo === repo)).length;
+  const ranked = repoRows
+    .map((r): EstateRepo & { score: number } => {
+      const o = outcome.get(r.fullName);
+      const open = (o?.ready ?? 0) + (o?.drafts ?? 0) + (o?.issues ?? 0);
+      return {
+        fullName: r.fullName,
+        live: r.live,
+        reaching: r.reaching,
+        ready: o?.ready ?? 0,
+        drafts: o?.drafts ?? 0,
+        issues: o?.issues ?? 0,
+        // What the map is for: the repositories the top changes reach, then where Teire has work open.
+        score: reachedByTop(r.fullName) * 8 + open * 2 + (r.live ? 3 : 0) + Math.min(r.reaching, 4),
+      };
+    })
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score || a.fullName.localeCompare(b.fullName));
+  const shown = ranked.slice(0, ESTATE_REPOS).map(({ score: _, ...r }) => r);
+
+  // The same reaches by where they come from: a model or API provider, a package ecosystem, else the kind.
+  const sources = new Map<string, EstateSource>();
+  for (const c of all) {
+    const [kind, slug] = c.provider
+      ? (["provider", c.provider] as const)
+      : c.ecosystem
+        ? (["ecosystem", c.ecosystem] as const)
+        : (["kind", c.kind] as const);
+    const key = `${kind}:${slug}`;
+    const s = sources.get(key) ?? { key, kind, slug, changes: 0, reaches: [] };
+    s.changes += 1;
+    for (const r of c.reaches) {
+      const hit = s.reaches.find((x) => x.repo === r.repo);
+      if (hit) hit.n += 1;
+      else s.reaches.push({ repo: r.repo, n: 1 });
+    }
+    sources.set(key, s);
+  }
+  const bySource = [...sources.values()]
+    .sort((a, b) => b.changes - a.changes)
+    .slice(0, ESTATE_SOURCES - (gapList.length ? 1 : 0));
+  if (gapList.length)
+    bySource.push({
+      key: "gaps",
+      kind: "gaps",
+      slug: "gaps",
+      changes: gapList.length,
+      reaches: gapList.map((g) => ({ repo: g.repo, n: g.said.length })),
+    });
+
+  const total = (k: "ready" | "drafts" | "issues") => outcomeRows.rows.reduce((n, o) => n + o[k], 0);
+  return {
+    changes: top,
+    moreChanges: all.length - top.length,
+    repos: shown,
+    moreRepos: repoRows.length - shown.length,
+    sources: bySource,
+    gaps: gapList,
+    outcomes: { ready: total("ready"), drafts: total("drafts"), issues: total("issues") },
+  };
+}
+
+export type Estate = Awaited<ReturnType<typeof estateOf>>;
+
+/** A day's activity in the scope, for the Overview's sparklines (plan revision 3.4, B11). */
+export type DayCount = {
+  day: string;
+  /** Fix runs that ended proven and opened a ready PR. */
+  ready: number;
+  /** Fix runs that ended with a PR (ready or draft). */
+  opened: number;
+  /** Runs that ended needing a person (a draft, an issue or a stop), as NEEDS_YOU counts them. */
+  needs: number;
+  /** Changes newly found reaching code. */
+  reaching: number;
+};
+
+/**
+ * What happened each day for the last `days` days, counted from stored rows: runs by the day they
+ * finished, findings by the day they were found. These are flows per day, not a replayed stock, so a
+ * sparkline shows activity and the tile's number stays the count of what is open now.
+ */
+export async function dailyCounts(scope: Scope, days = 14): Promise<DayCount[]> {
+  const { rows } = await database().execute<DayCount>(sql`
+    with days as (
+      select generate_series(current_date - ${days - 1}::int, current_date, interval '1 day')::date as day
+    ),
+    fin as (
+      select r.finished_at::date as day,
+        count(*) filter (where r.kind = 'fix' and r.status = 'succeeded' and r.evidence_kind = 'verified')::int as ready,
+        count(*) filter (where r.kind = 'fix' and r.status = 'succeeded')::int as opened,
+        count(*) filter (where r.evidence_kind in ('environment_mismatch','needs_live_access','needs_local_service','typecheck_only','pre_existing_failure','regression','timeout','unverified') or (r.status = 'failed' and r.error like 'stopped:%'))::int as needs
+      from runs r join repos p on p.id = r.repo_id join installations i on i.id = p.installation_id
+      where ${scopeRaw(scope, "p", "i")} and r.finished_at >= current_date - ${days - 1}::int
+      group by 1
+    ),
+    found as (
+      select f.created_at::date as day,
+        count(distinct (f.repo_id, coalesce(f.group_key, f.change_id)))::int as reaching
+      from findings f join repos p on p.id = f.repo_id join installations i on i.id = p.installation_id
+      where ${scopeRaw(scope, "p", "i")} and f.created_at >= current_date - ${days - 1}::int
+        and f.verdict in ('affected', 'needs_human', 'check_by_hand')
+      group by 1
+    )
+    select to_char(days.day, 'YYYY-MM-DD') as day,
+      coalesce(fin.ready, 0) as ready, coalesce(fin.opened, 0) as opened,
+      coalesce(fin.needs, 0) as needs, coalesce(found.reaching, 0) as reaching
+    from days left join fin using (day) left join found using (day)
+    order by days.day`);
+  return rows;
+}
+
+/** Model spend per purpose per day over the last `days` days (Settings › Usage), from the receipts. */
+export async function usageDaily(scope: Scope, days = 30) {
+  const { rows } = await database().execute<{
+    day: string;
+    purpose: string;
+    cost: number;
+    calls: number;
+  }>(sql`
+    select to_char(c.created_at::date, 'YYYY-MM-DD') as day, c.purpose,
+      coalesce(sum(c.cost_usd), 0)::float as cost, count(*)::int as calls
+    from llm_calls c join runs r on r.id = c.run_id join repos p on p.id = r.repo_id
+      join installations i on i.id = p.installation_id
+    where ${scopeRaw(scope, "p", "i")} and c.created_at >= current_date - ${days - 1}::int
+    group by 1, 2 order by 1`);
+  const purposes = [...new Set(rows.map((r) => r.purpose))];
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+  const series = Array.from({ length: days }, (_, i) => {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i);
+    const day = d.toISOString().slice(0, 10);
+    const on = rows.filter((r) => r.day === day);
+    return {
+      day,
+      ...Object.fromEntries(purposes.map((p) => [p, on.find((r) => r.purpose === p)?.cost ?? 0])),
+      total: on.reduce((n, r) => n + r.cost, 0),
+      calls: on.reduce((n, r) => n + r.calls, 0),
+    } as { day: string; total: number; calls: number } & Record<string, number>;
+  });
+  return { purposes, series };
+}
+
+/** What each repository's map card and table row draw beyond its counts (Repositories, V4). */
+export interface RepoFlow {
+  /** Where the changes reaching it come from (provider, else ecosystem, else kind), most first. */
+  sources: { kind: "provider" | "ecosystem" | "kind"; slug: string; n: number }[];
+  latest: RunRow | null;
+  ready: number;
+  drafts: number;
+  issues: number;
+}
+
+/** Each repository's sources, latest run and open outcomes, keyed by full name. */
+export async function repoFlowsOf(scope: Scope): Promise<Map<string, RepoFlow>> {
+  const db = database();
+  const [src, out, last] = await Promise.all([
+    db.execute<{ repo: string; kind: "provider" | "ecosystem" | "kind"; slug: string; n: number }>(sql`
+      select p.full_name as repo,
+        case when c.provider_slug is not null then 'provider' when c.ecosystem is not null then 'ecosystem' else 'kind' end as kind,
+        coalesce(c.provider_slug, c.ecosystem, c.kind) as slug,
+        count(distinct coalesce(f.group_key, f.change_id))::int as n
+      from findings f join changes c on c.id = f.change_id join repos p on p.id = f.repo_id
+        join installations i on i.id = p.installation_id
+      where ${scopeRaw(scope, "p", "i")} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand')
+      group by 1, 2, 3 order by n desc`),
+    db.execute<{ repo: string; ready: number; drafts: number; issues: number }>(sql`
+      select p.full_name as repo,
+        count(*) filter (where a.kind = 'pr' and r.evidence_kind = 'verified')::int as ready,
+        count(*) filter (where a.kind = 'pr' and r.evidence_kind is distinct from 'verified')::int as drafts,
+        count(*) filter (where a.kind = 'issue')::int as issues
+      from artifacts a join runs r on r.id = a.run_id join repos p on p.id = a.repo_id
+        join installations i on i.id = p.installation_id
+      where ${scopeRaw(scope, "p", "i")} and a.state = 'open' and a.kind in ('pr', 'issue')
+      group by p.full_name`),
+    db.execute<{ id: string }>(sql`
+      select distinct on (r.repo_id) r.id
+      from runs r join repos p on p.id = r.repo_id join installations i on i.id = p.installation_id
+      where ${scopeRaw(scope, "p", "i")} and r.status <> 'queued'
+      order by r.repo_id, r.updated_at desc`),
+  ]);
+  const ids = last.rows.map((r) => r.id);
+  const latest = ids.length ? await rowsOf(scope, inArray(runs.id, ids), ids.length) : [];
+  const map = new Map<string, RepoFlow>();
+  const at = (repo: string) => {
+    let f = map.get(repo);
+    if (!f) {
+      f = { sources: [], latest: null, ready: 0, drafts: 0, issues: 0 };
+      map.set(repo, f);
+    }
+    return f;
+  };
+  for (const s of src.rows) at(s.repo).sources.push({ kind: s.kind, slug: s.slug, n: s.n });
+  for (const o of out.rows) Object.assign(at(o.repo), { ready: o.ready, drafts: o.drafts, issues: o.issues });
+  for (const r of latest) at(r.repo).latest = r;
+  return map;
 }

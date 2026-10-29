@@ -3,16 +3,9 @@ import { LiveDot } from "@/components/teire/live-dot";
 import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { EvidenceChip } from "@/components/teire/status-chip";
 import type { RunRow } from "@/lib/kit";
+import { ago } from "@/lib/time";
 
-/** "3 h ago", "2 d ago": a list's sense of time, with the exact time on hover. */
-export function ago(date: Date | null) {
-  if (!date) return "";
-  const s = Math.max(0, (Date.now() - date.getTime()) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86_400) return `${Math.round(s / 3600)} h ago`;
-  return `${Math.round(s / 86_400)} d ago`;
-}
+export { ago };
 
 /** The subject of a run in a row: `faraday 2.14.3` or `anthropic: claude-3-5-sonnet… → claude-sonnet-5-5`. */
 export function subjectLine(row: Pick<RunRow, "groupKey" | "from" | "to">) {

@@ -1,16 +1,16 @@
 import { ArrowRight } from "lucide-react";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { GhostFlow } from "@/components/flow/ghost-flow";
 import { MiniFlow } from "@/components/flow/mini-flow";
 import { StaticFlow } from "@/components/flow/static-flow";
 import { Tile } from "@/components/flow/tile";
 import { GithubMark } from "@/components/icons";
 import { LogoMark } from "@/components/logo";
-import { StatusChip } from "@/components/teire/status-chip";
-import { Button } from "@/components/ui/button";
 import { BrokenFlow } from "@/components/state-page";
-import { GhostFlow } from "@/components/flow/ghost-flow";
+import { StatusChip } from "@/components/teire/status-chip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -105,11 +105,27 @@ const BASE: RunFlowInput = {
 };
 const SPINES: [string, RunFlowInput][] = [
   ["queued", { ...BASE, status: "queued", evidenceKind: null, prMode: null, artifact: null }],
-  ["live · fixing", { ...BASE, status: "running", step: "agent", evidenceKind: null, prMode: null, artifact: null }],
+  [
+    "live · fixing",
+    { ...BASE, status: "running", step: "agent", evidenceKind: null, prMode: null, artifact: null },
+  ],
   ["proven", BASE],
   ["not proven · draft", { ...BASE, evidenceKind: "pre_existing_failure", prMode: "draft" }],
-  ["failed · issue", { ...BASE, status: "failed", evidenceKind: "regression", prMode: "issue", artifact: { kind: "issue", url: null, number: 25 }, lastStep: "verify" }],
-  ["cancelled", { ...BASE, status: "cancelled", evidenceKind: null, prMode: null, artifact: null, lastStep: "install" }],
+  [
+    "failed · issue",
+    {
+      ...BASE,
+      status: "failed",
+      evidenceKind: "regression",
+      prMode: "issue",
+      artifact: { kind: "issue", url: null, number: 25 },
+      lastStep: "verify",
+    },
+  ],
+  [
+    "cancelled",
+    { ...BASE, status: "cancelled", evidenceKind: null, prMode: null, artifact: null, lastStep: "install" },
+  ],
   ["dry run", { ...BASE, kind: "dry_run", artifact: null, preview: true }],
   ["plain bump", { ...BASE, sites: null, agent: null }],
 ];

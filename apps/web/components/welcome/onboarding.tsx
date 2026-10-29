@@ -13,6 +13,7 @@ import NumberTicker from "@/components/ui/number-ticker";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type Brand, SPONSORS, STACK, TEIRE } from "@/lib/brands";
+import { FIX_MODES } from "@/lib/fix-mode-options";
 import type { FlowLink, FlowState } from "@/lib/flow/model";
 import { languageMarks, subjectMark } from "@/lib/marks";
 import { cn } from "@/lib/utils";
@@ -36,11 +37,12 @@ type Mode = "auto" | "ask" | "off";
 type Result = { status: string; result: string | null } | { error: string };
 
 const STEPS = ["Connected", "Repositories", "First scan", "Fix mode", "Turn on", "Done"] as const;
-const MODES: { key: Mode; name: string; said: string; tag?: string }[] = [
-  { key: "auto", name: "Automatic", said: "Fixes and opens PRs itself.", tag: "Recommended" },
-  { key: "ask", name: "Ask first", said: "Waits for your Fix now." },
-  { key: "off", name: "Off", said: "Lists changes, opens nothing." },
-];
+const MODES: { key: Mode; name: string; said: string; tag?: string }[] = FIX_MODES.map((m) => ({
+  key: m.value,
+  name: m.label,
+  said: m.said,
+  ...(m.value === "auto" ? { tag: "Recommended" } : {}),
+}));
 
 const keyOf = (s: string) => `welcome:${s}:${Math.floor(Date.now() / 60_000)}`;
 const short = (fullName: string) => fullName.split("/")[1] ?? fullName;

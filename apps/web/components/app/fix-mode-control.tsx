@@ -1,16 +1,11 @@
 "use client";
 
 import type { FixMode, FixModeOrigin } from "@teire/engine/config";
+import { Lock, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { FixModePicker } from "./fix-mode-picker";
 import { runAction } from "./run-action";
-
-const MODES: [FixMode, string][] = [
-  ["auto", "Automatic"],
-  ["ask", "Ask first"],
-  ["off", "Off"],
-];
 
 /**
  * A repository's fix mode (D118, D124): Automatic · Ask first · Off, always the effective mode and
@@ -22,11 +17,14 @@ export function FixModeControl({
   mode,
   origin,
   file,
+  compact,
 }: {
   repo: string;
   mode: FixMode;
   origin: FixModeOrigin;
   file: string | null;
+  /** In a table row: no label, and where the mode was set as an icon with its words on hover. */
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<FixMode | null>(null);
@@ -42,27 +40,41 @@ export function FixModeControl({
       setPending(null);
     }
   };
+  const picker = (
+    <FixModePicker
+      value={pending ?? mode}
+      onChange={(v) => void set(v)}
+      disabled={locked || pending !== null}
+      label={`Fix mode for ${repo}`}
+      short={compact}
+    />
+  );
+  if (compact)
+    return (
+      <div className="flex items-center gap-1.5">
+        {picker}
+        {locked ? (
+          <Lock className="size-3.5 text-ink-3" aria-label={`Set in ${file}`}>
+            <title>Set in {file}: change it there</title>
+          </Lock>
+        ) : origin === "dashboard" ? (
+          <button
+            type="button"
+            onClick={() => void set(null)}
+            disabled={pending !== null}
+            title="Set here: go back to the installation's default"
+            aria-label="Use the installation's default"
+            className="rounded p-0.5 text-ink-3 hover:bg-hover hover:text-ink"
+          >
+            <RotateCcw className="size-3.5" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+    );
   return (
     <div className="flex flex-wrap items-center gap-3">
       <span className="eyebrow">Fixes</span>
-      <ToggleGroup
-        type="single"
-        value={pending ?? mode}
-        onValueChange={(v) => v && v !== mode && void set(v as FixMode)}
-        disabled={locked || pending !== null}
-        aria-label="Fix mode"
-        className="rounded-lg bg-sunken p-0.5 ring-1 ring-rule ring-inset"
-      >
-        {MODES.map(([value, label]) => (
-          <ToggleGroupItem
-            key={value}
-            value={value}
-            className="h-7 rounded-md px-3 text-xs text-ink-2 data-[state=on]:bg-sheet data-[state=on]:text-ink data-[state=on]:shadow-card"
-          >
-            {label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+      {picker}
       <span className="font-mono text-[11px] text-ink-3">
         {locked ? (
           <>Set in {file} · change it there</>

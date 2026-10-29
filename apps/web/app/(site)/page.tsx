@@ -43,7 +43,7 @@ const proofOf = (m: { evidence: string | null; mode: string | null; draft: boole
   pr: { state: "done", detail: m.draft || m.mode === "draft" ? "draft" : "ready" },
 });
 /** "gemini-2.0-flash → gemini-3.6-flash", "pydantic 1.10.18 → 2.14.1": a linked change in mono. */
-const changeOf = (m: { groupKey: string | null; from: string | null; to: string | null }) => {
+const _changeOf = (m: { groupKey: string | null; from: string | null; to: string | null }) => {
   const [kind, name] = (m.groupKey ?? "").split("/");
   return kind === "models" || kind === "api" ? `${m.from} → ${m.to}` : `${name} ${m.from} → ${m.to}`;
 };

@@ -7,7 +7,6 @@ import { useState } from "react";
 import { ActionButton } from "@/components/app/action-button";
 import { BrandLogo } from "@/components/brand-logo";
 import { TileLabel, TileSquare } from "@/components/flow/tile";
-import { Markdown } from "@/components/markdown";
 import { DiffView } from "@/components/run/diff-view";
 import { Receipt } from "@/components/run/receipt";
 import type { LedgerCheck } from "@/components/teire/ledger";
@@ -25,7 +24,7 @@ import { subjectMark } from "@/lib/marks";
 import { proofOfRun, STEP_DOING } from "@/lib/proof";
 import type { RunSheetData, RunSheetTick } from "@/lib/run-sheet";
 import { traceOf } from "@/lib/trace";
-import { backendName, cn } from "@/lib/utils";
+import { backendName } from "@/lib/utils";
 import { Inspector, type InspectorData } from "./inspector";
 import { RunCanvas } from "./run-canvas";
 import { ShareRun } from "./share-run";
@@ -37,7 +36,6 @@ import {
   elapsed,
   firstStart,
   liveLedger,
-  phasesOf,
   RunFacts,
   subjectOf,
   useNow,
@@ -118,7 +116,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   );
   const traceEnd = Math.max(1000, ...spans.map((s) => s.end));
   const subject = subjectOf(run);
-  const proof = proofOfRun({
+  const _proof = proofOfRun({
     kind: run.kind,
     status: run.status,
     step: run.step,

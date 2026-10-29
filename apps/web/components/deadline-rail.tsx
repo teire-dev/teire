@@ -3,15 +3,10 @@ import { connection } from "next/server";
 import { BrandLogo } from "@/components/brand-logo";
 import { listChanges } from "@/lib/catalog";
 import { providerLogo } from "@/lib/logos";
+import { countdown } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
-const DAY = 86_400_000;
-
-/** "in 12 days", "tomorrow", "today": the countdown a deadline dot carries. */
-export function countdown(deadline: string, now = Date.now()) {
-  const days = Math.ceil((Date.parse(deadline) - now) / DAY);
-  return days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
-}
+export { countdown };
 
 /**
  * The next real deadlines in the public catalog as a rail (plan revision 3.4, B1/C5): provider marks on
@@ -53,7 +48,9 @@ export async function DeadlineRail({ max = 6, className }: { max?: number; class
                 </span>
                 <span className="flex min-w-0 flex-col sm:w-full sm:items-center">
                   <span data-flow className="w-full truncate font-mono text-[11px] text-ink-2 sm:px-1">
-                    {g.length > 1 ? `${logo.name} · ${g.length}` : (r.record.subject?.name ?? r.title).split("/").at(-1)}
+                    {g.length > 1
+                      ? `${logo.name} · ${g.length}`
+                      : (r.record.subject?.name ?? r.title).split("/").at(-1)}
                   </span>
                   <span data-flow className="text-[11px] font-medium text-attention">
                     {countdown(r.deadline as string)}

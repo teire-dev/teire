@@ -31,6 +31,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
+import { FIX_MODES } from "@/lib/fix-mode-options";
 import { runAction } from "./run-action";
 
 interface DocHit {
@@ -53,11 +54,7 @@ const PAGES = [
   { label: "Trust: how Teire runs", href: "/trust", icon: ShieldCheck },
 ] as const;
 
-const MODES = [
-  ["auto", "Automatic"],
-  ["ask", "Ask first"],
-  ["off", "Off"],
-] as const;
+const MODES = FIX_MODES.map((m) => [m.value, m.label] as const);
 
 /** The query's words in bold inside a docs snippet (Factory docs' result rows). */
 function Snippet({ text, query }: { text: string; query: string }) {

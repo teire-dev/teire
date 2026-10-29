@@ -1,4 +1,4 @@
-import { and, artifacts, desc, eq, findings, inArray, repos, scans, sql } from "@teire/db";
+import { and, artifacts, desc, eq, findings, inArray, repos, sql } from "@teire/db";
 import { currentInstallation } from "./app-shell";
 import { freshAccess, refreshInstallations } from "./auth";
 import { myInstallations } from "./dashboard";

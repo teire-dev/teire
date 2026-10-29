@@ -10,7 +10,9 @@ import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { EvidenceChip, StatusChip, type Tone } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
 import type { AssistantMessage, AssistantNotice } from "@/lib/assistant/message";
+import { FIX_MODES } from "@/lib/fix-mode-options";
 import type { Proof } from "@/lib/proof";
+import { ago, until } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,23 +27,10 @@ export type Out<N extends ToolName> = Exclude<
   { error: string }
 >;
 
+export { ago };
+
 const INTERNAL = /^\/(app|docs|runs|changes|scan|providers|packages|welcome|trust)(\/|\?|#|$)/;
 const OURS = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(pull|issues)\/\d+$/;
-
-export function ago(iso: string | null | undefined) {
-  if (!iso) return null;
-  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86_400) return `${Math.round(s / 3600)} h ago`;
-  return `${Math.round(s / 86_400)} d ago`;
-}
-
-function until(iso: string | null | undefined) {
-  if (!iso) return null;
-  const d = Math.round((Date.parse(iso) - Date.now()) / 86_400_000);
-  return d > 1 ? `in ${d} days` : d === 1 ? "tomorrow" : d === 0 ? "today" : `${-d} days ago`;
-}
 
 /** A link inside Teire, or a Teire PR/issue on GitHub; anything else is text. */
 export function SafeLink({
@@ -114,15 +103,13 @@ function Card({
   );
 }
 
-const MODE: Record<string, { label: string; tone: Tone }> = {
-  auto: { label: "Automatic", tone: "proven" },
-  ask: { label: "Ask first", tone: "attention" },
-  off: { label: "Off", tone: "neutral" },
-};
-// The same modes as the tools say them in words.
-MODE.Automatic = MODE.auto as { label: string; tone: Tone };
-MODE["Ask first"] = MODE.ask as { label: string; tone: Tone };
-MODE.Off = MODE.off as { label: string; tone: Tone };
+// Each mode by its key and by its words (the tools say both).
+const MODE: Record<string, { label: string; tone: Tone }> = Object.fromEntries(
+  FIX_MODES.flatMap((m) => [
+    [m.value, { label: m.label, tone: m.tone }],
+    [m.label, { label: m.label, tone: m.tone }],
+  ]),
+);
 
 function ModeChip({ mode }: { mode: string }) {
   const m = MODE[mode] ?? { label: mode, tone: "neutral" as Tone };

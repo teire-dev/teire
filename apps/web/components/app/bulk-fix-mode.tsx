@@ -13,12 +13,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { FIX_MODES } from "@/lib/fix-mode-options";
 import { runActions } from "./run-action";
 
 const CHOICES: [FixMode | null, string][] = [
-  ["auto", "Automatic"],
-  ["ask", "Ask first"],
-  ["off", "Off"],
+  ...FIX_MODES.map((m) => [m.value, m.label] as [FixMode, string]),
   [null, "Use the installation's default"],
 ];
 

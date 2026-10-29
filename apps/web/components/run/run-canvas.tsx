@@ -3,11 +3,7 @@
 import {
   Background,
   BackgroundVariant,
-  BaseEdge,
   Controls,
-  type Edge,
-  type EdgeProps,
-  getSmoothStepPath,
   Handle,
   type Node,
   type NodeProps,
@@ -17,10 +13,10 @@ import {
 } from "@xyflow/react";
 import { useTheme } from "fumadocs-ui/provider/base";
 import { RotateCcw } from "lucide-react";
-import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo } from "react";
+import { EDGE_TYPES, type FlowEdgeT, HANDLE_CLASS } from "@/components/flow/flow-edge";
 import { TileLabel, TileSquare } from "@/components/flow/tile";
-import { FLOW_STATE_LABEL, type FlowGraph, type FlowState, type FlowTile } from "@/lib/flow/model";
+import { FLOW_STATE_LABEL, type FlowGraph, type FlowTile } from "@/lib/flow/model";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,7 +28,6 @@ import { cn } from "@/lib/utils";
  */
 type TileData = { tile: FlowTile; selected: boolean; onSelect: (id: string) => void };
 type TileNodeT = Node<TileData, "tile">;
-type FlowEdgeT = Edge<{ state: FlowState }, "flow">;
 
 const GAP = 132;
 const SIZE = 64;
@@ -41,12 +36,7 @@ function TileNode({ id, data }: NodeProps<TileNodeT>) {
   const { tile, selected, onSelect } = data;
   return (
     <div className="relative" style={{ width: SIZE, height: SIZE }}>
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!size-2 !border-[1.5px] !border-rule-strong !bg-sheet"
-        isConnectable={false}
-      />
+      <Handle type="target" position={Position.Left} className={HANDLE_CLASS} isConnectable={false} />
       <button
         type="button"
         onClick={() => onSelect(id)}
@@ -59,12 +49,7 @@ function TileNode({ id, data }: NodeProps<TileNodeT>) {
       >
         <TileSquare tile={tile} size="md" />
       </button>
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!size-2 !border-[1.5px] !border-rule-strong !bg-sheet"
-        isConnectable={false}
-      />
+      <Handle type="source" position={Position.Right} className={HANDLE_CLASS} isConnectable={false} />
       <TileLabel
         tile={tile}
         className="pointer-events-none absolute top-[calc(100%+10px)] left-1/2 w-36 -translate-x-1/2"
@@ -73,62 +58,8 @@ function TileNode({ id, data }: NodeProps<TileNodeT>) {
   );
 }
 
-const STROKE: Record<FlowState, string> = {
-  pending: "var(--ink-3)",
-  live: "var(--signal)",
-  done: "color-mix(in oklab, var(--ink) 45%, transparent)",
-  proven: "var(--proven)",
-  not_proven: "var(--attention)",
-  failed: "var(--broke)",
-  skipped: "var(--rule-strong)",
-};
-
-function FlowEdge({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  data,
-}: EdgeProps<FlowEdgeT>) {
-  const reduce = useReducedMotion();
-  const [path] = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    borderRadius: 14,
-  });
-  const state = data?.state ?? "pending";
-  const dashed = state === "pending" || state === "failed" || state === "skipped";
-  return (
-    <>
-      <BaseEdge
-        id={id}
-        path={path}
-        style={{
-          stroke: STROKE[state],
-          strokeWidth: 1.75,
-          strokeDasharray: dashed ? "5 5" : undefined,
-          opacity: state === "pending" ? 0.55 : 1,
-        }}
-      />
-      {state === "live" && !reduce ? (
-        <circle r={4.5} fill="var(--signal)" stroke="var(--signal-soft)" strokeWidth={3}>
-          <animateMotion dur="1.2s" repeatCount="indefinite" path={path} />
-        </circle>
-      ) : null}
-    </>
-  );
-}
-
 // Module-level, so React Flow never sees a new type map and remounts the nodes (plan 3.4, A4).
 const nodeTypes = { tile: TileNode };
-const edgeTypes = { flow: FlowEdge };
 
 const storeKey = (runId: string) => `teire:run-canvas:${runId}`;
 function savedPositions(runId: string): Record<string, { x: number; y: number }> {
@@ -196,7 +127,7 @@ export function RunCanvas({
         id: `${l.from}-${l.to}`,
         source: l.from,
         target: l.to,
-        type: "flow",
+        type: "step",
         data: { state: l.state },
       })),
     [graph.links],
@@ -225,7 +156,7 @@ export function RunCanvas({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
+        edgeTypes={EDGE_TYPES}
         onNodesChange={onNodesChange}
         onNodeDragStop={keep}
         nodesConnectable={false}

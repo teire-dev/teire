@@ -1,5 +1,5 @@
 import type { ChangeV2 } from "@teire/engine/contract";
-import { ArrowRight, Flag } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
 import { getChange, providerNames } from "@/lib/catalog";
 import { providerLogo } from "@/lib/logos";
-import { SOURCE_URL } from "@/lib/site";
 import { ClassChip } from "../class-chip";
 
 /** One change with every source quoted, what Teire searches for, and how it was read (C10). */

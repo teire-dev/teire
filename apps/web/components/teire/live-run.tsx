@@ -31,7 +31,16 @@ export function LiveRun({
   }, []);
   const secs =
     startedAt && now ? Math.max(0, Math.round((now - new Date(startedAt).getTime()) / 1000)) : null;
-  const elapsed = secs === null ? "" : secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
+  const elapsed =
+    secs === null
+      ? ""
+      : secs < 60
+        ? `${secs}s`
+        : secs < 3600
+          ? `${Math.floor(secs / 60)}m ${secs % 60}s`
+          : secs < 86_400
+            ? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`
+            : `${Math.floor(secs / 86_400)}d ${Math.floor((secs % 86_400) / 3600)}h`;
   return (
     <Link href={href} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-hover">
       <span className="relative">

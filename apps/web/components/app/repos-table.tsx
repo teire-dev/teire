@@ -15,6 +15,7 @@ import type { FixMode, FixModeOrigin } from "@teire/engine/config";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { MiniFlow } from "@/components/flow/mini-flow";
 import { MarkStack } from "@/components/teire/mark";
 import { StatusChip, type Tone } from "@/components/teire/status-chip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,7 +30,9 @@ import {
   DataTableToolbarSearch,
   DataTableToolbarSelectionCount,
 } from "@/components/ui/data-table-toolbar";
-import { languageMarks } from "@/lib/marks";
+import { languageMarks, subjectMark } from "@/lib/marks";
+import type { Proof } from "@/lib/proof";
+import { ago } from "@/lib/time";
 import { BulkFixMode } from "./bulk-fix-mode";
 import { FixModeControl } from "./fix-mode-control";
 
@@ -44,25 +47,18 @@ export interface RepoTableRow {
   openPrs: number;
   needsYou: number;
   lastScannedAt: string | null;
+  /** Its latest run, drawn as a MiniFlow that opens the run. */
+  latest: { id: string; proof: Proof; groupKey: string | null } | null;
 }
-
-const ago = (iso: string | null) => {
-  if (!iso) return "not yet";
-  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
-  return s < 3600
-    ? `${Math.round(s / 60)} min ago`
-    : s < 86_400
-      ? `${Math.round(s / 3600)} h ago`
-      : `${Math.round(s / 86_400)} d ago`;
-};
 
 const LABELS: Record<string, string> = {
   fullName: "Repository",
   fixMode: "Fix mode",
   state: "State",
-  affected: "Reaching code",
+  affected: "Reaching",
   openPrs: "Open PRs",
   needsYou: "Needs you",
+  latest: "Latest run",
   lastScannedAt: "Scanned",
 };
 
@@ -104,9 +100,12 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
         header: LABELS.fullName,
         cell: ({ row }) => (
           <Link href={`/app/repos/${row.original.fullName}`} className="flex min-w-0 items-center gap-2">
-            <MarkStack brands={languageMarks(row.original.languages)} />
-            <span className="truncate font-mono text-xs text-ink hover:underline">
-              {row.original.fullName}
+            <MarkStack brands={languageMarks(row.original.languages)} max={2} />
+            <span
+              className="truncate text-sm font-medium text-ink hover:underline"
+              title={row.original.fullName}
+            >
+              {row.original.fullName.split("/")[1]}
             </span>
             {row.original.isPrivate ? <span className="text-[10px] text-ink-3">private</span> : null}
           </Link>
@@ -122,6 +121,7 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
             mode={row.original.fixMode.mode}
             origin={row.original.fixMode.origin}
             file={row.original.fixMode.file}
+            compact
           />
         ),
       },
@@ -175,11 +175,28 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
         ),
       },
       {
+        id: "latest",
+        enableSorting: false,
+        header: LABELS.latest,
+        cell: ({ row }) =>
+          row.original.latest ? (
+            <Link href={`/runs/${row.original.latest.id}`} title="Its latest run" className="inline-flex">
+              <MiniFlow
+                proof={row.original.latest.proof}
+                subject={subjectMark(row.original.latest.groupKey)}
+                size="xs"
+              />
+            </Link>
+          ) : (
+            <span className="font-mono text-[11px] text-ink-3">–</span>
+          ),
+      },
+      {
         accessorKey: "lastScannedAt",
         header: LABELS.lastScannedAt,
         cell: ({ row }) => (
           <span className="font-mono text-[11px] text-ink-3" title={row.original.lastScannedAt ?? undefined}>
-            {ago(row.original.lastScannedAt)}
+            {row.original.lastScannedAt ? ago(row.original.lastScannedAt) : "not yet"}
           </span>
         ),
       },
@@ -228,7 +245,7 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
         selectedCount={selected.length}
         onClearSelection={() => setSelection({})}
       >
-        <DataTableToolbarGroup>
+        <DataTableToolbarGroup className="flex-1">
           <DataTableToolbarSearch placeholder="Search repositories" label="Search repositories" />
           <DataTableToolbarColumns
             value={hideable.filter((c) => c.getIsVisible()).map((c) => c.id)}
@@ -251,7 +268,7 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
         </DataTableToolbarBulkActions>
       </DataTableToolbar>
       <div className="overflow-x-auto rounded-xl bg-sheet shadow-card">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[880px] text-sm">
           <thead>
             {table.getHeaderGroups().map((g) => (
               <tr key={g.id} className="border-b border-rule text-left">
@@ -264,7 +281,7 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
                       aria-sort={
                         sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined
                       }
-                      className="eyebrow px-4 py-2.5 font-normal"
+                      className="px-4 py-2.5 text-xs font-normal whitespace-nowrap text-ink-3"
                     >
                       {h.column.getCanSort() ? (
                         <button
@@ -296,7 +313,7 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
                 className="hover:bg-hover data-[state=selected]:bg-signal-soft/40"
               >
                 {row.getVisibleCells().map((c) => (
-                  <td key={c.id} className="px-4 py-2">
+                  <td key={c.id} className="px-4 py-2 whitespace-nowrap">
                     {flexRender(c.column.columnDef.cell, c.getContext())}
                   </td>
                 ))}

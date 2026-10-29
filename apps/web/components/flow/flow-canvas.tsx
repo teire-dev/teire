@@ -3,10 +3,6 @@
 import {
   Background,
   BackgroundVariant,
-  BaseEdge,
-  type Edge,
-  type EdgeProps,
-  getBezierPath,
   Handle,
   type Node,
   type NodeProps,
@@ -18,10 +14,10 @@ import {
 } from "@xyflow/react";
 import { useTheme } from "fumadocs-ui/provider/base";
 import { GripVertical } from "lucide-react";
-import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo } from "react";
+import { EDGE_TYPES, type FlowEdgeT, HANDLE_CLASS } from "@/components/flow/flow-edge";
 import { TileLabel, type TileSize, TileSquare } from "@/components/flow/tile";
-import type { FlowLink, FlowState, FlowTile } from "@/lib/flow/model";
+import type { FlowLink, FlowTile } from "@/lib/flow/model";
 import { cn } from "@/lib/utils";
 
 /**
@@ -41,7 +37,6 @@ export interface PlacedTile extends FlowTile {
 
 type Data = { tile: PlacedTile };
 type TileNodeT = Node<Data, "tile">;
-type EdgeT = Edge<{ state: FlowState; label?: string }, "flow">;
 
 const PX = { lg: 80, md: 64, sm: 44 } as const;
 
@@ -53,12 +48,7 @@ function TileNode({ data }: NodeProps<TileNodeT>) {
       className={cn("relative", tile.draggable && "cursor-grab active:cursor-grabbing")}
       style={{ width: px, height: px }}
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!size-2 !border-[1.5px] !border-rule-strong !bg-sheet"
-        isConnectable={false}
-      />
+      <Handle type="target" position={Position.Left} className={HANDLE_CLASS} isConnectable={false} />
       <TileSquare
         tile={tile}
         size={tile.size ?? "md"}
@@ -72,12 +62,7 @@ function TileNode({ data }: NodeProps<TileNodeT>) {
           <GripVertical className="size-3" />
         </span>
       ) : null}
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!size-2 !border-[1.5px] !border-rule-strong !bg-sheet"
-        isConnectable={false}
-      />
+      <Handle type="source" position={Position.Right} className={HANDLE_CLASS} isConnectable={false} />
       <TileLabel
         tile={tile}
         size={tile.size ?? "md"}
@@ -92,53 +77,7 @@ function TileNode({ data }: NodeProps<TileNodeT>) {
   );
 }
 
-const STROKE: Record<FlowState, string> = {
-  pending: "var(--ink-3)",
-  live: "var(--signal)",
-  done: "color-mix(in oklab, var(--ink) 45%, transparent)",
-  proven: "var(--proven)",
-  not_proven: "var(--attention)",
-  failed: "var(--broke)",
-  skipped: "var(--rule-strong)",
-};
-
-function FlowEdge({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  data,
-}: EdgeProps<EdgeT>) {
-  const reduce = useReducedMotion();
-  const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
-  const state = data?.state ?? "pending";
-  const dashed = state === "pending" || state === "failed" || state === "skipped";
-  return (
-    <>
-      <BaseEdge
-        id={id}
-        path={path}
-        style={{
-          stroke: STROKE[state],
-          strokeWidth: 1.75,
-          strokeDasharray: dashed ? "5 5" : undefined,
-          opacity: state === "pending" ? 0.6 : 1,
-        }}
-      />
-      {state === "live" && !reduce ? (
-        <circle r={4.5} fill="var(--signal)" stroke="var(--signal-soft)" strokeWidth={3}>
-          <animateMotion dur="1.3s" repeatCount="indefinite" path={path} />
-        </circle>
-      ) : null}
-    </>
-  );
-}
-
 const nodeTypes = { tile: TileNode };
-const edgeTypes = { flow: FlowEdge };
 
 const toNodes = (tiles: PlacedTile[]): TileNodeT[] =>
   tiles.map((t) => ({
@@ -182,7 +121,7 @@ function Canvas({
     const t = setTimeout(() => void flow.fitView({ padding: 0.18, duration: 500, maxZoom: 1.25 }), 30);
     return () => clearTimeout(t);
   }, [ids, flow]);
-  const edges = useMemo<EdgeT[]>(
+  const edges = useMemo<FlowEdgeT[]>(
     () =>
       links.map((l) => ({
         id: `${l.from}-${l.to}`,
@@ -199,7 +138,7 @@ function Canvas({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
+        edgeTypes={EDGE_TYPES}
         onNodesChange={onNodesChange}
         onNodeDragStop={(_, n) => onDrop?.(n.id, n.position)}
         nodesConnectable={false}

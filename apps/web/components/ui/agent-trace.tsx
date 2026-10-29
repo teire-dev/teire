@@ -93,7 +93,7 @@ interface RowHandle {
 const KIND_ICON = { agent: Bot, model: Cpu, tool: Wrench, io: FileText } as const;
 const NICE_TICKS = [50, 100, 250, 500, 1000, 2000, 2500, 5000, 10_000, 30_000, 60_000];
 
-const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
+const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : Math.min(v, hi));
 
 /** Deterministic thousands separator — `toLocaleString` differs between server and client. */
 const groupDigits = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
