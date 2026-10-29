@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ClassChip } from "@/app/(site)/changes/class-chip";
 import { BrandLogo } from "@/components/brand-logo";
+import { ecosystemOfSite } from "@/lib/brands";
 import { type CatalogRow, sourceLabel, sourceLogo, sourceOf } from "@/lib/catalog";
 import { ago } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -40,17 +41,27 @@ export function watchedOf(
     for (const s of r.record.sources)
       if (s.checkedAt && (lastRead.get(k) ?? "") < s.checkedAt) lastRead.set(k, s.checkedAt);
   }
-  const fromPages: Watched[] = pages.map((p) => ({
-    key: p.slug,
-    label: sourceLabel(p.slug, names),
-    logo: sourceLogo(p.slug),
-    checked: p.checked,
-    status: p.failing ? "failing" : p.stale ? "stale" : "ok",
-    what: p.kinds.join(" · "),
-    changes: count.get(p.slug) ?? 0,
-  }));
+  // A registry's own website (rubygems.org's deprecations page) is the same source as its ecosystem:
+  // one tile, not "Rubygems · 0" beside "RubyGems · 23" (V7 final review).
+  const keyOf = (slug: string) => {
+    const eco = ecosystemOfSite(slug);
+    return eco ? `pkg:${eco}` : slug;
+  };
+  const fromPages: Watched[] = pages.map((p) => {
+    const key = keyOf(p.slug);
+    const folded = key !== p.slug;
+    return {
+      key,
+      label: sourceLabel(key, names).replace(/ packages$/, ""),
+      logo: sourceLogo(key),
+      checked: p.checked,
+      status: p.failing ? "failing" : p.stale ? "stale" : "ok",
+      what: folded ? `registry · release notes · ${p.kinds.join(" · ")}` : p.kinds.join(" · "),
+      changes: (count.get(key) ?? 0) + (folded ? (count.get(p.slug) ?? 0) : 0),
+    };
+  });
   const fromCatalog: Watched[] = [...count.keys()]
-    .filter((k) => !pages.some((p) => p.slug === k) && k !== "other")
+    .filter((k) => !pages.some((p) => p.slug === k || keyOf(p.slug) === k) && k !== "other")
     .map((k) => ({
       key: k,
       label: sourceLabel(k, names).replace(/ packages$/, ""),

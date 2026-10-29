@@ -3,6 +3,7 @@ import { ASSISTANT, DAILY_COST_CAP_DEFAULT_USD } from "@teire/engine/constants";
 import {
   Activity,
   Ban,
+  ChevronDown,
   Eye,
   FileCheck2,
   GitBranch,
@@ -485,33 +486,81 @@ const PERMISSIONS: { name: string; level: "read" | "write"; why: string; icon: L
   },
 ];
 
+/**
+ * A fact as a tile you open (V7 final review: fourteen sentence cards read as a grey list): its icon,
+ * its name and a chip; the sentence opens on a click or Enter, never on hover only.
+ */
+function FactTile({
+  icon: Icon,
+  name,
+  chip,
+  tone,
+  children,
+}: {
+  icon: LucideIcon;
+  name: string;
+  chip?: string;
+  tone: "write" | "read" | "rule";
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group/fact rounded-xl bg-sheet shadow-card open:ring-1 open:ring-rule-strong">
+      <summary className="flex cursor-pointer list-none items-center gap-2.5 p-3 [&::-webkit-details-marker]:hidden">
+        <span
+          className={cn(
+            "relative flex size-9 shrink-0 items-center justify-center rounded-[10px] ring-1",
+            tone === "write"
+              ? "bg-attention-soft text-attention ring-attention/30"
+              : tone === "read"
+                ? "bg-sunken text-ink-2 ring-rule"
+                : "bg-proven-soft text-proven ring-proven/30",
+          )}
+        >
+          <Icon className="size-4" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{name}</span>
+        {chip ? (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-1.5 py-px font-mono text-[11px]",
+              tone === "write" ? "bg-attention-soft text-attention" : "bg-sunken text-ink-2",
+            )}
+          >
+            {chip}
+          </span>
+        ) : null}
+        <ChevronDown
+          aria-hidden
+          className="size-3.5 shrink-0 text-ink-3 transition-transform group-open/fact:rotate-180"
+        />
+      </summary>
+      <p className="px-3 pb-3 text-xs text-ink-2">{children}</p>
+    </details>
+  );
+}
+
 function Permissions() {
+  const lanes: ["write" | "read", string][] = [
+    ["write", "May change"],
+    ["read", "May read"],
+  ];
   return (
     <section id="permissions" className="flex scroll-mt-24 flex-col gap-4">
       <h2 className="heading text-2xl text-ink">What Teire may do on GitHub</h2>
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {PERMISSIONS.map((p) => (
-          <li key={p.name} className="flex items-start gap-3 rounded-xl bg-sheet p-4 shadow-card">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sunken">
-              <p.icon className="size-4 text-ink-2" aria-hidden />
-            </span>
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex items-center gap-2 text-sm font-medium text-ink">
-                {p.name}
-                <span
-                  className={cn(
-                    "rounded-full px-1.5 py-px font-mono text-[11px]",
-                    p.level === "write" ? "bg-attention-soft text-attention" : "bg-sunken text-ink-3",
-                  )}
-                >
-                  {p.level}
-                </span>
-              </span>
-              <span className="text-xs text-ink-3">{p.why}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+      {lanes.map(([level, title]) => (
+        <div key={level} className="flex flex-col gap-2">
+          <span className="eyebrow">{title}</span>
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {PERMISSIONS.filter((p) => p.level === level).map((p) => (
+              <li key={p.name}>
+                <FactTile icon={p.icon} name={p.name} chip={p.level} tone={p.level}>
+                  {p.why}
+                </FactTile>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </section>
   );
 }
@@ -559,16 +608,12 @@ function Rules() {
   return (
     <section className="flex flex-col gap-4">
       <h2 className="heading text-2xl text-ink">Rules every run follows</h2>
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {RULES.map((r) => (
-          <li key={r.title} className="flex items-start gap-3 rounded-xl bg-sheet p-4 shadow-card">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sunken">
-              <r.icon className="size-4 text-ink-2" aria-hidden />
-            </span>
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm font-medium text-ink">{r.title}</span>
-              <span className="text-xs text-ink-3">{r.line}</span>
-            </span>
+          <li key={r.title}>
+            <FactTile icon={r.icon} name={r.title} tone="rule">
+              {r.line}
+            </FactTile>
           </li>
         ))}
       </ul>
