@@ -21,6 +21,8 @@ interface HelperUse {
   symbol: string;
   kind: "func" | "method" | "field" | "var" | "const" | "type";
   constValue?: string;
+  /** Arguments at the call this use names; -1 for `f(xs...)`. */
+  argCount?: number;
 }
 
 const KIND: Record<HelperUse["kind"], CallSite["kind"]> = {
@@ -74,6 +76,7 @@ export async function locateGo(input: {
         snippet: await snippet(u.file, u.line),
         resolution: "type",
         declKey: u.symbol,
+        ...(u.argCount !== undefined && u.argCount >= 0 ? { argCount: u.argCount } : {}),
       });
     }
     return {

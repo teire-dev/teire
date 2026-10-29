@@ -1,5 +1,5 @@
 import { PR_MODE_BY_EVIDENCE, PULL_REQUESTS } from "../constants";
-import type { ChangeV2, DependencyInstance } from "../contract";
+import type { ChangeV2, Coverage, DependencyInstance } from "../contract";
 import { usageCell } from "../fix/co-moved";
 import type { MigrationNote } from "../fix/codemods";
 import type { FixRun } from "../fix/run";
@@ -1016,6 +1016,10 @@ export function composeHumanIssue(input: {
     verdict: string;
     reason: string | null;
     callSites: { file: string; line: number; snippet?: string }[];
+    /** The version this repo has and the one the change is about (S16.3). */
+    position?: { version: string | null; target: string | null } | null;
+    /** How far Teire's search could see (S16.3): a person reads the sites knowing what was missed. */
+    coverage?: Coverage | null;
   }[];
   records: ChangeV2[];
   webUrl?: string | null;
@@ -1045,6 +1049,16 @@ export function composeHumanIssue(input: {
         `- [\`${s.file}:${s.line}\`](${blob(repo, s.file, s.line)})${s.snippet ? ` \`${escapeCell(s.snippet).slice(0, 100)}\`` : ""}`,
       );
   }
+  const position = rows.find((r) => r.position?.version || r.position?.target)?.position;
+  if (position)
+    out.push(
+      `**Your version:** ${position.version ? `\`${position.version}\`` : "unknown"}${position.target ? `; the change is about \`${position.target}\`` : ""}.`,
+    );
+  const coverage = rows.find((r) => r.coverage)?.coverage;
+  if (coverage)
+    out.push(
+      `**How far Teire could see:** ${coverage.filesScanned} file${coverage.filesScanned === 1 ? "" : "s"} searched at ${coverage.resolutionLevel} level${coverage.unresolvedSites ? `, ${coverage.unresolvedSites} use${coverage.unresolvedSites === 1 ? "" : "s"} it couldn't resolve` : ""}${coverage.filesSkipped.length ? `, skipped: ${coverage.filesSkipped.map((f) => `${f.count} (${f.reason})`).join(", ")}` : ""}.`,
+    );
   if (input.records.length) {
     out.push("### What changed upstream");
     for (const r of input.records.slice(0, 4)) {
@@ -1057,6 +1071,24 @@ export function composeHumanIssue(input: {
     }
   }
   out.push("### What you can do");
+  // What a person does depends on what changed (S16.3): a parameter with no replacement, a behaviour
+  // the checks can't see, a setting only the account can change.
+  const kinds = new Set(input.records.map((r) => r.kind));
+  if (kinds.has("parameter-change"))
+    out.push(
+      "- [ ] At each place above, stop passing the parameter the source says was removed; it names no replacement Teire could use, so the right value or call is yours to choose.",
+    );
+  if (kinds.has("behaviour-change"))
+    out.push(
+      "- [ ] Run the paths that reach the places above with real inputs, on your current version and on the new one.\n- [ ] Compare what comes back: output format, defaults, errors, timing.\n- [ ] Add a test that pins the behaviour you rely on, so the next upgrade is checked by your own suite.",
+    );
+  if (kinds.has("account-gated"))
+    out.push(
+      `- [ ] Change the setting the source names in the provider's dashboard or account (${input.records
+        .filter((r) => r.kind === "account-gated")
+        .map((r) => sanitizeUpstream(r.summary.slice(0, 160), upstreamRepoOf(r.sources[0]?.url)))
+        .join("; ")}); then \`@teire fix ${input.key}\` runs again.`,
+    );
   out.push(
     "- Read the source above and decide whether this repo is affected.\n- `@teire fix " +
       input.key +

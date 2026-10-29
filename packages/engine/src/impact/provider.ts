@@ -43,6 +43,11 @@ export function assessProviderChanges(input: {
   records: ChangeV2[];
   scan: LiteralScan;
   now?: Date;
+  /**
+   * A person asked for this run (`@teire fix`): a quarantined record is used, its findings marked
+   * unconfirmed, and the PR opens as a draft (S16.3). Otherwise it only says check by hand.
+   */
+  includeQuarantined?: boolean;
 }): FindingDraft[] {
   const now = input.now ?? new Date();
   const findings: FindingDraft[] = [];
@@ -52,7 +57,11 @@ export function assessProviderChanges(input: {
   const urls = input.scan.hits.filter((h) => h.kind === "url" && h.host && h.path);
 
   for (const record of input.records) {
-    if (record.status !== "confirmed") continue;
+    const quarantined = record.status === "quarantined";
+    if (record.status !== "confirmed" && !quarantined) continue;
+    const why = record.quarantineReasons.length
+      ? record.quarantineReasons
+      : ["its source didn't pass the quote gate"];
     const effective = record.applicability.effectiveOn;
     // One named model is the swap target; several are a choice, stated as the provider wrote it.
     const ids = record.replacement?.modelIds ?? [];
@@ -87,7 +96,28 @@ export function assessProviderChanges(input: {
             : record.kind === "model-rerouted"
               ? "is now served by another model"
               : "is deprecated";
+      // Unconfirmed and not asked for: a person hears of it, with why and how to try it anyway.
+      if (quarantined && !input.includeQuarantined) {
+        if (!decisive.length) continue;
+        findings.push({
+          changeId: record.id,
+          changeKind: record.kind,
+          dependencyKey: key,
+          verdict: "check_by_hand",
+          class: record.applicability.class,
+          reachability: "function-reachable",
+          priority: null,
+          position: { version: what, target: replacement, isMajor: false },
+          callSites: decisive.map(siteOf),
+          coverage: coverageOf(input.scan, hits.length - decisive.length),
+          groupKey: providerGroupKey(record),
+          reason: `${what} ${when}, by a source Teire couldn't confirm (${why.join("; ")}). \`@teire fix\` tries it anyway, as a draft marked unconfirmed.`,
+          unconfirmed: why,
+        });
+        continue;
+      }
       findings.push({
+        ...(quarantined ? { unconfirmed: why } : {}),
         changeId: record.id,
         changeKind: record.kind,
         dependencyKey: key,

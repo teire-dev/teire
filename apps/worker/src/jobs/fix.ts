@@ -248,6 +248,8 @@ class ResolverNothingError extends Error {}
 
 /** What a fix produced, whatever was fixed (a package upgrade or a provider's API change). */
 interface Outcome {
+  /** Why the PR can be a draft at best whatever the checks say: the change came from an unconfirmed source. */
+  unconfirmed?: string[];
   /** Set when the target moved during the run (D103: the updater resolved only up to it). */
   groupKey?: string;
   targetVersion?: string;
@@ -1269,7 +1271,7 @@ async function coMovedAssessed(
 /** A provider group (`models/nebius-token-factory`): re-scan against the stored catalog, then swap and fix. */
 async function apiOutcome(
   ctx: WorkerContext,
-  run: { groupKey: string },
+  run: { groupKey: string; requestedBy?: string | null },
   repoDir: string,
   tree: RepoTree,
   config: TeireConfig,
@@ -1289,6 +1291,8 @@ async function apiOutcome(
       repo: { owner: common.repo.owner, name: common.repo.repo, sha: common.repo.baseSha },
     },
     declared: config.sources,
+    // A person asked (`@teire fix`): an unconfirmed record is tried, as a draft (S16.3).
+    ...(run.requestedBy && !run.requestedBy.startsWith("ci-repair:") ? { includeQuarantined: true } : {}),
   });
   const group = findings
     .filter((f) => f.groupKey === run.groupKey)
@@ -1303,11 +1307,22 @@ async function apiOutcome(
     related: read.filter((r) => r.subject.provider === slug),
     providerName: providers.find((p) => p.provider.slug === slug)?.provider.name,
   });
+  const unconfirmed = [...new Set(group.flatMap((f) => f.unconfirmed ?? []))];
   return {
+    ...(unconfirmed.length ? { unconfirmed } : {}),
     fix: result.run,
-    pr: result.pr,
+    pr: unconfirmed.length
+      ? {
+          ...result.pr,
+          body: `> [!WARNING]\n> **Unconfirmed source.** Teire couldn't confirm the change this PR acts on (${forGitHub(unconfirmed.join("; "), 300)}). You asked for it anyway, so it opens as a draft whatever the checks say; read the source before merging.\n\n${result.pr.body}`,
+        }
+      : result.pr,
     notesReceipt: null,
-    labels: [run.groupKey.startsWith("models/") ? "model-retirement" : "api-change", ...(slug ? [slug] : [])],
+    labels: [
+      run.groupKey.startsWith("models/") ? "model-retirement" : "api-change",
+      ...(slug ? [slug] : []),
+      ...(unconfirmed.length ? ["unconfirmed"] : []),
+    ],
     checkTitle: result.pr.title,
     sites: group
       .filter((f) => f.verdict === "affected")
@@ -1754,7 +1769,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     const targetVersion = run.targetVersion;
     const outcome = await withCancel(abort.signal, async () =>
       isApi
-        ? await apiOutcome(ctx, { groupKey }, checkout.dir, tree, runConfig, common)
+        ? await apiOutcome(
+            ctx,
+            { groupKey, requestedBy: run.requestedBy },
+            checkout.dir,
+            tree,
+            runConfig,
+            common,
+          )
         : await packageOutcome(
             ctx,
             { id: repo.id, installationId: repo.installationId, isPrivate: repo.isPrivate },
@@ -1899,7 +1921,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         }
     });
 
-    const prMode = fix.evidence.prMode;
+    // An unconfirmed source (S16.3) is a draft at best: evidence still decides draft vs issue.
+    const prMode =
+      outcome.unconfirmed?.length && fix.evidence.prMode === "ready" ? "draft" : fix.evidence.prMode;
     const models = [...new Set([notesReceipt?.model, ...fix.attempts.map((a) => a.model)].filter(Boolean))];
     const runFields = {
       evidenceKind: fix.evidence.kind,

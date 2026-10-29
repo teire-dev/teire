@@ -17,6 +17,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
 	"go/constant"
 	"go/types"
 	"os"
@@ -162,6 +163,9 @@ type use struct {
 	Symbol     string `json:"symbol"`
 	Kind       string `json:"kind"`
 	ConstValue string `json:"constValue,omitempty"`
+	// Arguments at the call this identifier names, for arity changes; -1 for f(xs...), absent when
+	// the identifier isn't what a call calls.
+	ArgCount *int `json:"argCount,omitempty"`
 }
 
 // owner finds the named struct type in the object's package that declares field v.
@@ -259,6 +263,38 @@ func runLocate(args []string) error {
 		if p.TypesInfo == nil {
 			continue
 		}
+		// The identifier each call names (f, pkg.F, x.M, F[T]) → its argument count.
+		calls := map[*ast.Ident]int{}
+		for _, f := range p.Syntax {
+			ast.Inspect(f, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				fun := ast.Unparen(call.Fun)
+				switch g := fun.(type) {
+				case *ast.IndexExpr:
+					fun = g.X
+				case *ast.IndexListExpr:
+					fun = g.X
+				}
+				var id *ast.Ident
+				switch g := ast.Unparen(fun).(type) {
+				case *ast.Ident:
+					id = g
+				case *ast.SelectorExpr:
+					id = g.Sel
+				}
+				if id != nil {
+					args := len(call.Args)
+					if call.Ellipsis.IsValid() {
+						args = -1
+					}
+					calls[id] = args
+				}
+				return true
+			})
+		}
 		for id, obj := range p.TypesInfo.Uses {
 			if obj == nil || obj.Pkg() == nil {
 				continue
@@ -287,6 +323,9 @@ func runLocate(args []string) error {
 			u := use{File: filepath.ToSlash(rel), Line: pos.Line, Col: pos.Column, Module: module, Pkg: obj.Pkg().Path(), Symbol: name, Kind: kind}
 			if c, ok := obj.(*types.Const); ok && c.Val().Kind() == constant.String {
 				u.ConstValue = constant.StringVal(c.Val())
+			}
+			if args, ok := calls[id]; ok {
+				u.ArgCount = &args
 			}
 			out = append(out, u)
 		}

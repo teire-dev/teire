@@ -83,6 +83,8 @@ export interface ApiSources {
   openapi?: OpenApiOptions;
   /** `teire.yml` sources: an API host's changelog or spec named by the repo itself. */
   declared?: DeclaredSource[];
+  /** A person asked for this run: quarantined records are used, marked unconfirmed (S16.3). */
+  includeQuarantined?: boolean;
 }
 
 /**
@@ -227,7 +229,12 @@ export async function assessApiChanges(
     };
   const records = await sources.changes(providers.map((p) => p.provider));
   const scan = await locateLiterals({ repoDir, tree, modelIds: catalogModelIds(records) });
-  let findings = assessProviderChanges({ records, scan, now });
+  let findings = assessProviderChanges({
+    records,
+    scan,
+    now,
+    ...(sources.includeQuarantined ? { includeQuarantined: true } : {}),
+  });
   let receipts: TriageReceipt[] = [];
   if (sources.triage) {
     const triaged = await triageModelSites({

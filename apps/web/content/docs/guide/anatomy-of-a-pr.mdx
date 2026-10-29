@@ -129,6 +129,10 @@ Model and API PRs have the same sections. Verification compares the old model wi
 | `typecheck_only` · `pre_existing_failure` · `needs_live_access` · `needs_local_service` · `environment_mismatch` | a draft PR, check run **neutral** | the same, plus the evidence, such as `typecheck-only` |
 | `regression` · `unverified` · `timeout` | an issue, **Teire needs a human: …**, with the body and the reasons | `teire` |
 
+A change from an unconfirmed source that you asked Teire to try (`@teire fix` on a **check by hand** issue) opens as a draft at best, labelled `unconfirmed`.
+
+A **Teire needs a human** issue says why a person is needed, your version and the version the change is about, where the code is, how far Teire's search could see (files searched, how uses were resolved, what it couldn't resolve), what changed upstream with its quote, and what to do. For a removed parameter with no replacement that is the call sites to change; for a behaviour change, a short checklist to compare the paths before and after; for an account setting, the step the source names.
+
 `pullRequests.labels` in `teire.yml` adds your own labels.
 
 ## On GitHub

@@ -1,7 +1,7 @@
 import { type ScanUpgrade, sql } from "@teire/db";
 import { describeFixMode, type EffectiveFixMode } from "@teire/engine/config";
 import { PULL_REQUESTS } from "@teire/engine/constants";
-import { type ChangeV2, lineageKey } from "@teire/engine/contract";
+import { type ChangeV2, type Coverage, lineageKey } from "@teire/engine/contract";
 import { composeHumanIssue } from "@teire/engine/github";
 import {
   findingsWithChanges,
@@ -416,6 +416,8 @@ export async function syncHumanIssues(ctx: WorkerContext, repoId: number) {
         verdict: f.verdict,
         reason: f.reason,
         callSites: (f.callSites as { file: string; line: number; snippet?: string }[] | null) ?? [],
+        position: (f.position as { version: string | null; target: string | null } | null) ?? null,
+        coverage: (f.coverage as Coverage | null) ?? null,
       })),
       records: recs.map((r) => r.record),
       webUrl: ctx.webUrl ? `${ctx.webUrl}/app/repos/${repo.fullName}` : null,

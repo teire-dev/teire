@@ -34,6 +34,8 @@ export interface FindingDraft {
   reason: string;
   /** Not the run's own package: one the upgrade moved with it (D-10), as the agent reads it. */
   via?: string;
+  /** From a record Teire couldn't confirm (quarantined), with why: fixed only as a draft (S16.3). */
+  unconfirmed?: string[];
 }
 
 export interface ImpactInput {
@@ -75,6 +77,19 @@ function sitesFor(record: ChangeV2, locate: LocateResult): { sites: CallSite[]; 
   for (const s of record.signatures)
     if (s.kind === "call-arg")
       for (const callee of s.callee) callArgs.set(callee, (callArgs.get(callee) ?? new Set()).add(s.arg));
+  // An arity change breaks only the calls whose argument count the new signature refuses (R21.8,
+  // S16.3); a call whose count the locator couldn't read (a spread, a reference) stays flagged.
+  const arities = new Map<string, { min: number; max: number }>();
+  if (record.kind === "arity-changed")
+    for (const s of record.signatures)
+      if (s.kind === "symbol" && s.arity)
+        arities.set(s.declKey, { min: s.arity.minAfter, max: s.arity.maxAfter });
+  const stillFits = (hit: Hit) => {
+    const a = arities.get(hit.declKey);
+    return (
+      !!a && hit.argCount !== undefined && hit.argCount >= a.min && (a.max === -1 || hit.argCount <= a.max)
+    );
+  };
   for (const s of record.signatures) {
     if (s.kind === "symbol") {
       if (record.kind === "required-added" || record.kind === "optional-to-required") {
@@ -88,7 +103,7 @@ function sitesFor(record: ChangeV2, locate: LocateResult): { sites: CallSite[]; 
     const args = callArgs.get(hit.declKey);
     if (args) {
       if (hit.kwargs?.some((k) => args.has(k))) sites.push(strip(hit));
-    } else if (keys.has(hit.declKey)) sites.push(strip(hit));
+    } else if (keys.has(hit.declKey) && !stillFits(hit)) sites.push(strip(hit));
     // A literal of the changed type that leaves out the now-required property.
     const prop = literalChecks.get(hit.declKey);
     if (prop && hit.kind === "object" && !hit.props?.includes(prop)) sites.push(strip(hit));

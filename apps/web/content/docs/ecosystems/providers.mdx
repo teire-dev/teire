@@ -50,7 +50,7 @@ A page read by Nemotron becomes one record per model or endpoint, each with a ve
 3. Every source is on the provider's official domains.
 4. For a page Nemotron read, the ID, the replacement and the date all appear in the quotes.
 
-An item whose quote is not in the page, or whose ID is not in its quote, is dropped. A record that fails the final checks is kept as **unconfirmed** and never applied to code. Only confirmed records produce findings. The same rule applies to package release notes: an item that doesn't quote the fetched text is dropped.
+An item whose quote is not in the page, or whose ID is not in its quote, is dropped. A record that fails the final checks is kept as **unconfirmed** and never applied to code on its own. Where your code passes its ID as a model, the scan says **check by hand** in a needs-a-human issue, naming why the record couldn't be confirmed. Comment `@teire fix` to try it anyway: the run uses the record and opens a **draft** labelled `unconfirmed`, with a warning at the top, whatever the checks say. The same rule applies to package release notes: an item that doesn't quote the fetched text is dropped.
 
 ## Finding the models in your code
 

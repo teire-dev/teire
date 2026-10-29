@@ -152,7 +152,8 @@ export function storedProviderChanges(
       .where(
         and(
           eq(changes.schemaVersion, 2),
-          eq(changes.status, "confirmed"),
+          // Quarantined records too: the assessment says "check by hand" unless a person asks (S16.3).
+          inArray(changes.status, ["confirmed", "quarantined"]),
           inArray(
             changes.providerSlug,
             list.map((p) => p.slug),
