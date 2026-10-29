@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
  * one icon, a one-to-three-word label under it, a figure, and a state ring with its glyph badge.
  * Server-safe (no hooks): static flows, MiniFlow cards and the React Flow node all render this.
  */
-const ICON: Record<FlowEntity, LucideIcon> = {
+export const TILE_ICON: Record<FlowEntity, LucideIcon> = {
   change: Zap,
   repository: FolderGit2,
   code: FileCode2,
@@ -107,7 +107,7 @@ export function TileSquare({
   size?: TileSize;
   className?: string;
 }) {
-  const Icon = tile.entity === "outcome" ? outcomeIcon(tile.label) : ICON[tile.entity];
+  const Icon = tile.entity === "outcome" ? outcomeIcon(tile.label) : TILE_ICON[tile.entity];
   const px = TILE_SIZE[size];
   const wide = tile.brand?.wide;
   return (

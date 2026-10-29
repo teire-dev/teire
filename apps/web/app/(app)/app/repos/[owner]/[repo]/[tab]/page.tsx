@@ -29,16 +29,15 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { ActionButton } from "@/components/app/action-button";
+import { ConfigBoard } from "@/components/app/config-board";
 import { ConfigPrForm } from "@/components/app/config-pr-form";
 import { IgnoreMenu } from "@/components/app/ignore-menu";
 import { InventoryTable } from "@/components/app/inventory-table";
 import { AskButton } from "@/components/assistant/ask-button";
-import { BrandLogo } from "@/components/brand-logo";
 import { FindingFlow } from "@/components/findings/finding-flow";
-import { MiniFlow } from "@/components/flow/mini-flow";
 import { TileSquare } from "@/components/flow/tile";
+import { Trail } from "@/components/flow/trail";
 import { Mark } from "@/components/teire/mark";
-import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { RunRowItem } from "@/components/teire/run-row";
 import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
@@ -46,8 +45,10 @@ import { ecosystemOf } from "@/lib/brands";
 import { repoDetailCached } from "@/lib/dashboard";
 import { bucketGroups, groupFindings } from "@/lib/findings";
 import { configCurrent } from "@/lib/fix-mode";
+import { runFlow } from "@/lib/flow/model";
 import { providerLogo } from "@/lib/logos";
 import { subjectMark } from "@/lib/marks";
+import { runFlowsOf } from "@/lib/run-flows";
 import { getSession } from "@/lib/session";
 import { ago, until } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -121,7 +122,9 @@ async function TabBody({ params, searchParams }: PageProps<"/app/repos/[owner]/[
     case "providers":
       return <Providers data={data} />;
     case "config":
-      return <Config data={data} fullName={fullName} />;
+      return (
+        <Config data={data} fullName={fullName} picked={typeof query.key === "string" ? query.key : null} />
+      );
     case "activity":
       return <Activity data={data} />;
   }
@@ -455,10 +458,9 @@ function Fold({
 }
 
 async function Prs({ data, fullName, userId }: { data: Data; fullName: string; userId: string }) {
-  const mine = { scope: repoScope(data, userId) };
+  const scope = repoScope(data, userId);
   const ids = data.artifacts.map((a) => a.runId).filter((x): x is string => !!x);
-  const rows = ids.length ? await rowsOf(mine.scope, inArray(runs.id, ids), ids.length) : [];
-  const byRun = new Map(rows.map((r) => [r.id, r]));
+  const flows = await runFlowsOf(scope, ids);
   const label = (kind: string) =>
     kind === "issue"
       ? "Issue"
@@ -472,8 +474,9 @@ async function Prs({ data, fullName, userId }: { data: Data; fullName: string; u
   return (
     <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
       {list.map((a) => {
-        const run = a.runId ? byRun.get(a.runId) : undefined;
-        const verified = run?.evidence === "verified";
+        const input = a.runId ? flows.get(a.runId) : undefined;
+        const graph = input ? runFlow(input) : null;
+        const outcome = graph?.tiles.find((t) => t.entity === "outcome");
         const state =
           a.state === "merged"
             ? "proven"
@@ -481,26 +484,37 @@ async function Prs({ data, fullName, userId }: { data: Data; fullName: string; u
               ? "skipped"
               : a.kind === "issue"
                 ? "failed"
-                : verified
-                  ? "proven"
-                  : run
-                    ? "not_proven"
-                    : "done";
+                : (outcome?.state ?? "done");
         return (
-          <li key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <TileSquare tile={{ entity: "outcome", state, label: label(a.kind) }} size="sm" />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <a href={a.url ?? "#"} className="truncate text-sm font-medium text-ink hover:underline">
-                {label(a.kind)} #{a.number}
-              </a>
-              <span className="truncate font-mono text-[11px] text-ink-3">
-                {a.changeKey || "Configure Teire"} · {a.state}
+          <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
+            {graph ? (
+              <Trail
+                graph={graph}
+                omit={["repository"]}
+                runHref={`/runs/${a.runId}`}
+                label={`How ${label(a.kind)} #${a.number} came about`}
+                className="min-w-0 flex-1"
+              />
+            ) : (
+              <span className="flex min-w-0 flex-1 items-center gap-3">
+                <TileSquare tile={{ entity: "outcome", state, label: label(a.kind) }} size="sm" />
+                <a href={a.url ?? "#"} className="text-sm font-medium text-ink hover:underline">
+                  {label(a.kind)} #{a.number}
+                </a>
+                <span className="truncate font-mono text-[11px] text-ink-3">
+                  {a.changeKey || "Configure Teire"}
+                </span>
               </span>
-            </span>
-            {run ? (
-              <Link href={`/runs/${run.id}`} title="Open its run" className="hidden sm:inline-flex">
-                <MiniFlow proof={run.proof} subject={subjectMark(run.groupKey)} size="xs" />
-              </Link>
+            )}
+            {a.state !== "open" ? (
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 font-mono text-[10px]",
+                  a.state === "merged" ? "bg-proven-soft text-proven" : "bg-sunken text-ink-3",
+                )}
+              >
+                {a.state}
+              </span>
             ) : null}
             <span className="flex items-center gap-1">
               {a.kind === "pr" && a.state === "open" && a.runId ? (
@@ -644,56 +658,12 @@ function Providers({ data }: { data: Data }) {
   );
 }
 
-/** `teire.yml` as stored on the repo: dotted keys with their values and where each came from. */
-function configRows(config: Record<string, unknown> | null) {
-  if (!config) return [];
-  const origins = (config.origins as Record<string, string> | undefined) ?? {};
-  const rows: { key: string; value: string; origin: string }[] = [];
-  const walk = (prefix: string, value: unknown) => {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      for (const [k, v] of Object.entries(value)) walk(prefix ? `${prefix}.${k}` : k, v);
-      return;
-    }
-    const top = prefix.split(".")[0] as string;
-    rows.push({
-      key: prefix,
-      value: JSON.stringify(value),
-      origin:
-        origins[prefix] ?? origins[prefix.split(".").slice(0, 2).join(".")] ?? origins[top] ?? "default",
-    });
-  };
-  for (const [k, v] of Object.entries(config))
-    if (!["present", "path", "problems", "issues", "origins"].includes(k)) walk(k, v);
-  return rows;
-}
-
-/** Where a resolved value came from, as a chip: the repository's file, the organisation's, or the default. */
-function Origin({ from }: { from: string }) {
-  const org = /teire-config|org/.test(from);
-  const file = !org && /teire\.ya?ml|repo/.test(from);
-  return (
-    <span
-      title={from}
-      className={cn(
-        "shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px]",
-        file
-          ? "bg-signal-soft text-signal"
-          : org
-            ? "bg-attention-soft text-attention"
-            : "bg-sunken text-ink-3",
-      )}
-    >
-      {file ? "teire.yml" : org ? "org teire-config" : "default"}
-    </span>
-  );
-}
-
-function Config({ data, fullName }: { data: Data; fullName: string }) {
+function Config({ data, fullName, picked }: { data: Data; fullName: string; picked: string | null }) {
   const config = data.repo.config as Record<string, unknown> | null;
-  const rows = configRows(config);
   const problems =
     ((config?.problems ?? config?.issues) as { path?: string; message?: string }[] | undefined) ?? [];
   const present = !!config?.present;
+  const key = picked && picked in CONFIG_PR_KEYS ? (picked as keyof typeof CONFIG_PR_KEYS) : undefined;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -720,8 +690,13 @@ function Config({ data, fullName }: { data: Data; fullName: string }) {
           ))}
         </ul>
       ) : null}
-      <section className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
-        <ConfigPrForm repo={fullName} current={configCurrent(config, Object.keys(CONFIG_PR_KEYS))} />
+      <section id="change" className="flex scroll-mt-20 flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
+        <ConfigPrForm
+          key={key ?? "fixes"}
+          repo={fullName}
+          current={configCurrent(config, Object.keys(CONFIG_PR_KEYS))}
+          {...(key ? { initialKey: key } : {})}
+        />
         {!present || problems.length ? (
           <div className="flex items-center justify-between gap-3 border-t border-rule pt-3 text-sm text-ink-2">
             <span>{present ? "Replace it with the starter" : "Start from the starter"}</span>
@@ -731,18 +706,8 @@ function Config({ data, fullName }: { data: Data; fullName: string }) {
           </div>
         ) : null}
       </section>
-      {rows.length ? (
-        <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-          {rows.map((c) => (
-            <li key={c.key} className="flex items-center gap-3 px-4 py-2 font-mono text-xs">
-              <span className="min-w-0 flex-1 truncate text-ink">{c.key}</span>
-              <span className="max-w-[40%] truncate text-ink-2" title={c.value}>
-                {c.value}
-              </span>
-              <Origin from={c.origin} />
-            </li>
-          ))}
-        </ul>
+      {config ? (
+        <ConfigBoard config={config} base={`/app/repos/${fullName}/config`} picked={key ?? null} />
       ) : (
         <Quiet label="Read at the next scan" />
       )}

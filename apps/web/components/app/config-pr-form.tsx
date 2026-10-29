@@ -42,9 +42,18 @@ const shown = (v: unknown) =>
  * with the worker's own rule; Save stays off until the value changes, and says what it will do. Saving
  * opens a config pull request the repository keeps; the toast follows it to the PR.
  */
-export function ConfigPrForm({ repo, current = {} }: { repo: string; current?: Record<string, unknown> }) {
+export function ConfigPrForm({
+  repo,
+  current = {},
+  initialKey = "fixes",
+}: {
+  repo: string;
+  current?: Record<string, unknown>;
+  /** The key a board cell picked (the parent remounts the form when it changes). */
+  initialKey?: ConfigPrKey;
+}) {
   const keys = Object.keys(CONFIG_PR_KEYS) as ConfigPrKey[];
-  const [key, setKey] = useState<ConfigPrKey>("fixes");
+  const [key, setKey] = useState<ConfigPrKey>(initialKey);
   const start = (k: ConfigPrKey) => {
     const s = CONFIG_PR_KEYS[k];
     const now = shown(current[k]);
@@ -57,7 +66,7 @@ export function ConfigPrForm({ repo, current = {} }: { repo: string; current?: R
           ? ""
           : String(s.min);
   };
-  const [value, setValue] = useState(() => start("fixes"));
+  const [value, setValue] = useState(() => start(initialKey));
   const [busy, setBusy] = useState(false);
   const spec = CONFIG_PR_KEYS[key];
   const checked = configValue(key, value);
@@ -151,7 +160,13 @@ export function ConfigPrForm({ repo, current = {} }: { repo: string; current?: R
       ) : (
         // The change as a diff of the file's value: before → after, and what saving does on hover.
         <p className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
-          <span className="rounded bg-broke-soft px-1.5 py-0.5 text-broke line-through decoration-broke/50">
+          <span
+            className={
+              changed
+                ? "rounded bg-broke-soft px-1.5 py-0.5 text-broke line-through decoration-broke/50"
+                : "rounded bg-sunken px-1.5 py-0.5 text-ink-2"
+            }
+          >
             {now ? now.replace(/\n/g, ", ") : "unset"}
           </span>
           <span className="text-ink-3" aria-hidden>
