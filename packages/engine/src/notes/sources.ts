@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sha256 } from "../catalog/source";
-import { RUST, SURFACE } from "../constants";
+import { JVM, RUST, SURFACE } from "../constants";
 import { guardedFetch } from "../net/fetch";
 import { getNpmVersion, type RegistryOptions } from "../registry/clients";
 import { getPypiVersion } from "../registry/pypi";
@@ -15,6 +15,7 @@ import {
   rubygemsScheme,
   type VersionScheme,
 } from "../registry/versions";
+import { fileAt, goImportRepo, releasesPage, type SourceRepo, sourceRepoOf } from "./hosts";
 import { type ChangelogEntry, sliceChangelog } from "./slicer";
 
 /**
@@ -95,9 +96,10 @@ export async function gatherNpmNotes(name: string, from: string, to: string, opt
     sources.push(source);
   }
 
-  const repo = githubRepoOf(detail?.repository?.url);
+  // `repository` may be an object, a URL or a shorthand (`user/repo`, `gitlab:group/repo`); else `homepage`.
+  const repo = sourceRepoOf(detail?.repository?.url) ?? sourceRepoOf(detail?.homepage);
   if (!repo) {
-    notes.push("no GitHub repository in the package metadata");
+    notes.push("no GitHub, GitLab or Bitbucket repository in the package metadata");
     return { sources, notes };
   }
   await gatherRepoNotes({
@@ -132,15 +134,15 @@ const REPO_CHANGELOGS = [
 
 /**
  * What the source repo says at the target's tag: a migration guide the package does not ship, the
- * changelog file when none came with the package (Python packages keep theirs in the repo), and
- * GitHub Releases when no changelog covers the range.
+ * changelog file when none came with the package (Python packages keep theirs in the repo), and the
+ * host's releases (GitHub, GitLab) when no changelog covers the range.
  */
 async function gatherRepoNotes(input: {
   name: string;
   from: string;
   to: string;
   scheme: VersionScheme;
-  repo: { owner: string; repo: string };
+  repo: SourceRepo;
   directory: string;
   sources: NoteSource[];
   notes: string[];
@@ -148,29 +150,29 @@ async function gatherRepoNotes(input: {
   options: NotesOptions;
 }) {
   const { repo, sources, notes, checkedAt, options, scheme, from, to } = input;
-  const base = input.directory ? `${input.directory.replace(/\/$/, "")}/` : "";
-  // `parent-5.5.0` and `release-…` are common on the JVM (research jvm.md Job 3).
+  const dir = input.directory.replace(/\/$/, "");
+  const base = dir ? `${dir}/` : "";
+  // `parent-5.5.0` and `release-…` are common on the JVM (research jvm.md Job 3); a Go module in a
+  // subdirectory tags `sub/vX.Y.Z`; the rest are spellings S16.5 names (`name-vX`, `release/X`).
   const tags = [
+    ...(dir ? [`${dir}/v${to}`] : []),
     `v${to}`,
     to,
     `${input.name}@${to}`,
     `${input.name}-${to}`,
+    `${input.name}-v${to}`,
     `${input.name}==${to}`,
     `parent-${to}`,
     `release-${to}`,
+    `release/${to}`,
+    `release/v${to}`,
   ];
+  const token = options.githubToken;
   const atTag = async (path: string) => {
     for (const tag of tags) {
-      const res = await github(
-        `/repos/${repo.owner}/${repo.repo}/contents/${base}${path}?ref=${encodeURIComponent(tag)}`,
-        options,
-      ).catch(() => null);
       // A missing tag or file: the next tag spelling decides.
-      if (res?.status === 200)
-        return {
-          text: res.text(),
-          url: `https://github.com/${repo.owner}/${repo.repo}/blob/${tag}/${base}${path}`,
-        };
+      const found = await fileAt(repo, tag, `${base}${path}`, token);
+      if (found) return found;
     }
     return null;
   };
@@ -191,16 +193,8 @@ async function gatherRepoNotes(input: {
     }
 
   // No tag spelling matched: the default branch's changelog, sliced to the range, still says it.
-  const atTagOrHead = async (path: string) => {
-    const tagged = await atTag(path);
-    if (tagged) return tagged;
-    const res = await github(`/repos/${repo.owner}/${repo.repo}/contents/${base}${path}`, options).catch(
-      () => null,
-    );
-    return res?.status === 200
-      ? { text: res.text(), url: `https://github.com/${repo.owner}/${repo.repo}/blob/HEAD/${base}${path}` }
-      : null;
-  };
+  const atTagOrHead = async (path: string) =>
+    (await atTag(path)) ?? (await fileAt(repo, null, `${base}${path}`, token));
   if (!sources.some((s) => s.kind === "changelog"))
     for (const path of REPO_CHANGELOGS) {
       const found = await atTagOrHead(path);
@@ -217,29 +211,22 @@ async function gatherRepoNotes(input: {
       break;
     }
 
-  // GitHub Releases only when no changelog entry covers the range.
+  // The host's releases only when no changelog entry covers the range.
   if (sources.some((s) => s.kind === "changelog" && (s.entries?.length ?? 0) > 0)) return;
+  const prefix = new RegExp(
+    `^(${input.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[-@=]+|${dir ? `${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/` : ""}v|v)`,
+  );
   for (let page = 1; page <= 5; page++) {
-    const res = await github(
-      `/repos/${repo.owner}/${repo.repo}/releases?per_page=100&page=${page}`,
-      options,
-      "application/vnd.github+json",
-    ).catch(() => null);
-    if (res?.status !== 200) {
-      notes.push(`GitHub releases: ${res ? `HTTP ${res.status}` : "unreachable"}`);
+    const got = await releasesPage(repo, page, token);
+    if (!got) break;
+    if ("error" in got) {
+      notes.push(got.error);
       break;
     }
-    const releases =
-      res.json<
-        { tag_name: string; body: string | null; draft: boolean; prerelease: boolean; html_url: string }[]
-      >();
     let older = false;
-    for (const r of releases) {
-      const version = r.tag_name.replace(
-        new RegExp(`^(${input.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[-@=]+|v)`),
-        "",
-      );
-      if (!scheme.valid(version) || r.draft || r.prerelease || !r.body) continue;
+    for (const r of got.releases) {
+      const version = r.tag.replace(prefix, "");
+      if (!scheme.valid(version) || r.prerelease) continue;
       if (scheme.compare(version, from) <= 0) {
         older = true;
         continue;
@@ -247,15 +234,15 @@ async function gatherRepoNotes(input: {
       if (scheme.compare(version, to) > 0) continue;
       sources.push({
         kind: "release-notes",
-        url: r.html_url,
+        url: r.url,
         trustBasis: "source-repo",
         text: r.body,
         contentHash: sha256(r.body),
         checkedAt,
-        entries: [{ version, heading: r.tag_name, body: r.body, start: 0, end: r.body.length }],
+        entries: [{ version, heading: r.tag, body: r.body, start: 0, end: r.body.length }],
       });
     }
-    if (older || releases.length < 100) break;
+    if (older || got.releases.length < 100) break;
   }
 }
 
@@ -267,10 +254,11 @@ export async function gatherPypiNotes(name: string, from: string, to: string, op
   const detail = await getPypiVersion(name, to, options);
   const urls = Object.entries(detail?.projectUrls ?? {});
   const preferred =
-    urls.find(([k]) => /source|repo|code|github/i.test(k)) ?? urls.find(([, v]) => /github\.com/.test(v));
-  const repo = githubRepoOf(preferred?.[1]) ?? urls.map(([, v]) => githubRepoOf(v)).find(Boolean) ?? null;
+    urls.find(([k]) => /source|repo|code|github|gitlab/i.test(k)) ??
+    urls.find(([, v]) => /github\.com|gitlab\.com|bitbucket\.org/.test(v));
+  const repo = sourceRepoOf(preferred?.[1]) ?? urls.map(([, v]) => sourceRepoOf(v)).find(Boolean) ?? null;
   if (!repo) {
-    notes.push("no GitHub repository in the package's project URLs");
+    notes.push("no GitHub, GitLab or Bitbucket repository in the package's project URLs");
     return { sources, notes };
   }
   await gatherRepoNotes({
@@ -297,9 +285,22 @@ export async function gatherGoNotes(path: string, from: string, to: string, opti
   const sources: NoteSource[] = [];
   const notes: string[] = [];
   const base = path.replace(/\/v\d+$/, "");
-  const m = /^github\.com\/([^/]+)\/([^/]+)(?:\/(.+))?$/.exec(base);
-  if (!m?.[1] || !m[2]) {
-    notes.push(`${path} is not hosted on GitHub; no release notes read`);
+  const m = /^(?:github\.com|gitlab\.com|bitbucket\.org)\/([^/]+)\/([^/]+)(?:\/(.+))?$/.exec(base);
+  const host = base.split("/")[0];
+  // A vanity path (`go.uber.org/zap`, `golang.org/x/net`) names its repository in a go-import tag.
+  const found =
+    m?.[1] && m[2]
+      ? {
+          repo: {
+            host: host === "gitlab.com" ? "gitlab" : host === "bitbucket.org" ? "bitbucket" : "github",
+            owner: m[1],
+            repo: m[2],
+          } as SourceRepo,
+          directory: m[3] ?? "",
+        }
+      : await goImportRepo(base);
+  if (!found) {
+    notes.push(`${path} names no GitHub, GitLab or Bitbucket repository, here or in its go-import tag`);
     return { sources, notes };
   }
   await gatherRepoNotes({
@@ -307,8 +308,8 @@ export async function gatherGoNotes(path: string, from: string, to: string, opti
     from,
     to,
     scheme: goScheme,
-    repo: { owner: m[1], repo: m[2] },
-    directory: m[3] ?? "",
+    repo: found.repo,
+    directory: found.directory,
     sources,
     notes,
     checkedAt,
@@ -333,9 +334,9 @@ export async function gatherCargoNotes(name: string, from: string, to: string, o
   } catch {
     // No repository link: no notes.
   }
-  const repo = githubRepoOf(repository);
+  const repo = sourceRepoOf(repository);
   if (!repo) {
-    notes.push("no GitHub repository on crates.io");
+    notes.push("no GitHub, GitLab or Bitbucket repository on crates.io");
     return { sources, notes };
   }
   await gatherRepoNotes({
@@ -368,9 +369,13 @@ export async function gatherRubyNotes(name: string, from: string, to: string, op
     return [];
   });
   const links = (versions.find((v) => v.number === to) ?? versions[0])?.links ?? {};
-  const repo = githubRepoOf(links.source) ?? githubRepoOf(links.changelog) ?? githubRepoOf(links.homepage);
+  const repo = sourceRepoOf(links.source) ?? sourceRepoOf(links.changelog) ?? sourceRepoOf(links.homepage);
   if (!repo) {
-    notes.push(error ? `RubyGems unreachable: ${error}` : "no GitHub repository in the gem's metadata");
+    notes.push(
+      error
+        ? `RubyGems unreachable: ${error}`
+        : "no GitHub, GitLab or Bitbucket repository in the gem's metadata",
+    );
     return { sources, notes };
   }
   const file = /github\.com\/[^/]+\/[^/]+\/blob\/[^/]+\/(.+)$/.exec(links.changelog ?? "")?.[1];
@@ -413,17 +418,12 @@ export async function gatherJvmNotes(name: string, from: string, to: string, opt
   } catch {
     // The POM below.
   }
-  if (!githubRepoOf(repoUrl)) {
-    const pom = await guardedFetch(
-      `https://repo1.maven.org/maven2/${group.replace(/\./g, "/")}/${artifact}/${to}/${artifact}-${to}.pom`,
-      { allowHosts: ["repo1.maven.org"] },
-    ).catch(() => null);
-    if (pom?.status === 200)
-      repoUrl = /<scm>[\s\S]*?<url>\s*([^<]+?)\s*<\/url>/.exec(pom.text())?.[1] ?? null;
-  }
-  const repo = githubRepoOf(repoUrl);
+  // Else the POM's `<scm>`, walking up its `<parent>` chain (many artifacts inherit theirs), from
+  // Central on every configured mirror (S16.5).
+  if (!sourceRepoOf(repoUrl)) repoUrl = await pomScmUrl(group, artifact, to);
+  const repo = sourceRepoOf(repoUrl);
   if (!repo) {
-    notes.push("no GitHub repository in deps.dev or the POM");
+    notes.push("no GitHub, GitLab or Bitbucket repository in deps.dev or the POM chain");
     return { sources, notes };
   }
   await gatherRepoNotes({
@@ -439,4 +439,32 @@ export async function gatherJvmNotes(name: string, from: string, to: string, opt
     options,
   });
   return { sources, notes };
+}
+
+/** A POM's `<scm><url>`, or its parent's, up to three levels, from the first mirror that has it. */
+async function pomScmUrl(
+  group: string,
+  artifact: string,
+  version: string,
+  depth = 0,
+): Promise<string | null> {
+  if (depth > 3) return null;
+  let text: string | null = null;
+  for (const mirror of JVM.mavenMirrors) {
+    const res = await guardedFetch(
+      `${mirror}/${group.replace(/\./g, "/")}/${artifact}/${version}/${artifact}-${version}.pom`,
+      { allowHosts: [new URL(mirror).hostname] },
+    ).catch(() => null);
+    if (res?.status === 200) {
+      text = res.text();
+      break;
+    }
+  }
+  if (!text) return null;
+  const scm = /<scm>[\s\S]*?<url>\s*([^<]+?)\s*<\/url>/.exec(text)?.[1] ?? null;
+  if (scm && sourceRepoOf(scm)) return scm;
+  const parent = /<parent>([\s\S]*?)<\/parent>/.exec(text)?.[1];
+  const tag = (name: string) => new RegExp(`<${name}>\\s*([^<]+?)\\s*</${name}>`).exec(parent ?? "")?.[1];
+  const [g, a, v] = [tag("groupId"), tag("artifactId"), tag("version")];
+  return g && a && v ? pomScmUrl(g, a, v, depth + 1) : scm;
 }

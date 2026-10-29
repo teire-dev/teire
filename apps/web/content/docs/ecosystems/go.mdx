@@ -65,5 +65,5 @@ For advisories, govulncheck decides. If your code **calls** the vulnerable funct
 />
 
 <Callout type="warn" title="Limits">
-  Private modules that the public proxy can't serve keep the versions `go.mod` states, with a note in the report. Release notes are read only for modules hosted on GitHub. The sandbox has Go 1.27.2, and targets needing a newer Go aren't excluded. `-race` isn't run, because the sandbox has no cgo toolchain.
+  Private modules that the public proxy can't serve keep the versions `go.mod` states, with a note in the report. Release notes are read from GitHub, GitLab or Bitbucket; a vanity path (`go.uber.org/zap`, `golang.org/x/net`) is followed through its `go-import` tag the way `go get` does, and a module in a subdirectory reads its `sub/vX.Y.Z` tags. Self-hosted forges aren't read. The sandbox has Go 1.27.2, and targets needing a newer Go aren't excluded. `-race` isn't run, because the sandbox has no cgo toolchain.
 </Callout>

@@ -24,7 +24,7 @@ Every ecosystem follows the same loop: inventory, next version, API diff, your l
 - **The next version** is the newest stable release that is at least 7 days old, respects your npm overrides and resolutions, and isn't deprecated or yanked. Majors are allowed. Security fixes skip the cooldown.
 - **Only majors are diffed.** A minor or patch upgrade is a plain bump that the sandbox decides.
 - **Packages are read, never run.** Teire checks each tarball's integrity and unpacks it with its own extractor (links and `..` paths refused) on the worker. Your code and its dependencies install and run only in the sandbox.
-- **Release notes** are read by Nemotron. Each item must quote the fetched text word for word, or it is dropped.
+- **Release notes** are read by Nemotron. Each item must quote the fetched text word for word, or it is dropped. They come from the package itself and from its repository on GitHub, GitLab or Bitbucket, found from the package's metadata (npm's `user/repo` shorthand and `homepage`, PyPI's project URLs, a Go module's `go-import` tag, a POM's `<scm>` or its parent's), at the target's tag: `v1.2.3`, `1.2.3`, `name-1.2.3`, `name-v1.2.3`, `release/1.2.3` and the other common spellings.
 
 <Callout title="Type level or syntax level">
   Teire says **not affected** only when every use was resolved by type. Where the search is syntax-level (Cargo, RubyGems, and Maven/Gradle until the fix compiles your code), a repository that doesn't use the change reads **inconclusive**. The sandbox then decides. Across the six clean repositories in the evaluation, none was called affected.

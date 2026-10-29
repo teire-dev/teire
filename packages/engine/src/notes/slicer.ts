@@ -64,7 +64,9 @@ export function versionHeadings(markdown: string, scheme: VersionScheme): Headin
     }
     if (!level) continue;
     const match = TOKEN.exec(stripLinks(text));
-    const version = match?.[1];
+    // Go changelogs head their versions `## 1.27.0`; Go's own versions carry the `v`.
+    const found = match?.[1];
+    const version = found && !scheme.valid(found) && scheme.valid(`v${found}`) ? `v${found}` : found;
     if (!version || !scheme.valid(version)) continue;
     out.push({ level, version, text: text.trim(), start: lineStart, bodyStart });
   }

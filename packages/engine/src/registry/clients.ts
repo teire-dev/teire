@@ -41,6 +41,8 @@ export interface NpmVersionDetail {
   name: string;
   version: string;
   repository: { url: string; directory?: string } | null;
+  /** Optional: entries cached before it was read have none. */
+  homepage?: string | null;
   types: string | null;
   main: string | null;
   exports: unknown;
@@ -273,6 +275,7 @@ export async function getNpmVersion(
         : repo?.url
           ? { url: String(repo.url), ...(repo.directory ? { directory: String(repo.directory) } : {}) }
           : null,
+    homepage: typeof doc.homepage === "string" ? doc.homepage : null,
     types: doc.types ?? doc.typings ?? null,
     main: doc.main ?? null,
     exports: doc.exports ?? null,
