@@ -1,5 +1,6 @@
 import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
+import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
 import { cargoTransaction } from "../fix/upgrade-rust";
 import { composeFixPullRequest } from "../github/compose";
@@ -181,7 +182,17 @@ export async function fixRustDependency(
     .filter((c) => c.kind === "removed" && c.path.startsWith("feature:"))
     .map((c) => c.path.slice("feature:".length));
   const plan = withVerifyOverrides(detectRustChecks(input.tree, a.project), a.project.root, input.verify);
+  // Renames a quoted note names, at the located sites, proven by the target's own source (S15.4).
+  const renames = await plannedRenames({
+    ecosystem: "cargo",
+    name: a.instance.name,
+    target,
+    repoDir: input.repoDir,
+    findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
+    notes,
+  });
   const run = await runFix({
+    ...(renames.length ? { edits: renames } : {}),
     verify: input.verify,
     tf: input.tf,
     prices: input.prices,

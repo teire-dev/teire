@@ -214,14 +214,7 @@ export const changeV2 = z.object({
       modelIds: z.array(z.string()).default([]),
       codemod: z
         .object({
-          kind: z.enum([
-            "rename",
-            "model-swap",
-            "kwarg-remove",
-            "import-rewrite",
-            "go-fix-inline",
-            "ast-grep",
-          ]),
+          kind: z.enum(["rename", "model-swap", "kwarg-remove", "import-rewrite", "go-fix-inline"]),
           spec: z.unknown(),
         })
         .optional(),

@@ -1,6 +1,7 @@
 import * as pep440 from "@renovatebot/pep440";
 import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
+import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
 import { pyTransaction } from "../fix/upgrade-py";
 import { composeFixPullRequest } from "../github/compose";
@@ -230,7 +231,18 @@ export async function fixPyDependency(
         .filter(Boolean)
     : [];
   const plan = withVerifyOverrides(detectPyChecks(input.tree, a.project), a.project.root, input.verify);
+  // Renames a quoted note names, at the located sites, proven by the target's own source (S15.4).
+  const renames = await plannedRenames({
+    ecosystem: "pypi",
+    name: a.instance.name,
+    target,
+    repoDir: input.repoDir,
+    findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
+    notes,
+    targetDir: targetWheel.dir,
+  });
   const run = await runFix({
+    ...(renames.length ? { edits: renames } : {}),
     verify: input.verify,
     tf: input.tf,
     prices: input.prices,

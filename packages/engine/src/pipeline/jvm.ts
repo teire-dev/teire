@@ -1,5 +1,6 @@
 import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
+import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
 import { jvmTransaction } from "../fix/upgrade-jvm";
 import { composeFixPullRequest } from "../github/compose";
@@ -249,7 +250,17 @@ export async function fixJvmDependency(
     ...withVerifyOverrides(detectJvmChecks(input.tree, a.project), a.project.root, input.verify),
     ...(prefixes.length ? { probe: ["teire-jvm", "refs", prefixes.join(",")] } : {}),
   };
+  // Renames a quoted note names, at the located sites, proven by the target's own source (S15.4).
+  const renames = await plannedRenames({
+    ecosystem: "maven",
+    name: a.instance.name,
+    target,
+    repoDir: input.repoDir,
+    findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
+    notes,
+  });
   const run = await runFix({
+    ...(renames.length ? { edits: renames } : {}),
     verify: input.verify,
     tf: input.tf,
     prices: input.prices,

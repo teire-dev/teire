@@ -364,14 +364,7 @@
               "properties": {
                 "kind": {
                   "type": "string",
-                  "enum": [
-                    "rename",
-                    "model-swap",
-                    "kwarg-remove",
-                    "import-rewrite",
-                    "go-fix-inline",
-                    "ast-grep"
-                  ]
+                  "enum": ["rename", "model-swap", "kwarg-remove", "import-rewrite", "go-fix-inline"]
                 },
                 "spec": {}
               },

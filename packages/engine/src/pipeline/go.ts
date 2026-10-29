@@ -3,6 +3,9 @@ import { join } from "node:path";
 import { goVulnReachability } from "../advisories/govulncheck";
 import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
+import { fetchSdkSource } from "../discover/sdk-sources";
+import { inlineDirectives, keptInlineEdits } from "../fix/go-fix-inline";
+import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
 import { goTransaction } from "../fix/upgrade-go";
 import { composeFixPullRequest } from "../github/compose";
@@ -364,7 +367,39 @@ export async function fixGoDependency(
 
   const plan = withVerifyOverrides(detectGoChecks(input.tree, a.project), a.project.root, input.verify);
   const targetDir = moduleCacheDir(targetPath, target) ?? "";
+  // Renames a quoted note names, at the located sites, proven by the target's own source (S15.4).
+  const renames = await plannedRenames({
+    ecosystem: "go",
+    name: targetPath,
+    target,
+    repoDir: input.repoDir,
+    findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
+    notes,
+  });
   const run = await runFix({
+    ...(renames.length ? { edits: renames } : {}),
+    // `//go:fix inline` directives the target ships, applied by Go itself and gated to its calls.
+    sandboxEdits: async (session, plan, read) => {
+      const source = await fetchSdkSource("go", targetPath, target).catch(() => null);
+      const names = inlineDirectives(source?.files ?? []);
+      if (!names.size) return [];
+      const fixed = await session.run("after-go-fix-inline", ["go", "fix", "-inline", "-diff", "./..."], {
+        cwd: plan.cwd,
+        ...(plan.env ? { env: plan.env } : {}),
+        timeoutSec: 600,
+      });
+      input.onEvent?.({
+        step: "codemod",
+        detail: `go fix -inline for ${[...names].join(", ")}: exit ${fixed.exitCode}`,
+      });
+      return keptInlineEdits({
+        diff: fixed.stdout,
+        read,
+        projectRoot: a.project.root,
+        modulePath: targetPath,
+        names,
+      });
+    },
     verify: input.verify,
     tf: input.tf,
     prices: input.prices,

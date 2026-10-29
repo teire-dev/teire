@@ -20,7 +20,7 @@ import { forGitHub } from "../github/redact";
 import type { FindingDraft } from "../impact";
 import type { RepoTree } from "../inventory/tree";
 import type { ModelPrice, TokenFactory } from "../llm";
-import type { VerifyBackend } from "../verify/backend";
+import type { VerifyBackend, VerifySession } from "../verify/backend";
 import type { CheckPlan } from "../verify/commands";
 import { type CheckResult, decideEvidence, type Evidence, type SideResult } from "../verify/evidence";
 import {
@@ -109,6 +109,15 @@ export interface FixInput {
   docs: (query: string) => Promise<string>;
   /** Other upgrades the agent may ask for (S15.2); absent when the updater is off for this ecosystem. */
   requestUpgrade?: RequestUpgrade;
+  /**
+   * Deterministic edits only the sandbox can make, after the install (Go's `go fix -inline` needs
+   * the installed modules): the caller gates them and returns whole files; applied like the others.
+   */
+  sandboxEdits?: (
+    session: VerifySession,
+    plan: CheckPlan,
+    read: (path: string) => string | null,
+  ) => Promise<{ file: string; content: string; line: number; reason: string }[]>;
   onEvent?: (event: FixEvent) => void;
   /** `teire.yml` `verify` overrides, for the other projects the change touches. */
   verify?: { workspace: string; install?: string; typecheck?: string; test?: string }[];
@@ -870,6 +879,20 @@ async function runLead(input: FixInput): Promise<FixRun> {
     for (const e of codemods) remember(e.file);
     applyCodemods(input.repoDir, codemods);
     for (const e of codemods) emit({ step: "codemod", detail: `${e.file}:${e.line} ${e.reason}` });
+    if (input.sandboxEdits) {
+      const more = await input
+        .sandboxEdits(after, input.plan, (p) => (existsSync(join(input.repoDir, p)) ? read(p) : null))
+        .catch((error: unknown) => {
+          emit({ step: "codemod", detail: `sandbox edits skipped: ${forGitHub(String(error), 160)}` });
+          return [];
+        });
+      for (const e of more) {
+        remember(e.file);
+        writeFileSync(join(input.repoDir, e.file), e.content);
+        codemods.push({ file: e.file, line: e.line, before: "", after: "", reason: e.reason, noteUrl: "" });
+        emit({ step: "codemod", detail: `${e.file}:${e.line} ${e.reason}` });
+      }
+    }
 
     const changedContent = () =>
       Object.fromEntries(

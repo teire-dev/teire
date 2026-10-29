@@ -3,6 +3,7 @@ export * from "./co-moved";
 export * from "./codemods";
 export * from "./context7";
 export * from "./from-diff";
+export * from "./renames";
 export * from "./run";
 export * from "./toolchain-floors";
 export * from "./transaction";

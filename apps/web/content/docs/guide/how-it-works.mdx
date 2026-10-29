@@ -57,11 +57,13 @@ A run starts with the upgrade itself. Teire edits the manifest as text, then you
 Next come deterministic edits:
 
 - a model swap to the replacement the provider names,
-- for npm packages, an import or call rename that a quoted migration note maps old → new, only where the target proves the new name exists.
+- for npm packages, an import or call rename that a quoted migration note maps old → new, only where the target proves the new name exists,
+- in Python, Go, Rust, Ruby and Java, a rename a quoted note states (a function, a method, a class, a keyword argument), edited at each located site, only where the target version's own source defines the new name and no longer has the old one,
+- for Go, `go fix -inline` for the functions the upgraded module marks `//go:fix inline`, keeping only the changes that inline those calls.
 
 If verification is already good enough for a pull request at that point, the run stops without starting the agent. A model swap then costs nothing; a package upgrade has already paid for Nemotron to read its release notes.
 
-Otherwise NVIDIA Nemotron 3 Ultra works as an agent with six tools: `read_file`, `search`, `edit_file`, `run_check`, `lookup_docs` and `finish`. It may edit only the files the change reaches and the files your check output names. It never edits manifests, lockfiles, config or CI. It has up to 24 steps per attempt and 4 attempts. After 2 failed verifications it starts over from a plan. When an attempt passes, a review pass reads the diff and sends back any real problem once. See [Nemotron on Token Factory](/docs/nemotron).
+Otherwise NVIDIA Nemotron 3 Ultra works as an agent with its tools: `read_file`, `search`, `edit_file`, `run_check`, `lookup_docs`, `update_plan`, `finish`, and `request_upgrade` where dependabot-core's updater decides the ecosystem. It may edit only the files the change reaches and the files your check output names. It never edits manifests, lockfiles, config or CI; another dependency it needs moved goes through the updater. It has up to 24 steps per attempt and 4 attempts. After 2 failed verifications it starts over from a plan. When an attempt passes, a review pass reads the diff and sends back any real problem once; a run with no code edits gets a short review of the dependency change instead. See [Nemotron on Token Factory](/docs/nemotron).
 
 <Diagram
   name="fix-loop"

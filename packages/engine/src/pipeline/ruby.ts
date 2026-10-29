@@ -1,5 +1,6 @@
 import { PRIORITY, REGISTRY, RUBY } from "../constants";
 import type { DependencyInstance } from "../contract";
+import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
 import { rubyTransaction } from "../fix/upgrade-ruby";
 import { composeFixPullRequest } from "../github/compose";
@@ -223,7 +224,17 @@ export async function fixRubyDependency(
   const lockCooldown = decision.publishedAt
     ? Math.max(0, Math.floor((Date.now() - Date.parse(decision.publishedAt)) / 86_400_000))
     : REGISTRY.cooldownDays;
+  // Renames a quoted note names, at the located sites, proven by the target's own source (S15.4).
+  const renames = await plannedRenames({
+    ecosystem: "rubygems",
+    name: a.instance.name,
+    target,
+    repoDir: input.repoDir,
+    findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
+    notes,
+  });
   const run = await runFix({
+    ...(renames.length ? { edits: renames } : {}),
     verify: input.verify,
     tf: input.tf,
     prices: input.prices,
