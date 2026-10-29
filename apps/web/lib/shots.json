@@ -150,5 +150,25 @@
   "wide/app-runs": {
     "width": 1600,
     "height": 1000
+  },
+  "wide/ask-overview": {
+    "width": 1600,
+    "height": 1000
+  },
+  "wide/ask-docked": {
+    "width": 1600,
+    "height": 1000
+  },
+  "wide/ask-action": {
+    "width": 1600,
+    "height": 1000
+  },
+  "wide/ask-why": {
+    "width": 1600,
+    "height": 1000
+  },
+  "phone/ask": {
+    "width": 780,
+    "height": 1688
   }
 }

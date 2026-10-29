@@ -354,11 +354,13 @@ function linksOf(message: AssistantMessage) {
   return found;
 }
 
-function markdownFor(allowed: Set<string>) {
+function markdownFor(allowed: Set<string>, withCards: boolean) {
   return {
     a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
       <SafeLink href={href && allowed.has(href) ? href : undefined}>{children}</SafeLink>
     ),
+    // With cards in the reply, a table only restates them (the cards are the tables): left out.
+    ...(withCards ? { table: () => null } : {}),
   };
 }
 
@@ -389,7 +391,10 @@ function Turn({
       </Message>
     );
   const text = message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
-  const markdownComponents = markdownFor(linksOf(message));
+  const markdownComponents = markdownFor(
+    linksOf(message),
+    message.parts.some((p) => isToolUIPart(p) && p.state === "output-available"),
+  );
   return (
     <Message from="assistant" className="max-w-full">
       <MessageContent className="w-full gap-3 text-[13.5px] leading-relaxed text-ink">
@@ -400,6 +405,7 @@ function Turn({
               <MessageResponse
                 key={key}
                 components={markdownComponents}
+                controls={false}
                 className="text-ink [&_code]:rounded [&_code]:bg-sunken [&_code]:px-1 [&_code]:font-mono [&_code]:text-[12px] [&_li]:my-0.5 [&_ol]:my-1.5 [&_p]:my-1.5 [&_ul]:my-1.5"
               >
                 {part.text}

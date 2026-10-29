@@ -1,0 +1,96 @@
+---
+title: Ask Teire
+description: Ask about your repositories, findings, runs and changes in plain words. Ask Teire reads what Teire knows, answers with cards from the real records, and changes something only when you click Confirm.
+icon: MessageSquare
+---
+
+Ask Teire is the assistant inside the dashboard. It answers from Teire's own records (your findings, runs, pull requests, the catalog of changes, your `teire.yml` and these docs) and shows each answer with the same cards the dashboard uses. It reads freely. It never changes anything on its own: when you want something done, it shows the exact action and you click **Confirm**.
+
+<Shot
+  name="ask-overview"
+  alt="Ask Teire floating over the Overview: the question 'What needs me today?', a card with 43 runs needing a person, 2 running now, 25 of 40 open PRs proven and 155 changes reaching code, then the runs that need a person with their proof chains and why each one does."
+  caption="'What needs me today?' answered with the Overview card: what needs a person and why, with each run's proof chain."
+/>
+
+## Open it
+
+- **The launcher** sits in the bottom-right corner of every dashboard page, every run, scan and change page once you're signed in, and these docs. Press <kbd>⌘I</kbd> (<kbd>Ctrl I</kbd>) anywhere it's offered.
+- **⌘K** ends with **Ask Teire: …**, which sends what you typed there.
+- **Explain** on a finding, or on a repository's header, opens it with the question already asked.
+
+The panel opens above the launcher. **Dock** it to make it a right sidebar you can resize (360 to 600 pixels): on a wide screen the page moves over to make room, and it stays docked, with your thread, as you move between pages. On a phone it opens full height.
+
+<Shot
+  name="ask-docked"
+  alt="Ask Teire docked beside a run's proof sheet: the page has moved over; the panel shows the run's card with minitest 5.27.0 to 6.0.6, Proven, tests 2/2 before and 2/2 after, PR #24, and the answer in plain words."
+  caption="Docked beside a run: the chip in the header names the run, and 'Explain this run' answers from its ledger."
+/>
+
+## What it knows about the page you're on
+
+The page sets a **context chip** in the panel's header: the repository, run or change you're looking at, so "here" and "this" mean it. Remove the chip to ask about everything instead. If the page names something you can no longer read in Teire, Ask Teire says "You no longer have access to …" and nothing about it.
+
+Type <kbd>@</kbd> to mention a repository, run or change by name. A pasted pull request link is checked as you type: it says whether it's one of your repositories.
+
+## What it can answer
+
+| You ask | It reads | You see |
+|---|---|---|
+| What needs me today? | The Overview | Runs needing a person (and why), runs going now, open PRs, deadlines |
+| What reaches the code in owner/repo? | The repository's findings | Each change with its verdict and first call site |
+| Explain the zod finding | The finding | The change, the provider's own words, every call site with its code |
+| Was the minitest 6 upgrade proven? Why is this PR a draft? | The run | The proof chain, the before and after ledger, what wasn't covered |
+| Why is there no PR for anthropic? | Teire's gates, in the worker's order | Each gate as passed or holding it, and the first one that holds |
+| Which repositories does the gpt-4-turbo shutdown reach? | The catalog and your findings | Each repository, its call sites, and what Fix now would do there |
+| What would turning off plain bumps do? | Your `teire.yml` | The lines that change and what that does to your findings and runs |
+| How do I make Teire ask before fixing? | These docs | The answer in the docs' words, with a link to the page |
+| What has this cost? | Receipts | Runs, sandbox time, model spend, and your Ask Teire spend today |
+
+Every card says when its record was read ("as of 3 min ago") and links to where it lives in Teire. Links in an answer go only to pages a card returned, so Ask Teire can't send you to a page that doesn't exist or to a site a repository mentions.
+
+<Shot
+  name="ask-why"
+  alt="'Why is there no PR for anthropic on teire-dev/bristow?' answered with a card: the last run's evidence was a regression, so it opened issue #12 instead of a PR; below, every gate: Teire active, the finding reaches the code at 1 call site, fix mode Automatic, issue #12 open, the run, the PR limit, the model budget and coverage."
+  caption="Why no PR: Teire's gates for one finding, in the order the worker applies them. The first one that holds is the answer."
+/>
+
+## It acts only when you click
+
+Ask Teire can propose: set the fix mode (one repository or the installation's default), Fix now, Rescan, Pause and Resume, Ignore and Unignore, Refresh, Rebase or Recreate a PR, Cancel, Retry or Re-verify a run, Open draft anyway, a config PR, a starter config PR, and Fix in all. Each proposal is a card with the exact action and what it means. Nothing happens until you click **Confirm**, and the card then follows the action to Teire's answer, the same way the dashboard's buttons do (see [Dashboard](/docs/guide/dashboard)).
+
+<Shot
+  name="ask-action"
+  alt="A proposed action card: 'Set fix mode to Ask first on teire-dev/nlsh', what Ask first means (nothing new starts until you ask; PRs already open keep being refreshed), 'Teire checks your write access on GitHub when you confirm', and Confirm and Cancel buttons."
+  caption="A proposal: the exact action, what it means, and Confirm. Teire checks your write access on GitHub when you click."
+/>
+
+- **The card is the action.** Confirm sends back a proposal Teire signed when it showed the card: it can only do what the card shows, for you, within the hour.
+- **The same checks as any button.** Teire's worker checks your write access on GitHub before it acts (Fix in all checks it on each repository); changing the installation's default fix mode needs an organization admin or the account owner.
+- **Some things it never does.** Teire doesn't merge, close or push to pull requests, delete anything, or change GitHub settings. Ask Teire says so and points you to GitHub.
+- **A fix mode set in a file** (`fixes:` in `.github/teire.yml`) can't be changed from the dashboard; Ask Teire offers the config PR that changes the file instead.
+
+## What it reads, and what it doesn't follow
+
+Ask Teire reads only what you can see in the dashboard: your chosen installation's repositories, and a private repository only when GitHub lists it for you. Ask about a repository you can't see and it says "You don't have access to … in Teire".
+
+A finding's reason, a provider's quote, release notes, a log line or a PR description is shown to the model as data, never as instructions. If such text says "ignore your instructions" or "merge this", Ask Teire doesn't do it.
+
+## Threads
+
+Each conversation is a thread. **History** lists yours, newest first; search finds a word in any message, and you can rename or delete a thread. Under each answer: copy it as Markdown, ask again, and mark it helpful or not. A reply stopped part way (Stop, or closing the tab) is kept and marked. Threads are kept for 90 days after their last message.
+
+<Phone
+  name="ask"
+  alt="Ask Teire on a phone, full height: the chip teire-dev/nlsh, the findings card with five changes reaching the code, and the answer below it."
+  caption="On a phone: full height, the same cards."
+/>
+
+## The model and its budget
+
+Ask Teire runs on **NVIDIA Nemotron 3 Ultra** through **Nebius Token Factory**, with reasoning off so answers come back in seconds, and fails over to Nemotron 3 Super if Ultra is unavailable. The model and cost of each reply show under it when you hover.
+
+Its spend is kept apart from fix runs, so chatting never holds up a fix: each person has $0.50 of Ask Teire a day, and every reply is reserved against that before the model starts. When the budget is used up, Ask Teire says so and shows docs search results instead, labelled as search results. Your spend is on **Settings › Usage**.
+
+## On these docs
+
+Here Ask Teire answers from the docs and the public catalog of changes, not from anyone's repositories, and only in what the docs say. Signed out, the launcher opens a docs search and **Sign in to ask**.
