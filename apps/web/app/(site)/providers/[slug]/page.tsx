@@ -10,7 +10,7 @@ import { StaticFlow } from "@/components/flow/static-flow";
 import { TileSquare } from "@/components/flow/tile";
 import { Mark } from "@/components/teire/mark";
 import { ecosystemOf, STACK } from "@/lib/brands";
-import { listChanges } from "@/lib/catalog";
+import { type CatalogRow, listChanges } from "@/lib/catalog";
 import { providerPage } from "@/lib/entities";
 import type { FlowGraph } from "@/lib/flow/model";
 import { providerLogo } from "@/lib/logos";
@@ -163,36 +163,7 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
         </ul>
       </section>
 
-      {models.length ? (
-        <section className="flex flex-col gap-3" aria-label="Models with a change">
-          <h2 className="heading text-xl text-ink">Models with a change</h2>
-          <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-            {models.slice(0, 40).map((m) => (
-              <li key={m.id}>
-                <Link
-                  href={`/changes/${m.change.id}`}
-                  className="flex flex-wrap items-center gap-2 px-4 py-2.5 font-mono text-xs hover:bg-hover"
-                >
-                  <span className="text-ink-3 line-through decoration-broke/60">{m.id}</span>
-                  {m.replacement ? (
-                    <>
-                      <span className="text-ink-3" aria-hidden>
-                        →
-                      </span>
-                      <span className="text-ink">{m.replacement}</span>
-                    </>
-                  ) : null}
-                  {m.change.deadline ? (
-                    <span className="ml-auto rounded-full bg-attention-soft px-2 py-0.5 text-[11px] text-attention">
-                      {until(m.change.deadline)}
-                    </span>
-                  ) : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {models.length ? <RetirementRail models={models} today={today} /> : null}
 
       {record.sdks.length ? (
         <section className="flex flex-col gap-3" aria-label="SDK packages">
@@ -221,28 +192,34 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
       ) : null}
 
       <section className="flex flex-col gap-3" aria-label="Changes">
-        <h2 className="heading text-xl text-ink">
-          Changes <span className="font-mono text-sm text-ink-3">{rows.length}</span>
-        </h2>
         {rows.length ? (
-          <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-            {rows.slice(0, 100).map((r) => (
-              <li key={r.id}>
-                <Link
-                  href={`/changes/${r.id}`}
-                  className="flex flex-col gap-1 px-4 py-2.5 hover:bg-hover sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <span className="text-sm text-ink">{r.title}</span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <ClassChip value={r.class} />
-                    {r.deadline ? (
-                      <span className="font-mono text-[11px] text-attention">{until(r.deadline)}</span>
-                    ) : null}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <details className="group/all flex flex-col gap-3">
+            <summary className="flex w-fit cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+              <h2 className="heading text-xl text-ink">All its changes</h2>
+              <span className="font-mono text-sm text-ink-3">{rows.length}</span>
+              <span aria-hidden className="text-ink-3 transition-transform group-open/all:rotate-90">
+                ›
+              </span>
+            </summary>
+            <ul className="mt-3 flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
+              {rows.slice(0, 100).map((r) => (
+                <li key={r.id}>
+                  <Link
+                    href={`/changes/${r.id}`}
+                    className="flex flex-col gap-1 px-4 py-2.5 hover:bg-hover sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <span className="text-sm text-ink">{r.title}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <ClassChip value={r.class} />
+                      {r.deadline ? (
+                        <span className="font-mono text-[11px] text-attention">{until(r.deadline)}</span>
+                      ) : null}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
         ) : (
           <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
             <TileSquare tile={{ entity: "change", state: "pending", label: "" }} size="sm" />
@@ -254,5 +231,116 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
         )}
       </section>
     </>
+  );
+}
+
+type Retiring = { id: string; change: CatalogRow; replacement: string | null };
+
+/**
+ * The provider's models on a retirement timeline (plan revision 3.4, V5: "models as tiles on a
+ * retirement timeline; each tile → its change"): one stop per shutdown date along a rail, today
+ * marked between what is gone and what is coming, each stop's models as old → new chips.
+ */
+function RetirementRail({ models, today }: { models: Retiring[]; today: string }) {
+  const byDate = new Map<string, Retiring[]>();
+  for (const m of models) {
+    const d = m.change.deadline?.slice(0, 10) ?? "undated";
+    byDate.set(d, [...(byDate.get(d) ?? []), m]);
+  }
+  const dates = [...byDate.keys()].filter((d) => d !== "undated").sort();
+  const past = dates.filter((d) => d < today);
+  const ahead = dates.filter((d) => d >= today);
+  // The latest shutdown, today, then everything ahead (the past count is in the heading).
+  const shownPast = past.slice(-1);
+  const stops: (string | "today")[] = [...shownPast, "today", ...ahead];
+  const undated = byDate.get("undated") ?? [];
+  return (
+    <section className="flex flex-col gap-3" aria-label="Retirement timeline">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="heading text-xl text-ink">Retirements</h2>
+        <span className="font-mono text-[11px] text-ink-3">
+          {ahead.length} ahead{past.length ? ` · ${past.length} past` : ""}
+        </span>
+      </div>
+      <ol className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pt-3 pb-2 [scrollbar-width:thin]">
+        {stops.map((d) =>
+          d === "today" ? (
+            <li key="today" className="relative flex w-16 shrink-0 flex-col items-center pt-1">
+              <span aria-hidden className="absolute top-[13px] -right-3 -left-3 h-px bg-rule-strong" />
+              <span className="relative size-3 rounded-full bg-signal ring-4 ring-signal-soft" />
+              <span className="mt-2 font-mono text-[11px] text-signal">today</span>
+            </li>
+          ) : (
+            <li key={d} className="relative flex w-56 shrink-0 snap-start flex-col gap-2 pt-1">
+              <span aria-hidden className="absolute top-[13px] -right-3 left-0 h-px bg-rule-strong" />
+              <span
+                aria-hidden
+                className={cn(
+                  "relative ml-3 size-3 rounded-full ring-4",
+                  d < today ? "bg-broke ring-broke-soft" : "bg-attention ring-attention-soft",
+                )}
+              />
+              <div
+                className={cn(
+                  "flex flex-col gap-2 rounded-xl bg-sheet p-3 shadow-card ring-1",
+                  d < today ? "ring-broke/25" : "ring-attention/30",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs text-ink">{d}</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 font-mono text-[11px]",
+                      d < today ? "bg-broke-soft text-broke" : "bg-attention-soft text-attention",
+                    )}
+                  >
+                    {until(d)}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-1">
+                  {(byDate.get(d) ?? []).slice(0, 5).map((m) => (
+                    <li key={m.id}>
+                      <Link
+                        href={`/changes/${m.change.id}`}
+                        className="flex flex-wrap items-center gap-1 rounded-md px-1 py-0.5 font-mono text-[11px] hover:bg-hover"
+                      >
+                        <span className="text-ink-3 line-through decoration-broke/60">{m.id}</span>
+                        {m.replacement ? (
+                          <>
+                            <span aria-hidden className="text-ink-3">
+                              →
+                            </span>
+                            <span className="text-proven">{m.replacement}</span>
+                          </>
+                        ) : null}
+                      </Link>
+                    </li>
+                  ))}
+                  {(byDate.get(d)?.length ?? 0) > 5 ? (
+                    <li className="px-1 font-mono text-[11px] text-ink-3">
+                      +{(byDate.get(d)?.length ?? 0) - 5}
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+            </li>
+          ),
+        )}
+      </ol>
+      {undated.length ? (
+        <p className="flex flex-wrap gap-1.5 font-mono text-[11px] text-ink-3">
+          <span>No date yet:</span>
+          {undated.slice(0, 12).map((m) => (
+            <Link
+              key={m.id}
+              href={`/changes/${m.change.id}`}
+              className="rounded-full bg-sunken px-2 py-0.5 hover:text-ink"
+            >
+              {m.id}
+            </Link>
+          ))}
+        </p>
+      ) : null}
+    </section>
   );
 }
