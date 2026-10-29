@@ -17,12 +17,13 @@ import { toast } from "sonner";
 import { followAction } from "@/components/app/follow-action";
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { FlowCanvas, type PlacedTile } from "@/components/flow/flow-canvas";
+import { StaticFlow } from "@/components/flow/static-flow";
 import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import NumberTicker from "@/components/ui/number-ticker";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { type Brand, SPONSORS, STACK, TEIRE } from "@/lib/brands";
+import { type Brand, ECOSYSTEMS, SPONSORS, STACK, TEIRE } from "@/lib/brands";
 import { FIX_MODES } from "@/lib/fix-mode-options";
 import type { FlowLink, FlowState } from "@/lib/flow/model";
 import { languageMarks, subjectMark } from "@/lib/marks";
@@ -140,11 +141,15 @@ function layout(step: number, data: Data, chosen: Set<string>, mode: Mode, resul
       languageMarks(focus.languages)
         .slice(0, 3)
         .forEach((b, i) => {
+          // The ecosystem's own package count, when the scan read its manifests.
+          const n = Object.entries(ECOSYSTEMS).find(([, e]) => e.label === b.label)?.[0];
+          const count = n ? focus.byEcosystem?.[n] : undefined;
           tiles.push({
             id: `e:${b.label}`,
             entity: "update",
             state: "done",
             label: b.label,
+            ...(count ? { meta: `${count} packages` } : {}),
             brand: b,
             size: "sm",
             x: 640,
@@ -486,6 +491,26 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
 
           {step === 1 ? (
             <ul className="flex flex-col gap-1.5">
+              {data.repos.length > 1 ? (
+                <li className="flex items-center justify-between gap-3 px-3 py-1">
+                  <span className="font-mono text-[11px] text-ink-3">
+                    {chosen.size} of {data.repos.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setChosen(
+                        chosen.size === data.repos.length
+                          ? new Set()
+                          : new Set(data.repos.map((r) => r.fullName)),
+                      )
+                    }
+                    className="text-xs text-ink-2 hover:text-ink"
+                  >
+                    {chosen.size === data.repos.length ? "Select none" : "Select all"}
+                  </button>
+                </li>
+              ) : null}
               {data.repos.map((r) => (
                 <li
                   key={r.fullName}
@@ -726,7 +751,22 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
         ) : null}
       </section>
 
-      <section className="relative min-h-[360px] overflow-hidden rounded-feature bg-sheet shadow-card lg:min-h-[560px]">
+      {/* Phones: the same tiles as a vertical timeline (no canvas to pan, drag or squint at). */}
+      <section className="rounded-feature bg-sheet p-5 shadow-card md:hidden">
+        <StaticFlow
+          size="sm"
+          label={`Step ${step + 1}: ${TITLE[step]}`}
+          graph={{
+            // Teire, then what this step adds (a step's own tiles come last in its layout).
+            tiles: [
+              ...g.tiles.filter((t) => t.id === "teire"),
+              ...g.tiles.filter((t) => t.id !== "teire").slice(-5),
+            ],
+            links: g.links,
+          }}
+        />
+      </section>
+      <section className="relative hidden min-h-[360px] overflow-hidden rounded-feature bg-sheet shadow-card md:block lg:min-h-[560px]">
         <FlowCanvas
           tiles={g.tiles}
           links={g.links}

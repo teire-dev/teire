@@ -154,7 +154,9 @@ function Canvas({
         preventScrolling={false}
         panOnDrag={false}
         fitView
-        fitViewOptions={{ padding: 0.18, maxZoom: 1.25 }}
+        fitViewOptions={{ padding: 0.18, maxZoom: 1.25, minZoom: 0.2 }}
+        minZoom={0.2}
+        proOptions={{ hideAttribution: true }}
         colorMode={resolvedTheme === "dark" ? "dark" : "light"}
         aria-label={label}
       >

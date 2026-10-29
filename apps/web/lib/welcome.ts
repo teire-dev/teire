@@ -80,13 +80,14 @@ export async function welcomeOf(userId: string, asked: number | null) {
           .where(and(inArray(artifacts.repoId, ids), eq(artifacts.kind, "onboarding")))
           .orderBy(desc(artifacts.updatedAt)),
         // The packages each repository's last finished scan read.
-        db.execute<{ repo_id: number; n: number }>(sql`
-          select d.repo_id, count(distinct d.dependency_key)::int as n
+        // Per ecosystem, so each ecosystem's tile carries its own count (plan revision 3.4, B11).
+        db.execute<{ repo_id: number; ecosystem: string; n: number }>(sql`
+          select d.repo_id, d.ecosystem, count(distinct d.dependency_key)::int as n
           from dependency_instances d
           join (select distinct on (repo_id) id from scans
                 where repo_id in (${idList}) and status = 'done'
                 order by repo_id, finished_at desc) s on s.id = d.scan_id
-          group by d.repo_id`),
+          group by d.repo_id, d.ecosystem`),
         // What reaches each repository's code, most urgent first; a group counts once.
         db.execute<{
           repo_id: number;
@@ -130,7 +131,12 @@ export async function welcomeOf(userId: string, asked: number | null) {
         fullName: r.fullName,
         isPrivate: r.isPrivate,
         languages: Array.isArray(r.languages) ? r.languages : [],
-        packages: Number(packages.rows.find((p) => Number(p.repo_id) === r.id)?.n ?? 0),
+        packages: packages.rows
+          .filter((p) => Number(p.repo_id) === r.id)
+          .reduce((n, p) => n + Number(p.n), 0),
+        byEcosystem: Object.fromEntries(
+          packages.rows.filter((p) => Number(p.repo_id) === r.id).map((p) => [p.ecosystem, Number(p.n)]),
+        ) as Record<string, number>,
         changes,
         status: r.status,
         pausedReason: r.pausedReason,

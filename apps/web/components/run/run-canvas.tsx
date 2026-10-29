@@ -170,6 +170,7 @@ export function RunCanvas({
         fitView
         fitViewOptions={{ padding: { top: 0.32, bottom: 0.62, left: 0.08, right: 0.08 }, maxZoom: 1.15 }}
         minZoom={0.4}
+        proOptions={{ hideAttribution: true }}
         maxZoom={1.6}
         aria-label="The run, tile by tile"
         colorMode={resolvedTheme === "dark" ? "dark" : "light"}
