@@ -64,9 +64,9 @@ export function ConfigPrForm({ repo, current = {} }: { repo: string; current?: R
   const now = shown(current[key]);
   // Unchanged when the value reads the same as what the file says now (a list in any order of lines).
   const before = configValue(key, now);
-  const changed =
-    "error" in checked ||
-    JSON.stringify(checked.value) !== JSON.stringify("error" in before ? null : before.value);
+  // A list's order doesn't change what it does, so lines only reordered are no change.
+  const same = (v: unknown) => JSON.stringify(Array.isArray(v) ? [...v].sort() : v);
+  const changed = "error" in checked || same(checked.value) !== same("error" in before ? null : before.value);
   const field =
     "rounded-md bg-sheet px-2 text-sm ring-1 ring-rule ring-inset outline-none focus-visible:ring-signal";
   return (

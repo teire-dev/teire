@@ -9,7 +9,7 @@ import { KIT_ACCOUNT, KIT_SCOPE, type Scope } from "../workspace";
  * Who Ask Teire answers (plan revision 3.3, U4): a signed-in person, every read scoped to what GitHub
  * says they can see (their chosen installation for lists; any installation they can see for a named
  * repository, private ones only when GitHub lists them for this person). The operator walk (the
- * deployed streaming check and the scripted questions) holds the worker's bearer secret instead and
+ * deployed streaming check and the scripted questions) holds its own bearer secret instead and
  * reads only the public teire-dev repositories: nothing a stranger couldn't already open.
  */
 export interface Viewer {
@@ -24,7 +24,8 @@ export interface Viewer {
 }
 
 function operatorAllowed(request: Request) {
-  const secret = process.env.REVALIDATE_SECRET;
+  // Its own secret, apart from the worker's revalidation secret (U4 review).
+  const secret = process.env.TEIRE_OPERATOR_SECRET;
   const given = (request.headers.get("authorization") ?? "").replace(/^Bearer /, "");
   return (
     !!secret && given.length === secret.length && timingSafeEqual(Buffer.from(given), Buffer.from(secret))

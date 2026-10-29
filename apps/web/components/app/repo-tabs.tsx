@@ -10,7 +10,7 @@ export function RepoTabs({
   tabs,
 }: {
   base: string;
-  tabs: { key: string; label: string; count?: number }[];
+  tabs: { key: string; label: string; count?: number | string }[];
 }) {
   const path = usePathname();
   const current = path.slice(base.length + 1).split("/")[0] || "findings";

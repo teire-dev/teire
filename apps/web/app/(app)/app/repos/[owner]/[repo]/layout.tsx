@@ -125,11 +125,16 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
             label: "Pull requests",
             count: data.artifacts.filter((a) => a.state === "open").length,
           },
-          { key: "runs", label: "Runs", count: data.runs.length },
+          // The tabs read the latest 25 runs and 40 actions; a full page says so instead of a total.
+          { key: "runs", label: "Runs", count: data.runs.length >= 25 ? "25+" : data.runs.length },
           { key: "inventory", label: "Inventory", count: data.inventory.length },
           { key: "providers", label: "Providers", count: data.providers.length },
           { key: "config", label: "Config" },
-          { key: "activity", label: "Activity", count: data.activity.length },
+          {
+            key: "activity",
+            label: "Activity",
+            count: data.activity.length >= 40 ? "40+" : data.activity.length,
+          },
         ]}
       />
     </header>

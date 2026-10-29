@@ -52,16 +52,22 @@ const DOCS_TOOLS = ["search_docs", "list_changes", "get_change", "show_steps", "
 /** The page's context chip, kept only when the person can read what it names. */
 async function contextOf(viewer: Viewer, raw: unknown): Promise<AssistantContext | null> {
   const c = raw as Partial<AssistantContext> | null;
-  if (!c || typeof c.id !== "string" || typeof c.label !== "string" || c.id.length > 300) return null;
-  const label = c.label.slice(0, 120);
-  if (c.kind === "repo")
-    return "error" in (await readableRepo(viewer, c.id)) ? null : { kind: "repo", id: c.id, label };
+  if (!c || typeof c.id !== "string" || c.id.length > 300) return null;
+  // The label comes from the record, never from the page's request (it reaches the instructions).
+  if (c.kind === "repo") {
+    const got = await readableRepo(viewer, c.id);
+    return "error" in got ? null : { kind: "repo", id: got.repo.fullName, label: got.repo.fullName };
+  }
   if (c.kind === "run") {
     const sheet = /^[0-9a-f-]{36}$/.test(c.id) ? await runSheet(c.id) : null;
     if (!sheet || "error" in (await readableRepo(viewer, sheet.repo.fullName))) return null;
-    return { kind: "run", id: c.id, label };
+    const subject = sheet.run.groupKey?.split("/").slice(-2).join(" ") ?? "run";
+    return { kind: "run", id: c.id, label: `${sheet.repo.fullName.split("/")[1]} ${subject}`.slice(0, 120) };
   }
-  if (c.kind === "change") return (await getChange(c.id)) ? { kind: "change", id: c.id, label } : null;
+  if (c.kind === "change") {
+    const record = await getChange(c.id);
+    return record ? { kind: "change", id: record.id, label: record.title.slice(0, 120) } : null;
+  }
   return null;
 }
 
@@ -101,7 +107,16 @@ export async function POST(request: Request) {
     firstText: textOf(message),
   });
   if (!thread) return Response.json({ error: "No such thread" }, { status: 404 });
-  if (regenerate && isMessageId(body.messageId)) await dropFrom(thread.id, body.messageId);
+  if (regenerate) {
+    // Only the latest reply is asked again; an older one would land after later turns (U4 review). A
+    // reply that failed before anything was stored leaves the question last: it is simply answered.
+    const latest = (await messagesOf(thread.id)).at(-1);
+    if (latest?.role === "assistant") {
+      if (body.messageId !== undefined && body.messageId !== latest.id)
+        return Response.json({ error: "Only the latest reply can be asked again" }, { status: 400 });
+      await dropFrom(thread.id, latest.id);
+    } else if (!latest) return Response.json({ error: "Ask something first" }, { status: 400 });
+  }
   if (message) await saveMessage(thread.id, message);
 
   // On the docs: docs and the public catalog only, so a change never carries the person's own reach.
@@ -153,7 +168,8 @@ export async function POST(request: Request) {
     return createUIMessageStreamResponse({ stream });
   }
 
-  const price = await priceOf(model);
+  // Priced by the model that answered: a failover part way through is priced as the failover (U4 review).
+  let price = await priceOf(model);
   const started = Date.now();
   let usage: LanguageModelUsage | null = null;
   // Steps that finished, totalled as they end: a reply stopped mid-way still pays for what it used.
@@ -220,6 +236,8 @@ export async function POST(request: Request) {
         return "Nemotron didn't answer this time. Try again, or search the docs.";
       },
       onEnd: async ({ responseMessage, isAborted, outcome }) => {
+        const answered = tf.modelId("assistant");
+        if (answered !== model) price = await priceOf(answered);
         const r = receipt();
         const interrupted = isAborted || outcome.status !== "completed";
         try {
@@ -237,7 +255,7 @@ export async function POST(request: Request) {
         } finally {
           await settle(reservation.id, {
             messageId: responseMessage.id ?? null,
-            model,
+            model: answered,
             tokensIn: r.tokensIn,
             tokensOut: r.tokensOut,
             costUsd: r.costUsd,

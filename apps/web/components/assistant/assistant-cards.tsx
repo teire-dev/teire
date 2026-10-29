@@ -440,6 +440,9 @@ export function RunCard({ o }: { o: Out<"get_run"> | Out<"explain_run"> }) {
         <span className="min-w-0 truncate font-mono text-xs text-ink">{o.subject}</span>
         <EvidenceChip kind={o.evidence} />
       </div>
+      {"proof" in o && Array.isArray(o.proof) && o.proof.length ? (
+        <ProofGlyphs proof={proofOf(o.proof)} />
+      ) : null}
       {explained?.meaning ? <p className="text-xs text-ink-2">{explained.meaning}</p> : null}
       <p className="font-mono text-[11px] text-ink-3">
         {o.status} · {o.backend ?? "no sandbox"} · {ms(o.durationMs)} · ${o.costUsd.toFixed(3)} ·{" "}
@@ -844,19 +847,26 @@ export function ActionCard({ o }: { o: Proposed }) {
     };
   }, [proposalId]);
 
+  // Followed every second, every three after a minute; after ten the card hands over to Activity.
+  const [since] = useState(() => Date.now());
+  const tooLong =
+    !!action && !TERMINAL.has(action.status as ActionStatus) && Date.now() - since > 10 * 60_000;
   useEffect(() => {
-    if (!action || TERMINAL.has(action.status as ActionStatus)) return;
+    if (!action || TERMINAL.has(action.status as ActionStatus) || Date.now() - since > 10 * 60_000) return;
     let alive = true;
-    const t = setTimeout(async () => {
-      const res = await fetch(`/api/actions/${action.id}`, { cache: "no-store" }).catch(() => null);
-      if (alive && res?.ok) setAction((await res.json()) as ActionRow);
-      else if (alive) setAction({ ...action });
-    }, 1000);
+    const t = setTimeout(
+      async () => {
+        const res = await fetch(`/api/actions/${action.id}`, { cache: "no-store" }).catch(() => null);
+        if (alive && res?.ok) setAction((await res.json()) as ActionRow);
+        else if (alive) setAction({ ...action });
+      },
+      Date.now() - since > 60_000 ? 3000 : 1000,
+    );
     return () => {
       alive = false;
       clearTimeout(t);
     };
-  }, [action]);
+  }, [action, since]);
 
   const confirm = async () => {
     if (!proposal || !("proposal" in proposal)) return;
@@ -880,8 +890,16 @@ export function ActionCard({ o }: { o: Proposed }) {
   const refused = "refused" in o ? o.refused : null;
   const terminal = action && TERMINAL.has(action.status as ActionStatus);
   return (
-    <Card eyebrow={action ? "Action" : "Proposed action"} tone="signal">
+    <Card
+      eyebrow={action ? "Action" : proposal ? "Proposed action" : "Not something Teire does"}
+      tone="signal"
+    >
       {refused ? <p className="text-sm text-ink-2">{refused}</p> : null}
+      {"github" in o && typeof o.github === "string" ? (
+        <SafeLink href={o.github} className="w-fit text-xs">
+          Open it on GitHub
+        </SafeLink>
+      ) : null}
       {proposal ? (
         <>
           <p className="text-sm font-medium text-ink">{proposal.effect}</p>
@@ -916,6 +934,11 @@ export function ActionCard({ o }: { o: Proposed }) {
                   {action.result ?? (terminal ? action.status : `${action.status}…`)}
                 </span>
               </span>
+              {tooLong ? (
+                <span className="text-xs text-ink-3">
+                  Still going; its outcome shows in the repository's Activity.
+                </span>
+              ) : null}
               {action.links.map((l) => (
                 <SafeLink key={l.href} href={l.href} className="w-fit text-xs">
                   {l.label} ›

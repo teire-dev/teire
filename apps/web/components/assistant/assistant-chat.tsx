@@ -415,6 +415,36 @@ function linksOf(message: AssistantMessage) {
 
 const LINK_FIELDS = new Set(["link", "href", "url"]);
 
+/** A link's name, read from where it goes. */
+function linkLabel(href: string) {
+  const gh = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(pull|issues)\/(\d+)/.exec(href);
+  if (gh) return `${gh[2] === "pull" ? "PR" : "Issue"} #${gh[3]} on ${gh[1]}`;
+  const path = href.split(/[?#]/)[0] ?? href;
+  const run = /^\/runs\/([0-9a-f]{8})/.exec(path);
+  if (run) return `Run ${run[1]}`;
+  const repo = /^\/app\/repos\/([\w.-]+\/[\w.-]+)(?:\/(\w+))?/.exec(path);
+  if (repo) return repo[2] ? `${repo[1]} · ${repo[2]}` : (repo[1] ?? path);
+  if (path.startsWith("/changes/")) return decodeURIComponent(path.slice(9)).slice(0, 48);
+  if (path.startsWith("/docs")) return `Docs: ${path.split("/").pop()?.replace(/-/g, " ") || "home"}`;
+  return path;
+}
+
+/** The reply's related links (plan revision 3.3: the answer ends with them), from its own cards. */
+function Related({ links }: { links: Set<string> }) {
+  const list = [...links].slice(0, 5);
+  if (!list.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="eyebrow">Related</span>
+      {list.map((l) => (
+        <SafeLink key={l} href={l} className="text-xs text-ink-2">
+          {linkLabel(l)}
+        </SafeLink>
+      ))}
+    </div>
+  );
+}
+
 function markdownFor(allowed: Set<string>, withCards: boolean) {
   return {
     a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
@@ -501,6 +531,7 @@ function Turn({
           <p className="font-mono text-[11px] text-attention">Stopped before it finished.</p>
         ) : null}
       </MessageContent>
+      {!streaming ? <Related links={linksOf(message)} /> : null}
       {!streaming ? (
         <ReplyActions message={message} text={text} onRetry={onRetry} canRetry={last && !busy} />
       ) : null}

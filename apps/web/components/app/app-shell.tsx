@@ -373,12 +373,24 @@ export function AppShell({
             </kbd>
           </button>
         </header>
+        {current?.suspendedAt ? (
+          // Said on every page, not only a repository's (U4 review): nothing runs while it's suspended.
+          <p className="border-b border-attention/30 bg-attention-soft px-4 py-2 text-sm text-attention md:px-8">
+            {current.login}'s installation is suspended on GitHub: Teire scans nothing and opens nothing until
+            it's unsuspended in GitHub's settings.
+          </p>
+        ) : null}
         <div className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</div>
       </SidebarInset>
       <AssistantMentions
         mentions={[
           ...data.repos.map((r) => ({ kind: "repo" as const, id: r.fullName, label: r.fullName })),
           ...data.changes.map((c) => ({ kind: "change" as const, id: c.id, label: c.title })),
+          ...data.prs.map((p) => ({
+            kind: "pr" as const,
+            id: `${p.repo}#${p.number}`,
+            label: `${p.repo}#${p.number}`,
+          })),
           ...data.runs.map((r) => ({
             kind: "run" as const,
             id: r.id,

@@ -1,5 +1,5 @@
 import { assistantCalls, eq, sql, systemState } from "@teire/db";
-import { ASSISTANT } from "@teire/engine/constants";
+import { ASSISTANT, DAILY_COST_CAP_DEFAULT_USD, FALLBACK_PRICES } from "@teire/engine/constants";
 import { fetchModelPrices, type ModelPrice } from "@teire/engine/llm";
 import { database } from "../db";
 
@@ -13,7 +13,7 @@ import { database } from "../db";
 const DAY = sql`now() - interval '24 hours'`;
 
 /** The overall model budget per day, as the worker reads it (its default when unset). */
-const OVERALL_CAP_USD = Number(process.env.TEIRE_DAILY_COST_CAP_USD ?? 10);
+const OVERALL_CAP_USD = Number(process.env.TEIRE_DAILY_COST_CAP_USD ?? DAILY_COST_CAP_DEFAULT_USD);
 
 export type Reservation = { id: number } | { blocked: string };
 
@@ -97,10 +97,18 @@ export async function settle(
 /** Token Factory's public prices, read once an hour per function instance. */
 let prices: { at: number; map: Map<string, ModelPrice> } | null = null;
 
-export async function priceOf(model: string) {
-  if (!prices || Date.now() - prices.at > 3_600_000)
-    prices = { at: Date.now(), map: await fetchModelPrices().catch(() => prices?.map ?? new Map()) };
-  return prices.map.get(model);
+export async function priceOf(model: string): Promise<ModelPrice> {
+  if (!prices || Date.now() - prices.at > 3_600_000) {
+    // A catalog that can't be read isn't cached as empty: the next reply asks again.
+    const map = await fetchModelPrices().catch(() => null);
+    if (map?.size) prices = { at: Date.now(), map };
+  }
+  // Never $0: without the catalog, the last known price, then the recorded fallback, then Ultra's.
+  return (
+    prices?.map.get(model) ??
+    FALLBACK_PRICES[model] ??
+    (FALLBACK_PRICES["nvidia/Nemotron-3-Ultra-550b-a55b"] as ModelPrice)
+  );
 }
 
 /** This person's assistant spend: today's and the last 30 days' (Settings › Usage, the usage tool). */

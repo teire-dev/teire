@@ -1,4 +1,15 @@
-import { account, and, asc, eq, session, user, userInstallations, userRepos, verification } from "@teire/db";
+import {
+  account,
+  and,
+  asc,
+  eq,
+  session,
+  sql,
+  user,
+  userInstallations,
+  userRepos,
+  verification,
+} from "@teire/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -62,8 +73,12 @@ export async function refreshInstallations(userId: string): Promise<boolean> {
   // Inside each installation, the repositories this person can access (U3 review): an organisation
   // member may see the installation without access to every private repository in it.
   const repoIds = new Map<number, number[]>();
+  // An installation GitHub didn't list this time keeps its last known grants (never widened); the
+  // others are rewritten. One suspended installation no longer stalls everyone's refresh (U4 review).
+  const kept = new Set<number>();
   for (const i of installations) {
     const ids: number[] = [];
+    let complete = true;
     for (let page = 1; page <= ACCESS_PAGES; page++) {
       const r = await fetch(
         `https://api.github.com/user/installations/${i.id}/repositories?per_page=100&page=${page}`,
@@ -75,19 +90,32 @@ export async function refreshInstallations(userId: string): Promise<boolean> {
           },
           signal: AbortSignal.timeout(10_000),
         },
-      );
-      // An answer GitHub didn't give keeps the last known access rather than granting any.
-      if (!r.ok) return false;
+      ).catch(() => null);
+      if (!r?.ok) {
+        complete = false;
+        break;
+      }
       const body = (await r.json()) as { repositories: { id: number }[]; total_count: number };
       ids.push(...body.repositories.map((x) => x.id));
       if (ids.length >= body.total_count || !body.repositories.length) break;
     }
-    repoIds.set(i.id, ids);
+    if (complete) repoIds.set(i.id, ids);
+    else kept.add(i.id);
   }
   const now = new Date();
   await db.transaction(async (tx) => {
     await tx.delete(userInstallations).where(eq(userInstallations.userId, userId));
-    await tx.delete(userRepos).where(eq(userRepos.userId, userId));
+    await tx.delete(userRepos).where(
+      and(
+        eq(userRepos.userId, userId),
+        kept.size
+          ? sql`${userRepos.installationId} not in (${sql.join(
+              [...kept].map((id) => sql`${id}`),
+              sql`, `,
+            )})`
+          : sql`true`,
+      ),
+    );
     if (installations.length)
       await tx
         .insert(userInstallations)
@@ -117,6 +145,10 @@ const ACCESS_LAPSE_MS = 60 * 60_000;
  * ten minutes, before a page shows private repository data. A failed read keeps the last answer for
  * an hour; after that, private access lapses until GitHub answers.
  */
+/** After a failed read, GitHub isn't asked again for this person for a while (per function instance). */
+const failedAt = new Map<string, number>();
+const ACCESS_RETRY_MS = 2 * 60_000;
+
 export async function freshAccess(userId: string) {
   const [last] = await database()
     .select({ at: userInstallations.refreshedAt })
@@ -125,10 +157,13 @@ export async function freshAccess(userId: string) {
     .orderBy(asc(userInstallations.refreshedAt))
     .limit(1);
   if (last && Date.now() - last.at.getTime() <= ACCESS_FRESH_MS) return;
+  if (Date.now() - (failedAt.get(userId) ?? 0) < ACCESS_RETRY_MS) return;
   const ok = await refreshInstallations(userId).catch((error) => {
     console.warn("[auth] access", error);
     return false;
   });
+  if (ok) failedAt.delete(userId);
+  else failedAt.set(userId, Date.now());
   // A short GitHub outage keeps the last answer; a long one doesn't keep private access open (U4
   // review): the per-repository grants lapse until GitHub answers again. Public repositories stay.
   if (!ok && last && Date.now() - last.at.getTime() > ACCESS_LAPSE_MS)

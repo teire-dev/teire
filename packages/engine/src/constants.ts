@@ -46,6 +46,21 @@ export const MODEL_DEFAULTS: Record<keyof typeof MODEL_ENV, string> = {
 };
 
 /** Ask Teire's limits (plan revision 3.3, U4, D127): per reply, per person per day, all of it per day. */
+/**
+ * The overall model budget per day (fix runs and chat together), when TEIRE_DAILY_COST_CAP_USD is unset:
+ * one number the worker and the web both read.
+ */
+export const DAILY_COST_CAP_DEFAULT_USD = 10;
+
+/**
+ * Token Factory prices (USD per 1M tokens, from its public catalog on 2026-10-29), used only when the
+ * catalog can't be read, so a reply is never priced at $0.
+ */
+export const FALLBACK_PRICES: Record<string, { input: number; cachedInput: number; output: number }> = {
+  "nvidia/Nemotron-3-Ultra-550b-a55b": { input: 1, cachedInput: 0.12, output: 3 },
+  "nvidia/nemotron-3-super-120b-a12b": { input: 0.3, cachedInput: 0.06, output: 0.9 },
+};
+
 export const ASSISTANT = {
   /** One reply's model time and tool steps. */
   replyMs: 60_000,

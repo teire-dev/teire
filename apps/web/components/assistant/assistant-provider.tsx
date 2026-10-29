@@ -23,7 +23,7 @@ import { AssistantLauncher } from "./assistant-launcher";
  * code loads on first open; nothing of it is in a page's first paint.
  */
 export interface Mention {
-  kind: "repo" | "run" | "change";
+  kind: "repo" | "run" | "change" | "pr";
   id: string;
   label: string;
 }

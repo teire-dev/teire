@@ -1,4 +1,4 @@
-import { and, desc, eq, findings, inArray, or, runs, scans, sql } from "@teire/db";
+import { and, artifacts, desc, eq, findings, inArray, or, runs, scans, sql } from "@teire/db";
 import { type ActionKind, describeAction, INSTALLATION_ACTIONS } from "@teire/engine/actions";
 import { parseAction } from "@teire/engine/actions-schema";
 import { CONFIG_PR_KEYS, type ConfigPrKey, configValue } from "@teire/engine/config-keys";
@@ -677,6 +677,7 @@ export function assistantTools(viewer: Viewer) {
             .split(/[\s,]+/)
             .map((w) => w.replace(/[%_\\]/g, ""))
             .filter((w) => w.length >= 2);
+          if (!words.length) return { error: "Name something of at least two characters to look up" };
           const like = (col: Parameters<typeof eq>[0]) =>
             and(...words.map((w) => sql`lower(${col}) like ${`%${w}%`}`));
           const here = repoId !== null ? sql`${runs.repoId} = ${repoId}` : sql`true`;
@@ -823,6 +824,11 @@ export function assistantTools(viewer: Viewer) {
           "config-pr",
           "starter-config-pr",
           "fix-in-all",
+          // Never done by Teire: the card says so and where to do it instead (plan: unproposable actions).
+          "merge-pr",
+          "close-pr",
+          "push",
+          "delete",
         ]),
         repo: repoName.optional().describe("The repository it acts on (not for installation-wide actions)"),
         params: z
@@ -895,6 +901,8 @@ async function runFacts(viewer: Viewer, runId: string) {
         : null;
     return { check: after.name, before: side(before), after: side(after) };
   });
+  // The run's proof chain, as every run row shows it.
+  const [row] = await rowsOf(scopeOfRepo(viewer, got.repo), eq(runs.id, run.id), 1);
   const started = run.startedAt ? Date.parse(run.startedAt) : null;
   const ended = run.finishedAt ? Date.parse(run.finishedAt) : null;
   return {
@@ -931,6 +939,7 @@ async function runFacts(viewer: Viewer, runId: string) {
     reasons: (sheet.verification?.reasons ?? []).slice(0, 4).map((r) => r.slice(0, 240)),
     others: (sheet.verification?.others ?? []).map((o) => ({ root: o.root, evidence: o.evidence })),
     modelCalls: sheet.calls.length,
+    proof: row ? chain(row.proof) : [],
     link: `/runs/${run.id}`,
   };
 }
@@ -1018,6 +1027,26 @@ async function propose(
   viewer: Viewer,
   input: { kind: string; repo?: string; params: Record<string, unknown>; why?: string },
 ) {
+  if (["merge-pr", "close-pr", "push", "delete"].includes(input.kind)) {
+    const verb = { "merge-pr": "merge", "close-pr": "close", push: "push to", delete: "delete" }[input.kind];
+    const number = Number(input.params.number);
+    let url: string | null = null;
+    if (input.repo && Number.isInteger(number)) {
+      const got = await readableRepo(viewer, input.repo);
+      if (!("error" in got)) {
+        const [pr] = await database()
+          .select({ url: artifacts.url })
+          .from(artifacts)
+          .where(and(eq(artifacts.repoId, got.repo.id), eq(artifacts.number, number)))
+          .limit(1);
+        url = pr?.url ?? null;
+      }
+    }
+    return {
+      refused: `Teire never ${input.kind === "delete" ? "deletes anything" : `${verb}s pull requests`}: that stays with you, on GitHub.${input.kind === "merge-pr" ? " Teire's checks and evidence are on the PR to help you decide." : ""}`,
+      ...(url ? { github: url } : {}),
+    };
+  }
   if (!viewer.userId) return { refused: "Sign in to Teire to act; this view can only read" };
   const kind = input.kind as ActionKind;
   const params = { ...input.params };

@@ -142,6 +142,15 @@ async function Findings({
       if (r.groupKey && !latest.has(r.groupKey)) latest.set(r.groupKey, r);
   const open = data.findings.filter((f) => f.state === "open");
   const ignored = groupFindings(data.findings.filter((f) => f.state === "ignored"));
+  // Every ignore, not only findings now ignored: `@teire ignore` entries (with their update type)
+  // and teire.yml's own list (U4 review).
+  const byCommand = ((data.repo.ignores as string[] | null) ?? []).map((entry) => {
+    const m = /^(.*)@(major|minor|patch)$/.exec(entry);
+    return { entry, target: m?.[1] ?? entry, update: m?.[2] as "major" | "minor" | "patch" | undefined };
+  });
+  const byFile = ((data.repo.config as { ignore?: string[] } | null)?.ignore ?? []).filter(
+    (i) => !byCommand.some((c) => c.entry === i),
+  );
   const b = bucketGroups(groupFindings(open));
   const coverage = scan?.coverage as {
     filesScanned?: number;
@@ -329,9 +338,41 @@ async function Findings({
           </div>
         </details>
       ) : null}
-      {ignored.length ? (
+      {ignored.length || byCommand.length || byFile.length ? (
         <section id="ignored" className="flex flex-col gap-2">
-          <Heading count={ignored.length}>Ignored</Heading>
+          <Heading count={ignored.length + byCommand.length + byFile.length}>Ignored</Heading>
+          {byCommand.length || byFile.length ? (
+            <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
+              {byCommand.map((c) => (
+                <li key={c.entry} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                  <span className="truncate font-mono text-xs text-ink">
+                    {c.target}
+                    {c.update ? <span className="text-ink-3"> · {c.update} updates</span> : null}
+                    <span className="ml-2 font-sans text-ink-3">from @teire ignore</span>
+                  </span>
+                  <ActionButton
+                    kind="unignore"
+                    repo={fullName}
+                    params={{ target: c.target, ...(c.update ? { update: c.update } : {}) }}
+                    variant="ghost"
+                  >
+                    Unignore
+                  </ActionButton>
+                </li>
+              ))}
+              {byFile.map((i) => (
+                <li key={i} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                  <span className="truncate font-mono text-xs text-ink">
+                    {i}
+                    <span className="ml-2 font-sans text-ink-3">in teire.yml</span>
+                  </span>
+                  <Link href={`/app/repos/${fullName}/config`} className="text-xs text-ink-2 hover:text-ink">
+                    Change in teire.yml ›
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
             {ignored.map((g) => (
               <li key={g.key} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">

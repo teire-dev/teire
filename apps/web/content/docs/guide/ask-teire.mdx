@@ -28,9 +28,9 @@ The panel opens above the launcher. **Dock** it to make it a right sidebar you c
 
 ## What it knows about the page you're on
 
-The page sets a **context chip** in the panel's header: the repository, run or change you're looking at, so "here" and "this" mean it. Remove the chip to ask about everything instead. If the page names something you can no longer read in Teire, Ask Teire says "You no longer have access to …" and nothing about it.
+The page sets a **context chip** in the panel's header: the repository, run or change you're looking at, so "here" and "this" mean it. Remove the chip to ask about everything instead. If the page names something you can't read in Teire, Ask Teire says "You don't have access to … in Teire" and nothing about it. An earlier answer that read a repository you've since lost access to is hidden from the thread, and from what the model is given again.
 
-Type <kbd>@</kbd> to mention a repository, run or change by name. A pasted pull request link is checked as you type: it says whether it's one of your repositories.
+Type <kbd>@</kbd> to mention a repository, run, change or open pull request by name. A pasted pull request link is checked as you type: it says whether it's one of Teire's pull requests on a repository you can see.
 
 ## What it can answer
 
@@ -66,7 +66,7 @@ Ask Teire can propose: set the fix mode (one repository or the installation's de
 
 - **The card is the action.** Confirm sends back a proposal Teire signed when it showed the card: it can only do what the card shows, for you, within the hour.
 - **The same checks as any button.** Teire's worker checks your write access on GitHub before it acts (Fix in all checks it on each repository); changing the installation's default fix mode needs an organization admin or the account owner.
-- **Some things it never does.** Teire doesn't merge, close or push to pull requests, delete anything, or change GitHub settings. Ask Teire says so and points you to GitHub.
+- **Some things it never does.** Teire doesn't merge, close or push to pull requests, delete anything, or change GitHub settings. Asked to, Ask Teire shows a card that says so and links the pull request on GitHub.
 - **A fix mode set in a file** (`fixes:` in `.github/teire.yml`) can't be changed from the dashboard; Ask Teire offers the config PR that changes the file instead.
 
 ## What it reads, and what it doesn't follow
@@ -89,7 +89,7 @@ Each conversation is a thread. **History** lists yours, newest first; search fin
 
 Ask Teire runs on **NVIDIA Nemotron 3 Ultra** through **Nebius Token Factory**, with reasoning off so answers come back in seconds, and fails over to Nemotron 3 Super if Ultra is unavailable. The model and cost of each reply show under it when you hover.
 
-Its spend is kept apart from fix runs, so chatting never holds up a fix: each person has $0.50 of Ask Teire a day, and every reply is reserved against that before the model starts. When the budget is used up, Ask Teire says so and shows docs search results instead, labelled as search results. Your spend is on **Settings › Usage**.
+Its spend has its own budget, apart from fix runs: each person has $0.50 of Ask Teire a day and everyone together $5, and every reply is reserved against those before the model starts. When the budget is used up, Ask Teire says so and shows docs search results instead, labelled as search results. Your spend is on **Settings › Usage**.
 
 ## On these docs
 

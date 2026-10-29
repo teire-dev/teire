@@ -331,6 +331,8 @@ export async function overviewOf(scope: Scope) {
         and(
           scopeWhere(scope),
           eq(findings.verdict, "affected"),
+          // Only what still needs fixing: an ignored or fixed finding has no deadline for you (U4 review).
+          eq(findings.state, "open"),
           sql`${changes.deadline} > now() - interval '30 days'`,
         ),
       )
@@ -351,7 +353,7 @@ export async function overviewOf(scope: Scope) {
         languages: repos.languages,
         affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f where f.repo_id = ${repos.id} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand'))`,
         openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
-        live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status = 'running')`,
+        live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status in ('running', 'stopping'))`,
       })
       .from(repos)
       .innerJoin(installations, eq(installations.id, repos.installationId))
@@ -687,7 +689,7 @@ export async function reposOf(scope: Scope) {
       languages: repos.languages,
       affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f where f.repo_id = ${repos.id} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand'))`,
       openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
-      needsYou: sql<number>`(select count(*)::int from runs r where r.repo_id = ${repos.id} and ${sql.raw("r.finished_at > now() - interval '7 days' and (r.evidence_kind in ('environment_mismatch','needs_live_access','needs_local_service','typecheck_only','pre_existing_failure','regression','timeout','unverified') or (r.status = 'failed' and r.error like 'stopped:%'))")})`,
+      needsYou: sql<number>`(select count(*)::int from runs where runs.repo_id = ${repos.id} and ${NEEDS_YOU})`,
       live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status in ('running', 'stopping'))`,
       lastScanFailed: sql<boolean>`coalesce((select s.status = 'failed' from scans s where s.repo_id = ${repos.id} order by s.created_at desc limit 1), false)`,
     })
@@ -733,4 +735,15 @@ export async function usageOf(scope: Scope) {
       costUsd: Number(r.cost),
     })),
   };
+}
+
+/** The scope's repository names, for pickers (the Runs page's repository filter). */
+export async function repoNamesOf(scope: Scope) {
+  const rows = await database()
+    .select({ fullName: repos.fullName })
+    .from(repos)
+    .innerJoin(installations, eq(installations.id, repos.installationId))
+    .where(scopeWhere(scope))
+    .orderBy(asc(repos.fullName));
+  return rows.map((r) => r.fullName);
 }

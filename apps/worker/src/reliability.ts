@@ -1,5 +1,5 @@
 import { and, type Database, eq, gte, llmCalls, lt, repos, runs, scans, sql, systemState } from "@teire/db";
-import { ASSISTANT, RUNS } from "@teire/engine/constants";
+import { ASSISTANT, DAILY_COST_CAP_DEFAULT_USD, RUNS } from "@teire/engine/constants";
 import type { GitHubApp } from "@teire/engine/github";
 import { createTokenFactory, modelHealth, ping, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
 
@@ -16,8 +16,6 @@ export const RELIABILITY = {
   scanStaleAfterMs: 45 * 60_000,
   /** How often a 402 state is re-checked with a ping. */
   creditsRecheckMs: 15 * 60_000,
-  /** Daily model spend cap (USD) when TEIRE_DAILY_COST_CAP_USD is unset. */
-  defaultDailyCapUsd: 10,
   redeliveryEveryMs: 10 * 60_000,
   redeliveryWindowMs: 6 * 3600_000,
   /** How often repos with `schedule: daily | weekly` are checked for a due rescan. */
@@ -81,7 +79,7 @@ export async function modelWorkBlocked(db: Database) {
   const credits = await getState<CreditsState>(db, "credits");
   if (credits?.exhausted)
     return `Token Factory credits are exhausted (since ${credits.since.slice(0, 16).replace("T", " ")} UTC); runs resume when they are topped up.`;
-  const cap = Number(process.env.TEIRE_DAILY_COST_CAP_USD ?? RELIABILITY.defaultDailyCapUsd);
+  const cap = Number(process.env.TEIRE_DAILY_COST_CAP_USD ?? DAILY_COST_CAP_DEFAULT_USD);
   const [row] = await db
     .select({ spent: sql<string>`coalesce(sum(${llmCalls.costUsd}), 0)` })
     .from(llmCalls)

@@ -3,6 +3,7 @@ import { actions, and, eq, repos, sql, userInstallations, webhookDeliveries } fr
 import { INSTALLATION_ACTIONS } from "@teire/engine/actions";
 import { parseAction } from "@teire/engine/actions-schema";
 import { database } from "./db";
+import { canRead } from "./workspace";
 
 /**
  * A person's action (plan revision 3.3, "Actions with real results", D121): the `actions` row and its
@@ -48,7 +49,7 @@ export async function requestAction(input: {
   } else {
     if (!input.repo || !/^[\w.-]+\/[\w.-]+$/.test(input.repo)) return { ok: false, error: "no repository" };
     const [row] = await db
-      .select({ id: repos.id, installationId: repos.installationId })
+      .select({ id: repos.id, installationId: repos.installationId, isPrivate: repos.isPrivate })
       .from(repos)
       .innerJoin(
         userInstallations,
@@ -60,6 +61,8 @@ export async function requestAction(input: {
       .where(eq(repos.fullName, input.repo))
       .limit(1);
     if (!row?.installationId) return { ok: false, error: `You can't see ${input.repo}` };
+    // A private repository needs the person's own access to it, not only its installation (U4 review).
+    if (!(await canRead(input.userId, row))) return { ok: false, error: `You can't see ${input.repo}` };
     repoId = row.id;
     installationId = row.installationId;
   }
@@ -120,7 +123,17 @@ export async function readAction(userId: string, id: string) {
       and(eq(userInstallations.userId, userId), eq(userInstallations.installationId, row.installationId)),
     )
     .limit(1);
-  return seen ? row : null;
+  if (!seen) return null;
+  // Another person's action on a private repository shows only to those GitHub lets read it (U4 review).
+  if (row.repoId) {
+    const [repo] = await db
+      .select({ id: repos.id, isPrivate: repos.isPrivate })
+      .from(repos)
+      .where(eq(repos.id, row.repoId))
+      .limit(1);
+    if (repo && !(await canRead(userId, repo))) return null;
+  }
+  return row;
 }
 
 /** The action a person asked for under this key, if any (a confirmed Ask Teire proposal, read back). */

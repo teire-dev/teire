@@ -6,7 +6,7 @@ import { RunRowItem } from "@/components/teire/run-row";
 import { myScope } from "@/lib/app-shell";
 import { getSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
-import { countRuns, NEEDS_YOU, runsOf } from "@/lib/workspace";
+import { countRuns, NEEDS_YOU, repoNamesOf, runsOf } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "../gate";
 
 export const metadata = { title: "Runs" };
@@ -67,9 +67,10 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
     repo ? eq(repos.fullName, repo) : undefined,
   );
   // A page of runs at a time, and how many there are in all (U3 review: "every run" is every run).
-  const [rows, total] = await Promise.all([
+  const [rows, total, names] = await Promise.all([
     runsOf(mine.scope, where, PAGE, (page - 1) * PAGE),
     countRuns(mine.scope, where),
+    repoNamesOf(mine.scope),
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const href = (patch: Record<string, string | null>) => {
@@ -108,7 +109,26 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
             })),
           ]}
         />
-        {repo ? <Chips items={[{ label: `${repo} ✕`, href: href({ repo: null }), on: true }]} /> : null}
+        {repo ? (
+          <Chips items={[{ label: `${repo} ✕`, href: href({ repo: null }), on: true }]} />
+        ) : (
+          <details className="group w-fit">
+            <summary className="cursor-pointer list-none rounded-full bg-sheet px-3 py-1 text-xs text-ink-2 ring-1 ring-rule ring-inset hover:text-ink">
+              Repository ▾
+            </summary>
+            <div className="mt-2 flex max-w-3xl flex-wrap gap-1.5">
+              {names.map((n) => (
+                <Link
+                  key={n}
+                  href={href({ repo: n })}
+                  className="rounded-full bg-sheet px-2.5 py-0.5 font-mono text-[11px] text-ink-2 ring-1 ring-rule ring-inset hover:text-ink"
+                >
+                  {n.split("/")[1]}
+                </Link>
+              ))}
+            </div>
+          </details>
+        )}
       </nav>
       {rows.length ? (
         <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">

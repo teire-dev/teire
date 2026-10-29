@@ -61,6 +61,7 @@ export async function appShell(userId: string) {
       system: await systemLine(),
       runs: [],
       changes: [],
+      prs: [],
     };
   const db = database();
   const [inst] = await db
@@ -87,13 +88,19 @@ export async function appShell(userId: string) {
       ),
     )
     .orderBy(asc(repos.fullName));
-  const [live, system, recent, reaching] = await Promise.all([
+  const [live, system, recent, prs, reaching] = await Promise.all([
     liveRepos(current.id, userId),
     systemLine(),
     // For ⌘K: the installation's latest runs and the changes that reach its code.
     database().execute<{ id: string; full_name: string; group_key: string | null; status: string }>(sql`
       select x.id, r.full_name, x.group_key, x.status from runs x join repos r on r.id = x.repo_id
       where r.installation_id = ${current.id} and ${readable(userId)} and x.kind = 'fix' order by x.created_at desc limit 12`),
+    // For Ask Teire's @-mentions: the installation's open Teire PRs.
+    database().execute<{ number: number; full_name: string; change_key: string }>(sql`
+      select a.number, r.full_name, a.change_key from artifacts a join repos r on r.id = a.repo_id
+      where r.installation_id = ${current.id} and ${readable(userId)} and a.kind = 'pr' and a.state = 'open'
+        and a.number is not null
+      order by a.updated_at desc limit 20`),
     database().execute<{ change_id: string; title: string | null; repos: number }>(sql`
       select f.change_id, c.title, count(distinct f.repo_id)::int as repos
       from findings f join repos r on r.id = f.repo_id left join changes c on c.id = f.change_id
@@ -113,6 +120,7 @@ export async function appShell(userId: string) {
     system,
     runs: recent.rows.map((r) => ({ id: r.id, repo: r.full_name, groupKey: r.group_key, status: r.status })),
     changes: reaching.rows.map((c) => ({ id: c.change_id, title: c.title ?? c.change_id, repos: c.repos })),
+    prs: prs.rows.map((p) => ({ number: p.number, repo: p.full_name, group: p.change_key })),
   };
 }
 
