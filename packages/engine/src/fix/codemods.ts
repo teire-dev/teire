@@ -17,6 +17,8 @@ export interface MigrationNote {
   replacement: string | null;
   quote: string;
   url: string;
+  /** From a changelog the repository named in its own teire.yml (S16.1). */
+  declared?: boolean;
 }
 
 export interface CodemodEdit {

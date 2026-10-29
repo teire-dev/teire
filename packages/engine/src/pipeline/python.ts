@@ -10,7 +10,7 @@ import { type PyProject, readPythonInventory } from "../inventory/python";
 import type { RepoTree } from "../inventory/tree";
 import { locatePython } from "../locate/python";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
-import { gatherPypiNotes, githubRepoOf } from "../notes/sources";
+import { declaredPackageNotes, gatherPypiNotes, githubRepoOf } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
@@ -192,6 +192,22 @@ export async function fixPyDependency(
 
   input.onEvent?.({ step: "transaction", detail: `reading release notes ${from} → ${target}` });
   const { sources } = await gatherPypiNotes(a.instance.name, from, target, options);
+  // The repository's own teire.yml changelog for this package goes first (S16.1), never public (D53).
+  const declared = await declaredPackageNotes(
+    input.declaredSources,
+    a.instance.name,
+    from,
+    target,
+    pypiScheme,
+  );
+  if (declared.source) {
+    const discovered = sources.filter((src) => src.kind !== "changelog");
+    sources.splice(0, sources.length, declared.source, ...discovered);
+    input.onEvent?.({
+      step: "transaction",
+      detail: `release notes from this repository's teire.yml: ${declared.source.url}`,
+    });
+  } else if (declared.note) input.onEvent?.({ step: "transaction", detail: declared.note });
   // The package's own repository, from the notes' sources, so docs prefer its library.
   const repoOf = sources.map((src) => githubRepoOf(src.url)).find(Boolean);
   const sourceRepo = repoOf ? `${repoOf.owner}/${repoOf.repo}` : undefined;
@@ -212,7 +228,9 @@ export async function fixPyDependency(
       )
     : null;
   const notes = extraction ? migrationNotes(extraction) : [];
-  const behaviour = extraction ? noteRecords(extraction, { name: a.instance.name, from, to: target }) : [];
+  const behaviour = extraction
+    ? noteRecords(extraction, { name: a.instance.name, from, to: target, ecosystem: "pypi" })
+    : [];
   if (extraction)
     input.onEvent?.({
       step: "transaction",

@@ -1,3 +1,4 @@
+import type { DeclaredSource } from "../config";
 import { PRIORITY } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import type { MigrationNote } from "../fix/codemods";
@@ -19,7 +20,7 @@ import type { RepoTree } from "../inventory/tree";
 import type { ModelPrice, TokenFactory } from "../llm";
 import { type LocateResult, locateTs } from "../locate/ts";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
-import { gatherNpmNotes, githubRepoOf } from "../notes/sources";
+import { declaredPackageNotes, gatherNpmNotes, githubRepoOf } from "../notes/sources";
 import { getNpmVersion, getPackageInfo, supplyChainSignals } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { chooseTarget, type TargetDecision, withTargetMax } from "../registry/target";
@@ -208,6 +209,8 @@ export interface FixDependencyInput {
   movedNotes?: MigrationNote[];
   /** Other upgrades the agent may ask dependabot-core's updater for (S15.2). */
   requestUpgrade?: RequestUpgrade;
+  /** teire.yml `sources`: a package's own changelog the repository names (S16.1). */
+  declaredSources?: DeclaredSource[];
   /** teire.yml `verify` commands, which replace the detected ones per workspace (C8). */
   verify?: { workspace: string; install?: string; typecheck?: string; test?: string }[];
   /**
@@ -238,6 +241,22 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
   // Release notes, read by Nemotron 3 Ultra behind the quote gate.
   input.onEvent?.({ step: "transaction", detail: `reading release notes ${from} → ${target}` });
   const { sources } = await gatherNpmNotes(a.instance.name, from, target, options);
+  // The repository's own teire.yml changelog for this package goes first (S16.1), never public (D53).
+  const declared = await declaredPackageNotes(
+    input.declaredSources,
+    a.instance.name,
+    from,
+    target,
+    npmScheme,
+  );
+  if (declared.source) {
+    const discovered = sources.filter((src) => src.kind !== "changelog");
+    sources.splice(0, sources.length, declared.source, ...discovered);
+    input.onEvent?.({
+      step: "transaction",
+      detail: `release notes from this repository's teire.yml: ${declared.source.url}`,
+    });
+  } else if (declared.note) input.onEvent?.({ step: "transaction", detail: declared.note });
   const docs = documentsForReading(sources);
   const extraction = docs.length
     ? await extractNotes(
@@ -255,7 +274,9 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
       )
     : null;
   const notes = extraction ? migrationNotes(extraction) : [];
-  const behaviour = extraction ? noteRecords(extraction, { name: a.instance.name, from, to: target }) : [];
+  const behaviour = extraction
+    ? noteRecords(extraction, { name: a.instance.name, from, to: target, ecosystem: "npm" })
+    : [];
   if (extraction)
     input.onEvent?.({
       step: "transaction",

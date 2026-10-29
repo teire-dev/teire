@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { retractedChange } from "../src/registry/deprecation";
 import { GO_PSEUDO, retractionOf, retractionsFromEditJson } from "../src/registry/go";
 
 // The shape `go mod edit -json` prints for a go.mod with a single, a range and a block of retractions.
@@ -44,5 +45,19 @@ describe("Go retractions (D-40)", () => {
       expect(GO_PSEUDO.test(v), v).toBe(true);
     for (const v of ["v1.2.3", "v1.2.3-rc.1", "v0.0.0", "v1.2.3-20220906"])
       expect(GO_PSEUDO.test(v), v).toBe(false);
+  });
+
+  it("records a retracted installed version as a contract-valid change with the authors' reason", () => {
+    const r = retractionOf("v1.1.3", ranges);
+    expect(r).not.toBeNull();
+    const change = retractedChange("example.com/lib", "v1.1.3", r as NonNullable<typeof r>, {
+      url: "https://proxy.golang.org/example.com/lib/@v/v1.2.0.mod",
+      contentHash: "b".repeat(64),
+      checkedAt: "2026-10-29T00:00:00.000Z",
+    });
+    expect(change.kind).toBe("package-yanked");
+    expect(change.applicability.class).toBe("notice");
+    expect(change.summary).toContain("Data race in the pool");
+    expect(change.applicability.affectedRange).toBe(">=v1.1.0, <=v1.1.5");
   });
 });

@@ -130,7 +130,7 @@ export function goRetractions(path: string): Promise<Retractions> {
         ranges: retractionsFromEditJson((await runGo(["mod", "edit", "-json", "go.mod"], dir, home)).stdout),
         source: {
           url,
-          contentHash: `sha256:${createHash("sha256").update(text).digest("hex")}`,
+          contentHash: createHash("sha256").update(text).digest("hex"),
           checkedAt: new Date().toISOString(),
         },
       };

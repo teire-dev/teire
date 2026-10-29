@@ -481,7 +481,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       out.push(`Comparing the public API of ${instance.version} and ${run.target}: ${counts.join("; ")}.`);
     for (const note of input.notes.slice(0, noteCap))
       out.push(
-        `${blockquote(sanitizeUpstream(`${note.quote.slice(0, 400)}${note.quote.length > 400 ? "…" : ""}`, upstreamRepoOf(note.url)))}\n>\n> — ${link(urlLabel(note.url) ?? "release notes", note.url)}`,
+        `${blockquote(sanitizeUpstream(`${note.quote.slice(0, 400)}${note.quote.length > 400 ? "…" : ""}`, upstreamRepoOf(note.url)))}\n>\n> — ${link(urlLabel(note.url) ?? "release notes", note.url)}${note.declared ? " (from this repository's teire.yml)" : ""}`,
       );
 
     // The commits between the versions, as dependabot-core's updater listed them (D-13).

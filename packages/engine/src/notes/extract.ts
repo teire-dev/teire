@@ -4,7 +4,7 @@ import { cancelSignal } from "../cancel";
 import { normalizeForQuote } from "../catalog/markdown";
 import { sha256 } from "../catalog/source";
 import { NOTES } from "../constants";
-import { type ChangeV2, changeV2 } from "../contract";
+import { type ChangeV2, changeV2, type Ecosystem } from "../contract";
 import { type ModelPrice, nemotronOptions, nemotronSampling, receiptFor, type TokenFactory } from "../llm";
 import type { NoteSource } from "./sources";
 
@@ -250,8 +250,9 @@ export async function extractNotes(
 /** Behaviour, default and requirement changes become candidate records; the rest guide the fix. */
 export function noteRecords(
   extraction: ExtractionResult,
-  context: { name: string; from: string; to: string },
+  context: { name: string; from: string; to: string; ecosystem?: Ecosystem },
 ): ChangeV2[] {
+  const ecosystem = context.ecosystem ?? "npm";
   return extraction.items
     .filter(
       (i) => i.kind === "behaviour-change" || i.kind === "default-change" || i.kind === "requirement-change",
@@ -259,8 +260,8 @@ export function noteRecords(
     .map((i) =>
       changeV2.parse({
         schemaVersion: 2,
-        id: `npm/${context.name}/${context.from}..${context.to}/notes/${sha256(i.quote).slice(0, 12)}`,
-        subject: { kind: "package", ecosystem: "npm", name: context.name },
+        id: `${ecosystem}/${context.name}/${context.from}..${context.to}/notes/${sha256(i.quote).slice(0, 12)}`,
+        subject: { kind: "package", ecosystem, name: context.name },
         kind: "behaviour-change",
         title: i.summary.slice(0, 200),
         summary: i.summary,
@@ -290,7 +291,8 @@ export function noteRecords(
           model: { id: extraction.receipt.model, promptHash: extraction.promptHash },
           confidence: { overall: 0.6 },
         },
-        visibility: "public",
+        // A source the repository named in its own teire.yml is never public (D53).
+        visibility: i.source.trustBasis === "repo-config" ? "private" : "public",
         status: "candidate",
       }),
     );
@@ -312,5 +314,6 @@ export function migrationNotes(extraction: ExtractionResult) {
       replacement: i.replacement,
       quote: i.quote,
       url: i.source.url,
+      ...(i.source.trustBasis === "repo-config" ? { declared: true } : {}),
     }));
 }

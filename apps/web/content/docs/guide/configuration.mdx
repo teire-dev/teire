@@ -101,9 +101,11 @@ sources:
     changelogUrl: https://docs.example.com/changelog
   - host: api.example.com
     specUrl: https://github.com/example/openapi/blob/main/openapi.yaml
+  - package: "@acme/sdk"
+    changelogUrl: https://github.com/acme/sdk/blob/main/CHANGELOG.md
 ```
 
-With a `changelogUrl`, Teire reads that page with Nemotron under the same quote rule as any provider, for this repository only. With a `specUrl` (a file on GitHub), Teire diffs your API's OpenAPI spec and matches the operations your code calls. `package` is accepted beside `host` but is not read yet.
+With a `changelogUrl`, Teire reads that page with Nemotron under the same quote rule as any provider, for this repository only. With a `specUrl` (a file on GitHub), Teire diffs your API's OpenAPI spec and matches the operations your code calls. With `package` and a `changelogUrl`, that changelog becomes the release notes for every upgrade of the package, read ahead of what Teire would find itself and quoted in the PR as coming from your `teire.yml`. A GitHub or GitLab file page is read as its raw file. What it says stays with this repository: it never reaches the public catalog.
 
 </Tab>
 <Tab value="Monorepo">

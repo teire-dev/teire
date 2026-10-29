@@ -10,7 +10,7 @@ import type { RepoTree } from "../inventory/tree";
 import { locateJvm } from "../locate/jvm";
 import { locateBytecode, removedOverloads } from "../locate/jvm-bytecode";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
-import { gatherJvmNotes } from "../notes/sources";
+import { declaredPackageNotes, gatherJvmNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { mavenFlavor } from "../registry/maven-version";
@@ -212,6 +212,22 @@ export async function fixJvmDependency(
 
   input.onEvent?.({ step: "transaction", detail: `reading release notes ${from} → ${target}` });
   const { sources, notes: notesWhy } = await gatherJvmNotes(a.instance.name, from, target, options);
+  // The repository's own teire.yml changelog for this package goes first (S16.1), never public (D53).
+  const declared = await declaredPackageNotes(
+    input.declaredSources,
+    a.instance.name,
+    from,
+    target,
+    mavenScheme,
+  );
+  if (declared.source) {
+    const discovered = sources.filter((src) => src.kind !== "changelog");
+    sources.splice(0, sources.length, declared.source, ...discovered);
+    input.onEvent?.({
+      step: "transaction",
+      detail: `release notes from this repository's teire.yml: ${declared.source.url}`,
+    });
+  } else if (declared.note) input.onEvent?.({ step: "transaction", detail: declared.note });
   if (!sources.length)
     input.onEvent?.({
       step: "transaction",
@@ -234,7 +250,9 @@ export async function fixJvmDependency(
       )
     : null;
   const notes = extraction ? migrationNotes(extraction) : [];
-  const behaviour = extraction ? noteRecords(extraction, { name: a.instance.name, from, to: target }) : [];
+  const behaviour = extraction
+    ? noteRecords(extraction, { name: a.instance.name, from, to: target, ecosystem: "maven" })
+    : [];
   if (extraction)
     input.onEvent?.({
       step: "transaction",

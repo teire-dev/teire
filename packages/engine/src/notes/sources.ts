@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sha256 } from "../catalog/source";
+import type { DeclaredSource } from "../config";
 import { JVM, RUST, SURFACE } from "../constants";
 import { guardedFetch } from "../net/fetch";
 import { getNpmVersion, type RegistryOptions } from "../registry/clients";
@@ -29,7 +30,7 @@ import { type ChangelogEntry, sliceChangelog } from "./slicer";
 export interface NoteSource {
   kind: "changelog" | "migration-guide" | "release-notes";
   url: string;
-  trustBasis: "registry" | "source-repo";
+  trustBasis: "registry" | "source-repo" | "repo-config";
   text: string;
   contentHash: string;
   checkedAt: string;
@@ -467,4 +468,51 @@ async function pomScmUrl(
   const tag = (name: string) => new RegExp(`<${name}>\\s*([^<]+?)\\s*</${name}>`).exec(parent ?? "")?.[1];
   const [g, a, v] = [tag("groupId"), tag("artifactId"), tag("version")];
   return g && a && v ? pomScmUrl(g, a, v, depth + 1) : scm;
+}
+
+/** A GitHub or GitLab file page as the raw file it shows; anything else unchanged. */
+export function rawFileUrl(url: string) {
+  return url
+    .replace(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\//, "https://raw.githubusercontent.com/$1/$2/")
+    .replace(/^(https:\/\/gitlab\.com\/.+?)\/-\/blob\//, "$1/-/raw/");
+}
+
+/**
+ * The repository's own `teire.yml` source for a package (S16.1, `sources: [{package, changelogUrl}]`):
+ * its changelog, fetched under the same rules as discovery (https, that host only, a byte cap) and
+ * sliced to the range. It goes ahead of what discovery finds and is never public (D53). A GitHub or
+ * GitLab file page is read as the raw file it shows.
+ */
+export async function declaredPackageNotes(
+  declared: readonly DeclaredSource[] | undefined,
+  name: string,
+  from: string,
+  to: string,
+  scheme: VersionScheme,
+): Promise<{ source: NoteSource | null; note: string | null }> {
+  const d = declared?.find((s) => s.package === name && s.changelogUrl);
+  if (!d?.changelogUrl) return { source: null, note: null };
+  const raw = rawFileUrl(d.changelogUrl);
+  const res = await guardedFetch(raw, {
+    allowHosts: [new URL(raw).hostname],
+    maxBytes: MAX_NOTE_BYTES,
+  }).catch(() => null);
+  if (res?.status !== 200)
+    return {
+      source: null,
+      note: `teire.yml's changelog for ${name}: ${res ? `HTTP ${res.status}` : "unreachable"}`,
+    };
+  const text = res.text();
+  return {
+    source: {
+      kind: "changelog",
+      url: d.changelogUrl,
+      trustBasis: "repo-config",
+      text,
+      contentHash: sha256(text),
+      checkedAt: new Date().toISOString(),
+      entries: sliceChangelog(text, scheme, from, to),
+    },
+    note: null,
+  };
 }

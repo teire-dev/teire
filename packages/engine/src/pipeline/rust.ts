@@ -9,7 +9,7 @@ import { type RustProject, readRustInventory } from "../inventory/rust";
 import type { RepoTree } from "../inventory/tree";
 import { locateRust } from "../locate/rust";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
-import { gatherCargoNotes } from "../notes/sources";
+import { declaredPackageNotes, gatherCargoNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { crateSignals } from "../registry/supply-chain";
@@ -152,6 +152,22 @@ export async function fixRustDependency(
 
   input.onEvent?.({ step: "transaction", detail: `reading release notes ${from} → ${target}` });
   const { sources } = await gatherCargoNotes(a.instance.name, from, target, options);
+  // The repository's own teire.yml changelog for this package goes first (S16.1), never public (D53).
+  const declared = await declaredPackageNotes(
+    input.declaredSources,
+    a.instance.name,
+    from,
+    target,
+    cargoScheme,
+  );
+  if (declared.source) {
+    const discovered = sources.filter((src) => src.kind !== "changelog");
+    sources.splice(0, sources.length, declared.source, ...discovered);
+    input.onEvent?.({
+      step: "transaction",
+      detail: `release notes from this repository's teire.yml: ${declared.source.url}`,
+    });
+  } else if (declared.note) input.onEvent?.({ step: "transaction", detail: declared.note });
   const docs = documentsForReading(sources);
   const extraction = docs.length
     ? await extractNotes(
@@ -169,7 +185,9 @@ export async function fixRustDependency(
       )
     : null;
   const notes = extraction ? migrationNotes(extraction) : [];
-  const behaviour = extraction ? noteRecords(extraction, { name: a.instance.name, from, to: target }) : [];
+  const behaviour = extraction
+    ? noteRecords(extraction, { name: a.instance.name, from, to: target, ecosystem: "cargo" })
+    : [];
   if (extraction)
     input.onEvent?.({
       step: "transaction",

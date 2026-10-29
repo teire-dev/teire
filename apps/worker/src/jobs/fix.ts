@@ -1066,6 +1066,7 @@ async function packageOutcome(
     ...(transaction ? { transaction } : {}),
     ...(co?.findings.length ? { extraFindings: co.findings, extraRecords: co.records } : {}),
     ...(co?.notes.length ? { movedNotes: co.notes } : {}),
+    ...(config.sources.length ? { declaredSources: config.sources } : {}),
     ...(transaction && resolved
       ? {
           requestUpgrade: upgradeRequests(

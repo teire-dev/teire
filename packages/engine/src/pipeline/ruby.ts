@@ -9,7 +9,7 @@ import { type RubyProject, readRubyInventory } from "../inventory/ruby";
 import type { RepoTree } from "../inventory/tree";
 import { locateRuby } from "../locate/ruby";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
-import { gatherRubyNotes } from "../notes/sources";
+import { declaredPackageNotes, gatherRubyNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
@@ -187,6 +187,22 @@ export async function fixRubyDependency(
 
   input.onEvent?.({ step: "transaction", detail: `reading release notes ${from} → ${target}` });
   const { sources, notes: notesWhy } = await gatherRubyNotes(a.instance.name, from, target, options);
+  // The repository's own teire.yml changelog for this package goes first (S16.1), never public (D53).
+  const declared = await declaredPackageNotes(
+    input.declaredSources,
+    a.instance.name,
+    from,
+    target,
+    rubygemsScheme,
+  );
+  if (declared.source) {
+    const discovered = sources.filter((src) => src.kind !== "changelog");
+    sources.splice(0, sources.length, declared.source, ...discovered);
+    input.onEvent?.({
+      step: "transaction",
+      detail: `release notes from this repository's teire.yml: ${declared.source.url}`,
+    });
+  } else if (declared.note) input.onEvent?.({ step: "transaction", detail: declared.note });
   if (!sources.length)
     input.onEvent?.({
       step: "transaction",
@@ -209,7 +225,9 @@ export async function fixRubyDependency(
       )
     : null;
   const notes = extraction ? migrationNotes(extraction) : [];
-  const behaviour = extraction ? noteRecords(extraction, { name: a.instance.name, from, to: target }) : [];
+  const behaviour = extraction
+    ? noteRecords(extraction, { name: a.instance.name, from, to: target, ecosystem: "rubygems" })
+    : [];
   if (extraction)
     input.onEvent?.({
       step: "transaction",

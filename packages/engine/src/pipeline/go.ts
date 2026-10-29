@@ -15,7 +15,7 @@ import { type GoProject, readGoInventory } from "../inventory/go";
 import type { RepoTree } from "../inventory/tree";
 import { locateGo } from "../locate/go";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
-import { gatherGoNotes } from "../notes/sources";
+import { declaredPackageNotes, gatherGoNotes } from "../notes/sources";
 import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange, retractedChange } from "../registry/deprecation";
 import {
@@ -339,6 +339,16 @@ export async function fixGoDependency(
 
   input.onEvent?.({ step: "transaction", detail: `reading release notes ${from} → ${target}` });
   const { sources } = await gatherGoNotes(targetPath, from, target, options);
+  // The repository's own teire.yml changelog for this package goes first (S16.1), never public (D53).
+  const declared = await declaredPackageNotes(input.declaredSources, targetPath, from, target, goScheme);
+  if (declared.source) {
+    const discovered = sources.filter((src) => src.kind !== "changelog");
+    sources.splice(0, sources.length, declared.source, ...discovered);
+    input.onEvent?.({
+      step: "transaction",
+      detail: `release notes from this repository's teire.yml: ${declared.source.url}`,
+    });
+  } else if (declared.note) input.onEvent?.({ step: "transaction", detail: declared.note });
   const docs = documentsForReading(sources);
   const extraction = docs.length
     ? await extractNotes(
@@ -356,7 +366,9 @@ export async function fixGoDependency(
       )
     : null;
   const notes = extraction ? migrationNotes(extraction) : [];
-  const behaviour = extraction ? noteRecords(extraction, { name: targetPath, from, to: target }) : [];
+  const behaviour = extraction
+    ? noteRecords(extraction, { name: targetPath, from, to: target, ecosystem: "go" })
+    : [];
   if (extraction)
     input.onEvent?.({
       step: "transaction",
