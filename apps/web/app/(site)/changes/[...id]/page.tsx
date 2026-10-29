@@ -1,18 +1,28 @@
 import type { ChangeV2 } from "@teire/engine/contract";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Quote as QuoteIcon, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { AskContext } from "@/components/assistant/assistant-provider";
-import { BrandLogo } from "@/components/brand-logo";
+import { YourReach } from "@/components/catalog/your-reach";
 import { ChangeFeedback } from "@/components/change-feedback";
+import { GhostFlow } from "@/components/flow/ghost-flow";
+import { StaticFlow } from "@/components/flow/static-flow";
+import { Mark } from "@/components/teire/mark";
+import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
-import { ecosystemOf } from "@/lib/brands";
+import { ecosystemOf, STACK } from "@/lib/brands";
 import { getChange, providerNames } from "@/lib/catalog";
+import type { FlowGraph } from "@/lib/flow/model";
 import { providerLogo } from "@/lib/logos";
+import { until } from "@/lib/time";
 import { ClassChip } from "../class-chip";
 
-/** One change with every source quoted, what Teire searches for, and how it was read (C10). */
+/**
+ * One change (plan revision 3.4, V5): its life as a flow (source, what changes, the date, your code,
+ * the fix), every source quoted, what Teire looks for as chips, and Fix in all for your repositories.
+ */
 /** Where a source's words come from, so a reader can weigh them (`trustBasis`, plan revision 3.3, U5). */
 const TRUST_BASIS: Record<string, string> = {
   registry: "from the package registry",
@@ -26,10 +36,16 @@ const TRUST_BASIS: Record<string, string> = {
 export default function ChangePage({ params }: PageProps<"/changes/[...id]">) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-12">
-      <Link href="/changes" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/changes" className="text-sm text-ink-3 hover:text-ink">
         ← All changes
       </Link>
-      <Suspense fallback={<div className="h-80 animate-pulse rounded-lg bg-muted" aria-hidden />}>
+      <Suspense
+        fallback={
+          <div className="flex h-80 items-center justify-center rounded-xl bg-sheet shadow-card" aria-hidden>
+            <GhostFlow tiles={4} />
+          </div>
+        }
+      >
         <Change params={params} />
       </Suspense>
     </main>
@@ -54,6 +70,8 @@ function matcher(s: ChangeV2["signatures"][number]) {
 }
 
 async function Change({ params }: { params: PageProps<"/changes/[...id]">["params"] }) {
+  // The date tile counts down from now, so this renders per request (the record itself is cached).
+  await connection();
   const { id } = await params;
   const [record, names] = await Promise.all([
     getChange(id.map(decodeURIComponent).join("/")),
@@ -72,92 +90,140 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
   const ownerName = provider ? (names[provider] ?? provider) : record.subject.name;
   const from = record.signatures.find((s) => s.kind === "string-literal")?.value ?? a.fromVersion ?? null;
 
+  const host = record.sources[0] ? new URL(record.sources[0].url).host : null;
+  const when = a.effectiveOn ?? null;
+  const graph: FlowGraph = {
+    tiles: [
+      {
+        id: "source",
+        entity: "change",
+        state:
+          record.status === "quarantined"
+            ? "failed"
+            : record.status === "candidate"
+              ? "not_proven"
+              : "proven",
+        label: host ?? "Its source",
+        meta:
+          record.status === "quarantined"
+            ? "quote failed"
+            : record.status === "candidate"
+              ? "computed"
+              : "quote checked",
+        ...(logo ? { brand: { label: ownerName, light: logo.light, dark: logo.dark } } : {}),
+      },
+      {
+        id: "what",
+        entity: "update",
+        state: "done",
+        label: record.replacement
+          ? record.replacement.value
+          : (a.toVersion ?? record.kind.replace(/-/g, " ")),
+        ...(from ? { meta: `from ${from}` } : {}),
+      },
+      ...(when
+        ? [
+            {
+              id: "when",
+              entity: "check" as const,
+              state: "not_proven" as const,
+              label: when.slice(0, 10),
+              caption: until(when),
+            },
+          ]
+        : []),
+      {
+        id: "code",
+        entity: "code",
+        state: record.signatures.length ? "done" : "skipped",
+        label: "Your code",
+        meta: record.signatures.length
+          ? `${record.signatures.length} thing${record.signatures.length === 1 ? "" : "s"} to find`
+          : "by hand",
+      },
+      {
+        id: "fix",
+        entity: "fix",
+        state: "pending",
+        label: record.replacement?.codemod ? "Swapped in code" : "Nemotron fixes",
+        ...(record.replacement?.codemod ? {} : { brand: STACK.nemotron }),
+      },
+    ],
+    links: [],
+  };
+  graph.links = graph.tiles.slice(1).map((t, i) => ({
+    from: graph.tiles[i]?.id as string,
+    to: t.id,
+    state: t.state === "skipped" ? "skipped" : t.state === "pending" ? "pending" : "done",
+  }));
+
   return (
     <article className="flex flex-col gap-8">
       <AskContext kind="change" id={record.id} label={record.title.slice(0, 60)} />
       <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {logo ? <BrandLogo light={logo.light} dark={logo.dark} alt="" className="h-4" /> : null}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
+          {logo ? <Mark brand={{ label: ownerName, light: logo.light, dark: logo.dark }} size="sm" /> : null}
           {ownerHref ? (
-            <Link href={ownerHref} className="entity-link hover:text-foreground">
+            <Link href={ownerHref} className="hover:text-ink hover:underline">
               {ownerName}
             </Link>
           ) : (
             <span>{ownerName}</span>
           )}
           <ClassChip value={a.class} />
-          <span>{record.kind.replace(/-/g, " ")}</span>
+          {record.status === "candidate" ? (
+            <StatusChip tone="attention">not confirmed by its source</StatusChip>
+          ) : null}
+          {record.status === "quarantined" ? (
+            <StatusChip tone="broke">quote failed · never applied</StatusChip>
+          ) : null}
+          <YourReach changeId={record.id} />
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight">{record.title}</h1>
-        <p className="text-subtle">{record.summary}</p>
-        {record.status === "candidate" ? (
-          <p className="rounded-md bg-human-soft px-3 py-2 text-sm text-human">
-            Not confirmed by the source yet: Teire computed this from the published code, and no release note
-            quotes it. A fix for it is still proven in the sandbox like any other.
-          </p>
-        ) : record.status === "quarantined" ? (
-          <p className="rounded-md bg-affected-soft px-3 py-2 text-sm text-affected">
-            Unconfirmed: this record failed the quote check, so Teire never applies it to code.
-            {record.quarantineReasons.length ? ` ${record.quarantineReasons.join(" ")}` : ""}
-          </p>
+        <h1 className="heading text-3xl text-ink">{record.title}</h1>
+        <p className="text-ink-2">{record.summary}</p>
+        {record.status === "quarantined" && record.quarantineReasons.length ? (
+          <p className="font-mono text-xs text-broke">{record.quarantineReasons.join(" ")}</p>
         ) : null}
       </header>
 
-      {record.replacement || a.effectiveOn ? (
-        <section className="grid gap-px overflow-hidden rounded-lg bg-border shadow-card sm:grid-cols-2">
-          {record.replacement ? (
-            <div className="flex flex-col gap-2 bg-card p-5">
-              <p className="text-xs text-muted-foreground">Replacement</p>
-              <p className="font-mono text-lg">
-                {from ? (
-                  <span className="text-muted-foreground line-through decoration-affected/60">{from}</span>
-                ) : null}
-                {from ? " → " : ""}
-                {record.replacement.value}
-              </p>
-              {record.replacement.codemod ? (
-                <p className="text-xs text-muted-foreground">Teire makes this swap in code itself.</p>
-              ) : null}
-            </div>
-          ) : null}
-          {a.effectiveOn ? (
-            <div className="flex flex-col gap-2 bg-card p-5">
-              <p className="text-xs text-muted-foreground">
-                {a.class === "already-broken" ? "Stopped working" : "Effective"}
-              </p>
-              <p className="font-mono text-lg text-human">{a.effectiveOn.slice(0, 10)}</p>
-              {a.announcedOn ? (
-                <p className="text-xs text-muted-foreground">Announced {a.announcedOn.slice(0, 10)}</p>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+      <section className="rounded-xl bg-sheet p-5 shadow-card">
+        <StaticFlow graph={graph} size="sm" label={`${record.title}: from its source to your code`} />
+      </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">In the source&apos;s own words</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
+          <QuoteIcon className="size-4 text-ink-3" aria-hidden />
+          In its own words
+        </h2>
         {record.sources.map((s) => (
           <figure
             key={`${s.url}-${s.contentHash}`}
-            className="flex flex-col gap-2 rounded-lg bg-card p-4 shadow-card"
+            className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card"
           >
             {s.quote ? (
-              <blockquote className="border-l-2 pl-3 font-mono text-xs break-words text-subtle">
+              <blockquote className="border-l-2 border-rule-strong pl-3 font-mono text-xs break-words text-ink-2">
                 {s.quote}
               </blockquote>
             ) : null}
-            <figcaption className="text-xs text-muted-foreground">
+            <figcaption className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
               <a href={s.url} className="text-link hover:underline" rel="noreferrer">
                 {new URL(s.url).host}
-                {new URL(s.url).pathname}
-              </a>{" "}
-              · {TRUST_BASIS[s.trustBasis] ?? s.trustBasis} · checked {s.checkedAt.slice(0, 10)} · page hash{" "}
-              <span className="font-mono">{s.contentHash.slice(0, 12)}</span>
+                {new URL(s.url).pathname.length > 40
+                  ? `${new URL(s.url).pathname.slice(0, 39)}…`
+                  : new URL(s.url).pathname}
+              </a>
+              <span className="rounded-full bg-sunken px-2 py-0.5">
+                {TRUST_BASIS[s.trustBasis] ?? s.trustBasis}
+              </span>
+              <span className="font-mono">checked {s.checkedAt.slice(0, 10)}</span>
+              <span className="font-mono" title="page hash">
+                #{s.contentHash.slice(0, 10)}
+              </span>
             </figcaption>
           </figure>
         ))}
         {record.migrationNotes.length ? (
-          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-subtle">
+          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-ink-2">
             {record.migrationNotes.map((n) => (
               <li key={n.text}>{n.text}</li>
             ))}
@@ -166,36 +232,47 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium">What Teire searches your code for</h2>
-        <p className="font-mono text-xs break-words text-muted-foreground">
-          {record.signatures.length
-            ? record.signatures.map(matcher).join(" · ")
-            : "nothing to search for: check by hand"}
-        </p>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
+          <ScanSearch className="size-4 text-ink-3" aria-hidden />
+          What Teire looks for in your code
+        </h2>
+        {record.signatures.length ? (
+          <ul className="flex flex-wrap gap-1.5">
+            {record.signatures.map((sig) => (
+              <li
+                key={matcher(sig)}
+                className="rounded-md bg-sheet px-2 py-1 font-mono text-[11px] text-ink-2 shadow-tile ring-1 ring-rule"
+              >
+                {matcher(sig)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="font-mono text-xs text-ink-3">nothing to search for: checked by hand</p>
+        )}
       </section>
 
-      <section className="flex flex-col items-start justify-between gap-4 rounded-lg bg-card p-5 shadow-card sm:flex-row sm:items-center">
-        <div>
-          <p className="font-medium">Does this reach your code?</p>
-          <p className="text-sm text-muted-foreground">
-            Scan a public repository, or run the Teire CLI on your own checkout.
-          </p>
+      <section className="flex flex-col items-start justify-between gap-4 rounded-xl bg-hero p-6 text-hero-ink sm:flex-row sm:items-center">
+        <p className="display text-2xl">Does it reach your code?</p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="cta" shape="pill">
+            <Link href={`/app/changes?change=${encodeURIComponent(record.id)}`}>
+              Fix in all
+              <ArrowRight data-icon="inline-end" />
+            </Link>
+          </Button>
+          <Button asChild variant="hero" shape="pill">
+            <Link href="/scan">Scan a repo</Link>
+          </Button>
         </div>
-        <Button asChild>
-          <Link href="/scan">
-            Check a repository
-            <ArrowRight data-icon="inline-end" />
-          </Link>
-        </Button>
       </section>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-xs text-muted-foreground">
-        <p>
-          Read by{" "}
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-4 text-[11px] text-ink-3">
+        <p className="font-mono">
           {record.provenance.method === "model"
-            ? `a model (${record.provenance.model?.id ?? "unknown"}), then checked against the page`
-            : `code from a ${record.provenance.method}`}
-          . Record <span className="font-mono">{record.id}</span>.
+            ? `read by ${record.provenance.model?.id ?? "a model"} · checked against the page`
+            : `read by a ${record.provenance.method}`}{" "}
+          · {record.id}
         </p>
         <ChangeFeedback changeId={record.id} />
       </footer>
