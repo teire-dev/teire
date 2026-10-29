@@ -135,9 +135,13 @@ export function callSaid(name: string, input: Record<string, unknown>): string {
   }
 }
 
+/** Runs before the engine said "the root folder" named it "/" ("/: verified — …", "checking / (go)"). */
+const rootFolder = (line: string) =>
+  line.replace(/^\/: /, "the root folder: ").replace(/^checking \/ \(/, "checking the root folder (");
+
 function lineOf(e: Event): string | null {
   const p = (e.payload ?? {}) as Record<string, unknown>;
-  if (typeof p.detail === "string") return p.detail;
+  if (typeof p.detail === "string") return rootFolder(p.detail);
   if (typeof p.reason === "string") return p.reason;
   if (e.step === "resolver" && e.type === "started")
     return `${p.dependency} with ${p.packageManager} across ${(p.roots as string[] | undefined)?.length ?? 1} root${(p.roots as string[] | undefined)?.length === 1 ? "" : "s"}`;

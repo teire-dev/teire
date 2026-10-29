@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { Fragment } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { FLOW_STATE_LABEL, type FlowEntity, type FlowState, type FlowTile } from "@/lib/flow/model";
 import { cn } from "@/lib/utils";
@@ -148,6 +149,23 @@ export function TileSquare({
 }
 
 /** The words under (or beside) a tile: its label, its figure, and a caption when live, amber or red. */
+/** A path-like label (`github.com/BurntSushi/toml`) may wrap after each slash rather than run out of its box. */
+function breakable(label: string) {
+  if (!label.includes("/")) return label;
+  const parts = label.split("/");
+  return parts.map((part, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: the label's own segments, in order
+    <Fragment key={i}>
+      {part}
+      {i < parts.length - 1 ? (
+        <>
+          /<wbr />
+        </>
+      ) : null}
+    </Fragment>
+  ));
+}
+
 export function TileLabel({
   tile,
   size = "md",
@@ -162,12 +180,12 @@ export function TileLabel({
       <span
         data-flow
         className={cn(
-          "line-clamp-2 font-medium leading-tight text-ink",
+          "line-clamp-2 font-medium leading-tight text-ink [overflow-wrap:anywhere]",
           size === "sm" ? "text-xs" : "text-[13px]",
           tile.state === "pending" && "text-ink-2",
         )}
       >
-        {tile.label}
+        {breakable(tile.label)}
       </span>
       {tile.meta ? (
         <span data-flow className="font-mono text-[11px] leading-tight text-ink-3">

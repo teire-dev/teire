@@ -33,8 +33,13 @@ type TileNodeT = Node<TileData, "tile">;
 const GAP = 132;
 const ROW = 184;
 const SIZE = 64;
-/** Room the fitted view keeps around the tiles, in pixels: what a column count is measured against. */
-const SIDE = 56;
+/**
+ * Room the fitted view keeps around the tiles, in pixels: what a column count is measured against.
+ * A label is 144px under a 64px tile, so each side needs its 40px overhang and a little air, or the
+ * first and last labels are cut at the canvas edge (`github.com/BurntSushi/toml`).
+ */
+const EDGE = 48;
+const SIDE = EDGE * 2;
 
 function TileNode({ id, data }: NodeProps<TileNodeT>) {
   const { tile, selected, onSelect, flip } = data;
@@ -222,7 +227,10 @@ export function RunCanvas({
         preventScrolling={false}
         panOnScroll={false}
         fitView
-        fitViewOptions={{ padding: { top: "48px", bottom: "64px", left: "28px", right: "28px" }, maxZoom: 1 }}
+        fitViewOptions={{
+          padding: { top: "48px", bottom: "64px", left: `${EDGE}px`, right: `${EDGE}px` },
+          maxZoom: 1,
+        }}
         minZoom={0.4}
         proOptions={{ hideAttribution: true }}
         maxZoom={1.6}

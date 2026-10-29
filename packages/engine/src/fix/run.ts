@@ -449,9 +449,11 @@ export async function verifyProjects(input: {
   const results: OtherProject[] = [];
   const check = async ({ project, i }: (typeof queue)[number]) => {
     const name = project.root === "." ? "/" : project.root;
+    // The event lines are read on the run page, where "/" reads as punctuation.
+    const said = project.root === "." ? "the root folder" : project.root;
     input.onEvent?.({
       step: "verify",
-      detail: `checking ${name} (${project.ecosystem})${input.why ? `, ${input.why}` : ""}`,
+      detail: `checking ${said} (${project.ecosystem})${input.why ? `, ${input.why}` : ""}`,
     });
     // Each command's line as it finishes ("baseline: test exit 0 in 2214 ms"), as the lead's are (U2 review).
     const prefix = input.leadFirst && i === 0 ? "" : `[${name}] `;
@@ -495,13 +497,13 @@ export async function verifyProjects(input: {
     }
     if (!v) {
       const reason = `couldn't be checked (${forGitHub(failure, 200)})`;
-      input.onEvent?.({ step: "verify", detail: `${name}: ${reason}` });
+      input.onEvent?.({ step: "verify", detail: `${said}: ${reason}` });
       results[i] = unchecked(project.root, project.ecosystem, reason);
       return;
     }
     input.onEvent?.({
       step: "verify",
-      detail: `${name}: ${v.evidence.kind.replace(/_/g, " ")} — ${v.evidence.reasons.join("; ")}`,
+      detail: `${said}: ${v.evidence.kind.replace(/_/g, " ")} — ${v.evidence.reasons.join("; ")}`,
     });
     results[i] = {
       root: project.root,
