@@ -76,11 +76,23 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
   );
   const source = param(params.source);
   const cls = param(params.class);
+  // When it bites (plan revision 3.4, V5: the deadline filter): dated, the next 30 days, past, undated.
+  const when = param(params.when);
+  const soon = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  const day = (r: CatalogRow) => r.deadline?.slice(0, 10) ?? null;
+  const today0 = new Date().toISOString().slice(0, 10);
+  const byWhen = (r: CatalogRow) =>
+    !when ||
+    (when === "dated" && !!day(r)) ||
+    (when === "soon" && !!day(r) && (day(r) as string) >= today0 && (day(r) as string) <= soon) ||
+    (when === "past" && !!day(r) && (day(r) as string) < today0) ||
+    (when === "undated" && !day(r));
   const q = param(params.q)?.trim().toLowerCase() ?? "";
   const rows = all.filter(
     (r) =>
       (!source || sourceOf(r) === source) &&
       (!cls || r.class === cls) &&
+      byWhen(r) &&
       (!q || r.title.toLowerCase().includes(q) || r.id.toLowerCase().includes(q)),
   );
   // Every change can be reached a page at a time; a filter starts again from the first page.
@@ -88,7 +100,8 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
   const page = Math.min(pageCount, Math.max(1, Number(param(params.page)) || 1));
   const href = (next: Record<string, string | null>) => {
     const sp = new URLSearchParams();
-    for (const [k, v] of Object.entries({ source, class: cls, q: q || null, ...next })) if (v) sp.set(k, v);
+    for (const [k, v] of Object.entries({ source, class: cls, when, q: q || null, ...next }))
+      if (v) sp.set(k, v);
     return `${sp.size ? `/changes?${sp}` : "/changes"}#browse`;
   };
   const at = (n: number) => href({ page: n > 1 ? String(n) : null });
@@ -127,6 +140,7 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
           <form action="/changes" className="relative">
             {source ? <input type="hidden" name="source" value={source} /> : null}
             {cls ? <input type="hidden" name="class" value={cls} /> : null}
+            {when ? <input type="hidden" name="when" value={when} /> : null}
             <Search className="pointer-events-none absolute top-2 left-2.5 size-3.5 text-ink-3" aria-hidden />
             <Input
               name="q"
@@ -160,6 +174,17 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
               ...CLASSES.map((c) => ({ value: c.value, label: c.label, href: href({ class: c.value }) })),
             ]}
           />
+          <FilterSelect
+            label="When"
+            value={when ?? "all"}
+            options={[
+              { value: "all", label: "Any time", href: href({ when: null }) },
+              { value: "soon", label: "Next 30 days", href: href({ when: "soon" }) },
+              { value: "dated", label: "Has a date", href: href({ when: "dated" }) },
+              { value: "past", label: "Already past", href: href({ when: "past" }) },
+              { value: "undated", label: "No date", href: href({ when: "undated" }) },
+            ]}
+          />
           <span className="ml-auto font-mono text-xs text-ink-3">
             {pageCount > 1
               ? `${(page - 1) * PAGE + 1}–${(page - 1) * PAGE + shown.length} of ${rows.length}`
@@ -182,7 +207,8 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
               {list.map((r) => {
                 const key = sourceOf(r);
                 const logo = sourceLogo(key);
-                const raw = r.record.sources.find((s) => s.quote)?.quote;
+                const quoted = r.record.sources.find((s) => s.quote);
+                const raw = quoted?.quote;
                 const quote = raw ? plainQuote(raw) : null;
                 const from =
                   r.record.signatures.find((s) => s.kind === "string-literal")?.value ??
@@ -229,6 +255,15 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
                         <blockquote className="mt-2 border-l-2 border-rule-strong pl-3 text-sm break-words text-ink-2">
                           “{quote.length > 400 ? `${quote.slice(0, 400)}…` : quote}”
                         </blockquote>
+                        {quoted ? (
+                          <a
+                            href={quoted.url}
+                            rel="noreferrer"
+                            className="mt-1.5 ml-3 block w-fit font-mono text-[11px] text-ink-3 hover:text-ink"
+                          >
+                            {new URL(quoted.url).host} ›
+                          </a>
+                        ) : null}
                       </details>
                     ) : null}
                   </li>
