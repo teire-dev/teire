@@ -527,7 +527,7 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       );
       for (const m of run.moved.slice(0, 30))
         out.push(
-          `| \`${m.name}\` | ${m.removed ? `\`${m.from ?? "?"}\` removed` : `\`${m.from ?? "new"}\` → \`${m.to ?? "?"}\``} | ${m.removed ? "" : usageCell(m.yourCode)} |`,
+          `| \`${m.name}\` | ${m.removed ? `\`${m.from ?? "?"}\` removed` : `\`${m.from ?? "new"}\` → \`${m.to ?? "?"}\``} | ${m.requested ? `asked for by the fix agent: ${sanitizeUpstream(forGitHub(m.requested, 200), null).replace(/\|/g, "/").replace(/\n/g, " ")}` : m.removed ? "" : usageCell(m.yourCode)} |`,
         );
       if (run.moved.length > 30) out.push(`| and ${run.moved.length - 30} more | | |`);
     }

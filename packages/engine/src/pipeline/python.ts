@@ -246,6 +246,7 @@ export async function fixPyDependency(
     ],
     records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? [])],
+    ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
     targetDir: targetWheel.dir,
     targetPaths: new Set(),
     docs: async () =>

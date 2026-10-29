@@ -2,6 +2,8 @@ import { dirname, join } from "node:path";
 import type { DependencyInstance } from "../contract";
 import type { RustProject } from "../inventory/rust";
 import type { RepoTree } from "../inventory/tree";
+import type { IndexLine } from "../registry/cargo";
+import { cargoScheme } from "../registry/versions";
 import type { Transaction } from "./transaction";
 import type { ManifestEdit } from "./upgrade-js";
 
@@ -167,4 +169,51 @@ export function cargoTransaction(
           : `Cargo.lock does not lock ${instance.name} ${target}`,
     },
   };
+}
+
+/** A crate the target needs moved before it can resolve, and where to. */
+export interface CargoBlocker {
+  name: string;
+  from: string;
+  to: string;
+  /** The target's own requirement on it. */
+  need: string;
+  /** The repository's requirement on it. */
+  have: string;
+}
+
+/**
+ * The crates a Cargo target is blocked on (D-9). dependabot-core's Cargo updater has no full unlock
+ * ("Full unlock checks aren't implemented for Rust"), so it can't move a crate the repository also
+ * declares when the target needs it higher: it lands below the target. Cargo keeps two versions of
+ * a crate only when they are in different semver-compatible lines and neither `links` a native
+ * library, so a blocker is a direct dependency whose locked version the target's requirement
+ * excludes, with an allowed version in the same line (or any allowed version, for a `links`
+ * crate). Each is raised to the lowest published version the target accepts. Different lines that
+ * can coexist aren't blockers here: if their types meet in the code, the agent asks for the move.
+ */
+export function cargoBlockers(
+  target: IndexLine,
+  declared: readonly DependencyInstance[],
+  linesOf: (crate: string) => readonly IndexLine[],
+): CargoBlocker[] {
+  const out: CargoBlocker[] = [];
+  for (const dep of target.deps) {
+    if (dep.kind === "dev" || dep.optional) continue;
+    const crate = dep.package ?? dep.name;
+    const inst = declared.find((d) => d.direct && d.name === crate && d.version && d.declaredRange);
+    if (!inst?.version || !inst.declaredRange) continue;
+    if (cargoScheme.satisfies(inst.version, dep.req)) continue;
+    const lines = linesOf(crate);
+    const links = lines.some((l) => l.links);
+    const allowed = lines
+      .filter((l) => !l.yanked && cargoScheme.valid(l.vers) && !cargoScheme.isPrerelease(l.vers))
+      .map((l) => l.vers)
+      .filter((v) => cargoScheme.satisfies(v, dep.req) && cargoScheme.compare(v, inst.version as string) > 0)
+      .filter((v) => links || !cargoScheme.breaking(inst.version as string, v))
+      .sort((a, b) => cargoScheme.compare(a, b));
+    const to = allowed[0];
+    if (to) out.push({ name: crate, from: inst.version, to, need: dep.req, have: inst.declaredRange });
+  }
+  return out;
 }

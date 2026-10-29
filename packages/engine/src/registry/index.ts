@@ -1,3 +1,4 @@
+export { cratesIndexLines, type IndexLine } from "./cargo";
 export {
   getNpmVersion,
   getPackageInfo,

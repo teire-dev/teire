@@ -6,6 +6,26 @@ import { prepareSide, type SideRun } from "../verify/run";
 import { gradleFloorFrom, WRAPPER_PROPERTIES, wrapperRaise } from "./gradle-wrapper";
 import type { ManifestEdit } from "./upgrade-js";
 
+/**
+ * Another dependency moved on the agent's request (S15.2): dependabot-core's updater runs on the
+ * run's current dependency files and answers with the files to write, or why it won't.
+ */
+export type RequestUpgrade = (request: {
+  name: string;
+  version: string;
+  why: string;
+  /** The dependency files as this run has them now (the after-tree the job starts from). */
+  files: Record<string, string>;
+}) => Promise<
+  | {
+      ok: true;
+      to: string;
+      files: { path: string; content: string | null }[];
+      moved: { name: string; from: string | null; to: string | null; removed?: boolean }[];
+    }
+  | { ok: false; reason: string }
+>;
+
 /** A co-upgrade's effect on the repository's code: its located breaking changes, or why it wasn't diffed. */
 export interface CoMovedUsage {
   diffed: boolean;
@@ -38,6 +58,8 @@ export interface Transaction {
     removed?: boolean;
     /** What the move means for the repository's own code, once diffed and located (D-10). */
     yourCode?: CoMovedUsage;
+    /** Asked for by the fix agent, and why (S15.2): not part of the updater's first change. */
+    requested?: string;
   }[];
   /** Symlinks the change makes (the updater's `symlink_target`), created in the sandbox by `commands`. */
   links?: { path: string; target: string }[];

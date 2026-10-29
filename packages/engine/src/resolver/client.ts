@@ -61,6 +61,8 @@ export async function resolve(
     /** A token for this one repository with contents:read (D106), or none for a public repository. */
     token?: string;
     timeoutSec?: number;
+    /** How long to wait for the result, queue included (an agent's request waits less than a run). */
+    waitMs?: number;
     onState?: (state: string) => void;
   },
   lead: { ecosystem: Ecosystem; name: string },
@@ -73,7 +75,7 @@ export async function resolve(
     ...(input.token ? { token: input.token } : {}),
     ...(input.timeoutSec ? { timeoutSec: input.timeoutSec } : {}),
   });
-  const deadline = Date.now() + MAX_WAIT_MS;
+  const deadline = Date.now() + (input.waitMs ?? MAX_WAIT_MS);
   let last = "";
   for (;;) {
     // A cancelled run stops its updater job too (U1): the host drops it or kills it.

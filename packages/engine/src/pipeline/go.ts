@@ -295,6 +295,7 @@ export async function fixGoDependency(
     ],
     records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? [])],
+    ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
     targetDir,
     targetPaths: new Set(),
     docs: goDocsLookup(targetPath, target, targetDir),

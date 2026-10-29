@@ -17,6 +17,8 @@ export interface IndexLine {
   features: Record<string, string[]>;
   features2?: Record<string, string[]>;
   deps: { name: string; req: string; kind?: string; optional?: boolean; package?: string }[];
+  /** A native library the crate links; Cargo allows one crate per `links` value in a build. */
+  links?: string;
 }
 
 /** `rand` → `ra/nd/rand`, `cc` → `2/cc`, `syn` → `3/s/syn`. */

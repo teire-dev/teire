@@ -244,6 +244,7 @@ export async function fixRubyDependency(
     ],
     records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? [])],
+    ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
     targetDir: "",
     targetPaths: new Set(),
     // The target gem itself: its upgrade guide and README sections, then lib/ definitions.

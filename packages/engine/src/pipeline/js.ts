@@ -3,7 +3,7 @@ import type { ChangeV2, DependencyInstance } from "../contract";
 import type { MigrationNote } from "../fix/codemods";
 import { lookupDocs } from "../fix/context7";
 import { type FixRun, runFix } from "../fix/run";
-import type { Transaction } from "../fix/transaction";
+import type { RequestUpgrade, Transaction } from "../fix/transaction";
 import { jsTransaction } from "../fix/upgrade-js";
 import { composeFixPullRequest, type RepoRef } from "../github/compose";
 import {
@@ -204,6 +204,8 @@ export interface FixDependencyInput {
   extraFindings?: FindingDraft[];
   /** Those packages' change records, so the agent sees their before and after signatures. */
   extraRecords?: ChangeV2[];
+  /** Other upgrades the agent may ask dependabot-core's updater for (S15.2). */
+  requestUpgrade?: RequestUpgrade;
   /** teire.yml `verify` commands, which replace the detected ones per workspace (C8). */
   verify?: { workspace: string; install?: string; typecheck?: string; test?: string }[];
   /**
@@ -290,6 +292,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     ],
     records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? [])],
+    ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
     targetDir: targetLayout.link.dir,
     targetPaths: new Set([
       ...Object.keys(targetSurface.surface.symbols),

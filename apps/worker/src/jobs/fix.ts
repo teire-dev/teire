@@ -8,10 +8,12 @@ import { FIX, RUNS, SCAN } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
 import {
   type CoMovedUsage,
+  cargoBlockers,
   cargoFeatureOverlay,
   coMovedFindings,
   coMovedToDiff,
   type FixRun,
+  type RequestUpgrade,
   type Transaction,
   usageCell,
   usageOf,
@@ -58,11 +60,14 @@ import {
   type GoAssessment,
   repoInstances,
 } from "@teire/engine/pipeline";
+import { cratesIndexLines } from "@teire/engine/registry";
 import {
   GRADLE_WRAPPER_FILE,
   isDependencyFile,
+  type JobInput,
   jobSettings,
   PACKAGE_MANAGER,
+  type ResolverResult,
   ResolverUnavailableError,
   readDependabotConfig,
   resolverTransaction,
@@ -396,18 +401,21 @@ const NO_TRANSITIVE_RUNG: Partial<Record<Ecosystem, string>> = {
  * named stop, nothing is cancelled with the reason, an outage queues; below the target becomes the
  * target (D103), and a security fix above the lowest published one becomes the floor.
  */
-async function resolverTransactionFor(
-  ctx: WorkerContext,
-  repo: { id: number; installationId: number | null; isPrivate: boolean | null },
+/**
+ * The resolver job's settings for this package, shared by every job a run asks for (the first, the
+ * Cargo chain's, the agent's requests): its manager, every root that manager covers (npm and Yarn
+ * roots share npm_and_yarn), and the repository's own settings. Null where Teire's own transaction
+ * decides (D104) or the updater is off for this ecosystem.
+ */
+function resolverJobBase(
+  repo: { isPrivate: boolean | null },
   ecosystem: Ecosystem,
-  packageName: string,
-  target: string,
   assessment: Assessment<AssessedProject>,
   matching: Assessment<AssessedProject>[],
   config: TeireConfig,
   tree: RepoTree,
   common: Common,
-): Promise<Transaction | { cap: { version: string; reason: string; floor?: boolean } } | null> {
+): { base: Omit<JobInput, "shape">; conflicts: string[] } | null {
   const manager = resolverManager(assessment.project.manager);
   const keep =
     !manager ||
@@ -415,7 +423,6 @@ async function resolverTransactionFor(
     dependabotCannotParse(tree, assessment.project) ||
     (ecosystem === "go" && assessment.decision?.kind === "upgrade" && assessment.decision.isMajor);
   if (keep || !manager || !resolverDecides(ecosystem)) return null;
-  // Every root the same Dependabot package manager covers (npm and Yarn roots share npm_and_yarn).
   const dependabotManager = PACKAGE_MANAGER[manager];
   const roots = [
     ...new Set(
@@ -431,7 +438,142 @@ async function resolverTransactionFor(
     updateFor(readDependabotConfig(tree), manager, assessment.project.root),
     config,
   );
-  for (const c of conflicts) common.onEvent?.({ step: "transaction", detail: `config: ${c}` });
+  return {
+    base: {
+      manager,
+      ecosystem,
+      repo: `${common.repo.owner}/${common.repo.repo}`,
+      commit: common.repo.baseSha,
+      roots,
+      ...options,
+      ...(repo.isPrivate ? { repoPrivate: true } : {}),
+    },
+    conflicts,
+  };
+}
+
+const bareVersion = (v: string | null) => v?.replace(/^v(?=\d)/, "") ?? null;
+
+/**
+ * Why a change the updater returned isn't committable, or null: it runs repository code, so its
+ * events are untrusted and only dependency files come back; the Gradle wrapper only with a version
+ * raise in its properties.
+ */
+function notDependencyFiles(
+  r: Extract<ResolverResult, { kind: "change" }>,
+  ecosystem: Ecosystem,
+  lead: string,
+  tree: RepoTree,
+): string | null {
+  const scope = { ecosystem, moved: [lead, ...r.moved.map((m) => m.name)] };
+  const unexpected = r.files.filter((f) => !isDependencyFile(f.path, scope)).map((f) => f.path);
+  if (unexpected.length)
+    return `the updater's change includes files that aren't dependency files (${unexpected.slice(0, 5).join(", ")}); Teire doesn't commit them`;
+  if (r.files.some((f) => GRADLE_WRAPPER_FILE.test(f.path))) {
+    const props = r.files.find((f) => f.path.endsWith("gradle/wrapper/gradle-wrapper.properties"));
+    if (!props || !wrapperRaiseOnly(tree.read(props.path) ?? null, props.content))
+      return "the updater changed the Gradle wrapper beyond its distribution version; Teire doesn't commit that";
+  }
+  return null;
+}
+
+/**
+ * D-9's chain. dependabot-core's Cargo updater can't raise another crate a target needs ("Full
+ * unlock checks aren't implemented for Rust"), so Teire raises each blocker in its own job and then
+ * moves the lead on top of those files, each job starting from the one before. Null when nothing
+ * blocks or a step doesn't land where it must; the caller then caps below the target (D103).
+ */
+async function cargoChained(
+  ctx: WorkerContext,
+  repo: { id: number; installationId: number | null; isPrivate: boolean | null },
+  base: Omit<JobInput, "shape">,
+  overlay: { path: string; content: string }[],
+  lead: string,
+  target: string,
+  assessment: Assessment<AssessedProject>,
+  tree: RepoTree,
+  common: Common,
+): Promise<Extract<ResolverResult, { kind: "change" }> | null> {
+  const line = (await cratesIndexLines(lead).catch(() => [])).find((l) => l.vers === target);
+  if (!line) return null;
+  const declared = (assessment.project as RustProject).instances.filter((i) => i.direct);
+  const wanted = [...new Set(line.deps.map((d) => d.package ?? d.name))].filter((n) =>
+    declared.some((d) => d.name === n),
+  );
+  const index = new Map(
+    await Promise.all(wanted.map(async (n) => [n, await cratesIndexLines(n).catch(() => [])] as const)),
+  );
+  const blockers = cargoBlockers(line, declared, (c) => index.get(c) ?? []).slice(0, FIX.maxUpgradeRequests);
+  if (!blockers.length) return null;
+  const files = new Map(overlay.map((f) => [f.path, f.content]));
+  const moved = new Map<string, Extract<ResolverResult, { kind: "change" }>["moved"][number]>();
+  const step = async (dependency: string, version: string) => {
+    if (files.size > FIX.maxOverlayFiles || [...files.values()].some((c) => c.length > FIX.maxOverlayChars)) {
+      common.onEvent?.({
+        step: "transaction",
+        detail: `the chained job for ${dependency} can't start: its files are over the updater's overlay limits`,
+      });
+      return null;
+    }
+    const done = await resolveForRepo(
+      ctx,
+      repo,
+      {
+        ...base,
+        shape: { kind: "version", dependency, target: version },
+        ...(files.size ? { overlay: [...files].map(([path, content]) => ({ path, content })) } : {}),
+      },
+      { ecosystem: "cargo", name: dependency },
+      common.runId,
+    );
+    const r = done?.result;
+    if (r?.kind !== "change" || bareVersion(r.leadVersion) !== bareVersion(version)) {
+      common.onEvent?.({
+        step: "transaction",
+        detail: `the chained job for ${dependency} ${version} didn't land there${r?.kind === "stop" ? ` (${forGitHub(r.message, 200)})` : ""}`,
+      });
+      return null;
+    }
+    const unexpected = notDependencyFiles(r, "cargo", dependency, tree);
+    if (unexpected) throw new ResolverStopError("unexpected_file", unexpected);
+    for (const f of r.files) if (f.content !== null && !f.encoding) files.set(f.path, f.content);
+    for (const m of r.moved) moved.set(m.name, m);
+    return r;
+  };
+  for (const b of blockers) {
+    common.onEvent?.({
+      step: "transaction",
+      detail: `${lead} ${target} requires ${b.name} ${b.need} and this repository holds ${b.name} at ${b.have}; dependabot-core's Cargo updater can't move both in one job, so ${b.name} moves to ${b.to} first`,
+    });
+    if (!(await step(b.name, b.to))) return null;
+  }
+  const last = await step(lead, target);
+  if (!last) return null;
+  // The commit carries every chained file: the blockers' changes under the lead's.
+  return {
+    ...last,
+    files: [...files].map(([path, content]) => ({ path, content })),
+    moved: [...moved.values()],
+  };
+}
+
+async function resolverTransactionFor(
+  ctx: WorkerContext,
+  repo: { id: number; installationId: number | null; isPrivate: boolean | null },
+  ecosystem: Ecosystem,
+  packageName: string,
+  target: string,
+  assessment: Assessment<AssessedProject>,
+  matching: Assessment<AssessedProject>[],
+  config: TeireConfig,
+  tree: RepoTree,
+  common: Common,
+): Promise<Transaction | { cap: { version: string; reason: string; floor?: boolean } } | null> {
+  const job = resolverJobBase(repo, ecosystem, assessment, matching, config, tree, common);
+  if (!job) return null;
+  for (const c of job.conflicts) common.onEvent?.({ step: "transaction", detail: `config: ${c}` });
+  const { base } = job;
+  const roots = base.roots;
   // The Cargo pre-step (D104): features the target removed are dropped from the updater's input.
   const removedFeatures =
     ecosystem === "cargo"
@@ -451,11 +593,7 @@ async function resolverTransactionFor(
     ctx,
     repo,
     {
-      manager,
-      ecosystem,
-      repo: `${common.repo.owner}/${common.repo.repo}`,
-      commit: common.repo.baseSha,
-      roots,
+      ...base,
       shape:
         assessment.purpose === "security"
           ? {
@@ -464,9 +602,7 @@ async function resolverTransactionFor(
               advisories: securityAdvisories(packageName, assessment.records, target),
             }
           : { kind: "version", dependency: packageName, target },
-      ...options,
       ...(overlay.length ? { overlay } : {}),
-      ...(repo.isPrivate ? { repoPrivate: true } : {}),
     },
     { ecosystem, name: packageName },
     common.runId,
@@ -515,64 +651,66 @@ async function resolverTransactionFor(
     throw new ResolverNothingError(
       [`no update to ${target} (the updater's log has the details)`, ...r.warnings].join("; "),
     );
-  // The updater runs repository code, so its events are untrusted: only dependency files come back.
-  const scope = { ecosystem, moved: [packageName, ...r.moved.map((m) => m.name)] };
-  const unexpected = r.files.filter((f) => !isDependencyFile(f.path, scope)).map((f) => f.path);
-  if (unexpected.length)
-    throw new ResolverStopError(
-      "unexpected_file",
-      `the updater's change includes files that aren't dependency files (${unexpected.slice(0, 5).join(", ")}); Teire doesn't commit them`,
-    );
-  // The wrapper's jar and scripts come back only with a Gradle version raise in its properties.
-  if (r.files.some((f) => GRADLE_WRAPPER_FILE.test(f.path))) {
-    const props = r.files.find((f) => f.path.endsWith("gradle/wrapper/gradle-wrapper.properties"));
-    if (!props || !wrapperRaiseOnly(tree.read(props.path) ?? null, props.content))
-      throw new ResolverStopError(
-        "unexpected_file",
-        "the updater changed the Gradle wrapper beyond its distribution version; Teire doesn't commit that",
-      );
-  }
+  const unexpected = notDependencyFiles(r, ecosystem, packageName, tree);
+  if (unexpected) throw new ResolverStopError("unexpected_file", unexpected);
   if (!r.leadVersion)
     throw new ResolverStopError(
       "unreported_version",
       `the updater changed ${r.files.map((f) => f.path).join(", ")} without saying which version of ${packageName} it chose`,
     );
-  const bare = (v: string | null) => v?.replace(/^v(?=\d)/, "") ?? null;
-  if (bare(r.leadVersion) !== bare(target)) {
+  const bare = bareVersion;
+  let change = r;
+  // D-9: Cargo has no full unlock, so a crate this repository holds too low for the target keeps the
+  // lead below it. Teire raises that crate first, then moves the lead on top of those files.
+  if (bare(r.leadVersion) !== bare(target) && ecosystem === "cargo" && assessment.purpose !== "security") {
+    const chained = await cargoChained(
+      ctx,
+      repo,
+      base,
+      overlay,
+      packageName,
+      target,
+      assessment,
+      tree,
+      common,
+    );
+    if (chained) change = chained;
+  }
+  if (bare(change.leadVersion) !== bare(target)) {
     // A security job's lowest resolvable fix is above the lowest published one (that one doesn't
     // resolve here): it becomes the target, as Dependabot's own security update would.
-    if (assessment.purpose === "security" && r.leadVersion) {
+    if (assessment.purpose === "security" && change.leadVersion) {
       // The final check before a security PR claims a fix: the version must be outside every range.
       const still = assessment.records.filter(
-        (a) => a.kind === "security-advisory" && stillAffected(a, r.leadVersion as string, ecosystem),
+        (a) => a.kind === "security-advisory" && stillAffected(a, change.leadVersion as string, ecosystem),
       );
       if (still.length)
         throw new ResolverStopError(
           "fix_not_resolvable",
-          `the lowest ${packageName} the updater can resolve here is ${r.leadVersion}, which ${still.map((a) => a.id.split("/").at(-1)).join(", ")} still affect`,
+          `the lowest ${packageName} the updater can resolve here is ${change.leadVersion}, which ${still.map((a) => a.id.split("/").at(-1)).join(", ")} still affect`,
         );
-      const reason = `${target} is the lowest version that fixes the advisory, but dependabot-core's updater can resolve ${packageName} only from ${r.leadVersion} in this repository`;
+      const reason = `${target} is the lowest version that fixes the advisory, but dependabot-core's updater can resolve ${packageName} only from ${change.leadVersion} in this repository`;
       common.onEvent?.({ step: "transaction", detail: reason });
-      return { cap: { version: r.leadVersion, reason, floor: true } };
+      return { cap: { version: change.leadVersion, reason, floor: true } };
     }
     // D103: below T becomes the target, diffed again; the reason goes on the run and the PR.
     const reason = belowTargetReason(
       ecosystem,
       packageName,
       assessment.instance.version,
-      r.leadVersion,
+      change.leadVersion,
       target,
-      r.warnings,
+      change.warnings,
     );
     common.onEvent?.({ step: "transaction", detail: reason });
-    return r.leadVersion ? { cap: { version: r.leadVersion, reason } } : null;
+    return change.leadVersion ? { cap: { version: change.leadVersion, reason } } : null;
   }
   common.onEvent?.({
     step: "transaction",
-    detail: `dependabot-core's updater changed ${r.files.map((f) => f.path).join(", ")} across ${roots.length} root${roots.length === 1 ? "" : "s"}${resolved.cached ? " (cached)" : ""}`,
+    detail: `dependabot-core's updater changed ${change.files.map((f) => f.path).join(", ")} across ${roots.length} root${roots.length === 1 ? "" : "s"}${resolved.cached ? " (cached)" : ""}`,
   });
   const tx = resolverTransaction(
-    r,
+    change,
     (path) => {
       try {
         return readFileSync(join(common.repoDir, path), "utf8");
@@ -603,6 +741,96 @@ async function resolverTransactionFor(
   return matching
     .filter((m) => m.project.manager === "gradle")
     .reduce((t, m) => withGradleLocks(t, m.project as JvmProject, packageName, target), raised);
+}
+
+/**
+ * The agent's `request_upgrade` (S15.2): another dependency this repository declares, moved by
+ * dependabot-core's updater on the run's current dependency files (the overlay), never by hand.
+ * Refused for the run's own package, an undeclared one, a version the registry check won't take
+ * (a downgrade, a cooldown, an ignore), and any change that isn't dependency files only.
+ */
+function upgradeRequests(
+  ctx: WorkerContext,
+  repo: { id: number; installationId: number | null; isPrivate: boolean | null },
+  assessment: Assessment<AssessedProject>,
+  matching: Assessment<AssessedProject>[],
+  config: TeireConfig,
+  tree: RepoTree,
+  common: Common,
+  assess: (extra: {
+    onlyPackage?: string;
+    targetMax?: { name: string; version: string; reason: string };
+    targetFloor?: { name: string; version: string };
+  }) => Promise<Assessment<AssessedProject>[]>,
+  lead: string,
+): RequestUpgrade {
+  const ecosystem = assessment.instance.ecosystem;
+  const roots = new Set(matching.map((m) => m.project.root));
+  return async ({ name, version, why, files }) => {
+    if (name === lead) return { ok: false, reason: `${name} is the package this run upgrades` };
+    const job = resolverJobBase(repo, ecosystem, assessment, matching, config, tree, common);
+    if (!job) return { ok: false, reason: `dependabot-core's updater doesn't decide ${ecosystem} here` };
+    let here: Assessment<AssessedProject>[];
+    try {
+      here = (
+        await assess({
+          onlyPackage: name,
+          targetMax: { name, version, reason: `asked for by the fix agent: ${why}` },
+          targetFloor: { name, version },
+        })
+      ).filter((a) => roots.has(a.project.root));
+    } catch (error) {
+      return { ok: false, reason: `couldn't read ${name}: ${forGitHub(String(error), 200)}` };
+    }
+    if (!here.length) return { ok: false, reason: `${name} isn't a dependency this repository declares` };
+    const decision = here.find((a) => a.decision?.kind === "upgrade")?.decision;
+    if (decision?.kind !== "upgrade") {
+      const other = here[0]?.decision;
+      return {
+        ok: false,
+        reason: `${name} can't move to ${version} here (${other?.kind === "blocked" ? other.reason : (other?.skipped[0]?.detail ?? "not newer than what it has")})`,
+      };
+    }
+    const overlay = Object.entries(files).map(([path, content]) => ({ path, content }));
+    if (overlay.length > FIX.maxOverlayFiles || overlay.some((f) => f.content.length > FIX.maxOverlayChars))
+      return {
+        ok: false,
+        reason: `this run's dependency files are over what the updater accepts on top of a checkout (${FIX.maxOverlayFiles} files, ${FIX.maxOverlayChars.toLocaleString("en")} characters each)`,
+      };
+    let done: Awaited<ReturnType<typeof resolveForRepo>>;
+    try {
+      done = await resolveForRepo(
+        ctx,
+        repo,
+        { ...job.base, shape: { kind: "version", dependency: name, target: decision.to }, overlay },
+        { ecosystem, name },
+        common.runId,
+        { timeoutSec: FIX.upgradeRequestTimeoutSec, waitMs: FIX.upgradeRequestWaitMs },
+      );
+    } catch (error) {
+      return { ok: false, reason: forGitHub(String(error), 300) };
+    }
+    const r = done?.result;
+    if (!r) return { ok: false, reason: "the worker has no resolver configured" };
+    if (r.kind === "stop") return { ok: false, reason: forGitHub(r.message, 300) };
+    if (r.kind !== "change") return { ok: false, reason: `the updater had nothing to change for ${name}` };
+    const unexpected = notDependencyFiles(r, ecosystem, name, tree);
+    if (unexpected) return { ok: false, reason: unexpected };
+    if (r.files.some((f) => f.encoding === "base64" || f.mode === "120000"))
+      return { ok: false, reason: "the change has binary files or links, which Teire doesn't apply mid-run" };
+    // The version the updater says it chose, as for the run's own job: none said, none applied.
+    if (!r.leadVersion)
+      return {
+        ok: false,
+        reason: `the updater changed files without saying which version of ${name} it chose`,
+      };
+    return {
+      ok: true,
+      to: r.leadVersion,
+      files: r.files.map((f) => ({ path: f.path, content: f.content })),
+      moved: r.moved,
+    };
+  };
 }
 
 /** A package group (`npm/openai/7.38.0`): re-assess that package, then upgrade and fix it. */
@@ -781,6 +1009,21 @@ async function packageOutcome(
       : {}),
     ...(transaction ? { transaction } : {}),
     ...(co?.findings.length ? { extraFindings: co.findings, extraRecords: co.records } : {}),
+    ...(transaction && resolved
+      ? {
+          requestUpgrade: upgradeRequests(
+            ctx,
+            repo,
+            assessment,
+            matching,
+            config,
+            tree,
+            common,
+            assess,
+            packageName,
+          ),
+        }
+      : {}),
     ...(run.fallbackFrom ? { fallbackFrom: run.fallbackFrom } : {}),
   };
   const result =

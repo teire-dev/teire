@@ -31,6 +31,8 @@ export async function resolveForRepo(
   input: JobInput,
   lead: { ecosystem: Ecosystem; name: string },
   runId?: string,
+  /** Shorter limits for a job asked for mid-run (the agent's request_upgrade). */
+  limits?: { timeoutSec: number; waitMs: number },
 ): Promise<ResolvedFor | null> {
   const config = resolverConfigFromEnv();
   if (!config) return null;
@@ -72,6 +74,7 @@ export async function resolveForRepo(
     {
       ...input,
       ...(token ? { token } : {}),
+      ...(limits ?? {}),
       onState: (state) => {
         if (runId) void appendEvent(ctx.db, runId, "resolver", state, {}).catch(() => undefined);
       },

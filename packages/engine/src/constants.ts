@@ -93,6 +93,17 @@ export const FIX = {
    * first, the rest listed with why they weren't.
    */
   maxCoMovedDiffed: 8,
+  /** Other dependencies the agent may ask dependabot-core's updater to move in one run (S15.2). */
+  maxUpgradeRequests: 2,
+  /**
+   * An agent's request waits for its job inside one attempt: the updater gets ten minutes and the
+   * request gives up after fifteen, queue included (a run's own job may take the full 20 and an hour).
+   */
+  upgradeRequestTimeoutSec: 600,
+  upgradeRequestWaitMs: 15 * 60_000,
+  /** The resolver host's overlay limits (`teire-resolver.py`): files per job and characters each. */
+  maxOverlayFiles: 20,
+  maxOverlayChars: 1_000_000,
   /** Lines kept after an error line, up to the next blank line (a rustc diagnostic with its `help:`). */
   errorContextLines: 30,
   maxErrorLines: 220,
