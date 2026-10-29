@@ -207,6 +207,12 @@
   --rule: #e3e7f0;
   --rule-strong: #cdd4e2;
   --hover: #eef1f7;
+  /* Series colours for charts only (usage by purpose): never a state, so no green, amber or red. */
+  --chart-1: #0047e0;
+  --chart-2: #7b93f5;
+  --chart-3: #0e9aa7;
+  --chart-4: #a463d6;
+  --chart-5: #94a0bb;
   --signal: #0047e0;
   --signal-soft: #e8efff;
   --proven: #0b7a4b;
@@ -258,6 +264,11 @@
   --rule: #1a2440;
   --rule-strong: #283456;
   --hover: #121b33;
+  --chart-1: #6b97ff;
+  --chart-2: #a6b7ff;
+  --chart-3: #3cc3cf;
+  --chart-4: #c995f0;
+  --chart-5: #6f7a96;
   --signal: #6b97ff;
   --signal-soft: #0e1b3d;
   --proven: #3ddc97;

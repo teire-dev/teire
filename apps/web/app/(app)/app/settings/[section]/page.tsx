@@ -1,25 +1,29 @@
 import { CONFIG_PR_KEYS } from "@teire/engine/config-keys";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { BulkFixMode } from "@/components/app/bulk-fix-mode";
+import { ConfigBoard } from "@/components/app/config-board";
 import { ConfigPrForm } from "@/components/app/config-pr-form";
 import { FixModeControl } from "@/components/app/fix-mode-control";
 import { InstallationFixMode } from "@/components/app/installation-fix-mode";
 import { RefreshInstallations } from "@/components/app/refresh-installations";
+import { TileSquare } from "@/components/flow/tile";
 import { GithubMark } from "@/components/icons";
-import { Kpi } from "@/components/teire/kpi";
+import { MarkStack } from "@/components/teire/mark";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { StackedActivityBars } from "@/components/ui/stacked-activity";
 import { myScope } from "@/lib/app-shell";
 import { assistantSpend } from "@/lib/assistant/budget";
 import { myInstallations } from "@/lib/dashboard";
 import { configCurrent } from "@/lib/fix-mode";
+import { languageMarks } from "@/lib/marks";
 import { getSession } from "@/lib/session";
 import { APP_SLUG, INSTALL_URL } from "@/lib/site";
-import { reposOf, usageOf } from "@/lib/workspace";
+import { reposOf, usageDaily, usageOf } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "../../gate";
 
 const SECTIONS = ["organization", "repositories", "installations", "usage"] as const;
@@ -38,18 +42,40 @@ export default function SettingsSectionPage(props: PageProps<"/app/settings/[sec
   );
 }
 
-/** A section: its title, a one-line subtitle, then its content (Factory's settings grammar). */
-function Part({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+/** A section: its title and, when it needs one, a chip of what it is about; then its content. */
+function Part({
+  title,
+  chip,
+  children,
+}: {
+  title: string;
+  chip?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-medium text-ink">{title}</h2>
-        <p className="text-sm text-ink-3">{subtitle}</p>
+        {chip}
       </div>
       {children}
     </section>
   );
 }
+
+const Chip = ({ children }: { children: React.ReactNode }) => (
+  <span className="rounded-full bg-sunken px-2.5 py-0.5 font-mono text-[11px] text-ink-3">{children}</span>
+);
+
+/** What each model call was for, in a legend's words. */
+const PURPOSE: Record<string, string> = {
+  fix: "Fixes",
+  notes: "Release notes",
+  triage: "Triage",
+  review: "Review",
+  "provider-page": "Provider pages",
+};
+const SERIES = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
 async function Body({ params }: PageProps<"/app/settings/[section]">) {
   await connection();
@@ -68,48 +94,53 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
       );
       return (
         <div className="flex flex-col gap-8">
-          <Part
-            title="Default fix mode"
-            subtitle={`What every repository of ${inst.login} follows unless its own setting or teire.yml says otherwise. Only an admin of ${inst.login} (or the account's owner) can change it; Teire checks on GitHub.`}
-          >
-            <div className="rounded-xl bg-sheet p-4 shadow-card">
-              <InstallationFixMode
-                installationId={inst.id}
-                mode={inst.defaultFixMode}
-                security={inst.securityFixMode}
-              />
-            </div>
+          <Part title="Default fix mode" chip={<Chip>{inst.login} admins only</Chip>}>
+            <InstallationFixMode
+              installationId={inst.id}
+              mode={inst.defaultFixMode}
+              security={inst.securityFixMode}
+            />
           </Part>
           <Part
             title="Organisation defaults"
-            subtitle={`Majors, plain bumps, PR limits and the schedule for every repository live in ${inst.login}/teire-config, changed through a pull request there.`}
+            chip={
+              config ? (
+                <Link href={`/app/repos/${config.fullName}/config`} className="hover:opacity-80">
+                  <Chip>{config.fullName}</Chip>
+                </Link>
+              ) : null
+            }
           >
             {config ? (
-              <div className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
-                <span className="text-sm text-ink-2">
-                  <Link
-                    href={`/app/repos/${config.fullName}/config`}
-                    className="font-mono text-ink hover:underline"
-                  >
-                    {config.fullName}
-                  </Link>{" "}
-                  holds them; each repository&apos;s Config tab shows which values came from it.
-                </span>
-                <ConfigPrForm
-                  repo={config.fullName}
-                  current={configCurrent(config.config, Object.keys(CONFIG_PR_KEYS))}
-                />
+              <div className="flex flex-col gap-4">
+                <div className="rounded-xl bg-sheet p-4 shadow-card">
+                  <ConfigPrForm
+                    repo={config.fullName}
+                    current={configCurrent(config.config, Object.keys(CONFIG_PR_KEYS))}
+                  />
+                </div>
+                {config.config ? (
+                  <ConfigBoard
+                    config={config.config as Record<string, unknown>}
+                    base={`/app/repos/${config.fullName}/config`}
+                  />
+                ) : null}
               </div>
             ) : (
-              <p className="rounded-xl bg-sheet p-4 text-sm text-ink-3 shadow-card">
-                No <span className="font-mono">{inst.login}/teire-config</span> repository Teire can read yet.
-                Create one with a <span className="font-mono">teire.yml</span> at its root and include it in
-                the installation to set defaults for every repository;{" "}
-                <a href="/docs/guide/configuration" className="text-link hover:underline">
-                  how
-                </a>
-                .
-              </p>
+              <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+                <TileSquare tile={{ entity: "repository", state: "pending", label: "" }} size="sm" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-sm text-ink-2">
+                    No <span className="font-mono">{inst.login}/teire-config</span> yet
+                  </span>
+                  <span className="font-mono text-[11px] text-ink-3">
+                    one teire.yml there sets every repository&apos;s defaults
+                  </span>
+                </span>
+                <Button asChild size="sm" variant="ghost" className="ml-auto">
+                  <a href="/docs/guide/configuration">How ›</a>
+                </Button>
+              </div>
             )}
           </Part>
         </div>
@@ -118,27 +149,23 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
     case "repositories": {
       const rows = await reposOf(mine.scope);
       return (
-        <Part
-          title="Fix mode per repository"
-          subtitle="Each repository's mode and where it was set; a teire.yml that sets it wins and locks the control."
-        >
-          <div className="flex justify-end">
-            <BulkFixMode repos={rows.map((r) => r.fullName)} />
-          </div>
+        <Part title="Fix mode per repository" chip={<BulkFixMode repos={rows.map((r) => r.fullName)} />}>
           <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
             {rows.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2">
                 <Link
                   href={`/app/repos/${r.fullName}`}
-                  className="min-w-0 truncate font-mono text-xs text-ink hover:underline"
+                  className="flex min-w-0 items-center gap-2.5 hover:underline"
                 >
-                  {r.fullName}
+                  <MarkStack brands={languageMarks(r.languages)} max={2} />
+                  <span className="truncate text-sm font-medium text-ink">{r.fullName.split("/")[1]}</span>
                 </Link>
                 <FixModeControl
                   repo={r.fullName}
                   mode={r.fixMode.mode}
                   origin={r.fixMode.origin}
                   file={r.fixMode.file}
+                  compact
                 />
               </li>
             ))}
@@ -147,31 +174,57 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
       );
     }
     case "usage": {
-      const [u, mineAsked] = await Promise.all([usageOf(mine.scope), assistantSpend(session.user.id)]);
+      const [u, daily, mineAsked] = await Promise.all([
+        usageOf(mine.scope),
+        usageDaily(mine.scope, 30),
+        assistantSpend(session.user.id),
+      ]);
       const cost = u.byPurpose.reduce((n, p) => n + p.costUsd, 0);
+      const order = [...daily.purposes].sort(
+        (a, b) =>
+          daily.series.reduce((n, d) => n + (d[b] ?? 0), 0) -
+          daily.series.reduce((n, d) => n + (d[a] ?? 0), 0),
+      );
+      const share = mineAsked.dailyCapUsd ? Math.min(1, mineAsked.todayUsd / mineAsked.dailyCapUsd) : 0;
       return (
-        <Part
-          title="Usage"
-          subtitle={`The last 30 days across ${inst.login}'s repositories; every figure comes from the runs' own receipts.`}
-        >
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-rule shadow-card md:grid-cols-3">
-            <Kpi label="Runs" value={u.runs} />
-            <Kpi label="Sandbox time (min)" value={Math.round(u.sandboxMs / 60_000)} />
-            {/* Dollars and cents: the count-up shows whole numbers only. */}
-            <div className="flex min-w-0 flex-col justify-between gap-3 bg-sheet p-4">
-              <span className="eyebrow">Model spend</span>
-              <span className="font-mono text-4xl leading-none font-medium tracking-tight text-ink tabular-nums">
-                ${cost.toFixed(2)}
-              </span>
-            </div>
+        <Part title="Usage" chip={<Chip>last 30 days · from the receipts</Chip>}>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Runs", value: u.runs.toLocaleString() },
+              { label: "Sandbox minutes", value: Math.round(u.sandboxMs / 60_000).toLocaleString() },
+              { label: "Model spend", value: `$${cost.toFixed(2)}` },
+            ].map((f) => (
+              <div key={f.label} className="flex flex-col gap-2 rounded-xl bg-sheet p-4 shadow-card">
+                <span className="text-[13px] text-ink-2">{f.label}</span>
+                <span className="font-mono text-[1.75rem] leading-none font-medium tracking-tight text-ink tabular-nums">
+                  {f.value}
+                </span>
+              </div>
+            ))}
           </div>
-          {u.byPurpose.length || mineAsked.replies ? (
+          {order.length ? (
+            <div className="rounded-xl bg-sheet p-4 shadow-card">
+              <StackedActivityBars
+                days={daily.series.map((d) => d.day)}
+                segments={order.slice(0, SERIES.length).map((p, i) => ({
+                  key: p,
+                  label: PURPOSE[p] ?? p,
+                  color: SERIES[i] as string,
+                  values: daily.series.map((d) => d[p] ?? 0),
+                }))}
+                prefix="$"
+                partialLast
+                partialNote="today"
+              />
+            </div>
+          ) : null}
+          {u.byPurpose.length ? (
             <div className="overflow-hidden rounded-xl bg-sheet shadow-card">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-rule text-left">
                     {["Purpose", "Calls", "Tokens", "Cost"].map((h) => (
-                      <th key={h} scope="col" className="eyebrow px-4 py-2 font-normal">
+                      <th key={h} scope="col" className="px-4 py-2 text-xs font-normal text-ink-3">
                         {h}
                       </th>
                     ))}
@@ -180,39 +233,30 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
                 <tbody className="divide-y divide-rule font-mono text-xs">
                   {u.byPurpose.map((p) => (
                     <tr key={p.purpose}>
-                      <td className="px-4 py-2 text-ink">{p.purpose}</td>
-                      <td className="px-4 py-2 tabular-nums text-ink-2">{p.calls.toLocaleString()}</td>
-                      <td className="px-4 py-2 tabular-nums text-ink-2">{p.tokens.toLocaleString()}</td>
-                      <td className="px-4 py-2 tabular-nums text-ink">${p.costUsd.toFixed(3)}</td>
+                      <td className="px-4 py-2 font-sans text-ink">{PURPOSE[p.purpose] ?? p.purpose}</td>
+                      <td className="px-4 py-2 text-ink-2 tabular-nums">{p.calls.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-ink-2 tabular-nums">{p.tokens.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-ink tabular-nums">${p.costUsd.toFixed(3)}</td>
                     </tr>
                   ))}
-                  {/* Ask Teire has its own budget, apart from fix runs (D127): this person's replies. */}
-                  {mineAsked.replies ? (
-                    <tr>
-                      <td className="px-4 py-2 text-ink">
-                        assistant <span className="font-sans text-ink-3">(your Ask Teire replies)</span>
-                      </td>
-                      <td className="px-4 py-2 tabular-nums text-ink-2">
-                        {mineAsked.replies.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 tabular-nums text-ink-2">
-                        {mineAsked.tokens.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 tabular-nums text-ink">${mineAsked.monthUsd.toFixed(3)}</td>
-                    </tr>
-                  ) : null}
                 </tbody>
               </table>
-              <p className="border-t border-rule px-4 py-2 text-xs text-ink-3">
-                Ask Teire today: ${mineAsked.todayUsd.toFixed(3)} of its ${mineAsked.dailyCapUsd.toFixed(2)}{" "}
-                daily budget, kept apart from fix runs so chatting never stops a fix.
-              </p>
             </div>
-          ) : (
-            <p className="rounded-xl bg-sheet p-4 text-sm text-ink-3 shadow-card">
-              No model call in the last 30 days.
-            </p>
-          )}
+          ) : null}
+          {/* Ask Teire has its own budget, apart from fix runs (D127): chatting never stops a fix. */}
+          <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-3 shadow-card">
+            <Sparkles className="size-4 shrink-0 text-ink-2" aria-hidden />
+            <span className="text-sm text-ink-2">Ask Teire today</span>
+            <span className="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-sunken" aria-hidden>
+              <span
+                className="block h-full rounded-full bg-signal"
+                style={{ width: `${Math.round(share * 100)}%` }}
+              />
+            </span>
+            <span className="font-mono text-xs text-ink tabular-nums">
+              ${mineAsked.todayUsd.toFixed(3)} / ${mineAsked.dailyCapUsd.toFixed(2)}
+            </span>
+          </div>
         </Part>
       );
     }
@@ -224,28 +268,28 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
 async function Installations({ userId }: { userId: string }) {
   const installs = await myInstallations(userId);
   return (
-    <Part
-      title="Installations"
-      subtitle="Where Teire is installed that GitHub says you can see. Repository access is changed on GitHub."
-    >
+    <Part title="Installations" chip={<RefreshInstallations />}>
       {installs.length ? (
-        <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {installs.map((i) => (
-            <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <li key={i.id} className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
               <span className="flex items-center gap-3">
-                <Avatar className="size-7">
+                <Avatar className="size-10 rounded-[10px]">
                   {i.avatarUrl ? <AvatarImage src={i.avatarUrl} alt="" /> : null}
                   <AvatarFallback className="text-xs">{i.login.slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <span className="text-sm">
-                  <span className="font-medium text-ink">{i.login}</span>
-                  <span className="text-ink-3">
-                    {" "}
-                    · {i.type === "Organization" ? "organisation" : "personal"} ·{" "}
-                    {i.selection === "all" ? "all repositories" : "selected repositories"}
-                    {i.suspendedAt ? " · suspended" : ""}
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium text-ink">{i.login}</span>
+                  <span className="font-mono text-[11px] text-ink-3">
+                    {i.type === "Organization" ? "organisation" : "personal"} ·{" "}
+                    {i.selection === "all" ? "all repos" : "selected repos"}
                   </span>
                 </span>
+                {i.suspendedAt ? (
+                  <span className="ml-auto rounded-full bg-attention-soft px-2 py-0.5 font-mono text-[10px] text-attention">
+                    suspended
+                  </span>
+                ) : null}
               </span>
               <a
                 href={
@@ -253,17 +297,28 @@ async function Installations({ userId }: { userId: string }) {
                     ? `https://github.com/organizations/${i.login}/settings/installations/${i.id}`
                     : `https://github.com/settings/installations/${i.id}`
                 }
-                className="flex items-center gap-1 text-sm text-link hover:underline"
+                className="flex items-center gap-1.5 border-t border-rule pt-3 text-xs text-ink-2 hover:text-ink"
               >
-                Change repository access on GitHub <ExternalLink className="size-3" aria-hidden />
+                <GithubMark className="size-3.5" />
+                Repository access <ExternalLink className="size-3" aria-hidden />
               </a>
             </li>
           ))}
+          <li>
+            <a
+              href={INSTALL_URL}
+              className="flex h-full min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rule-strong text-sm text-ink-2 hover:bg-hover hover:text-ink"
+            >
+              <Plus className="size-4" aria-hidden />
+              Another account
+            </a>
+          </li>
         </ul>
       ) : (
-        <div className="flex flex-col items-start gap-3 rounded-xl bg-sheet p-5 shadow-card">
-          <p className="text-sm text-ink-3">No installation you can see yet.</p>
-          <Button asChild shape="pill">
+        <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+          <TileSquare tile={{ entity: "repository", state: "pending", label: "" }} size="sm" />
+          <span className="text-sm text-ink-2">No installation you can see yet</span>
+          <Button asChild shape="pill" size="sm" className="ml-auto">
             <a href={INSTALL_URL}>
               <GithubMark className="size-4" />
               Install on GitHub
@@ -271,16 +326,12 @@ async function Installations({ userId }: { userId: string }) {
           </Button>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-3 text-xs text-ink-3">
-        <RefreshInstallations />
-        <span>
-          The list comes from GitHub. Installed somewhere new? Refresh.{" "}
-          <a href={`https://github.com/apps/${APP_SLUG}`} className="text-link hover:underline">
-            The app on GitHub
-          </a>
-          .
-        </span>
-      </div>
+      <a
+        href={`https://github.com/apps/${APP_SLUG}`}
+        className="w-fit font-mono text-[11px] text-ink-3 hover:text-ink"
+      >
+        github.com/apps/{APP_SLUG}
+      </a>
     </Part>
   );
 }

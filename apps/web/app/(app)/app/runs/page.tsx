@@ -2,20 +2,28 @@ import { and, eq, inArray, repos, runs, sql } from "@teire/db";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { RunRowItem } from "@/components/teire/run-row";
+import { FilterSelect } from "@/components/app/filter-select";
+import { TileSquare } from "@/components/flow/tile";
+import { Trail } from "@/components/flow/trail";
 import { myScope } from "@/lib/app-shell";
+import { runFlow } from "@/lib/flow/model";
+import { runFlowsOf } from "@/lib/run-flows";
 import { getSession } from "@/lib/session";
-import { cn } from "@/lib/utils";
+import { ago } from "@/lib/time";
 import { countRuns, NEEDS_YOU, repoNamesOf, runsOf } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "../gate";
 
 export const metadata = { title: "Runs" };
 
-const PAGE = 50;
+const PAGE = 30;
 
-/** The lists the Overview's sections go to, and the evidence a run ended with (plan revision 3.3, U3). */
+/**
+ * Runs (plan revision 3.4, V4): every run as its breadcrumb trail (repository, change, reach, update,
+ * fix, sandbox, checks, review, outcome), each step opening its evidence in place; three dropdown
+ * filters in the URL (the Overview's figures link here), paged.
+ */
 const SHOW = {
-  all: { label: "All", where: sql`true` },
+  all: { label: "All runs", where: sql`true` },
   "needs-you": { label: "Needs you", where: NEEDS_YOU },
   "open-prs": {
     label: "Open PRs",
@@ -42,7 +50,7 @@ export default function RunsPage({ searchParams }: PageProps<"/app/runs">) {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto h-96 w-full max-w-5xl animate-pulse rounded-xl bg-sheet shadow-card" />
+        <div className="mx-auto h-96 w-full max-w-6xl animate-pulse rounded-xl bg-sheet shadow-card" />
       }
     >
       <Runs searchParams={searchParams} />
@@ -81,62 +89,88 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
     const q = next.toString();
     return `/app/runs${q ? `?${q}` : ""}`;
   };
+  const flows = await runFlowsOf(
+    mine.scope,
+    rows.map((r) => r.id),
+  );
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <span className="eyebrow">Runs</span>
-        <h1 className="heading text-2xl text-ink">
-          {SHOW[show]?.label === "All" ? "Every run, newest first" : SHOW[show]?.label}
-          <span className="ml-2 font-mono text-sm text-ink-3">{total}</span>
-          {repo ? <span className="text-ink-3"> · {repo.split("/")[1]}</span> : null}
-        </h1>
-      </div>
-      <nav aria-label="Filter runs" className="flex flex-col gap-2">
-        <Chips
-          items={Object.entries(SHOW).map(([k, v]) => ({
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+      <h1 className="heading flex items-baseline gap-2 text-3xl text-ink">
+        Runs
+        <span className="font-mono text-base text-ink-3">{total}</span>
+      </h1>
+      <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Filter runs">
+        <FilterSelect
+          label="Show"
+          value={show}
+          options={Object.entries(SHOW).map(([k, v]) => ({
+            value: k,
             label: v.label,
             href: href({ show: k }),
-            on: show === k,
           }))}
         />
-        <Chips
-          items={[
-            { label: "Any evidence", href: href({ evidence: null }), on: !evidence },
+        <FilterSelect
+          label="Evidence"
+          value={evidence ?? "all"}
+          options={[
+            { value: "all", label: "Any evidence", href: href({ evidence: null }) },
             ...Object.entries(EVIDENCE).map(([k, label]) => ({
+              value: k,
               label,
               href: href({ evidence: k }),
-              on: evidence === k,
             })),
           ]}
         />
-        {repo ? (
-          <Chips items={[{ label: `${repo} ✕`, href: href({ repo: null }), on: true }]} />
-        ) : (
-          <details className="group w-fit">
-            <summary className="cursor-pointer list-none rounded-full bg-sheet px-3 py-1 text-xs text-ink-2 ring-1 ring-rule ring-inset hover:text-ink">
-              Repository ▾
-            </summary>
-            <div className="mt-2 flex max-w-3xl flex-wrap gap-1.5">
-              {names.map((n) => (
-                <Link
-                  key={n}
-                  href={href({ repo: n })}
-                  className="rounded-full bg-sheet px-2.5 py-0.5 font-mono text-[11px] text-ink-2 ring-1 ring-rule ring-inset hover:text-ink"
-                >
-                  {n.split("/")[1]}
-                </Link>
-              ))}
-            </div>
-          </details>
-        )}
-      </nav>
+        <FilterSelect
+          label="Repository"
+          value={repo ?? "all"}
+          options={[
+            { value: "all", label: "Every repository", href: href({ repo: null }) },
+            ...names.map((n) => ({ value: n, label: n.split("/")[1] ?? n, href: href({ repo: n }) })),
+          ]}
+        />
+        {show !== "all" || evidence || repo ? (
+          <Link href="/app/runs" className="px-2 text-xs text-ink-3 hover:text-ink">
+            Clear
+          </Link>
+        ) : null}
+      </div>
       {rows.length ? (
         <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-          {rows.map((r) => (
-            <RunRowItem key={r.id} row={r} href={`/runs/${r.id}`} />
-          ))}
+          {rows.map((r) => {
+            const input = flows.get(r.id);
+            return (
+              <li key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+                {input ? (
+                  <Trail
+                    graph={runFlow(input)}
+                    runHref={`/runs/${r.id}`}
+                    label={`The run on ${r.repo}`}
+                    className="flex-1"
+                  />
+                ) : (
+                  <span className="flex-1 truncate font-mono text-xs text-ink-3">{r.groupKey}</span>
+                )}
+                <Link
+                  href={`/runs/${r.id}`}
+                  className="shrink-0 font-mono text-[11px] text-ink-3 hover:text-ink"
+                  title={r.createdAt.toISOString()}
+                >
+                  {r.status === "queued" ? "waiting" : ago(r.finishedAt ?? r.startedAt ?? r.createdAt)} ›
+                </Link>
+              </li>
+            );
+          })}
         </ul>
-      ) : null}
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+          <TileSquare tile={{ entity: "check", state: "pending", label: "" }} size="sm" />
+          <span className="text-sm text-ink-2">No run matches</span>
+          <Link href="/app/runs" className="ml-auto text-xs text-ink-2 hover:text-ink">
+            Clear
+          </Link>
+        </div>
+      )}
       {rows.length && pages > 1 ? (
         <nav aria-label="Pages" className="flex items-center justify-between font-mono text-xs text-ink-3">
           {page > 1 ? (
@@ -147,7 +181,7 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
             <span />
           )}
           <span>
-            page {page} of {pages}
+            {page} / {pages}
           </span>
           {page < pages ? (
             <Link href={href({ page: String(page + 1) })} className="text-ink hover:underline">
@@ -158,34 +192,6 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
           )}
         </nav>
       ) : null}
-      {rows.length ? null : (
-        <p className="rounded-xl bg-sheet px-4 py-10 text-center text-sm text-ink-3 shadow-card">
-          No run matches these filters.{" "}
-          <Link href="/app/runs" className="text-link hover:underline">
-            Show every run
-          </Link>
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Chips({ items }: { items: { label: string; href: string; on: boolean }[] }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {items.map((i) => (
-        <Link
-          key={i.label}
-          href={i.href}
-          aria-current={i.on ? "page" : undefined}
-          className={cn(
-            "rounded-full px-3 py-1 text-xs ring-1 ring-inset",
-            i.on ? "bg-ink text-sheet ring-ink" : "bg-sheet text-ink-2 ring-rule hover:text-ink",
-          )}
-        >
-          {i.label}
-        </Link>
-      ))}
     </div>
   );
 }
