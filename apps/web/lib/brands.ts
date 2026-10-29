@@ -31,6 +31,9 @@ export const SPONSORS = {
   github: { label: "GitHub", light: "/logos/github-light.svg", dark: "/logos/github-dark.svg" },
 } satisfies Record<string, Brand>;
 
+/** Teire's own mark as a brand, for the tile that is Teire in a flow (served from app/icon.svg). */
+export const TEIRE: Brand = { label: "Teire", light: "/icon.svg", dark: "/icon.svg" };
+
 /** What a run is built on, drawn on its tiles: the updater, the sandboxes, the model (plan 3.4). */
 export const STACK = {
   dependabot: {
