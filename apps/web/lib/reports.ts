@@ -72,19 +72,28 @@ export async function inventoryOf(scanId: string) {
 
 /** Finished public reports, newest first, for /scan. */
 export async function recentReports(limit = 8) {
-  return database()
-    .select({
-      id: publicScans.id,
-      repo: publicScans.repoFullName,
-      finishedAt: publicScans.finishedAt,
-      // The outer row by its table name: an unqualified column would bind to `findings` itself.
-      affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f
+  return (
+    database()
+      .select({
+        id: publicScans.id,
+        repo: publicScans.repoFullName,
+        finishedAt: publicScans.finishedAt,
+        // The outer row by its table name: an unqualified column would bind to `findings` itself.
+        affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f
         where f.scan_id = "public_scans"."scan_id" and f.verdict = 'affected')`,
-    })
-    .from(publicScans)
-    .where(eq(publicScans.status, "done"))
-    .orderBy(desc(publicScans.finishedAt))
-    .limit(limit);
+      })
+      .from(publicScans)
+      // A repository that is private now never shows here, even if it was public when scanned: its
+      // report already answers 404, so its name must not appear in the list either.
+      .where(
+        and(
+          eq(publicScans.status, "done"),
+          sql`not exists (select 1 from repos r where r.id = "public_scans"."repo_id" and r.is_private)`,
+        ),
+      )
+      .orderBy(desc(publicScans.finishedAt))
+      .limit(limit)
+  );
 }
 
 /** How many public scans and dry runs this person started in the last 24 hours. */

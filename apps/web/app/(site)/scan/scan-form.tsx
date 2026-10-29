@@ -10,7 +10,7 @@ export function ScanForm() {
   const [state, action, pending] = useActionState<ScanState, FormData>(startPublicScan, { error: null });
   return (
     <form action={action} className="flex flex-col gap-2">
-      <label htmlFor="repo" className="text-sm font-medium">
+      <label htmlFor="repo" className="sr-only">
         Public GitHub repository
       </label>
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -24,15 +24,15 @@ export function ScanForm() {
           defaultValue={state.input ?? ""}
           aria-invalid={state.error ? true : undefined}
           aria-describedby={state.error ? "repo-error" : undefined}
-          className="h-10 font-mono"
+          className="h-12 rounded-full border-0 bg-white px-5 font-mono text-ink shadow-float"
         />
-        <Button type="submit" size="lg" className="h-10 px-4" disabled={pending}>
+        <Button type="submit" variant="cta" size="xl" shape="pill" className="h-12" disabled={pending}>
           {pending ? "Starting…" : "Scan"}
           {pending ? null : <ArrowRight data-icon="inline-end" />}
         </Button>
       </div>
       {state.error ? (
-        <p id="repo-error" role="alert" className="text-sm text-affected">
+        <p id="repo-error" role="alert" className="text-sm text-[#ff9aa4]">
           {state.error}
         </p>
       ) : null}
