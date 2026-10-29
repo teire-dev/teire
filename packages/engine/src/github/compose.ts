@@ -70,7 +70,16 @@ function cell(side: SideResult, name: string) {
 export function runFlowImage(runUrl: string | undefined) {
   const image = runUrl?.replace(/\/runs\/([0-9a-f-]{36})$/, "/og/run/$1");
   if (!runUrl || !image || image === runUrl) return null;
-  return `[![The run as Teire drew it: the change, your code, the fix, your checks before and after, and this outcome](${image})](${runUrl})`;
+  return flowImage(
+    image,
+    runUrl,
+    "The run as Teire drew it: the change, your code, the fix, your checks before and after, and this outcome",
+  );
+}
+
+/** Any of Teire's flow images (a scan, a change) as a body's first picture, linked to its page. */
+export function flowImage(image: string, href: string, alt: string) {
+  return `[![${alt.replace(/[[\]]/g, "")}](${image})](${href})`;
 }
 
 /** The sections a reviewer reads only to check something: folded under their own heading. */
@@ -398,8 +407,8 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     const image = runFlowImage(input.runUrl);
     const out: string[] = [
       `<!-- teire:group=${input.groupKey} run=${input.runId} -->`,
-      verdictLine(input),
       ...(image ? [image] : []),
+      verdictLine(input),
     ];
     if (input.fallbackFrom)
       out.push(
@@ -642,8 +651,8 @@ export function composeApiChangePullRequest(input: ApiChangePullRequestInput): {
     const image = runFlowImage(input.runUrl);
     const out: string[] = [
       `<!-- teire:group=${input.groupKey} run=${input.runId} -->`,
-      verdict,
       ...(image ? [image] : []),
+      verdict,
     ];
     out.push("### Why this repo");
     for (const f of affected) {
@@ -826,6 +835,8 @@ export function composeOnboarding(input: {
   /** False when the repo has Issues turned off: the Dashboard lives on the Teire dashboard instead. */
   issuesEnabled?: boolean;
   dashboardUrl?: string;
+  /** The scan's flow image (`/og/repo-scan/<id>`): the body's first picture. */
+  scanImageUrl?: string;
 }) {
   const { rows } = input;
   const direct = rows.filter((r) => r.instance.direct);
@@ -834,6 +845,14 @@ export function composeOnboarding(input: {
   const affected = upgrades.filter((g) => g.verdict === "affected");
   const projects = new Set(direct.map(projectOf));
   const out: string[] = ["<!-- teire:onboarding -->"];
+  if (input.scanImageUrl)
+    out.push(
+      flowImage(
+        input.scanImageUrl,
+        input.dashboardUrl ?? input.scanImageUrl,
+        "What Teire found: what it read, what reaches the code and the upgrades it will open",
+      ),
+    );
   out.push(
     `**Teire is ready for \`${input.repo.owner}/${input.repo.repo}\`.** Merge this pull request to turn it on; it only adds \`.github/teire.yml\` with the defaults.`,
   );
@@ -984,6 +1003,16 @@ export function composeHumanIssue(input: {
   const head = rows[0];
   const title = `Teire needs a human: ${(head?.title ?? input.key).slice(0, 180)}`;
   const out: string[] = [`<!-- teire:human=${input.key} -->`];
+  // The change from the public catalog as the first picture: its source, the date, your code, the fix.
+  const lead = input.records[0];
+  if (lead && input.webUrl)
+    out.push(
+      flowImage(
+        `${input.webUrl}/og/change/${lead.id}`,
+        `${input.webUrl}/changes/${lead.id}`,
+        `${lead.title}: from its source to your code`,
+      ),
+    );
   out.push("### Why a person is needed");
   for (const r of rows.slice(0, 6))
     out.push(`- **${r.title ?? r.changeId}**: ${r.reason ?? r.verdict.replace(/_/g, " ")}`);

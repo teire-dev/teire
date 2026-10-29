@@ -17,6 +17,10 @@ const OVERALL_CAP_USD = Number(process.env.TEIRE_DAILY_COST_CAP_USD ?? DAILY_COS
 
 export type Reservation = { id: number } | { blocked: string };
 
+/** What a person reads when their own daily allowance is spent (also the kit's notice card). */
+export const personBudgetSaid = (allowance: number) =>
+  `You've used today's Ask Teire budget ($${allowance.toFixed(2)} a day); it frees up over the next 24 hours.`;
+
 export async function reserve(input: {
   userId: string | null;
   threadId: string;
@@ -44,7 +48,7 @@ export async function reserve(input: {
     const allowance = input.userId === null ? ASSISTANT.operatorDailyUsd : ASSISTANT.perUserDailyUsd;
     if (mine + next > allowance)
       return {
-        blocked: `You've used today's Ask Teire budget ($${allowance.toFixed(2)} a day); it frees up over the next 24 hours.`,
+        blocked: personBudgetSaid(allowance),
       };
     if (everyone + next > ASSISTANT.totalDailyUsd)
       return {

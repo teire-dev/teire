@@ -5,14 +5,21 @@ import { useEffect, useState } from "react";
 
 /**
  * "Reaches N of your repositories" on a public catalog row (plan revision 3.3, U5), for the signed-in
- * reader only. The page stays cached for everyone; one request per page fills every row.
+ * reader only. The page stays cached for everyone; one request fills every row rendered together.
+ * The shared answer lives two seconds, never longer: a switch of installation (or a sign-out) between
+ * pages must not show the previous scope's counts (V5–V6 review).
  */
-let pending: Promise<Record<string, number>> | null = null;
+const SHARED_MS = 2_000;
+let pending: { at: number; reach: Promise<Record<string, number>> } | null = null;
 const reachOnce = () => {
-  pending ??= fetch("/api/app/reach", { cache: "no-store" })
-    .then(async (r) => (r.ok ? ((await r.json()) as { reach: Record<string, number> }).reach : {}))
-    .catch(() => ({}));
-  return pending;
+  if (!pending || Date.now() - pending.at > SHARED_MS)
+    pending = {
+      at: Date.now(),
+      reach: fetch("/api/app/reach", { cache: "no-store" })
+        .then(async (r) => (r.ok ? ((await r.json()) as { reach: Record<string, number> }).reach : {}))
+        .catch(() => ({})),
+    };
+  return pending.reach;
 };
 
 export function YourReach({ changeId }: { changeId: string }) {

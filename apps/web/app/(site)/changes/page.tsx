@@ -83,14 +83,19 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
       (!cls || r.class === cls) &&
       (!q || r.title.toLowerCase().includes(q) || r.id.toLowerCase().includes(q)),
   );
+  // Every change can be reached a page at a time; a filter starts again from the first page.
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE));
+  const page = Math.min(pageCount, Math.max(1, Number(param(params.page)) || 1));
   const href = (next: Record<string, string | null>) => {
     const sp = new URLSearchParams();
     for (const [k, v] of Object.entries({ source, class: cls, q: q || null, ...next })) if (v) sp.set(k, v);
-    return sp.size ? `/changes?${sp}` : "/changes";
+    return `${sp.size ? `/changes?${sp}` : "/changes"}#browse`;
   };
+  const at = (n: number) => href({ page: n > 1 ? String(n) : null });
+  const shown = rows.slice((page - 1) * PAGE, page * PAGE);
   // Month groups along a dated rail: by deadline, else by when the source was read.
   const months = new Map<string, typeof rows>();
-  for (const r of rows.slice(0, PAGE)) {
+  for (const r of shown) {
     const when = (r.deadline ?? r.record.sources[0]?.checkedAt ?? "").slice(0, 7) || "undated";
     months.set(when, [...(months.get(when) ?? []), r]);
   }
@@ -156,8 +161,9 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
             ]}
           />
           <span className="ml-auto font-mono text-xs text-ink-3">
-            {rows.length}
-            {rows.length > PAGE ? ` · first ${PAGE}` : ""}
+            {pageCount > 1
+              ? `${(page - 1) * PAGE + 1}–${(page - 1) * PAGE + shown.length} of ${rows.length}`
+              : rows.length}
           </span>
         </div>
         {rows.length === 0 ? (
@@ -231,6 +237,29 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
             </ul>
           </div>
         ))}
+        {pageCount > 1 ? (
+          <nav aria-label="Pages" className="flex items-center justify-center gap-2 font-mono text-xs">
+            {page > 1 ? (
+              <Link
+                href={at(page - 1)}
+                className="rounded-full bg-sheet px-3 py-1.5 text-ink-2 shadow-tile hover:text-ink"
+              >
+                ‹ Previous
+              </Link>
+            ) : null}
+            <span className="px-2 text-ink-3" aria-current="page">
+              {page} / {pageCount}
+            </span>
+            {page < pageCount ? (
+              <Link
+                href={at(page + 1)}
+                className="rounded-full bg-sheet px-3 py-1.5 text-ink-2 shadow-tile hover:text-ink"
+              >
+                Next ›
+              </Link>
+            ) : null}
+          </nav>
+        ) : null}
       </section>
     </>
   );

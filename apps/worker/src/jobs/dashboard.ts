@@ -64,6 +64,8 @@ export interface DashboardInput {
   configProblems: string[];
   /** What the latest scan could not check (D96). */
   gaps?: string[];
+  /** The latest scan, whose flow image the issue opens with. */
+  scanId?: string | null;
 }
 
 export function composeDashboard(d: DashboardInput) {
@@ -127,6 +129,10 @@ export function composeDashboard(d: DashboardInput) {
   const sha = d.sha ? `\`${d.sha.slice(0, 7)}\`` : "—";
   const lines = [
     MARKER,
+    // The latest scan as the first picture (plan revision 3.4, C12), linked to the repository in Teire.
+    ...(d.webUrl && d.scanId
+      ? [`[![What Teire found in this repository](${d.webUrl}/og/repo-scan/${d.scanId})](${d.webUrl})`, ""]
+      : []),
     `Teire watches every dependency and API this repo uses. Last scan: ${sha}${d.scannedAt ? ` (${d.scannedAt.toISOString().slice(0, 16).replace("T", " ")} UTC)` : ""}${d.status === "paused" ? " · **paused** (`@teire resume`)" : ""}${d.fixMode ? ` · fixes: **${describeFixMode(d.fixMode)}**` : ""}.${d.webUrl ? ` [Open in Teire](${d.webUrl})` : ""}`,
     "",
     box("rescan", "now", "Rescan now"),
@@ -283,10 +289,11 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
     group by ecosystem order by ecosystem
   `);
   const { rows: latest } = await db.execute<{
+    id: string;
     coverage: { gaps?: string[] } | null;
     upgrades: ScanUpgrade[] | null;
   }>(sql`
-    select coverage, upgrades from scans where repo_id = ${repoId} and status = 'done' order by created_at desc limit 1
+    select id, coverage, upgrades from scans where repo_id = ${repoId} and status = 'done' order by created_at desc limit 1
   `);
   const body = composeDashboard({
     fullName: repo.fullName,
@@ -302,6 +309,7 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
     ignores: (repo.ignores as string[] | null) ?? [],
     configProblems: config?.problems ?? [],
     gaps: latest[0]?.coverage?.gaps ?? [],
+    scanId: latest[0]?.id ?? null,
   });
   if (existing?.number && existing.state === "open") {
     await octokit.rest.issues.update({ owner, repo: name, issue_number: existing.number, body });

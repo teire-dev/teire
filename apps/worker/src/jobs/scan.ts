@@ -572,7 +572,12 @@ export async function scanRepo(
         apiFindings: [...api.findings, ...runtimes.findings],
         gaps: coverageLines(gaps),
         issuesEnabled: meta.has_issues,
-        ...(ctx.webUrl ? { dashboardUrl: `${ctx.webUrl}/app/repos/${repo.fullName}` } : {}),
+        ...(ctx.webUrl
+          ? {
+              dashboardUrl: `${ctx.webUrl}/app/repos/${repo.fullName}`,
+              scanImageUrl: `${ctx.webUrl}/og/repo-scan/${scan.id}`,
+            }
+          : {}),
       });
     if (status === "onboarding") {
       // The open onboarding PR says what this scan found. Only its text changes: the branch keeps

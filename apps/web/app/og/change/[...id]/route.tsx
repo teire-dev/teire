@@ -17,5 +17,6 @@ export async function GET(req: Request, { params }: RouteContext<"/og/change/[..
     title: record.title,
     graph,
     footer: "Quoted from its source. Teire finds the lines it reaches and fixes them.",
+    shared: true,
   });
 }

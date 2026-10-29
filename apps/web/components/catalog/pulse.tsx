@@ -243,6 +243,7 @@ export function ActivityLanes({ rows, watched }: { rows: CatalogRow[]; watched: 
                   <span
                     className="order-last col-span-2 grid items-center sm:order-none sm:col-span-1"
                     style={{ gridTemplateColumns: `repeat(${LANE_DAYS}, minmax(0, 1fr))` }}
+                    aria-hidden
                   >
                     {days.map((d) => {
                       const n = lane.get(d) ?? 0;
@@ -262,6 +263,13 @@ export function ActivityLanes({ rows, watched }: { rows: CatalogRow[]; watched: 
                     })}
                   </span>
                   <span className="text-right font-mono text-[11px] text-ink-3">{total}</span>
+                  {/* The dots' figures in words, for screen readers (the dots carry them as titles). */}
+                  <span className="sr-only">
+                    {`: ${days
+                      .filter((d) => lane.get(d))
+                      .map((d) => `${lane.get(d)} on ${d}`)
+                      .join(", ")}`}
+                  </span>
                 </Link>
               </li>
             );

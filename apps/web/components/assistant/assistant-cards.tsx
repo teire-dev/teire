@@ -834,16 +834,27 @@ export function ChangeCard({ o }: { o: Out<"get_change"> }) {
         <p className="text-xs text-ink-3">It doesn&apos;t reach any of your repositories.</p>
       )}
       {o.quote ? <OwnWords quote={o.quote} basis={o.trustBasis} /> : null}
+      {fixInAll(o.id, o.reaches) ? (
+        <SafeLink href={fixInAll(o.id, o.reaches)} className="w-fit text-xs text-ink-2">
+          Fix in all ›
+        </SafeLink>
+      ) : null}
     </Card>
   );
 }
 
+/** Fix in all lives on Changes for you, with its per-repository preview and Confirm (rule 11). */
+const fixInAll = (changeId: string, reaches: Reach[]) =>
+  reaches.some((r) => r.plan.kind === "run") ? `/app/changes?change=${encodeURIComponent(changeId)}` : null;
+
 export function ReachCard({ o }: { o: Out<"affected_by_change"> }) {
+  const all = fixInAll(o.changeId, o.reaches);
   return (
     <Card
       eyebrow={`Reaches ${o.reaches.length} repositor${o.reaches.length === 1 ? "y" : "ies"}`}
       asOf={o.asOf}
-      link={o.link}
+      link={all ?? o.link}
+      linkLabel={all ? "Fix in all" : "Open"}
     >
       {o.title ? <span className="font-medium text-ink">{o.title}</span> : null}
       {o.reaches.length ? (

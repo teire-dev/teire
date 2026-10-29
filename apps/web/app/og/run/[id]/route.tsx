@@ -63,13 +63,24 @@ export async function GET(req: Request, { params }: RouteContext<"/og/run/[id]">
     sites: null,
     artifact: art ? { kind: art.kind, url: null, number: null } : null,
   });
-  const generic = proofFlow(proof, {
-    subjectLabel: "The change",
-    outcome: art?.kind === "issue" ? "issue" : "pr-ready",
-  });
+  const generic = proofFlow(proof, { subjectLabel: "The change", outcome: "pr-ready" });
+  // States only, under generic names: even "issue" versus "pull request" is the repository's business.
+  const NAME: Record<string, string> = {
+    change: "The change",
+    code: "Your code",
+    fix: "Fix",
+    sandbox: "Sandbox",
+    check: "Your checks",
+    outcome: "The outcome",
+  };
   const graph: FlowGraph = {
     links: generic.links,
-    tiles: generic.tiles.map(({ id: tid, entity, state, label }) => ({ id: tid, entity, state, label })),
+    tiles: generic.tiles.map(({ id: tid, entity, state }) => ({
+      id: tid,
+      entity,
+      state,
+      label: NAME[entity] ?? "A step",
+    })),
   };
   return flowCard({
     origin,

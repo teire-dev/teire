@@ -1,8 +1,13 @@
+import { ASSISTANT } from "@teire/engine/constants";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { NoticeCard } from "@/components/assistant/assistant-cards";
 import { LogoMark } from "@/components/logo";
+import { personBudgetSaid } from "@/lib/assistant/budget";
+import type { AssistantNotice } from "@/lib/assistant/message";
 import { assistantTools } from "@/lib/assistant/tools";
 import { type Viewer, viewerOfUser } from "@/lib/assistant/viewer";
+import { searchDocs } from "@/lib/docs-search";
 import { KIT_ACCOUNT, KIT_SCOPE, requireKit } from "@/lib/kit";
 import { getSession } from "@/lib/session";
 import { KitCard } from "./kit-card";
@@ -63,11 +68,11 @@ async function Board() {
   // A dated change if there is one: its card shows the countdown.
   const listed = field<{ id: string; deadline: string | null }[]>(changes.output, "changes") ?? [];
   const changeId = (listed.find((c) => c.deadline) ?? listed[0])?.id;
-  const [repoCard, findings, config, run, explained, change, reach] = await Promise.all([
+  const [repoCard, findings, config, preview, explained, change, reach] = await Promise.all([
     repo ? call(read, "get_repo", { repo }) : null,
     repo ? call(read, "list_findings", { repo, include: "reaching" }) : null,
     repo ? call(read, "get_config", { repo }) : null,
-    runId ? call(read, "get_run", { runId }) : null,
+    repo ? call(read, "preview_config", { repo, key: "upgrades.plainBumps", value: "false" }) : null,
     runId ? call(read, "explain_run", { runId }) : null,
     changeId ? call(read, "get_change", { changeId }) : null,
     changeId ? call(read, "affected_by_change", { changeId }) : null,
@@ -81,26 +86,56 @@ async function Board() {
   const proposal =
     act && repo ? await call(act, "propose_action", { kind: "rescan", repo, params: {} }) : null;
   const refusal = await call(read, "propose_action", { kind: "merge-pr", repo, params: {} });
+  const names = (field<{ fullName: string }[]>(repos.output, "repos") ?? [])
+    .slice(0, 3)
+    .map((r) => r.fullName);
+  const [found, steps, choices, budgetDocs] = await Promise.all([
+    call(read, "find", { query: "zod" }),
+    call(read, "show_steps", {
+      title: "Make Teire ask before it fixes",
+      steps: [
+        { text: "Open the installation's settings", href: "/app/settings/organization" },
+        { text: "Pick Ask first as the default fix mode" },
+        { text: "Or set it for one repository on its page", href: "/app/repos" },
+      ],
+    }),
+    names.length >= 2
+      ? call(read, "offer_choices", {
+          question: "Which repository?",
+          options: names.map((n) => ({ label: n.split("/")[1] ?? n, value: n })),
+        })
+      : null,
+    searchDocs("Ask Teire budget"),
+  ]);
 
   const cards = [
     overview,
+    found,
     repos,
     repoCard,
     findings,
     finding,
     why,
     runs,
-    run,
     explained,
     changes,
     change,
     reach,
     config,
+    preview,
     usage,
     docs,
+    steps,
+    choices,
     proposal,
     refusal,
   ].filter((c) => c !== null);
+  // The twentieth: what a person sees when their own daily budget is spent (no model call).
+  const notice: AssistantNotice = {
+    kind: "budget",
+    message: personBudgetSaid(ASSISTANT.perUserDailyUsd),
+    results: budgetDocs.results.slice(0, 4),
+  };
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10">
@@ -108,7 +143,7 @@ async function Board() {
         <LogoMark className="size-8" />
         <h1 className="heading text-2xl">Ask Teire cards</h1>
         <span className="ml-auto font-mono text-[11px] text-ink-3">
-          {cards.length} cards · real {KIT_ACCOUNT} data · no model call
+          {cards.length + 1} cards · real {KIT_ACCOUNT} data · no model call
         </span>
       </header>
       <div className="columns-1 gap-5 md:columns-2">
@@ -127,6 +162,10 @@ async function Board() {
             )}
           </figure>
         ))}
+        <figure className="mb-5 flex break-inside-avoid flex-col gap-1.5">
+          <figcaption className="font-mono text-[10px] text-ink-3">notice · budget</figcaption>
+          <NoticeCard notice={notice} />
+        </figure>
       </div>
     </main>
   );

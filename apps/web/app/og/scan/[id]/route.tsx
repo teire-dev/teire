@@ -32,9 +32,10 @@ export async function GET(req: Request, { params }: RouteContext<"/og/scan/[id]"
     {
       id: "deps",
       entity: "update",
-      state: "done",
+      // No dependency rows recorded: the tile says nothing rather than "0 read".
+      state: deps ? "done" : "skipped",
       label: "Dependencies",
-      meta: `${deps.toLocaleString()} read`,
+      ...(deps ? { meta: `${deps.toLocaleString()} read` } : {}),
       ...(eco ? { brand: eco } : {}),
     },
     {

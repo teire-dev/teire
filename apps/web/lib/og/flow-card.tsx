@@ -72,8 +72,11 @@ export async function flowCard({
   title,
   graph,
   footer,
+  shared = false,
 }: {
   origin: string;
+  /** Public catalog data only: may sit in shared caches. */
+  shared?: boolean;
   eyebrow: string;
   title: string;
   graph: FlowGraph;
@@ -170,6 +173,11 @@ export async function flowCard({
         {footer ? <div style={{ fontSize: 20, color: "#8e98b3" }}>{clip(footer, 100)}</div> : null}
       </div>
     </div>,
-    { ...OG_SIZE, headers: { "cache-control": "public, max-age=300, s-maxage=300" } },
+    {
+      ...OG_SIZE,
+      // A repository's image is drawn fresh each time: a repository that turns private must not keep
+      // a cached picture of its run (V5–V6 review). The public catalog's change images may be shared.
+      headers: { "cache-control": shared ? "public, max-age=300, s-maxage=300" : "no-store" },
+    },
   );
 }
