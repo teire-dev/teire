@@ -6,7 +6,6 @@ import {
   Eye,
   FileCheck2,
   GitBranch,
-  GitMerge,
   GitPullRequest,
   KeyRound,
   ListChecks,
@@ -287,12 +286,13 @@ const PATHS: { id: string; title: string; graph: FlowGraph }[] = [
           meta: "install: open network",
           brand: tf,
         },
-        { id: "chk", entity: "check", state: "proven", label: "Your checks", meta: "network off" },
+        { id: "chk", entity: "check", state: "proven", label: "Your checks", meta: "before and after" },
         { id: "pr", entity: "outcome", state: "done", label: "Pull request", meta: "a person merges" },
       ],
       links: [
         { from: "gh", to: "sb", state: "done" },
-        { from: "sb", to: "chk", state: "done" },
+        // The network is cut before your checks run: drawn as the cut edge (plan revision 3.4, V5).
+        { from: "sb", to: "chk", state: "skipped", label: "network off" },
         { from: "chk", to: "pr", state: "proven" },
       ],
     },
@@ -318,17 +318,54 @@ const PATHS: { id: string; title: string; graph: FlowGraph }[] = [
           meta: "registries only, GET",
           brand: STACK.cloudflare,
         },
-        { id: "chk", entity: "check", state: "proven", label: "Your checks", meta: "network off" },
+        { id: "chk", entity: "check", state: "proven", label: "Your checks", meta: "before and after" },
         { id: "pr", entity: "outcome", state: "done", label: "Pull request", meta: "a person merges" },
       ],
       links: [
         { from: "gh", to: "sb", state: "done" },
-        { from: "sb", to: "chk", state: "done" },
+        // The network is cut before your checks run: drawn as the cut edge (plan revision 3.4, V5).
+        { from: "sb", to: "chk", state: "skipped", label: "network off" },
         { from: "chk", to: "pr", state: "proven" },
       ],
     },
   },
 ];
+
+/** Teire's branch → its PR → a person merges → the default branch, which Teire never pushes to. */
+const NEVER: FlowGraph = {
+  tiles: [
+    {
+      id: "branch",
+      entity: "update",
+      state: "done",
+      label: "Teire's branch",
+      meta: "teire/<change>",
+      caption: "your push there stops Teire",
+    },
+    { id: "pr", entity: "outcome", state: "done", label: "Pull request", meta: "with its evidence" },
+    {
+      id: "you",
+      entity: "review",
+      state: "proven",
+      label: "You merge",
+      meta: "or close it",
+      caption: "Teire never merges or deletes",
+    },
+    {
+      id: "main",
+      entity: "repository",
+      state: "done",
+      label: "Default branch",
+      meta: "Teire never pushes here",
+      brand: SPONSORS.github,
+    },
+  ],
+  links: [
+    { from: "branch", to: "pr", state: "done" },
+    { from: "pr", to: "you", state: "done" },
+    { from: "you", to: "main", state: "proven", label: "only you" },
+  ],
+};
 
 function Code() {
   return (
@@ -340,6 +377,14 @@ function Code() {
           <StaticFlow graph={p.graph} size="sm" label={p.title} />
         </div>
       ))}
+      <div className="flex flex-col gap-3 rounded-xl bg-sheet p-5 shadow-card">
+        <span className="text-xs font-medium text-ink-2">What Teire never does</span>
+        <StaticFlow
+          graph={NEVER}
+          size="sm"
+          label="Teire works on its own branch; a person merges; Teire never pushes to the default branch"
+        />
+      </div>
       <div className="grid gap-3 md:grid-cols-2">
         <Fact
           brand={STACK.nemotron}
@@ -473,7 +518,6 @@ function Permissions() {
 
 /** The rules every run follows, each one line, each true of the code (see the audit). */
 const RULES: { title: string; line: string; icon: LucideIcon }[] = [
-  { title: "A person merges", line: "Teire never merges and never deletes a branch.", icon: GitMerge },
   {
     title: "Evidence decides the PR",
     line: "Ready only when the same checks pass before and after; else a draft or an issue.",
@@ -488,11 +532,6 @@ const RULES: { title: string; line: string; icon: LucideIcon }[] = [
     title: "Offline checks",
     line: "Your checks run with the network off, in both sandboxes.",
     icon: WifiOff,
-  },
-  {
-    title: "Your commits win",
-    line: "Push to a Teire branch and Teire stops updating it, and says so.",
-    icon: GitBranch,
   },
   {
     title: "Only with write access",
