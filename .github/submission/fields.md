@@ -44,8 +44,10 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
 | 6 | `captures/dryrun-go-receipt-desktop.png` | Every Nemotron call on Token Factory, with tokens and cost: $0.1807 for this fix. |
 | 7 | `model-retirement-dark.png` | The model-retirement journey, numbered, with the real values of the run. |
 | 8 | `system-dark.png` | The system: GitHub, the web app, the Postgres outbox, the worker, Nemotron on Token Factory, dependabot-core's updater under gVisor, and verification on Token Factory Sandboxes (public) or Cloudflare Containers (private). |
-| 9 | `captures/dashboard-desktop.png` | The dashboard: every repository, deadline and run. |
-| 10 | `captures/trust-desktop.png` | Live status from production: the worker's heartbeat, Token Factory credits and which Nemotron model is answering. |
+| 9 | `captures/dashboard-desktop.png` | The dashboard as one map: the changes reaching your code, your repositories and what is open now; drag a change onto a repository to fix it there. |
+| 10 | `captures/repo-prs-desktop.png` | Every pull request as a breadcrumb trail of its run: the package, dependabot-core, Token Factory, your checks before → after, the review and the PR. |
+| 11 | `captures/changes-desktop.png` | The public catalog, live: every source Teire watches with its last check, what is new, and 30 days of pickups. |
+| 12 | `captures/trust-desktop.png` | Live status from production: the worker's heartbeat, Token Factory credits and which Nemotron model is answering. |
 
 ## Feedback on Nebius Token Factory and NVIDIA models
 
