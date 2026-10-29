@@ -3,6 +3,7 @@
 import { History, MessageSquare, PanelRightClose, PanelRightOpen, Plus, Search, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { hitText, useDocsSearch } from "@/components/docs/use-docs-search";
 import { LogoMark } from "@/components/logo";
 import { SignInButton } from "@/components/sign-in-button";
 import { cn } from "@/lib/utils";
@@ -185,40 +186,11 @@ export function AssistantPanel({ hidden, signedIn }: { hidden: boolean; signedIn
   );
 }
 
-interface DocHit {
-  id: string;
-  url: string;
-  type: string;
-  content: string;
-}
-
 /** Signed out on the docs: docs search, and "Sign in to ask" (no anonymous model spend, D127). */
 function DocsOnly() {
   const path = usePathname();
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<DocHit[]>([]);
-  const [searching, setSearching] = useState(false);
-  useEffect(() => {
-    if (q.trim().length < 2) {
-      setHits([]);
-      return;
-    }
-    const ctrl = new AbortController();
-    setSearching(true);
-    const t = setTimeout(() => {
-      fetch(`/api/search?query=${encodeURIComponent(q)}`, { signal: ctrl.signal })
-        .then(async (r) => (r.ok ? ((await r.json()) as DocHit[]) : []))
-        .then((h) => {
-          setHits(h.slice(0, 8));
-          setSearching(false);
-        })
-        .catch(() => {});
-    }, 150);
-    return () => {
-      clearTimeout(t);
-      ctrl.abort();
-    };
-  }, [q]);
+  const { hits, searching } = useDocsSearch(q, { limit: 8 });
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <label className="flex items-center gap-2 rounded-md bg-sunken px-2 py-1.5 ring-1 ring-rule ring-inset focus-within:ring-signal">
@@ -235,13 +207,7 @@ function DocsOnly() {
         {hits.map((h) => (
           <li key={h.id}>
             <SafeLink href={h.url} className="block rounded-md px-2 py-1 text-sm text-ink hover:bg-hover">
-              {h.content
-                .replace(/<[^>]+>/g, "")
-                .replace(/\|/g, " ")
-                .replace(/-{3,}/g, " ")
-                .replace(/\s+/g, " ")
-                .trim()
-                .slice(0, 120)}
+              {hitText(h).slice(0, 120)}
             </SafeLink>
           </li>
         ))}

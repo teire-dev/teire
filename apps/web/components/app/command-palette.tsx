@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import type { ActionKind } from "@teire/engine/actions";
 import { describeAction } from "@teire/engine/actions";
 import {
@@ -20,6 +19,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAssistant } from "@/components/assistant/assistant-provider";
+import { useDocsSearch } from "@/components/docs/use-docs-search";
 import { MiniFlow } from "@/components/flow/mini-flow";
 import { LogoMark } from "@/components/logo";
 import { LiveDot } from "@/components/teire/live-dot";
@@ -41,14 +41,6 @@ import { languageMarks, subjectMark } from "@/lib/marks";
 import type { Proof } from "@/lib/proof";
 import { cn } from "@/lib/utils";
 import { runAction } from "./run-action";
-
-interface DocHit {
-  id: string;
-  type: "page" | "heading" | "text";
-  content: string;
-  breadcrumbs?: string[];
-  url: string;
-}
 
 const PAGES = [
   { label: "Overview", href: "/app", icon: LayoutGrid },
@@ -143,13 +135,7 @@ export function CommandPalette({
   const here = /^\/app\/repos\/([\w.-]+\/[\w.-]+)/.exec(path)?.[1] ?? null;
   const repo = here ? repos.find((r) => r.fullName === here) : undefined;
 
-  const docs = useQuery({
-    queryKey: ["docs-search", query],
-    queryFn: async ({ signal }) =>
-      (await (await fetch(`/api/search?query=${encodeURIComponent(query)}`, { signal })).json()) as DocHit[],
-    enabled: open && query.trim().length >= 2,
-    staleTime: 60_000,
-  });
+  const docs = useDocsSearch(query, { enabled: open });
 
   useEffect(() => {
     if (!open) {
@@ -192,10 +178,7 @@ export function CommandPalette({
       </CommandDialog>
     );
 
-  // Pages and headings first; a text hit only when it reads as a sentence, not a table row or code.
-  const hits = (docs.data ?? [])
-    .filter((h) => h.type !== "text" || (h.content.length > 20 && !/^\s*(\||```|-{3})/.test(h.content)))
-    .slice(0, 6);
+  const hits = docs.hits;
   return (
     <CommandDialog
       open={open}
@@ -206,9 +189,12 @@ export function CommandPalette({
       <Command>
         <CommandInput value={query} onValueChange={setQuery} placeholder="Jump to a repo, page or doc…" />
         <CommandList>
-          <CommandEmpty>
-            {query.trim().length >= 2 && docs.isFetching ? "Searching the docs…" : "Nothing matches."}
-          </CommandEmpty>
+          {/* Docs hits are force-mounted, so cmdk never counts them: empty only when they're empty too. */}
+          {hits.length ? null : (
+            <CommandEmpty>
+              {query.trim().length >= 2 && docs.searching ? "Searching the docs…" : "Nothing matches."}
+            </CommandEmpty>
+          )}
           {repo ? (
             <CommandGroup heading={`On ${repo.fullName}`}>
               <CommandItem
