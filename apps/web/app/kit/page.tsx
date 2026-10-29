@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { GhostFlow } from "@/components/flow/ghost-flow";
@@ -302,6 +303,9 @@ async function Kit() {
       <header className="flex items-center gap-3">
         <LogoMark className="size-8" />
         <h1 className="heading text-2xl">System</h1>
+        <Link href="/kit/cards" className="ml-auto text-sm text-ink-2 hover:text-ink">
+          Ask Teire cards ›
+        </Link>
       </header>
       <div className="grid gap-6 xl:grid-cols-2">
         <Board />

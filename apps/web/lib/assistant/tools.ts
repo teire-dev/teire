@@ -6,6 +6,8 @@ import { ASSISTANT } from "@teire/engine/constants";
 import { tool } from "ai";
 import { z } from "zod";
 import { type LedgerCheck, notCoveredFrom } from "@/components/teire/ledger";
+import { runFlow } from "@/lib/flow/model";
+import { runFlowsOf } from "@/lib/run-flows";
 import { getChange, listChanges } from "../catalog";
 import { database } from "../db";
 import { searchDocs } from "../docs-search";
@@ -41,11 +43,16 @@ const now = () => new Date().toISOString();
 const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString() : null);
 
 /** Tool output as the model reads it: inside a data fence, bounded. */
-function fenced(name: string) {
+function fenced(name: string, omit: string[] = []) {
   return ({ output }: { output: unknown }) => {
+    // What only the card draws (a run's flow) stays out of the model's tokens.
+    const shown =
+      omit.length && output && typeof output === "object"
+        ? Object.fromEntries(Object.entries(output).filter(([k]) => !omit.includes(k)))
+        : output;
     // No "<" survives inside the fence (JSON's \u003c is the same character), so a reason or a quote
     // that says "</data>" can't close it.
-    const json = JSON.stringify(output).replace(/</g, "\\u003c");
+    const json = JSON.stringify(shown).replace(/</g, "\\u003c");
     const text =
       json.length > ASSISTANT.maxToolChars ? `${json.slice(0, ASSISTANT.maxToolChars)}… (truncated)` : json;
     return {
@@ -87,6 +94,8 @@ export interface RunLite {
   id: string;
   repo: string;
   subject: string;
+  /** The change group, so a card can draw the change's own mark. */
+  group: string | null;
   status: string;
   step: string | null;
   evidence: string | null;
@@ -113,6 +122,7 @@ export const runLite = (r: RunRow): RunLite => ({
   id: r.id,
   repo: r.repo,
   subject: subjectOf(r),
+  group: r.groupKey,
   status: r.status,
   step: r.step,
   evidence: r.evidence,
@@ -400,6 +410,8 @@ export function assistantTools(viewer: Viewer) {
           const source = lead?.sources.find((s) => s.quote) ?? lead?.sources[0];
           const scope = scopeOfRepo(viewer, got.repo);
           const [run] = await rowsOf(scope, and(eq(runs.repoId, got.repo.id), eq(runs.groupKey, g.key)), 1);
+          // Its newest run as the trail the run page draws; the card draws it, the model never reads it.
+          const input = run ? (await runFlowsOf(scope, [run.id])).get(run.id) : undefined;
           return {
             asOf: iso(got.repo.lastScannedAt) ?? now(),
             repo: got.repo.fullName,
@@ -429,10 +441,11 @@ export function assistantTools(viewer: Viewer) {
                 }
               : null,
             run: run ? runLite(run) : null,
+            flow: input ? runFlow(input) : null,
             link: groupLink(got.repo.fullName, g.key),
           };
         }),
-      toModelOutput: fenced("get_finding"),
+      toModelOutput: fenced("get_finding", ["flow"]),
     }),
 
     list_runs: tool({
@@ -476,7 +489,7 @@ export function assistantTools(viewer: Viewer) {
         "One run's facts: its subject, status, evidence, backend, cost, the before/after ledger per check, what wasn't covered, and its PR or issue.",
       inputSchema: z.object({ runId: z.string().uuid() }),
       execute: ({ runId }) => safely(() => runFacts(viewer, runId)),
-      toModelOutput: fenced("get_run"),
+      toModelOutput: fenced("get_run", ["flow"]),
     }),
 
     explain_run: tool({
@@ -508,7 +521,7 @@ export function assistantTools(viewer: Viewer) {
             next,
           };
         }),
-      toModelOutput: fenced("explain_run"),
+      toModelOutput: fenced("explain_run", ["flow"]),
     }),
 
     list_changes: tool({
@@ -534,6 +547,7 @@ export function assistantTools(viewer: Viewer) {
               title: c.title,
               kind: c.kind,
               provider: c.provider,
+              ecosystem: c.record.subject.ecosystem ?? null,
               subject: c.record.subject.name,
               deadline: c.deadline,
               link: `/changes/${c.id}`,
@@ -561,6 +575,8 @@ export function assistantTools(viewer: Viewer) {
             kind: record.kind,
             summary: record.summary.slice(0, 600),
             subject: record.subject.name,
+            provider: record.subject.provider ?? null,
+            ecosystem: record.subject.ecosystem ?? null,
             from: record.applicability.fromVersion ?? null,
             to: record.applicability.toVersion ?? null,
             deadline: record.applicability.effectiveOn ?? null,
@@ -923,8 +939,12 @@ async function runFacts(viewer: Viewer, runId: string) {
         : null;
     return { check: after.name, before: side(before), after: side(after) };
   });
-  // The run's proof chain, as every run row shows it.
-  const [row] = await rowsOf(scopeOfRepo(viewer, got.repo), eq(runs.id, run.id), 1);
+  // The run's proof chain, as every run row shows it, and its flow as the run page draws it.
+  const [[row], flows] = await Promise.all([
+    rowsOf(scopeOfRepo(viewer, got.repo), eq(runs.id, run.id), 1),
+    runFlowsOf(scopeOfRepo(viewer, got.repo), [run.id]),
+  ]);
+  const input = flows.get(run.id);
   const started = run.startedAt ? Date.parse(run.startedAt) : null;
   const ended = run.finishedAt ? Date.parse(run.finishedAt) : null;
   return {
@@ -950,6 +970,7 @@ async function runFacts(viewer: Viewer, runId: string) {
         }
       : null,
     ledger,
+    flow: input ? runFlow(input) : null,
     // The run page's own "Not covered" (from the checks), and the evidence's reasons apart from it.
     notCovered: notCoveredFrom(
       (sheet.verification?.baseline ?? []) as LedgerCheck[],

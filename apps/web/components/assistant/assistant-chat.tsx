@@ -352,7 +352,7 @@ function stepTitle(name: string, input: Record<string, unknown> | undefined, out
   }
 }
 
-function cardFor(name: string, output: unknown, onPick: (v: string) => void, busy: boolean) {
+export function cardFor(name: string, output: unknown, onPick: (v: string) => void, busy: boolean) {
   const o = output as never;
   switch (name) {
     case "find":

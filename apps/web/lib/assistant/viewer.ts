@@ -39,7 +39,11 @@ export async function viewerOf(request: Request): Promise<Viewer | null> {
   }
   const session = await auth().api.getSession({ headers: request.headers });
   if (!session) return null;
-  const userId = session.user.id;
+  return viewerOfUser(session.user.id, session.user.name ?? null);
+}
+
+/** A signed-in person as Ask Teire answers them (also the kit's card board, for its one proposal). */
+export async function viewerOfUser(userId: string, name: string | null): Promise<Viewer> {
   const [mine, seen] = await Promise.all([
     myScope(userId),
     database()
@@ -49,7 +53,7 @@ export async function viewerOf(request: Request): Promise<Viewer | null> {
   ]);
   return {
     userId,
-    name: session.user.name ?? null,
+    name,
     scope: mine?.scope ?? null,
     installationIds: seen.map((r) => r.id),
     account: mine?.installation.login ?? null,

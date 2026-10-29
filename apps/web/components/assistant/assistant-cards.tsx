@@ -2,15 +2,35 @@
 
 import type { ActionStatus } from "@teire/engine/actions";
 import { TERMINAL } from "@teire/engine/actions";
-import { ArrowUpRight, Check, CircleAlert, Info, Loader2, X } from "lucide-react";
+import {
+  Activity,
+  ArrowUpRight,
+  Box,
+  Check,
+  Cpu,
+  GitPullRequest,
+  Hand,
+  Loader2,
+  type LucideIcon,
+  Play,
+  Sparkles,
+  X,
+  Zap,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { reachState } from "@/components/app/change-fan";
+import { MiniFlow } from "@/components/flow/mini-flow";
+import { Trail } from "@/components/flow/trail";
 import { LiveDot } from "@/components/teire/live-dot";
-import { ProofGlyphs } from "@/components/teire/proof-glyphs";
+import { Mark } from "@/components/teire/mark";
 import { EvidenceChip, StatusChip, type Tone } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
 import type { AssistantMessage, AssistantNotice } from "@/lib/assistant/message";
+import { changeBrand } from "@/lib/estate";
 import { FIX_MODES } from "@/lib/fix-mode-options";
+import type { FlowEntity, FlowGraph, FlowState, FlowTile } from "@/lib/flow/model";
+import { subjectMark, subjectOfKey } from "@/lib/marks";
 import type { Proof } from "@/lib/proof";
 import { ago, until } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -128,9 +148,9 @@ type RunLite = Out<"list_runs">["runs"][number];
 function RunLine({ run, why }: { run: RunLite; why?: string }) {
   const live = run.status === "running" || run.status === "stopping";
   return (
-    <Link href={run.link} className="row-link flex flex-col gap-1 rounded-md px-2 py-1.5 hover:bg-hover">
+    <Link href={run.link} className="row-link flex flex-col gap-1 rounded-md py-1.5 pr-9 pl-2 hover:bg-hover">
       <span className="flex items-center gap-2">
-        <ProofGlyphs proof={proofOf(run.proof)} />
+        <MiniFlow proof={proofOf(run.proof)} subject={subjectMark(run.group ?? undefined)} size="xs" />
         <span className="min-w-0 truncate font-mono text-xs text-ink">{run.subject}</span>
         {live ? <LiveDot className="ml-auto" /> : null}
       </span>
@@ -143,13 +163,42 @@ function RunLine({ run, why }: { run: RunLite; why?: string }) {
   );
 }
 
-function Figures({ items }: { items: [string, number | string][] }) {
+type FigureTone = "attention" | "signal" | "proven" | "broke" | "neutral";
+
+const FIGURE_TONE: Record<FigureTone, string> = {
+  attention: "bg-attention-soft text-attention",
+  signal: "bg-signal-soft text-signal",
+  proven: "bg-proven-soft text-proven",
+  broke: "bg-broke-soft text-broke",
+  neutral: "bg-sunken text-ink-2",
+};
+
+/** Figures as the Overview's stat tiles read: an icon in its tone (grey at zero), the number, its name. */
+function Figures({
+  items,
+}: {
+  items: { label: string; value: number | string; icon: LucideIcon; tone: FigureTone; zero?: boolean }[];
+}) {
   return (
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {items.map(([label, value]) => (
-        <div key={label} className="rounded-md bg-sunken px-2 py-1.5 ring-1 ring-rule ring-inset">
-          <dd className="font-mono text-base text-ink tabular-nums">{value}</dd>
-          <dt className="text-[11px] text-ink-3">{label}</dt>
+      {items.map(({ label, value, icon: Icon, tone, zero }) => (
+        <div
+          key={label}
+          className="flex items-center gap-2 rounded-md bg-sunken/60 p-1.5 ring-1 ring-rule ring-inset"
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "flex size-7 shrink-0 items-center justify-center rounded-md",
+              FIGURE_TONE[zero ? "neutral" : tone],
+            )}
+          >
+            <Icon className="size-3.5" strokeWidth={2} />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <dd className="font-mono text-base leading-none text-ink tabular-nums">{value}</dd>
+            <dt className="mt-0.5 truncate text-[10px] text-ink-3">{label}</dt>
+          </span>
         </div>
       ))}
     </dl>
@@ -161,10 +210,34 @@ export function OverviewCard({ o }: { o: Out<"get_overview"> }) {
     <Card eyebrow={`Overview · ${o.account ?? ""}`} asOf={o.asOf} link={o.link}>
       <Figures
         items={[
-          ["need a person", o.counts.needsAPerson],
-          ["going or waiting", o.counts.goingOrWaiting],
-          ["open PRs", `${o.counts.openPrsProven}/${o.counts.openPrs}`],
-          ["reaching code", o.counts.changesReachingCode],
+          {
+            label: "need you",
+            value: o.counts.needsAPerson,
+            icon: Hand,
+            tone: "attention",
+            zero: !o.counts.needsAPerson,
+          },
+          {
+            label: "working",
+            value: o.counts.goingOrWaiting,
+            icon: Activity,
+            tone: "signal",
+            zero: !o.counts.goingOrWaiting,
+          },
+          {
+            label: "PRs proven",
+            value: `${o.counts.openPrsProven}/${o.counts.openPrs}`,
+            icon: GitPullRequest,
+            tone: "proven",
+            zero: !o.counts.openPrsProven,
+          },
+          {
+            label: "reaching code",
+            value: o.counts.changesReachingCode,
+            icon: Zap,
+            tone: "broke",
+            zero: !o.counts.changesReachingCode,
+          },
         ]}
       />
       {o.needsAPerson.length ? (
@@ -181,7 +254,15 @@ export function OverviewCard({ o }: { o: Out<"get_overview"> }) {
               <SafeLink href={d.link} className="min-w-0 truncate text-ink">
                 {d.title}
               </SafeLink>
-              <span className="ml-auto shrink-0 font-mono text-[11px] text-attention">
+              <span
+                className={cn(
+                  "ml-auto shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px]",
+                  // Past: the model is gone and the code still names it.
+                  d.deadline && Date.parse(d.deadline) < Date.now()
+                    ? "bg-broke-soft text-broke"
+                    : "bg-attention-soft text-attention",
+                )}
+              >
                 {until(d.deadline)}
               </span>
             </li>
@@ -243,13 +324,19 @@ export function ReposCard({ o }: { o: Out<"list_repos"> }) {
             <li key={r.fullName}>
               <Link
                 href={r.link}
-                className="row-link flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-hover"
+                className="row-link flex items-center gap-2 rounded-md py-1.5 pr-9 pl-2 hover:bg-hover"
               >
                 {r.live ? <LiveDot /> : <span className="size-2" />}
                 <span className="min-w-0 truncate text-sm text-ink">{r.fullName}</span>
                 <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[11px] text-ink-3">
-                  <span title="changes reaching the code">{r.reaching}↯</span>
-                  <span title="open PRs">{r.openPrs} PR</span>
+                  <span title="changes reaching the code" className="flex items-center gap-0.5">
+                    <Zap className="size-3" aria-hidden />
+                    {r.reaching}
+                  </span>
+                  <span title="open PRs" className="flex items-center gap-0.5">
+                    <GitPullRequest className="size-3" aria-hidden />
+                    {r.openPrs}
+                  </span>
                   <ModeChip mode={r.fixMode} />
                 </span>
               </Link>
@@ -281,23 +368,22 @@ export function RepoCard({ o }: { o: Out<"get_repo"> }) {
       ) : null}
       <Figures
         items={[
-          ["reaching code", o.reaching],
-          ["need a person", o.needsPerson],
-          ["open PRs", o.prs.length],
-          ["recent runs", o.runs.length],
+          { label: "reaching code", value: o.reaching, icon: Zap, tone: "broke", zero: !o.reaching },
+          { label: "need you", value: o.needsPerson, icon: Hand, tone: "attention", zero: !o.needsPerson },
+          {
+            label: "open PRs",
+            value: o.prs.length,
+            icon: GitPullRequest,
+            tone: "proven",
+            zero: !o.prs.length,
+          },
+          { label: "recent runs", value: o.runs.length, icon: Play, tone: "neutral" },
         ]}
       />
       {o.top.length ? (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col">
           {o.top.map((g) => (
-            <li key={g.key} className="flex items-center gap-2 text-xs">
-              <SafeLink href={g.link} className="min-w-0 truncate text-ink">
-                {g.title}
-              </SafeLink>
-              <span className="ml-auto shrink-0 font-mono text-[11px] text-ink-3">
-                {g.sites} site{g.sites === 1 ? "" : "s"}
-              </span>
-            </li>
+            <GroupRow key={g.key} g={g} />
           ))}
         </ul>
       ) : null}
@@ -326,77 +412,152 @@ function VerdictChip({ verdict }: { verdict: string }) {
   return <StatusChip tone={v.tone}>{v.label}</StatusChip>;
 }
 
+/** Counts as tone pills (red reaching, amber needs you, green checked): the header of a findings list. */
+function CountPills({ items }: { items: [number, string, FigureTone][] }) {
+  return (
+    <p className="flex flex-wrap gap-1.5">
+      {items.map(([n, label, tone]) => (
+        <span
+          key={label}
+          className={cn("rounded-full px-2 py-0.5 font-mono text-[10px]", FIGURE_TONE[n ? tone : "neutral"])}
+        >
+          {n} {label}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/**
+ * One finding group in a list: its change's mark, its title, then only what sets it apart (the
+ * lines it reaches, or a verdict other than "reaches your code", which the header already counts).
+ */
+function GroupRow({
+  g,
+}: {
+  g: { key: string; title: string; verdict: string; sites: number; link: string };
+}) {
+  return (
+    <li>
+      <SafeLink
+        href={g.link}
+        className="row-link flex items-center gap-2 rounded-md py-1 pr-9 pl-1.5 text-xs hover:bg-hover"
+      >
+        <Mark brand={subjectMark(g.key)} size="sm" />
+        <span className="min-w-0 flex-1 truncate text-ink">{g.title}</span>
+        {g.verdict !== "affected" ? (
+          <VerdictChip verdict={g.verdict} />
+        ) : g.sites ? (
+          <span className="shrink-0 font-mono text-[10px] text-ink-3">
+            {g.sites} line{g.sites === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </SafeLink>
+    </li>
+  );
+}
+
 export function FindingsCard({ o }: { o: Out<"list_findings"> }) {
   return (
     <Card eyebrow={`Findings · ${o.repo}`} asOf={o.asOf} link={o.link}>
-      <p className="font-mono text-[11px] text-ink-3">
-        {o.counts.reaching} reaching · {o.counts.needsPerson} need a person · {o.counts.notReaching} checked,
-        not reaching
-      </p>
-      <ul className="flex flex-col gap-1.5">
+      <CountPills
+        items={[
+          [o.counts.reaching, "reaching", "broke"],
+          [o.counts.needsPerson, "need you", "attention"],
+          [o.counts.notReaching, "checked, clear", "proven"],
+        ]}
+      />
+      <ul className="flex flex-col">
         {o.groups.slice(0, 8).map((g) => (
-          <li key={g.key} className="flex flex-col gap-0.5">
-            <span className="flex items-center gap-2">
-              <SafeLink href={g.link} className="min-w-0 truncate text-sm text-ink">
-                {g.title}
-              </SafeLink>
-              <span className="ml-auto shrink-0">
-                <VerdictChip verdict={g.verdict} />
-              </span>
-            </span>
-            {g.firstSite ? (
-              <span className="font-mono text-[11px] text-ink-3">
-                {g.firstSite.file}:{g.firstSite.line}
-                {g.sites > 1 ? ` +${g.sites - 1}` : ""}
-              </span>
-            ) : null}
-          </li>
+          <GroupRow key={g.key} g={g} />
         ))}
       </ul>
     </Card>
   );
 }
 
+/** Before a finding's first run: change → your code → fix → PR, each in what happens next. */
+function findingGraph(o: Out<"get_finding">): FlowGraph {
+  const subject = subjectOfKey(o.key);
+  const sites = o.sites.length + o.moreSites;
+  const human = o.verdict === "needs_human" || o.verdict === "check_by_hand";
+  const fix: FlowTile = o.key.startsWith("runtime/")
+    ? { id: "fix", entity: "fix", state: "skipped", label: "By hand" }
+    : human
+      ? { id: "fix", entity: "fix", state: "skipped", label: "A person decides" }
+      : { id: "fix", entity: "fix", state: "pending", label: "Fix" };
+  return {
+    tiles: [
+      {
+        id: "change",
+        entity: "change",
+        state: "done",
+        label: subject.name,
+        ...(subject.meta ? { meta: subject.meta } : {}),
+        ...(o.deadline ? { caption: until(o.deadline) } : {}),
+        brand: subjectMark(o.key),
+      },
+      {
+        id: "code",
+        entity: "code",
+        state: human ? "not_proven" : "done",
+        label: "Your code",
+        meta: sites ? `${sites} call site${sites === 1 ? "" : "s"}` : "installed version",
+      },
+      fix,
+      {
+        id: "out",
+        entity: "outcome",
+        state: fix.state === "skipped" ? "skipped" : "pending",
+        label: "Pull request",
+      },
+    ],
+    links: [
+      { from: "change", to: "code", state: "done" },
+      { from: "code", to: "fix", state: fix.state === "skipped" ? "skipped" : "pending" },
+      { from: "fix", to: "out", state: fix.state === "skipped" ? "skipped" : "pending" },
+    ],
+  };
+}
+
 export function FindingCard({ o }: { o: Out<"get_finding"> }) {
   return (
     <Card eyebrow={`Finding · ${o.repo}`} asOf={o.change?.checkedAt ?? o.asOf} link={o.link}>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-ink">{o.title}</span>
+      <div className="flex items-center gap-2">
+        <Mark brand={subjectMark(o.key)} size="sm" />
+        <span className="min-w-0 flex-1 truncate font-medium text-ink">{o.title}</span>
         <VerdictChip verdict={o.verdict} />
-        {o.deadline ? (
-          <span className="font-mono text-[11px] text-attention">{until(o.deadline)}</span>
-        ) : null}
       </div>
-      {o.change?.quote ? (
-        <blockquote className="border-l-2 border-rule-strong pl-2 text-xs text-ink-2">
-          {o.change.quote}
-          <span className="mt-1 block font-mono text-[10px] text-ink-3">
-            the provider's words · <SafeLink href={o.change.link}>change record</SafeLink>
-          </span>
-        </blockquote>
-      ) : null}
-      {o.change?.replacement ? (
-        <p className="text-xs text-ink-2">
-          Replace with <code className="font-mono text-ink">{o.change.replacement}</code>
-        </p>
-      ) : null}
+      {/* Its newest run as the trail its page draws; before any run, what happens next. */}
+      <Trail
+        graph={o.flow ?? findingGraph(o)}
+        runHref={o.run?.link}
+        omit={["repository"]}
+        label={`${o.title} on ${o.repo}`}
+      />
+      {o.change?.replacement ? <Swap from={subjectOfKey(o.key).name} to={o.change.replacement} /> : null}
       {o.sites.length ? (
-        <ul className="flex flex-col gap-1">
-          {o.sites.map((s) => (
-            <li
-              key={`${s.file}:${s.line}`}
-              className="rounded-md bg-sunken px-2 py-1 ring-1 ring-rule ring-inset"
-            >
-              <span className="font-mono text-[10px] text-ink-3">
-                {s.file}:{s.line} · {s.resolution}
-              </span>
-              <pre className="overflow-x-auto font-mono text-[11px] text-ink">{s.code}</pre>
-            </li>
-          ))}
-          {o.moreSites ? <li className="text-[11px] text-ink-3">and {o.moreSites} more</li> : null}
-        </ul>
+        <details className="group/sites text-xs">
+          <summary className="w-fit cursor-pointer list-none font-mono text-[11px] text-ink-3 hover:text-ink [&::-webkit-details-marker]:hidden">
+            {o.sites.length + o.moreSites} line{o.sites.length + o.moreSites === 1 ? "" : "s"} ›
+          </summary>
+          <ul className="mt-1.5 flex flex-col gap-1">
+            {o.sites.map((x) => (
+              <li
+                key={`${x.file}:${x.line}`}
+                className="rounded-md bg-sunken px-2 py-1 ring-1 ring-rule ring-inset"
+              >
+                <span className="font-mono text-[10px] text-ink-3">
+                  {x.file}:{x.line} · {x.resolution}
+                </span>
+                <pre className="overflow-x-auto font-mono text-[11px] text-ink">{x.code}</pre>
+              </li>
+            ))}
+            {o.moreSites ? <li className="text-[11px] text-ink-3">+{o.moreSites}</li> : null}
+          </ul>
+        </details>
       ) : null}
-      {o.run ? <RunLine run={o.run} /> : null}
+      {o.change?.quote ? <OwnWords quote={o.change.quote} link={o.change.link} /> : null}
     </Card>
   );
 }
@@ -428,44 +589,63 @@ export function RunCard({ o }: { o: Out<"get_run"> | Out<"explain_run"> }) {
         <span className="min-w-0 truncate font-mono text-xs text-ink">{o.subject}</span>
         <EvidenceChip kind={o.evidence} />
       </div>
-      {"proof" in o && Array.isArray(o.proof) && o.proof.length ? (
-        <ProofGlyphs proof={proofOf(o.proof)} />
+      {/* The run as its breadcrumb trail (plan revision 3.4, V6): the same flow its page draws. */}
+      {"flow" in o && o.flow ? (
+        <Trail graph={o.flow} runHref={o.link} omit={["repository"]} label={`The run on ${o.repo}`} />
+      ) : "proof" in o && Array.isArray(o.proof) && o.proof.length ? (
+        <MiniFlow proof={proofOf(o.proof)} />
       ) : null}
       {explained?.meaning ? <p className="text-xs text-ink-2">{explained.meaning}</p> : null}
-      <p className="font-mono text-[11px] text-ink-3">
-        {o.status} · {o.backend ?? "no sandbox"} · {ms(o.durationMs)} · ${o.costUsd.toFixed(3)} ·{" "}
-        {o.modelCalls} model calls
+      <p className="flex flex-wrap gap-1.5 font-mono text-[10px] text-ink-2">
+        {[
+          o.status,
+          o.durationMs !== null ? ms(o.durationMs) : null,
+          `$${o.costUsd.toFixed(3)}`,
+          `${o.modelCalls} calls`,
+        ]
+          .filter((x) => x !== null)
+          .map((x) => (
+            <span key={x} className="rounded-full bg-sunken px-2 py-0.5">
+              {x}
+            </span>
+          ))}
       </p>
       {o.ledger.length ? (
-        <table className="w-full font-mono text-[11px]">
-          <thead>
-            <tr className="text-left text-ink-3">
-              <th className="font-normal">check</th>
-              <th className="font-normal">before</th>
-              <th className="font-normal">after</th>
-            </tr>
-          </thead>
-          <tbody>
-            {o.ledger.map((c) => {
-              const side = (s: (typeof c)["before"]) =>
-                s
-                  ? s.total !== null
-                    ? `${s.passed}/${s.total}`
-                    : s.exit === 0
-                      ? "pass"
-                      : `exit ${s.exit}`
-                  : "–";
-              const broke = c.before?.exit === 0 && c.after && c.after.exit !== 0;
-              return (
-                <tr key={c.check} className="text-ink">
-                  <td>{c.check}</td>
-                  <td>{side(c.before)}</td>
-                  <td className={cn(broke && "text-broke")}>{side(c.after)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        // Each check before → after, as the run page's ledger reads; red where it broke.
+        <ul className="flex flex-col gap-1">
+          {o.ledger.map((c) => {
+            const side = (x: (typeof c)["before"]) =>
+              x
+                ? x.total !== null
+                  ? `${x.passed}/${x.total}`
+                  : x.exit === 0
+                    ? "pass"
+                    : `exit ${x.exit}`
+                : "–";
+            const broke = c.before?.exit === 0 && c.after && c.after.exit !== 0;
+            return (
+              <li key={c.check} className="flex items-center gap-1.5 font-mono text-[11px]">
+                <span className="min-w-0 flex-1 truncate text-ink-2">{c.check}</span>
+                <span className="rounded bg-sunken px-1.5 py-0.5 text-ink-3">{side(c.before)}</span>
+                <span aria-hidden className="text-ink-3">
+                  →
+                </span>
+                <span
+                  className={cn(
+                    "rounded px-1.5 py-0.5",
+                    broke
+                      ? "bg-broke-soft text-broke"
+                      : c.after?.exit === 0
+                        ? "bg-proven-soft text-proven"
+                        : "bg-sunken text-ink-2",
+                  )}
+                >
+                  {side(c.after)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       ) : null}
       {o.notCovered.length ? (
         <div className="flex flex-col gap-0.5">
@@ -504,19 +684,26 @@ export function RunCard({ o }: { o: Out<"get_run"> | Out<"explain_run"> }) {
 export function ChangesCard({ o }: { o: Out<"list_changes"> }) {
   return (
     <Card eyebrow={`Catalog · ${o.total} change${o.total === 1 ? "" : "s"}`} asOf={o.asOf} link={o.link}>
-      <ul className="flex flex-col gap-1">
-        {o.changes.slice(0, 8).map((c) => (
-          <li key={c.id} className="flex items-center gap-2 text-xs">
-            <SafeLink href={c.link} className="min-w-0 truncate text-ink">
-              {c.title}
-            </SafeLink>
-            {c.deadline ? (
-              <span className="ml-auto shrink-0 font-mono text-[11px] text-attention">
-                {until(c.deadline)}
-              </span>
-            ) : null}
-          </li>
-        ))}
+      <ul className="flex flex-col">
+        {o.changes.slice(0, 8).map((c) => {
+          const brand = changeBrand(c);
+          return (
+            <li key={c.id}>
+              <SafeLink
+                href={c.link}
+                className="row-link flex items-center gap-2 rounded-md py-1 pr-9 pl-1.5 text-xs hover:bg-hover"
+              >
+                {brand ? <Mark brand={brand} size="sm" /> : null}
+                <span className="min-w-0 flex-1 truncate text-ink">{c.title}</span>
+                {c.deadline ? (
+                  <span className="shrink-0 rounded-full bg-attention-soft px-1.5 py-0.5 font-mono text-[10px] text-attention">
+                    {until(c.deadline)}
+                  </span>
+                ) : null}
+              </SafeLink>
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );
@@ -524,60 +711,129 @@ export function ChangesCard({ o }: { o: Out<"list_changes"> }) {
 
 type Reach = Out<"affected_by_change">["reaches"][number];
 
-function PlanLine({ r }: { r: Reach }) {
-  const p = r.plan;
-  const said =
-    p.kind === "open"
-      ? `PR #${p.number} open`
-      : p.kind === "running"
-        ? "a run is going"
-        : p.kind === "off"
-          ? `fixes off (${p.why})`
-          : p.kind === "paused"
-            ? "Teire paused"
-            : (p.waits ?? "Fix now starts a run");
+/**
+ * Where a change reaches, as the fan Changes for you draws (B13): its mark branching to each
+ * repository, every branch in what Fix now would do there.
+ */
+function ReachFan({ reaches }: { reaches: Reach[] }) {
+  const shown = reaches.slice(0, 6);
+  const more = reaches.length - shown.length;
+  const ROW = 26;
+  const h = Math.max(shown.length + (more ? 1 : 0), 1) * ROW;
+  const brand = subjectMark(shown[0]?.groupKey);
+  const STROKE: Record<string, string> = {
+    done: "color-mix(in oklab, var(--ink) 45%, transparent)",
+    live: "var(--signal)",
+    pending: "var(--ink-3)",
+    skipped: "var(--rule-strong)",
+  };
   return (
-    <li className="flex items-center gap-2 text-xs">
-      <SafeLink href={`/app/repos/${r.repo}`} className="min-w-0 truncate text-ink">
-        {r.repo}
-      </SafeLink>
-      <span className="font-mono text-[11px] text-ink-3">{r.sites} sites</span>
-      <span className="ml-auto shrink-0 text-[11px] text-ink-2">{said}</span>
-    </li>
+    <div className="flex items-center">
+      <Mark brand={brand} />
+      <svg width={40} height={h} viewBox={`0 0 40 ${h}`} aria-hidden className="shrink-0 overflow-visible">
+        {shown.map((r, i) => {
+          const y = i * ROW + ROW / 2;
+          const st = reachState(r);
+          return (
+            <path
+              key={`${r.repo}:${r.groupKey}`}
+              d={`M0,${h / 2} C20,${h / 2} 20,${y} 40,${y}`}
+              fill="none"
+              stroke={STROKE[st] ?? STROKE.pending}
+              strokeWidth={1.5}
+              strokeDasharray={st === "pending" || st === "skipped" ? "4 4" : undefined}
+            />
+          );
+        })}
+      </svg>
+      <ul className="flex min-w-0 flex-1 flex-col">
+        {shown.map((r) => {
+          const p = r.plan;
+          const said =
+            p.kind === "open"
+              ? `#${p.number}`
+              : p.kind === "running"
+                ? "running"
+                : p.kind === "off"
+                  ? "off"
+                  : p.kind === "paused"
+                    ? "paused"
+                    : p.waits
+                      ? "waits"
+                      : `${r.sites} site${r.sites === 1 ? "" : "s"}`;
+          return (
+            <li key={`${r.repo}:${r.groupKey}`} style={{ height: ROW }} className="flex items-center">
+              <SafeLink
+                href={`/app/repos/${r.repo}/findings?group=${encodeURIComponent(r.groupKey)}`}
+                className="flex min-w-0 items-center gap-1.5 rounded-full bg-sheet py-0.5 pr-2 pl-2 text-[11px] ring-1 ring-rule"
+              >
+                <span className="truncate text-ink">{r.repo.split("/")[1]}</span>
+                <span className="shrink-0 font-mono text-[10px] text-ink-3">{said}</span>
+              </SafeLink>
+            </li>
+          );
+        })}
+        {more ? (
+          <li style={{ height: ROW }} className="flex items-center pl-2 font-mono text-[10px] text-ink-3">
+            +{more}
+          </li>
+        ) : null}
+      </ul>
+    </div>
+  );
+}
+
+/** Old → new as two chips, struck through and green, as Config's before → after reads. */
+function Swap({ from, to }: { from: string; to: string }) {
+  return (
+    <p className="flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-[11px]">
+      <span className="truncate rounded bg-broke-soft px-1.5 py-0.5 text-broke line-through decoration-broke/50">
+        {from}
+      </span>
+      <span aria-hidden className="text-ink-3">
+        →
+      </span>
+      <span className="truncate rounded bg-proven-soft px-1.5 py-0.5 text-proven">{to}</span>
+    </p>
+  );
+}
+
+/** A source's own words, folded: the card leads with the flow, the quote is there to check it. */
+function OwnWords({ quote, link, basis }: { quote: string; link?: string | null; basis?: string | null }) {
+  return (
+    <details className="text-xs">
+      <summary className="w-fit cursor-pointer list-none font-mono text-[11px] text-ink-3 hover:text-ink [&::-webkit-details-marker]:hidden">
+        In its own words ›
+      </summary>
+      <blockquote className="mt-1.5 border-l-2 border-rule-strong pl-2 break-words text-ink-2">
+        {quote}
+        <span className="mt-1 block font-mono text-[10px] text-ink-3">
+          {basis ? basis.replace(/[_-]/g, " ") : null}
+          {basis && link ? " · " : null}
+          {link ? <SafeLink href={link}>change record</SafeLink> : null}
+        </span>
+      </blockquote>
+    </details>
   );
 }
 
 export function ChangeCard({ o }: { o: Out<"get_change"> }) {
+  const brand = changeBrand(o);
+  const to = o.replacement ?? o.to;
   return (
     <Card eyebrow="Change" asOf={o.asOf} link={o.link} linkLabel="Open the change">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-ink">{o.title}</span>
+      <div className="flex items-center gap-2">
+        {brand ? <Mark brand={brand} size="sm" /> : null}
+        <span className="min-w-0 flex-1 font-medium text-ink">{o.title}</span>
         {o.deadline ? <StatusChip tone="attention">{until(o.deadline)}</StatusChip> : null}
       </div>
-      {o.quote ? (
-        <blockquote className="border-l-2 border-rule-strong pl-2 text-xs text-ink-2">
-          {o.quote}
-          <span className="mt-1 block font-mono text-[10px] text-ink-3">
-            the provider's words{o.trustBasis ? ` · ${o.trustBasis.replace(/_/g, " ")}` : ""}
-          </span>
-        </blockquote>
-      ) : (
-        <p className="text-xs text-ink-2">{o.summary}</p>
-      )}
-      {o.replacement ? (
-        <p className="text-xs text-ink-2">
-          Replace with <code className="font-mono text-ink">{o.replacement}</code>
-        </p>
-      ) : null}
+      {to ? <Swap from={o.from ?? o.subject} to={to} /> : null}
       {o.reaches.length ? (
-        <ul className="flex flex-col gap-1">
-          {o.reaches.map((r) => (
-            <PlanLine key={`${r.repo}:${r.groupKey}`} r={r} />
-          ))}
-        </ul>
+        <ReachFan reaches={o.reaches} />
       ) : (
-        <p className="text-xs text-ink-3">It doesn't reach any of your repositories.</p>
+        <p className="text-xs text-ink-3">It doesn&apos;t reach any of your repositories.</p>
       )}
+      {o.quote ? <OwnWords quote={o.quote} basis={o.trustBasis} /> : null}
     </Card>
   );
 }
@@ -591,11 +847,7 @@ export function ReachCard({ o }: { o: Out<"affected_by_change"> }) {
     >
       {o.title ? <span className="font-medium text-ink">{o.title}</span> : null}
       {o.reaches.length ? (
-        <ul className="flex flex-col gap-1">
-          {o.reaches.map((r) => (
-            <PlanLine key={`${r.repo}:${r.groupKey}`} r={r} />
-          ))}
-        </ul>
+        <ReachFan reaches={o.reaches} />
       ) : (
         <p className="text-xs text-ink-3">None of your repositories.</p>
       )}
@@ -616,13 +868,23 @@ export function ConfigCard({ o }: { o: Out<"get_config"> }) {
   return (
     <Card eyebrow={`teire.yml · ${o.repo}`} asOf={o.asOf} link={o.link}>
       <p className="font-mono text-[10px] text-ink-3">from {o.source}</p>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[11px]">
-        {Object.entries(o.values).map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt className="text-ink-3">{k}</dt>
-            <dd className="truncate text-ink">{show(v)}</dd>
-          </div>
-        ))}
+      {/* Cells as the Config tab's board draws them: what is set reads dark, what is off or empty grey. */}
+      <dl className="grid grid-cols-2 gap-1.5">
+        {Object.entries(o.values).map(([k, v]) => {
+          const said = show(v);
+          const quiet = said === "none" || said === "false";
+          return (
+            <div
+              key={k}
+              className="flex min-w-0 flex-col rounded-md bg-sunken/60 px-2 py-1 ring-1 ring-rule ring-inset"
+            >
+              <dt className="truncate text-[10px] text-ink-3">{k}</dt>
+              <dd className={cn("truncate font-mono text-[11px]", quiet ? "text-ink-3" : "text-ink")}>
+                {said}
+              </dd>
+            </div>
+          );
+        })}
       </dl>
     </Card>
   );
@@ -655,23 +917,61 @@ export function ConfigSnippet({ o }: { o: Out<"preview_config"> }) {
   );
 }
 
+const PURPOSE_COLOR = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
+
 export function UsageCard({ o }: { o: Out<"get_usage"> }) {
   const share = Math.min(100, (o.assistant.todayUsd / o.assistant.dailyCapUsd) * 100);
+  const model = o.byPurpose.reduce((n, p) => n + p.costUsd, 0);
+  const parts = o.byPurpose.filter((p) => p.costUsd > 0).slice(0, PURPOSE_COLOR.length);
   return (
     <Card eyebrow="Usage · 30 days" asOf={o.asOf} link={o.link}>
       <Figures
         items={[
-          ["runs", o.runs],
-          ["sandbox min", o.sandboxMinutes],
-          ["model $", `$${o.byPurpose.reduce((s, p) => s + p.costUsd, 0).toFixed(2)}`],
-          ["Ask Teire $", `$${o.assistant.monthUsd.toFixed(2)}`],
+          { label: "runs", value: o.runs, icon: Play, tone: "neutral" },
+          { label: "sandbox min", value: o.sandboxMinutes, icon: Box, tone: "neutral" },
+          { label: "models", value: `$${model.toFixed(2)}`, icon: Cpu, tone: "signal", zero: !model },
+          {
+            label: "Ask Teire",
+            value: `$${o.assistant.monthUsd.toFixed(2)}`,
+            icon: Sparkles,
+            tone: "signal",
+            zero: !o.assistant.monthUsd,
+          },
         ]}
       />
+      {parts.length ? (
+        // Where the model money went, as one bar in the Usage chart's colours.
+        <figure className="flex flex-col gap-1.5">
+          <span className="flex h-2 overflow-hidden rounded-full bg-sunken">
+            {parts.map((p, i) => (
+              <span
+                key={p.purpose}
+                style={{ width: `${(p.costUsd / model) * 100}%`, background: PURPOSE_COLOR[i] }}
+                title={`${p.purpose}: $${p.costUsd.toFixed(3)} · ${p.calls} calls`}
+              />
+            ))}
+          </span>
+          <figcaption className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] text-ink-3">
+            {parts.map((p, i) => (
+              <span key={p.purpose} className="flex items-center gap-1">
+                <span aria-hidden className="size-2 rounded-full" style={{ background: PURPOSE_COLOR[i] }} />
+                {p.purpose} ${p.costUsd.toFixed(2)}
+              </span>
+            ))}
+          </figcaption>
+        </figure>
+      ) : null}
       <div className="flex flex-col gap-1">
         <span className="flex justify-between text-[11px] text-ink-3">
           <span>Ask Teire today</span>
           <span className="font-mono">
-            ${o.assistant.todayUsd.toFixed(3)} of ${o.assistant.dailyCapUsd.toFixed(2)}
+            ${o.assistant.todayUsd.toFixed(3)} / ${o.assistant.dailyCapUsd.toFixed(2)}
           </span>
         </span>
         <span className="h-1.5 overflow-hidden rounded-full bg-sunken ring-1 ring-rule ring-inset">
@@ -702,27 +1002,37 @@ export function DocsCard({ o }: { o: Out<"search_docs"> }) {
   );
 }
 
-const GATE_ICON = {
-  ok: <Check className="size-3.5 text-proven" aria-label="passed" />,
-  holds: <CircleAlert className="size-3.5 text-attention" aria-label="holds it" />,
-  note: <Info className="size-3.5 text-ink-3" aria-label="worth knowing" />,
+/** Each gate as a step of a trail: passed green, the one that holds it red, a note quiet (B13). */
+const GATE_ENTITY: Record<string, FlowEntity> = {
+  repository: "repository",
+  verdict: "code",
+  ignore: "check",
+  "fix mode": "fix",
+  settings: "check",
+  "open PR": "outcome",
+  PR: "outcome",
+  "last run": "sandbox",
+  "PR limit": "outcome",
+  budget: "fix",
 };
 
 export function WhyCard({ o }: { o: Out<"why_no_pr"> }) {
+  const graph: FlowGraph = {
+    tiles: o.gates.map((g, i) => ({
+      id: `g${i}`,
+      entity: GATE_ENTITY[g.gate] ?? "check",
+      state: g.state === "holds" ? "failed" : g.state === "ok" ? "proven" : "done",
+      label: g.gate,
+      caption: g.said,
+      ...(g.href ? { href: g.href } : {}),
+    })),
+    links: [],
+  };
+  graph.links = graph.tiles.slice(1).map((t, i) => ({ from: `g${i}`, to: t.id, state: t.state }));
   return (
     <Card eyebrow={`Why no PR · ${o.repo}`} asOf={o.asOf} link={o.link}>
       <p className="text-sm font-medium text-ink">{o.answer}</p>
-      <ol className="flex flex-col gap-1">
-        {o.gates.map((g) => (
-          <li key={`${g.gate}:${g.said}`} className="flex items-start gap-2 text-xs">
-            <span className="mt-0.5 shrink-0">{GATE_ICON[g.state]}</span>
-            <span className="w-20 shrink-0 font-mono text-[11px] text-ink-3">{g.gate}</span>
-            <span className={cn("text-ink-2", g.state === "holds" && "text-ink")}>
-              {g.href ? <SafeLink href={g.href}>{g.said}</SafeLink> : g.said}
-            </span>
-          </li>
-        ))}
-      </ol>
+      <Trail graph={graph} label="Teire's gates, in order" />
     </Card>
   );
 }
@@ -731,13 +1041,15 @@ export function StepsCard({ o }: { o: Out<"show_steps"> }) {
   return (
     <Card eyebrow="How to">
       <span className="font-medium text-ink">{o.title}</span>
-      <ol className="flex flex-col gap-1.5">
+      {/* A how-to is a flow of numbered steps joined by a rail, each one line. */}
+      <ol className="relative flex flex-col gap-2">
+        <span aria-hidden className="absolute top-3 bottom-3 left-[11px] w-px bg-rule-strong" />
         {o.steps.map((s, i) => (
-          <li key={s.text} className="flex items-start gap-2 text-sm">
-            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-sunken font-mono text-[10px] text-ink-2 ring-1 ring-rule ring-inset">
+          <li key={s.text} className="relative flex items-start gap-3 text-sm">
+            <span className="relative z-10 flex size-6 shrink-0 items-center justify-center rounded-lg bg-sheet font-mono text-[11px] text-ink shadow-tile ring-1 ring-ink/40">
               {i + 1}
             </span>
-            <span className="text-ink-2">
+            <span className="pt-0.5 text-ink-2">
               {s.text}
               {s.href ? (
                 <>
@@ -808,6 +1120,83 @@ interface ActionRow {
 }
 
 type Proposed = Out<"propose_action">;
+
+/** What each action sets going after Confirm, as the tiles the rest of Teire draws for it. */
+const ACTION_STEPS: Record<string, [FlowEntity, string][]> = {
+  "set-fix-mode": [["update", "Fix mode"]],
+  "set-installation-fix-mode": [["update", "Every repo's mode"]],
+  rescan: [
+    ["review", "Scan"],
+    ["check", "Findings"],
+  ],
+  fix: [
+    ["fix", "Fix"],
+    ["sandbox", "Your checks"],
+    ["outcome", "Pull request"],
+  ],
+  pause: [["update", "Paused"]],
+  resume: [["update", "Resumed"]],
+  ignore: [["update", "Ignored"]],
+  unignore: [["update", "Watched again"]],
+  refresh: [
+    ["fix", "Refresh"],
+    ["outcome", "Pull request"],
+  ],
+  rebase: [
+    ["fix", "Rebase"],
+    ["outcome", "Pull request"],
+  ],
+  recreate: [
+    ["fix", "Recreate"],
+    ["outcome", "Pull request"],
+  ],
+  "cancel-run": [["fix", "Run stops"]],
+  "retry-run": [
+    ["fix", "Run again"],
+    ["sandbox", "Your checks"],
+    ["outcome", "Pull request"],
+  ],
+  "reverify-run": [
+    ["sandbox", "Re-verify"],
+    ["check", "Your checks"],
+  ],
+  "open-draft-anyway": [["outcome", "Draft PR"]],
+  "config-pr": [
+    ["update", "teire.yml"],
+    ["outcome", "Pull request"],
+  ],
+  "starter-config-pr": [
+    ["update", "teire.yml"],
+    ["outcome", "Pull request"],
+  ],
+  "fix-in-all": [
+    ["fix", "A run each"],
+    ["outcome", "A PR each"],
+  ],
+};
+
+/**
+ * The action as a trail: where it acts, then what it sets going. Before Confirm the steps are
+ * dashed; while the worker takes it the first one pulses; then it reads what the worker said.
+ */
+function actionGraph(kind: string, where: string, status: string | null): FlowGraph {
+  const steps = ACTION_STEPS[kind] ?? [["update", "Done"]];
+  const terminal = status ? TERMINAL.has(status as ActionStatus) : false;
+  const first: FlowState = !status ? "pending" : !terminal ? "live" : status === "done" ? "done" : "failed";
+  const tiles: FlowTile[] = [
+    { id: "where", entity: "repository", state: "done", label: where.split("/").pop() ?? where },
+    ...steps.map(([entity, label], i) => ({
+      id: `s${i}`,
+      entity,
+      state: i === 0 ? first : ("pending" as FlowState),
+      label,
+    })),
+  ];
+  return {
+    tiles,
+    links: tiles.slice(1).map((t, i) => ({ from: tiles[i]?.id as string, to: t.id, state: t.state })),
+  };
+}
 
 /**
  * The only way Ask Teire changes anything (D119): the exact action, its scope, Confirm and Cancel.
@@ -891,6 +1280,16 @@ export function ActionCard({ o }: { o: Proposed }) {
       {proposal ? (
         <>
           <p className="text-sm font-medium text-ink">{proposal.effect}</p>
+          {"kind" in proposal && typeof proposal.kind === "string" ? (
+            <Trail
+              graph={actionGraph(
+                proposal.kind,
+                "repo" in proposal && typeof proposal.repo === "string" ? proposal.repo : "Teire",
+                action?.status ?? null,
+              )}
+              label={proposal.effect}
+            />
+          ) : null}
           {"details" in proposal && Array.isArray(proposal.details) && proposal.details.length ? (
             <ul className="flex flex-col gap-0.5 font-mono text-[11px] text-ink-2">
               {(proposal.details as string[]).map((d) => (
