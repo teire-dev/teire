@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
 import { runAction } from "./run-action";
 
 /**
- * Ignore ▾ (plan revision 3.3, U3; Dependabot's ignore conditions): this version only, this kind of
+ * Ignore, an icon with its menu (plan revision 3.3, U3; Dependabot's ignore conditions): this version only, this kind of
  * update (major, minor or patch) of the package, or the package altogether. A model or API change is
  * ignored whole. Each choice is the same action as `@teire ignore`, undoable from its toast.
  */
@@ -28,9 +28,8 @@ export function IgnoreMenu({ repo, group }: { repo: string; group: string }) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm">
-            Ignore
-            <ChevronDown data-icon="inline-end" aria-hidden />
+          <Button variant="ghost" size="icon-sm" aria-label="Ignore" title="Ignore">
+            <EyeOff aria-hidden />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
@@ -62,16 +61,21 @@ export function IgnoreMenu({ repo, group }: { repo: string; group: string }) {
   };
   if (!pkg)
     return (
-      <Button variant="ghost" size="sm" onClick={() => void choose({ target: group })}>
-        Ignore
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Ignore"
+        title="Ignore"
+        onClick={() => void choose({ target: group })}
+      >
+        <EyeOff aria-hidden />
       </Button>
     );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm">
-          Ignore
-          <ChevronDown data-icon="inline-end" aria-hidden />
+        <Button variant="ghost" size="icon-sm" aria-label="Ignore" title="Ignore">
+          <EyeOff aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

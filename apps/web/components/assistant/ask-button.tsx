@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AssistantContext } from "@/lib/assistant/message";
 import { useAssistant } from "./assistant-provider";
@@ -13,15 +14,29 @@ export function AskButton({
   context,
   children = "Explain",
   variant = "ghost",
+  icon,
 }: {
   question: string;
   context?: AssistantContext | null;
   children?: React.ReactNode;
   variant?: "ghost" | "outline";
+  /** Only the spark, its words on hover (a card's row of icon actions). */
+  icon?: boolean;
 }) {
   const { ask, available } = useAssistant();
   if (!available) return null;
-  return (
+  return icon ? (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant={variant}
+      aria-label={typeof children === "string" ? children : "Explain"}
+      title={typeof children === "string" ? children : "Explain"}
+      onClick={() => ask(question, context)}
+    >
+      <Sparkles aria-hidden />
+    </Button>
+  ) : (
     <Button type="button" size="sm" variant={variant} onClick={() => ask(question, context)}>
       {children}
     </Button>

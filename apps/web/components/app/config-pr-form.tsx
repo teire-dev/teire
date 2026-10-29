@@ -146,22 +146,36 @@ export function ConfigPrForm({ repo, current = {} }: { repo: string; current?: R
           Open config PR
         </Button>
       </div>
-      <p className="text-xs text-ink-3">
-        {"error" in checked ? (
-          <span className="text-broke">{checked.error}</span>
-        ) : !changed ? (
-          <>
-            It is already {now ? <span className="font-mono">{now.replace(/\n/g, ", ")}</span> : "unset"}:
-            nothing to change.
-          </>
-        ) : (
-          <>
-            Now: <span className="font-mono">{now ? now.replace(/\n/g, ", ") : "unset (the default)"}</span>.
-            Opening the PR changes nothing yet: Teire reads it at the next scan after it merges.
-            {EFFECT[key] ? ` ${EFFECT[key]}` : ""}
-          </>
-        )}
-      </p>
+      {"error" in checked ? (
+        <p className="text-xs text-broke">{checked.error}</p>
+      ) : (
+        // The change as a diff of the file's value: before → after, and what saving does on hover.
+        <p className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+          <span className="rounded bg-broke-soft px-1.5 py-0.5 text-broke line-through decoration-broke/50">
+            {now ? now.replace(/\n/g, ", ") : "unset"}
+          </span>
+          <span className="text-ink-3" aria-hidden>
+            →
+          </span>
+          <span
+            className={
+              changed
+                ? "rounded bg-proven-soft px-1.5 py-0.5 text-proven"
+                : "rounded bg-sunken px-1.5 py-0.5 text-ink-3"
+            }
+          >
+            {changed ? String(value).replace(/\n/g, ", ") || "empty" : "no change"}
+          </span>
+          {changed ? (
+            <span
+              className="cursor-help rounded-full px-1.5 text-ink-3 ring-1 ring-rule"
+              title={`Opening the PR changes nothing yet: Teire reads it at the next scan after it merges.${EFFECT[key] ? ` ${EFFECT[key]}` : ""}`}
+            >
+              i
+            </span>
+          ) : null}
+        </p>
+      )}
     </form>
   );
 }

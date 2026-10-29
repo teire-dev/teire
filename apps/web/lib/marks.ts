@@ -18,6 +18,23 @@ export function subjectMark(groupKey: string | null | undefined): Brand {
   );
 }
 
+/**
+ * A finding group's subject in a tile's words: `zod` with `→ 4.6.6`, `OpenAI` with `models`, `node`
+ * with `runtime`. Keys are `<ecosystem>/<package…>/<target>`, `models|api/<provider>`, `runtime/<name>`.
+ */
+export function subjectOfKey(key: string): { name: string; meta?: string } {
+  const [head = "", ...rest] = key.split("/");
+  if (head === "models" || head === "api")
+    return { name: providerLogo(rest[0]).name, meta: head === "models" ? "models" : "API" };
+  if (head === "runtime") return { name: rest[0] ?? head, meta: "runtime" };
+  if (head === "advisory") return { name: rest.slice(1, -1).join("/") || head, meta: "advisory" };
+  const full = rest.length >= 2 ? rest.slice(0, -1).join("/") : rest.join("/") || head;
+  // A tile's name fits under its square: Maven's artifact (not group:artifact), then clipped.
+  const short = head === "maven" ? (full.split(":").at(-1) ?? full) : full;
+  const name = short.length > 18 ? `${short.slice(0, 17)}…` : short;
+  return rest.length >= 2 ? { name, meta: `→ ${rest.at(-1)}` } : { name };
+}
+
 const LANGUAGE_ECOSYSTEM: Record<string, string> = {
   javascript: "npm",
   typescript: "npm",

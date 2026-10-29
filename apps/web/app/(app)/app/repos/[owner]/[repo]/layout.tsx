@@ -1,6 +1,5 @@
 import { maskSecrets } from "@teire/engine/redact";
-import { ExternalLink, Lock } from "lucide-react";
-import Link from "next/link";
+import { Lock, Pause, Play, RefreshCw } from "lucide-react";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -9,19 +8,23 @@ import { FixModeControl } from "@/components/app/fix-mode-control";
 import { RepoTabs } from "@/components/app/repo-tabs";
 import { AskButton } from "@/components/assistant/ask-button";
 import { AskContext } from "@/components/assistant/assistant-provider";
+import { BrandLogo } from "@/components/brand-logo";
+import { TileSquare } from "@/components/flow/tile";
 import { MarkStack } from "@/components/teire/mark";
-import { ago } from "@/components/teire/run-row";
 import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
+import { SPONSORS } from "@/lib/brands";
 import { repoDetailCached } from "@/lib/dashboard";
 import { bucketGroups, groupFindings } from "@/lib/findings";
 import { languageMarks } from "@/lib/marks";
 import { getSession } from "@/lib/session";
+import { ago } from "@/lib/time";
 import { SignInCard } from "../../../gate";
 
 /**
- * One repository (plan revision 3.3, U3): its header (name, visibility, state, the fix mode, Rescan,
- * Pause, GitHub) over tabs that are each their own URL.
+ * One repository (plan revision 3.4, V4): its tile in its state (working, last scan failed, paused),
+ * name and one line of where it stands, Rescan, Pause, Ask and GitHub, the fix mode, then tabs that
+ * are each their own URL.
  */
 export default function RepoLayout({ children, params }: LayoutProps<"/app/repos/[owner]/[repo]">) {
   return (
@@ -57,62 +60,77 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
             tone: "attention" as const,
           };
   const base = `/app/repos/${fullName}`;
+  const live = data.runs.some((r) => r.status === "running" || r.status === "stopping");
+  const failed = data.latestScan?.status === "failed";
+  const tile = live ? "live" : failed ? "failed" : repo.status === "paused" ? "skipped" : "done";
   return (
     <header className="flex flex-col gap-4">
       <AskContext kind="repo" id={fullName} label={fullName} />
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-2">
-          <span className="eyebrow flex items-center gap-2">
-            {owner}
-            {repo.isPrivate ? (
-              <span className="flex items-center gap-1 normal-case">
-                <Lock className="size-3" aria-hidden /> private
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <TileSquare tile={{ entity: "repository", state: tile, label: name }} size="md" />
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className="heading flex items-center gap-2 text-2xl text-ink">
+              <span className="truncate">{name}</span>
+              {repo.isPrivate ? <Lock className="size-4 shrink-0 text-ink-3" aria-label="Private" /> : null}
+              {repo.status !== "active" ? <StatusChip tone={state.tone}>{state.label}</StatusChip> : null}
+            </h1>
+            <span className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-3">
+              <MarkStack brands={languageMarks(repo.languages)} max={3} />
+              <span>{owner}</span>
+              <span aria-hidden>·</span>
+              <span title={repo.lastScannedSha ?? undefined}>
+                {repo.lastScannedAt ? `scanned ${ago(repo.lastScannedAt)}` : "not scanned yet"}
+                {repo.lastScannedSha ? ` at ${repo.lastScannedSha.slice(0, 7)}` : ""}
               </span>
-            ) : null}
-          </span>
-          <h1 className="heading flex flex-wrap items-center gap-3 text-2xl text-ink">
-            {name}
-            <MarkStack brands={languageMarks(repo.languages)} />
-            <StatusChip tone={state.tone}>{state.label}</StatusChip>
-          </h1>
-          <span className="font-mono text-[11px] text-ink-3">
-            scanned {repo.lastScannedAt ? ago(repo.lastScannedAt) : "not yet"}
-            {repo.lastScannedSha ? ` at ${repo.lastScannedSha.slice(0, 7)}` : ""}
-            {repo.configSource ? ` · ${repo.configSource}` : ""}
-          </span>
+            </span>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <ActionButton kind="rescan" repo={fullName}>
+            <RefreshCw data-icon="inline-start" aria-hidden />
             Rescan
           </ActionButton>
-          <ActionButton kind={repo.status === "paused" ? "resume" : "pause"} repo={fullName}>
-            {repo.status === "paused" ? "Resume Teire here" : "Pause Teire here"}
+          <ActionButton kind={repo.status === "paused" ? "resume" : "pause"} repo={fullName} variant="ghost">
+            {repo.status === "paused" ? (
+              <Play data-icon="inline-start" aria-hidden />
+            ) : (
+              <Pause data-icon="inline-start" aria-hidden />
+            )}
+            {repo.status === "paused" ? "Resume" : "Pause"}
           </ActionButton>
-          <Button asChild variant="ghost" size="sm">
-            <Link href={`${base}/findings#ignored`}>Show ignores</Link>
-          </Button>
           <AskButton
+            icon
             question={`Explain where ${fullName} stands: what reaches its code, what Teire is doing and what needs me`}
             context={{ kind: "repo", id: fullName, label: fullName }}
-          />
-          <Button asChild variant="outline" size="sm">
+          >
+            Ask about this repository
+          </AskButton>
+          <Button asChild variant="ghost" size="icon-sm" aria-label="Open on GitHub" title="Open on GitHub">
             <a href={`https://github.com/${fullName}`}>
-              GitHub <ExternalLink data-icon="inline-end" aria-hidden />
+              <BrandLogo
+                light={SPONSORS.github.light}
+                dark={SPONSORS.github.dark}
+                alt=""
+                className="size-4"
+              />
             </a>
           </Button>
         </div>
       </div>
       {data.suspended ? (
-        <p className="rounded-lg bg-attention-soft px-4 py-2 text-sm text-attention">
-          The installation is suspended on GitHub: Teire scans nothing and opens nothing here until it is
-          unsuspended.
+        <p className="w-fit rounded-full bg-attention-soft px-3 py-1 text-xs text-attention">
+          Suspended on GitHub: nothing runs here
         </p>
       ) : null}
-      {data.latestScan?.status === "failed" ? (
-        <p className="rounded-lg bg-broke-soft px-4 py-2 text-sm text-broke">
-          The last scan failed
-          {data.latestScan.error ? `: ${maskSecrets(data.latestScan.error).slice(0, 300)}` : ""}. What shows
-          below is from the last scan that finished; Rescan tries again.
+      {failed ? (
+        <p className="flex items-center gap-2 rounded-lg bg-broke-soft px-3 py-2 text-xs text-broke">
+          <span className="font-medium">Last scan failed</span>
+          {data.latestScan?.error ? (
+            <span className="truncate font-mono" title={maskSecrets(data.latestScan.error)}>
+              {maskSecrets(data.latestScan.error).slice(0, 160)}
+            </span>
+          ) : null}
         </p>
       ) : null}
       <FixModeControl repo={fullName} mode={fixMode.mode} origin={fixMode.origin} file={fixMode.file} />

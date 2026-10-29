@@ -3,6 +3,26 @@ import { inArray, runs } from "@teire/db";
 import { type ActionKind, describeAction } from "@teire/engine/actions";
 import { CONFIG_PR_KEYS } from "@teire/engine/config-keys";
 import { lineageKey } from "@teire/engine/contract";
+import {
+  ChevronDown,
+  Eye,
+  EyeOff,
+  FileCog,
+  GitPullRequest,
+  GitPullRequestDraft,
+  ListChecks,
+  type LucideIcon,
+  MessageSquare,
+  Pause,
+  Play,
+  Power,
+  RefreshCw,
+  RotateCcw,
+  SlidersHorizontal,
+  Wrench,
+  X,
+  Zap,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -14,16 +34,23 @@ import { IgnoreMenu } from "@/components/app/ignore-menu";
 import { InventoryTable } from "@/components/app/inventory-table";
 import { AskButton } from "@/components/assistant/ask-button";
 import { BrandLogo } from "@/components/brand-logo";
-import { FindingGroupCard } from "@/components/findings/finding-group";
+import { FindingFlow } from "@/components/findings/finding-flow";
+import { MiniFlow } from "@/components/flow/mini-flow";
+import { TileSquare } from "@/components/flow/tile";
+import { Mark } from "@/components/teire/mark";
 import { ProofGlyphs } from "@/components/teire/proof-glyphs";
-import { ago, RunRowItem } from "@/components/teire/run-row";
+import { RunRowItem } from "@/components/teire/run-row";
 import { StatusChip } from "@/components/teire/status-chip";
+import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
 import { repoDetailCached } from "@/lib/dashboard";
 import { bucketGroups, groupFindings } from "@/lib/findings";
 import { configCurrent } from "@/lib/fix-mode";
 import { providerLogo } from "@/lib/logos";
+import { subjectMark } from "@/lib/marks";
 import { getSession } from "@/lib/session";
+import { ago, until } from "@/lib/time";
+import { cn } from "@/lib/utils";
 import { rowsOf, type Scope } from "@/lib/workspace";
 
 /** What the repository's Activity tab shows (the latest actions; dashboard.ts reads this many). */
@@ -129,17 +156,15 @@ async function Findings({
   const { repo, scan, fixMode } = data;
   // Each group's proof chain: its newest run (plan revision 3.3, "the proof chain on every finding").
   const mine = { scope: repoScope(data, userId) };
-  const latest = new Map<string, Awaited<ReturnType<typeof rowsOf>>[number]>();
-  if (data.runs.length)
-    for (const r of await rowsOf(
-      mine.scope,
-      inArray(
-        runs.id,
-        data.runs.map((x) => x.id),
-      ),
-      data.runs.length,
-    ))
-      if (r.groupKey && !latest.has(r.groupKey)) latest.set(r.groupKey, r);
+  // The runs behind the latest 25 and behind every PR or issue, so an older PR still shows its proof.
+  const ids = [
+    ...new Set([...data.runs.map((x) => x.id), ...data.artifacts.flatMap((a) => (a.runId ? [a.runId] : []))]),
+  ];
+  const rows = ids.length ? await rowsOf(mine.scope, inArray(runs.id, ids), ids.length) : [];
+  const byRun = new Map(rows.map((r) => [r.id, r]));
+  const latest = new Map<string, (typeof rows)[number]>();
+  for (const r of [...rows].sort((a, c) => c.createdAt.getTime() - a.createdAt.getTime()))
+    if (r.groupKey && !latest.has(r.groupKey)) latest.set(r.groupKey, r);
   const open = data.findings.filter((f) => f.state === "open");
   const ignored = groupFindings(data.findings.filter((f) => f.state === "ignored"));
   // Every ignore, not only findings now ignored: `@teire ignore` entries (with their update type)
@@ -177,24 +202,111 @@ async function Findings({
   const reaching = [...b.affected, ...b.human].sort(
     (a, c) => Number(c.key === focus) - Number(a.key === focus),
   );
+  const issueFor = new Map(
+    data.artifacts.filter((a) => a.kind === "issue" && a.state === "open").map((a) => [a.changeKey, a]),
+  );
+  const flowOf = (g: (typeof reaching)[number], undecided = false) => {
+    const pr = prFor.get(g.key);
+    const opened = pr?.state === "open" ? pr : issueFor.get(g.key);
+    // A run going now speaks for the group; otherwise the run behind its open PR, else its newest.
+    const newest = latest.get(g.key);
+    const run =
+      newest && ["queued", "running", "stopping"].includes(newest.status)
+        ? newest
+        : ((opened?.runId ? byRun.get(opened.runId) : undefined) ?? newest);
+    return (
+      <FindingFlow
+        key={g.key}
+        group={g}
+        repo={fullName}
+        sha={repo.lastScannedSha}
+        latest={run}
+        opened={opened}
+        mode={fixMode.mode}
+        undecided={undecided}
+        focus={g.key === focus}
+        actions={
+          <>
+            {pr?.url && pr.state === "open" ? (
+              <Button asChild size="sm" variant="outline">
+                <a href={pr.url}>PR #{pr.number}</a>
+              </Button>
+            ) : g.key.startsWith("runtime/") ? null : (
+              <ActionButton
+                kind="fix"
+                repo={fullName}
+                params={{ target: g.key }}
+                variant="default"
+                disabled={off}
+                title={
+                  off
+                    ? `Fixes are Off here (${fixMode.file ? `set in ${fixMode.file}` : "change it above"})`
+                    : undefined
+                }
+              >
+                {undecided ? "Upgrade and check" : "Fix now"}
+              </ActionButton>
+            )}
+            <IgnoreMenu repo={fullName} group={g.key} />
+            <AskButton
+              icon
+              question={`Explain the finding ${g.key} on ${fullName}: what changed, where it reaches the code and what Teire will do`}
+            />
+          </>
+        }
+      />
+    );
+  };
+  const couldnt = [
+    ...(coverage?.advisoryStatus && coverage.advisoryStatus !== "complete"
+      ? [`Security advisories: ${coverage.advisoryStatus}`]
+      : []),
+    ...gaps,
+  ];
+  const ignoredCount = ignored.length + byCommand.length + byFile.length;
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      {coverage?.skipped ? (
+        <p className="w-fit rounded-full bg-sunken px-3 py-1 font-mono text-xs text-ink-2">
+          {coverage.skipped === "archived" ? "Archived on GitHub: read-only" : "No commits yet"}
+        </p>
+      ) : null}
+      {reaching.length || b.undecided.length ? (
+        <div className="flex flex-col gap-3">
+          {[...reaching.map((g) => flowOf(g)), ...b.undecided.map((g) => flowOf(g, true))]}
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+          <TileSquare
+            tile={{ entity: "check", state: couldnt.length ? "not_proven" : "proven", label: "" }}
+            size="sm"
+          />
+          <span className="flex flex-col">
+            <span className="text-sm text-ink">Nothing reaches this code</span>
+            {coverage?.filesScanned ? (
+              <span className="font-mono text-[11px] text-ink-3">{coverage.filesScanned} files searched</span>
+            ) : null}
+          </span>
+        </div>
+      )}
       {upgrades.length ? (
         <section className="flex flex-col gap-2">
-          <Heading count={upgrades.length}>Upgrades available</Heading>
-          <p className="text-sm text-ink-3">
-            {off ? "Fixes are off here, so none of these starts." : "Teire won't start these until you ask."}
-          </p>
+          <Heading count={upgrades.length}>Upgrades {off ? "(fixes off)" : "waiting for you"}</Heading>
           <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
             {upgrades.map((u) => {
               const older = lineagePr.get(lineageKey(u.groupKey, u.security ? "security" : "version"));
               return (
                 <li key={u.groupKey} className="flex items-center justify-between gap-3 px-4 py-2">
-                  <span className="min-w-0 truncate font-mono text-xs text-ink">
-                    {upgradeName(u)} <span className="text-ink-3">{u.from ? `${u.from} → ` : "→ "}</span>
-                    {u.to}
-                    {u.security ? <span className="ml-2 text-attention">security</span> : null}
-                    {older ? <span className="ml-2 text-ink-3">newer than #{older.number}</span> : null}
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <Mark brand={subjectMark(u.groupKey)} size="sm" />
+                    <span className="min-w-0 truncate font-mono text-xs text-ink">
+                      {upgradeName(u)} <span className="text-ink-3">{u.from ? `${u.from} → ` : "→ "}</span>
+                      {u.to}
+                    </span>
+                    {u.security ? <StatusChip tone="attention">security</StatusChip> : null}
+                    {older ? (
+                      <span className="font-mono text-[11px] text-ink-3">after #{older.number}</span>
+                    ) : null}
                   </span>
                   {off ? null : (
                     <ActionButton
@@ -212,186 +324,133 @@ async function Findings({
           </ul>
         </section>
       ) : null}
-      {reaching.length ? (
-        <section className="flex flex-col gap-3">
-          <Heading count={reaching.length}>Reaching your code</Heading>
-          {reaching.map((g) => {
-            const pr = prFor.get(g.key);
-            return (
-              <div
-                key={g.key}
-                id={`group-${g.key}`}
-                className={g.key === focus ? "rounded-xl ring-2 ring-signal" : undefined}
-              >
-                <FindingGroupCard
-                  group={g}
-                  repo={fullName}
-                  sha={repo.lastScannedSha}
-                  action={
-                    <>
-                      {latest.get(g.key) ? (
-                        <Link href={`/runs/${latest.get(g.key)?.id}`} title="Its latest run" className="mr-1">
-                          <ProofGlyphs
-                            proof={(latest.get(g.key) as NonNullable<ReturnType<typeof latest.get>>).proof}
-                          />
-                        </Link>
-                      ) : null}
-                      {pr?.url && pr.state === "open" ? (
-                        <a href={pr.url} className="text-sm text-link hover:underline">
-                          Open PR #{pr.number}
-                        </a>
-                      ) : g.key.startsWith("runtime/") ? null : (
-                        <ActionButton
-                          kind="fix"
-                          repo={fullName}
-                          params={{ target: g.key }}
-                          variant="default"
-                          disabled={off}
-                          title={
-                            off
-                              ? `Fixes are Off here (${fixMode.file ? `set in ${fixMode.file}` : "change it above"})`
-                              : fixMode.mode === "ask"
-                                ? "Teire won't start this until you ask"
-                                : undefined
-                          }
-                        >
-                          Fix now
-                        </ActionButton>
-                      )}
-                      <IgnoreMenu repo={fullName} group={g.key} />
-                      <AskButton
-                        question={`Explain the finding ${g.key} on ${fullName}: what changed, where it reaches the code and what Teire will do`}
-                      />
-                    </>
-                  }
-                />
-              </div>
-            );
-          })}
-        </section>
-      ) : null}
-      {b.undecided.length ? (
-        <section className="flex flex-col gap-3">
-          <Heading count={b.undecided.length}>Decided in the sandbox</Heading>
-          <p className="text-sm text-ink-3">
-            The code alone doesn&apos;t settle these: some references could not be resolved. Each upgrade runs
-            this repository&apos;s checks before and after, and that result decides.
-          </p>
-          {b.undecided.map((g) => (
-            <FindingGroupCard
-              key={g.key}
-              group={g}
-              repo={fullName}
-              sha={repo.lastScannedSha}
-              action={
-                <ActionButton
-                  kind="fix"
-                  repo={fullName}
-                  params={{ target: g.key }}
-                  variant="default"
-                  disabled={off}
-                >
-                  Upgrade and check
-                </ActionButton>
-              }
-            />
-          ))}
-        </section>
-      ) : null}
-      {coverage?.skipped ? (
-        <p className="text-sm text-ink-3">
-          {coverage.skipped === "archived"
-            ? "This repository is archived, so it's read-only: Teire scans nothing and opens nothing until it is unarchived."
-            : "This repository has no commits yet; Teire scans it once it has one."}
-        </p>
-      ) : null}
-      {gaps.length || (coverage?.advisoryStatus && coverage.advisoryStatus !== "complete") ? (
-        <section className="flex flex-col gap-2 rounded-xl bg-sheet p-4 shadow-card">
-          <Heading>Couldn&apos;t check</Heading>
-          <ul className="flex flex-col gap-1 text-sm text-ink-2">
-            {coverage?.advisoryStatus && coverage.advisoryStatus !== "complete" ? (
-              <li>Security advisories: {coverage.advisoryStatus}</li>
-            ) : null}
-            {gaps.map((g) => (
-              <li key={g}>{g}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      {!reaching.length && !b.undecided.length ? (
-        <p className="rounded-xl bg-sheet px-4 py-6 text-center text-sm text-ink-3 shadow-card">
-          {gaps.length
-            ? "Nothing reaches this code in what Teire could check"
-            : "Nothing reaches this code right now"}
-          {coverage?.filesScanned ? ` (Teire searched ${coverage.filesScanned} files)` : ""}.
-        </p>
-      ) : null}
-      {b.quiet.length ? (
-        <details className="rounded-xl bg-sheet shadow-card">
-          <summary className="cursor-pointer px-4 py-3 text-sm text-ink">
-            Checked, not reaching this code <span className="font-mono text-ink-3">{b.quiet.length}</span>
-          </summary>
-          <div className="flex flex-col gap-3 border-t border-rule p-4">
-            {b.quiet.map((g) => (
-              <FindingGroupCard key={g.key} group={g} repo={fullName} sha={repo.lastScannedSha} />
-            ))}
-          </div>
-        </details>
-      ) : null}
-      {ignored.length || byCommand.length || byFile.length ? (
-        <section id="ignored" className="flex flex-col gap-2">
-          <Heading count={ignored.length + byCommand.length + byFile.length}>Ignored</Heading>
-          {byCommand.length || byFile.length ? (
-            <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-              {byCommand.map((c) => (
-                <li key={c.entry} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                  <span className="truncate font-mono text-xs text-ink">
-                    {c.target}
-                    {c.update ? <span className="text-ink-3"> · {c.update} updates</span> : null}
-                    <span className="ml-2 font-sans text-ink-3">from @teire ignore</span>
-                  </span>
-                  <ActionButton
-                    kind="unignore"
-                    repo={fullName}
-                    params={{ target: c.target, ...(c.update ? { update: c.update } : {}) }}
-                    variant="ghost"
-                  >
-                    Unignore
-                  </ActionButton>
-                </li>
-              ))}
-              {byFile.map((i) => (
-                <li key={i} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                  <span className="truncate font-mono text-xs text-ink">
-                    {i}
-                    <span className="ml-2 font-sans text-ink-3">in teire.yml</span>
-                  </span>
-                  <Link href={`/app/repos/${fullName}/config`} className="text-xs text-ink-2 hover:text-ink">
-                    Change in teire.yml ›
-                  </Link>
-                </li>
-              ))}
-            </ul>
+      {couldnt.length || b.quiet.length || ignoredCount ? (
+        <div className="flex flex-col gap-2">
+          {couldnt.length ? (
+            <Fold tone="attention" label="Couldn't check" count={couldnt.length}>
+              <ul className="flex flex-col gap-1 p-4 text-sm text-ink-2">
+                {couldnt.map((g) => (
+                  <li key={g}>{g}</li>
+                ))}
+              </ul>
+            </Fold>
           ) : null}
-          <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-            {ignored.map((g) => (
-              <li key={g.key} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                {g.changeIds[0] ? (
-                  <Link href={`/changes/${g.changeIds[0]}`} className="truncate text-ink hover:underline">
-                    {g.title}
-                  </Link>
-                ) : (
-                  <span className="truncate text-ink">{g.title}</span>
-                )}
-                <ActionButton kind="unignore" repo={fullName} params={{ target: g.key }} variant="ghost">
-                  Unignore
-                </ActionButton>
-              </li>
-            ))}
-          </ul>
-        </section>
+          {b.quiet.length ? (
+            <Fold tone="proven" label="Checked, not reaching" count={b.quiet.length}>
+              <ul className="divide-y divide-rule">
+                {b.quiet.map((g) => (
+                  <li key={g.key} className="flex items-center gap-2.5 px-4 py-2">
+                    <Mark brand={subjectMark(g.key)} size="sm" />
+                    {g.changeIds[0] ? (
+                      <Link
+                        href={`/changes/${g.changeIds[0]}`}
+                        className="min-w-0 truncate text-sm text-ink hover:underline"
+                      >
+                        {g.title}
+                      </Link>
+                    ) : (
+                      <span className="min-w-0 truncate text-sm text-ink">{g.title}</span>
+                    )}
+                    {g.reason ? (
+                      <span className="ml-auto hidden max-w-[45%] truncate text-xs text-ink-3 md:inline">
+                        {g.reason}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </Fold>
+          ) : null}
+          {ignoredCount ? (
+            <Fold tone="neutral" label="Ignored" count={ignoredCount} id="ignored">
+              <ul className="divide-y divide-rule">
+                {byCommand.map((c) => (
+                  <li key={c.entry} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                    <span className="truncate font-mono text-xs text-ink">
+                      {c.target}
+                      {c.update ? <span className="text-ink-3"> · {c.update}</span> : null}
+                      <span className="ml-2 text-ink-3">@teire ignore</span>
+                    </span>
+                    <ActionButton
+                      kind="unignore"
+                      repo={fullName}
+                      params={{ target: c.target, ...(c.update ? { update: c.update } : {}) }}
+                      variant="ghost"
+                    >
+                      Unignore
+                    </ActionButton>
+                  </li>
+                ))}
+                {byFile.map((i) => (
+                  <li key={i} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                    <span className="truncate font-mono text-xs text-ink">
+                      {i}
+                      <span className="ml-2 text-ink-3">teire.yml</span>
+                    </span>
+                    <Link
+                      href={`/app/repos/${fullName}/config`}
+                      className="text-xs text-ink-2 hover:text-ink"
+                    >
+                      Config ›
+                    </Link>
+                  </li>
+                ))}
+                {ignored.map((g) => (
+                  <li key={g.key} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                    {g.changeIds[0] ? (
+                      <Link href={`/changes/${g.changeIds[0]}`} className="truncate text-ink hover:underline">
+                        {g.title}
+                      </Link>
+                    ) : (
+                      <span className="truncate text-ink">{g.title}</span>
+                    )}
+                    <ActionButton kind="unignore" repo={fullName} params={{ target: g.key }} variant="ghost">
+                      Unignore
+                    </ActionButton>
+                  </li>
+                ))}
+              </ul>
+            </Fold>
+          ) : null}
+        </div>
       ) : null}
     </div>
+  );
+}
+
+/** A folded list under the findings: a chip with its count that opens in place. */
+function Fold({
+  label,
+  count,
+  tone,
+  id,
+  children,
+}: {
+  label: string;
+  count: number;
+  tone: "attention" | "proven" | "neutral";
+  id?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details id={id} className="group/fold overflow-hidden rounded-xl bg-sheet shadow-card">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+        <span
+          aria-hidden
+          className={cn(
+            "size-2 rounded-full",
+            tone === "attention" ? "bg-attention" : tone === "proven" ? "bg-proven" : "bg-ink-3",
+          )}
+        />
+        {label}
+        <span className="font-mono text-xs text-ink-3">{count}</span>
+        <ChevronDown
+          aria-hidden
+          className="ml-auto size-3.5 text-ink-3 transition-transform group-open/fold:rotate-180"
+        />
+      </summary>
+      <div className="border-t border-rule">{children}</div>
+    </details>
   );
 }
 
@@ -409,42 +468,48 @@ async function Prs({ data, fullName, userId }: { data: Data; fullName: string; u
           ? "Config PR"
           : "PR";
   const list = [...data.artifacts].sort((a, b) => Number(b.state === "open") - Number(a.state === "open"));
-  if (!list.length)
-    return (
-      <p className="rounded-xl bg-sheet px-4 py-6 text-center text-sm text-ink-3 shadow-card">
-        Teire has not opened a pull request here yet.
-      </p>
-    );
+  if (!list.length) return <Quiet label="No pull request yet" />;
   return (
     <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
       {list.map((a) => {
         const run = a.runId ? byRun.get(a.runId) : undefined;
+        const verified = run?.evidence === "verified";
+        const state =
+          a.state === "merged"
+            ? "proven"
+            : a.state === "closed"
+              ? "skipped"
+              : a.kind === "issue"
+                ? "failed"
+                : verified
+                  ? "proven"
+                  : run
+                    ? "not_proven"
+                    : "done";
         return (
-          <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <span className="flex min-w-0 flex-col">
-              <a href={a.url ?? "#"} className="truncate text-sm text-ink hover:underline">
+          <li key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <TileSquare tile={{ entity: "outcome", state, label: label(a.kind) }} size="sm" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <a href={a.url ?? "#"} className="truncate text-sm font-medium text-ink hover:underline">
                 {label(a.kind)} #{a.number}
               </a>
               <span className="truncate font-mono text-[11px] text-ink-3">
-                {a.changeKey || "Configure Teire"}
+                {a.changeKey || "Configure Teire"} · {a.state}
               </span>
             </span>
-            <span className="flex flex-wrap items-center gap-2">
-              {run ? (
-                <Link href={`/runs/${run.id}`} title="Open its run">
-                  <ProofGlyphs proof={run.proof} />
-                </Link>
-              ) : null}
-              <StatusChip tone={a.state === "open" ? "signal" : a.state === "merged" ? "proven" : "neutral"}>
-                {a.state}
-              </StatusChip>
+            {run ? (
+              <Link href={`/runs/${run.id}`} title="Open its run" className="hidden sm:inline-flex">
+                <MiniFlow proof={run.proof} subject={subjectMark(run.groupKey)} size="xs" />
+              </Link>
+            ) : null}
+            <span className="flex items-center gap-1">
               {a.kind === "pr" && a.state === "open" && a.runId ? (
-                <ActionButton kind="reverify-run" repo={fullName} params={{ runId: a.runId }}>
+                <ActionButton kind="reverify-run" repo={fullName} params={{ runId: a.runId }} variant="ghost">
                   Re-verify
                 </ActionButton>
               ) : null}
               {a.kind === "pr" && a.state === "open" ? (
-                <ActionButton kind="refresh" repo={fullName} params={{ group: a.changeKey }}>
+                <ActionButton kind="refresh" repo={fullName} params={{ group: a.changeKey }} variant="ghost">
                   Refresh
                 </ActionButton>
               ) : null}
@@ -458,6 +523,19 @@ async function Prs({ data, fullName, userId }: { data: Data; fullName: string; u
         );
       })}
     </ul>
+  );
+}
+
+/** A quiet tab: one tile and a few words, in place of an empty box. */
+function Quiet({ label, meta }: { label: string; meta?: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+      <TileSquare tile={{ entity: "check", state: "pending", label }} size="sm" />
+      <span className="flex flex-col">
+        <span className="text-sm text-ink-2">{label}</span>
+        {meta ? <span className="font-mono text-[11px] text-ink-3">{meta}</span> : null}
+      </span>
+    </div>
   );
 }
 
@@ -481,7 +559,7 @@ async function Runs({ data, userId }: { data: Data; userId: string }) {
       </Link>
     </div>
   ) : (
-    <p className="rounded-xl bg-sheet px-4 py-6 text-center text-sm text-ink-3 shadow-card">No runs yet.</p>
+    <Quiet label="No runs yet" />
   );
 }
 
@@ -502,56 +580,67 @@ function Inventory({ data }: { data: Data }) {
       ecosystems={[...counts].map(([key, count]) => ({ key, label: ecosystemOf(key)?.label ?? key, count }))}
     />
   ) : (
-    <p className="rounded-xl bg-sheet px-4 py-6 text-center text-sm text-ink-3 shadow-card">
-      No completed scan yet.
-    </p>
+    <Quiet label="No completed scan yet" />
   );
 }
 
 function Providers({ data }: { data: Data }) {
-  const apis = groupFindings(data.findings.filter((f) => /^(models|api)\//.test(f.groupKey ?? "")));
-  return data.providers.length ? (
-    <ul className="grid gap-3 sm:grid-cols-2">
+  const apis = groupFindings(
+    data.findings.filter((f) => f.state !== "ignored" && /^(models|api)\//.test(f.groupKey ?? "")),
+  );
+  if (!data.providers.length) return <Quiet label="No API or model provider in this code" />;
+  return (
+    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {data.providers.map((p) => {
         const logo = providerLogo(p.slug);
         const found = apis.filter((g) => g.key.split("/")[1] === p.slug);
+        const reaching = found.filter((g) => g.verdict === "affected" || g.verdict === "needs_human");
         return (
           <li key={p.slug} className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
-            <span className="flex items-center justify-between gap-3">
-              <Link
-                href={`/providers/${p.slug}`}
-                className="flex items-center gap-2 text-sm font-medium text-ink hover:underline"
-              >
-                <BrandLogo light={logo.light} dark={logo.dark} alt="" className="h-5" />
-                {p.name ?? logo.name}
-              </Link>
-              <span className="font-mono text-[11px] text-ink-3">seen {ago(p.seenAt)}</span>
-            </span>
+            <Link href={`/providers/${p.slug}`} className="flex items-center gap-3">
+              <TileSquare
+                tile={{
+                  entity: "change",
+                  state: reaching.length ? "not_proven" : "proven",
+                  label: p.name ?? logo.name,
+                  brand: { label: logo.name, light: logo.light, dark: logo.dark },
+                }}
+                size="sm"
+              />
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-sm font-medium text-ink hover:underline">
+                  {p.name ?? logo.name}
+                </span>
+                <span className="font-mono text-[11px] text-ink-3">seen {ago(p.seenAt)}</span>
+              </span>
+            </Link>
             {found.length ? (
-              <ul className="flex flex-col gap-1">
+              <ul className="flex flex-col divide-y divide-rule rounded-lg ring-1 ring-rule">
                 {found.map((g) => (
-                  <li key={g.key} className="truncate text-xs text-ink-2">
+                  <li key={g.key} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs">
                     {g.changeIds[0] ? (
-                      <Link href={`/changes/${g.changeIds[0]}`} className="hover:underline">
+                      <Link
+                        href={`/changes/${g.changeIds[0]}`}
+                        className="min-w-0 truncate text-ink-2 hover:text-ink"
+                      >
                         {g.title}
                       </Link>
                     ) : (
-                      g.title
+                      <span className="min-w-0 truncate text-ink-2">{g.title}</span>
                     )}
+                    {g.deadline ? (
+                      <span className="shrink-0 font-mono text-[11px] text-attention">
+                        {until(g.deadline)}
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
-            ) : (
-              <span className="text-xs text-ink-3">No change from {p.name ?? p.slug} reaches this code.</span>
-            )}
+            ) : null}
           </li>
         );
       })}
     </ul>
-  ) : (
-    <p className="rounded-xl bg-sheet px-4 py-6 text-center text-sm text-ink-3 shadow-card">
-      Teire found no API or model provider called from this code.
-    </p>
   );
 }
 
@@ -578,6 +667,27 @@ function configRows(config: Record<string, unknown> | null) {
   return rows;
 }
 
+/** Where a resolved value came from, as a chip: the repository's file, the organisation's, or the default. */
+function Origin({ from }: { from: string }) {
+  const org = /teire-config|org/.test(from);
+  const file = !org && /teire\.ya?ml|repo/.test(from);
+  return (
+    <span
+      title={from}
+      className={cn(
+        "shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px]",
+        file
+          ? "bg-signal-soft text-signal"
+          : org
+            ? "bg-attention-soft text-attention"
+            : "bg-sunken text-ink-3",
+      )}
+    >
+      {file ? "teire.yml" : org ? "org teire-config" : "default"}
+    </span>
+  );
+}
+
 function Config({ data, fullName }: { data: Data; fullName: string }) {
   const config = data.repo.config as Record<string, unknown> | null;
   const rows = configRows(config);
@@ -585,40 +695,36 @@ function Config({ data, fullName }: { data: Data; fullName: string }) {
     ((config?.problems ?? config?.issues) as { path?: string; message?: string }[] | undefined) ?? [];
   const present = !!config?.present;
   return (
-    <div className="flex flex-col gap-5">
-      <p className="text-sm text-ink-2">
-        The configuration lives in the repository (<span className="font-mono">.github/teire.yml</span>, or
-        the organisation&apos;s <span className="font-mono">teire-config</span>); every key is in the{" "}
-        <a href="/schema.json" className="text-link hover:underline">
-          schema
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="rounded-full bg-sheet px-3 py-1 font-mono text-ink-2 shadow-tile ring-1 ring-rule">
+          {present ? String(config?.path ?? ".github/teire.yml") : "no teire.yml yet"}
+        </span>
+        <a href="/schema.json" className="rounded-full px-3 py-1 font-mono text-ink-3 hover:text-ink">
+          schema.json
         </a>
-        . Changes go through a pull request, so the repository keeps the record.
-      </p>
+        <Link href="/docs/guide/configuration" className="rounded-full px-3 py-1 text-ink-3 hover:text-ink">
+          How settings combine ›
+        </Link>
+      </div>
       {problems.length ? (
-        <section className="flex flex-col gap-2 rounded-xl bg-broke-soft p-4">
-          <Heading count={problems.length}>Problems</Heading>
-          <ul className="flex flex-col gap-1 font-mono text-xs text-broke">
-            {problems.map((p, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: the parser's problems, in file order
-              <li key={i}>
-                {p.path ? `${p.path}: ` : ""}
-                {p.message}
-              </li>
-            ))}
-          </ul>
-          <span className="text-xs text-ink-2">Those keys use their defaults until fixed.</span>
-        </section>
+        <ul className="divide-y divide-broke/15 overflow-hidden rounded-xl bg-broke-soft font-mono text-xs text-broke">
+          {problems.map((p, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the parser's problems, in file order
+            <li key={i} className="flex items-center gap-2 px-4 py-2">
+              <X className="size-3.5 shrink-0" strokeWidth={3} aria-hidden />
+              {p.path ? <span className="font-medium">{p.path}</span> : null}
+              <span className="truncate">{p.message}</span>
+              <span className="ml-auto shrink-0 text-[10px] opacity-75">uses its default</span>
+            </li>
+          ))}
+        </ul>
       ) : null}
       <section className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
-        <Heading>Change a setting</Heading>
         <ConfigPrForm repo={fullName} current={configCurrent(config, Object.keys(CONFIG_PR_KEYS))} />
         {!present || problems.length ? (
           <div className="flex items-center justify-between gap-3 border-t border-rule pt-3 text-sm text-ink-2">
-            <span>
-              {present
-                ? "Replace the file with Teire's starter, every key at its default."
-                : "No teire.yml yet: add Teire's starter, every key at its default."}
-            </span>
+            <span>{present ? "Replace it with the starter" : "Start from the starter"}</span>
             <ActionButton kind="starter-config-pr" repo={fullName}>
               Open starter config PR
             </ActionButton>
@@ -626,93 +732,121 @@ function Config({ data, fullName }: { data: Data; fullName: string }) {
         ) : null}
       </section>
       {rows.length ? (
-        <div className="overflow-x-auto rounded-xl bg-sheet shadow-card">
-          <table className="w-full font-mono text-xs">
-            <thead>
-              <tr className="border-b border-rule text-left text-ink-3">
-                <th className="px-4 py-2 font-normal">key</th>
-                <th className="px-4 py-2 font-normal">value</th>
-                <th className="px-4 py-2 font-normal">from</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-rule">
-              {rows.map((c) => (
-                <tr key={c.key}>
-                  <td className="px-4 py-1.5 text-ink">{c.key}</td>
-                  <td className="max-w-xs truncate px-4 py-1.5 text-ink-2">{c.value}</td>
-                  <td className="px-4 py-1.5 text-ink-3">{c.origin}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
+          {rows.map((c) => (
+            <li key={c.key} className="flex items-center gap-3 px-4 py-2 font-mono text-xs">
+              <span className="min-w-0 flex-1 truncate text-ink">{c.key}</span>
+              <span className="max-w-[40%] truncate text-ink-2" title={c.value}>
+                {c.value}
+              </span>
+              <Origin from={c.origin} />
+            </li>
+          ))}
+        </ul>
       ) : (
-        <p className="text-sm text-ink-3">Read at the next scan.</p>
+        <Quiet label="Read at the next scan" />
       )}
     </div>
   );
 }
 
+const ACTIVITY_ICON: Partial<Record<string, LucideIcon>> = {
+  rescan: RefreshCw,
+  pause: Pause,
+  resume: Play,
+  "set-fix-mode": SlidersHorizontal,
+  "set-installation-fix-mode": SlidersHorizontal,
+  fix: Wrench,
+  "fix-in-all": Wrench,
+  rebase: GitPullRequest,
+  refresh: GitPullRequest,
+  recreate: GitPullRequest,
+  ignore: EyeOff,
+  unignore: Eye,
+  "cancel-run": X,
+  "retry-run": RotateCcw,
+  "reverify-run": ListChecks,
+  "open-draft-anyway": GitPullRequestDraft,
+  "config-pr": FileCog,
+  "starter-config-pr": FileCog,
+  feedback: MessageSquare,
+  activate: Power,
+};
+
+const whoOf = (a: Data["activity"][number]) =>
+  a.source === "teire"
+    ? "Teire"
+    : a.actor
+      ? `@${a.actor}`
+      : a.requester.startsWith("github:")
+        ? `@${a.requester.slice(7)}`
+        : "someone signed in";
+
+const WHERE: Record<string, string> = { web: "dashboard", dashboard: "Dashboard issue", teire: "on its own" };
+
+/** The repository's history as a rail (plan revision 3.4, V4): each action an icon tile in its outcome. */
 function Activity({ data }: { data: Data }) {
-  return data.activity.length ? (
+  if (!data.activity.length)
+    return <Quiet label="Nothing yet" meta="rescans, fixes, ignores and fix modes land here" />;
+  return (
     <div className="flex flex-col gap-2">
-      {data.activity.length >= ACTIVITY_SHOWN ? (
-        <p className="font-mono text-xs text-ink-3">
-          The latest {ACTIVITY_SHOWN} actions on this repository.
-        </p>
-      ) : null}
-      <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-        {data.activity.map((a) => (
-          <li key={a.id} className="grid gap-1 px-4 py-2.5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
-            <div className="min-w-0">
-              <span className="text-sm text-ink">{describeAction(a.kind as ActionKind, a.params)}</span>{" "}
-              <span className="text-xs text-ink-3">
-                ·{" "}
-                {a.source === "teire"
-                  ? "Teire"
-                  : a.actor
-                    ? `@${a.actor}`
-                    : a.requester.startsWith("github:")
-                      ? `@${a.requester.slice(7)}`
-                      : "someone signed in"}{" "}
-                ·{" "}
-                {a.source === "web"
-                  ? "dashboard"
-                  : a.source === "dashboard"
-                    ? "Dashboard issue"
-                    : a.source === "teire"
-                      ? "on its own"
-                      : a.source}
-              </span>
-              {a.result ? <p className="truncate text-xs text-ink-3">{a.result}</p> : null}
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              {a.links.map((l) => (
-                <a key={l.href} href={l.href} className="text-link hover:underline">
-                  {l.label}
-                </a>
-              ))}
-              <StatusChip
-                tone={
-                  a.status === "done"
-                    ? "proven"
-                    : a.status === "refused" || a.status === "failed"
-                      ? "broke"
-                      : "signal"
-                }
+      <ol className="relative flex flex-col gap-1 rounded-xl bg-sheet p-3 shadow-card">
+        <span aria-hidden className="absolute top-6 bottom-6 left-[37px] w-px bg-rule" />
+        {data.activity.map((a) => {
+          const Icon = ACTIVITY_ICON[a.kind] ?? Zap;
+          const state =
+            a.status === "done"
+              ? "done"
+              : a.status === "refused" || a.status === "failed"
+                ? "failed"
+                : "live";
+          return (
+            <li key={a.id} className="relative flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-hover">
+              <span
+                className={cn(
+                  "relative z-10 flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sheet shadow-tile",
+                  state === "done"
+                    ? "ring-[1.5px] ring-ink/60"
+                    : state === "failed"
+                      ? "ring-2 ring-broke"
+                      : "ring-2 ring-signal animate-live",
+                )}
               >
-                {a.status}
-              </StatusChip>
-              <span className="font-mono text-ink-3">{ago(a.createdAt)}</span>
-            </div>
-          </li>
-        ))}
-      </ul>
+                <Icon
+                  className={cn("size-4", state === "failed" ? "text-broke" : "text-ink")}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-sm text-ink">{describeAction(a.kind as ActionKind, a.params)}</span>
+                  <span className="font-mono text-[11px] text-ink-3">
+                    {whoOf(a)} · {WHERE[a.source] ?? a.source} · {ago(a.createdAt)}
+                  </span>
+                </span>
+                {a.result ? (
+                  <span className={cn("truncate text-xs", state === "failed" ? "text-broke" : "text-ink-3")}>
+                    {a.result}
+                  </span>
+                ) : null}
+              </div>
+              {a.links.length ? (
+                <span className="flex shrink-0 items-center gap-2 text-xs">
+                  {a.links.map((l) => (
+                    <a key={l.href} href={l.href} className="text-link hover:underline">
+                      {l.label}
+                    </a>
+                  ))}
+                </span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+      {data.activity.length >= ACTIVITY_SHOWN ? (
+        <p className="font-mono text-[11px] text-ink-3">the latest {ACTIVITY_SHOWN}</p>
+      ) : null}
     </div>
-  ) : (
-    <p className="rounded-xl bg-sheet px-4 py-6 text-center text-sm text-ink-3 shadow-card">
-      Nothing yet. Rescans, fixes, ignores and fix-mode changes show here, whether asked on this page, in a
-      comment or in the Dashboard issue.
-    </p>
   );
 }
