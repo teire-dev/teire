@@ -19,7 +19,12 @@ export function SignInButton({
       onClick={() => {
         setPending(true);
         void authClient.signIn
-          .social({ provider: "github", callbackURL: next })
+          .social({
+            provider: "github",
+            callbackURL: next,
+            // A failure comes back to /signin, which says why and keeps where the person was going.
+            errorCallbackURL: `/signin?next=${encodeURIComponent(next)}`,
+          })
           .catch(() => setPending(false));
       }}
     >

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AskContext } from "@/components/assistant/assistant-provider";
 import { BrandLogo } from "@/components/brand-logo";
+import { ChangeFeedback } from "@/components/change-feedback";
 import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
 import { getChange, providerNames } from "@/lib/catalog";
@@ -13,6 +14,16 @@ import { SOURCE_URL } from "@/lib/site";
 import { ClassChip } from "../class-chip";
 
 /** One change with every source quoted, what Teire searches for, and how it was read (C10). */
+/** Where a source's words come from, so a reader can weigh them (`trustBasis`, plan revision 3.3, U5). */
+const TRUST_BASIS: Record<string, string> = {
+  registry: "from the package registry",
+  "source-repo": "from the project's own repository",
+  "official-domain": "from the provider's own site",
+  "advisory-db": "from an advisory database",
+  computed: "computed by Teire from the published code",
+  "repo-config": "declared in a repository's teire.yml",
+};
+
 export default function ChangePage({ params }: PageProps<"/changes/[...id]">) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-12">
@@ -61,10 +72,6 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
       : null;
   const ownerName = provider ? (names[provider] ?? provider) : record.subject.name;
   const from = record.signatures.find((s) => s.kind === "string-literal")?.value ?? a.fromVersion ?? null;
-  const report = `${SOURCE_URL}/issues/new?${new URLSearchParams({
-    title: `Wrong change data: ${record.id}`,
-    body: `Change: ${record.id}\nTitle: ${record.title}\n\nWhat is wrong, with a link to the source:\n`,
-  })}`;
 
   return (
     <article className="flex flex-col gap-8">
@@ -145,7 +152,7 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
                 {new URL(s.url).host}
                 {new URL(s.url).pathname}
               </a>{" "}
-              · checked {s.checkedAt.slice(0, 10)} · page hash{" "}
+              · {TRUST_BASIS[s.trustBasis] ?? s.trustBasis} · checked {s.checkedAt.slice(0, 10)} · page hash{" "}
               <span className="font-mono">{s.contentHash.slice(0, 12)}</span>
             </figcaption>
           </figure>
@@ -191,10 +198,7 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
             : `code from a ${record.provenance.method}`}
           . Record <span className="font-mono">{record.id}</span>.
         </p>
-        <a href={report} className="flex items-center gap-1 hover:text-foreground">
-          <Flag className="size-3" aria-hidden />
-          Report wrong data
-        </a>
+        <ChangeFeedback changeId={record.id} />
       </footer>
     </article>
   );

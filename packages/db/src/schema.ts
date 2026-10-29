@@ -477,15 +477,22 @@ export const feedback = pgTable(
   "feedback",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    repoId: githubId("repo_id").notNull(),
+    /** Null for a report on a catalog change ("Wrong? Tell us" on /changes/[id], U5). */
+    repoId: githubId("repo_id"),
     changeId: text("change_id"),
     groupKey: text("group_key"),
     login: text("login").notNull(),
     reason: text("reason").notNull(),
     url: text("url"),
+    /** The signed-in person who sent it from the web; null for `@teire wrong`. */
+    userId: text("user_id"),
+    source: text("source").$type<"command" | "dashboard" | "web">().notNull().default("command"),
     createdAt: createdAt(),
   },
-  (t) => [index("feedback_repo_idx").on(t.repoId, t.createdAt)],
+  (t) => [
+    index("feedback_repo_idx").on(t.repoId, t.createdAt),
+    index("feedback_change_idx").on(t.changeId, t.createdAt),
+  ],
 );
 
 /** Outbox for GitHub webhooks: the web route inserts, the worker claims. */

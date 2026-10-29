@@ -30,6 +30,8 @@ function create() {
     secret: process.env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "pg", schema: { user, session, account, verification } }),
     socialProviders: { github: { clientId, clientSecret } },
+    // Sign-in failures land on /signin with ?error= (said there in plain words), not a default page.
+    onAPIError: { errorURL: "/signin" },
     databaseHooks: {
       session: {
         create: {
