@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Mark } from "@/components/teire/mark";
+import type { Brand } from "@/lib/brands";
 
 /**
  * "Reaches N of your repositories" on a public catalog row (plan revision 3.3, U5), for the signed-in
@@ -42,8 +44,11 @@ export function YourReach({ changeId }: { changeId: string }) {
   );
 }
 
-/** On a package page: which of the reader's repositories the package's open findings are in. */
-export function YourPackageReach({ pkg }: { pkg: string }) {
+/**
+ * On a package page: the reader's repositories its open findings are in, as a fan from the package's
+ * mark (plan revision 3.4, V5: "In your repositories as a fan-out"), each branch to its Findings.
+ */
+export function YourPackageReach({ pkg, brand }: { pkg: string; brand: Brand }) {
   const [repos, setRepos] = useState<{ repo: string; groups: number }[] | null>(null);
   useEffect(() => {
     let alive = true;
@@ -58,24 +63,51 @@ export function YourPackageReach({ pkg }: { pkg: string }) {
     };
   }, [pkg]);
   if (!repos?.length) return null;
+  const shown = repos.slice(0, 8);
+  const ROW = 32;
+  const h = shown.length * ROW;
   return (
-    <section className="flex flex-col gap-2 rounded-lg bg-broke-soft/40 p-4 ring-1 ring-broke/20 ring-inset">
-      <h2 className="text-sm font-medium">In your repositories</h2>
-      <ul className="flex flex-wrap gap-2">
-        {repos.map((r) => (
-          <li key={r.repo}>
-            <Link
-              href={`/app/repos/${r.repo}/findings`}
-              className="rounded-full bg-sheet px-2.5 py-1 font-mono text-xs text-ink ring-1 ring-rule ring-inset hover:ring-rule-strong"
-            >
-              {r.repo}
-              <span className="ml-1.5 text-ink-3">
-                {r.groups} change{r.groups === 1 ? "" : "s"}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <section
+      className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card ring-1 ring-broke/20"
+      aria-label="In your repositories"
+    >
+      <h2 className="eyebrow">In your repositories</h2>
+      <div className="flex items-center">
+        <Mark brand={brand} />
+        <svg width={56} height={h} viewBox={`0 0 56 ${h}`} aria-hidden className="shrink-0 overflow-visible">
+          {shown.map((r, i) => {
+            const y = i * ROW + ROW / 2;
+            return (
+              <path
+                key={r.repo}
+                d={`M0,${h / 2} C28,${h / 2} 28,${y} 56,${y}`}
+                fill="none"
+                stroke="var(--broke)"
+                strokeOpacity={0.55}
+                strokeWidth={1.5}
+              />
+            );
+          })}
+        </svg>
+        <ul className="flex min-w-0 flex-col">
+          {shown.map((r) => (
+            <li key={r.repo} style={{ height: ROW }} className="flex items-center">
+              <Link
+                href={`/app/repos/${r.repo}/findings`}
+                className="flex min-w-0 items-center gap-2 rounded-full bg-sheet py-1 pr-3 pl-2.5 text-xs ring-1 ring-rule hover:ring-rule-strong"
+              >
+                <span className="truncate font-mono text-ink">{r.repo}</span>
+                <span className="shrink-0 rounded-full bg-broke-soft px-1.5 font-mono text-[11px] text-broke">
+                  {r.groups}
+                </span>
+              </Link>
+            </li>
+          ))}
+          {repos.length > shown.length ? (
+            <li className="pl-2.5 font-mono text-[11px] text-ink-3">+{repos.length - shown.length}</li>
+          ) : null}
+        </ul>
+      </div>
     </section>
   );
 }
