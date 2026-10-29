@@ -8,10 +8,18 @@ import { GithubMark } from "@/components/icons";
 import { LogoMark } from "@/components/logo";
 import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
+import { BrokenFlow } from "@/components/state-page";
+import { GhostFlow } from "@/components/flow/ghost-flow";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SPONSORS, STACK } from "@/lib/brands";
-import { type FlowEntity, type FlowState, proofFlow } from "@/lib/flow/model";
+import { type FlowEntity, type FlowState, proofFlow, type RunFlowInput, runFlow } from "@/lib/flow/model";
 import { kitRuns, requireKit } from "@/lib/kit";
 import { subjectMark } from "@/lib/marks";
 import type { Proof, ProofState } from "@/lib/proof";
@@ -76,6 +84,34 @@ const MINI: [string, ProofState[]][] = [
   ["Not proven: draft", ["done", "done", "done", "not_proven", "done"]],
   ["Failed: issue", ["done", "done", "failed", "not_applicable", "not_applicable"]],
   ["Plain bump", ["done", "not_applicable", "done", "done", "done"]],
+];
+
+/** The run spine in every state it can be in (component states, not product data). */
+const BASE: RunFlowInput = {
+  kind: "fix",
+  status: "succeeded",
+  step: null,
+  evidenceKind: "verified",
+  prMode: "ready",
+  sites: 2,
+  advisory: false,
+  artifact: { kind: "pr", url: null, number: 30 },
+  subject: STACK.dependabot,
+  subjectLabel: "zod",
+  repo: { fullName: "teire-dev/examples" },
+  agent: { calls: 22 },
+  backend: "tokenfactory",
+  checksFigure: "4/4 → 4/4",
+};
+const SPINES: [string, RunFlowInput][] = [
+  ["queued", { ...BASE, status: "queued", evidenceKind: null, prMode: null, artifact: null }],
+  ["live · fixing", { ...BASE, status: "running", step: "agent", evidenceKind: null, prMode: null, artifact: null }],
+  ["proven", BASE],
+  ["not proven · draft", { ...BASE, evidenceKind: "pre_existing_failure", prMode: "draft" }],
+  ["failed · issue", { ...BASE, status: "failed", evidenceKind: "regression", prMode: "issue", artifact: { kind: "issue", url: null, number: 25 }, lastStep: "verify" }],
+  ["cancelled", { ...BASE, status: "cancelled", evidenceKind: null, prMode: null, artifact: null, lastStep: "install" }],
+  ["dry run", { ...BASE, kind: "dry_run", artifact: null, preview: true }],
+  ["plain bump", { ...BASE, sites: null, agent: null }],
 ];
 
 function Board({ dark = false }: { dark?: boolean }) {
@@ -172,6 +208,65 @@ function Board({ dark = false }: { dark?: boolean }) {
         ))}
       </section>
 
+      <section className="mt-10 flex flex-col gap-4">
+        <p className="eyebrow">Controls</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Input placeholder="owner/repo" className="w-56" />
+          <Select defaultValue="auto">
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Automatic</SelectItem>
+              <SelectItem value="ask">Ask first</SelectItem>
+              <SelectItem value="off">Off</SelectItem>
+            </SelectContent>
+          </Select>
+          <Tabs defaultValue="findings">
+            <TabsList>
+              <TabsTrigger value="findings">Findings</TabsTrigger>
+              <TabsTrigger value="prs">PRs</TabsTrigger>
+              <TabsTrigger value="runs">Runs</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Avatar className="size-8">
+            <AvatarFallback>TD</AvatarFallback>
+          </Avatar>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Repository</TableHead>
+              <TableHead>Latest run</TableHead>
+              <TableHead className="text-right">PRs</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {MINI.slice(0, 3).map(([label, st]) => (
+              <TableRow key={label}>
+                <TableCell className="font-mono text-xs">teire-dev/examples</TableCell>
+                <TableCell>
+                  <MiniFlow proof={proofOf(st)} size="xs" />
+                </TableCell>
+                <TableCell className="text-right font-mono text-xs">2</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <div className="flex flex-wrap items-center gap-6">
+          <Skeleton className="h-8 w-40" />
+          <GhostFlow tiles={3} />
+        </div>
+      </section>
+
+      <section className="mt-10 flex flex-col gap-4">
+        <p className="eyebrow">States</p>
+        <div className="flex flex-wrap gap-10">
+          <BrokenFlow kind="not-found" />
+          <BrokenFlow kind="error" />
+        </div>
+      </section>
+
       <section className="mt-10 flex items-center gap-3">
         <LogoMark className="size-10" />
         <span className="flex size-10 items-center justify-center rounded-control bg-hero">
@@ -196,6 +291,15 @@ async function Kit() {
         <Board />
         <Board dark />
       </div>
+      <section className="flex flex-col gap-10 rounded-feature bg-sheet p-6 shadow-card sm:p-8">
+        <p className="eyebrow">Run spine · every state</p>
+        {SPINES.map(([label, input]) => (
+          <div key={label} className="flex flex-col gap-3 overflow-x-auto">
+            <span className="font-mono text-[11px] text-ink-3">{label}</span>
+            <StaticFlow size="sm" label={label} graph={runFlow(input)} />
+          </div>
+        ))}
+      </section>
       <section className="flex flex-col gap-10 rounded-feature bg-sheet p-6 shadow-card sm:p-8">
         <p className="eyebrow">Flows · real kit runs</p>
         {runs.map((r) => (

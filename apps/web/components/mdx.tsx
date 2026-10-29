@@ -12,7 +12,7 @@ import { ConfigReference } from "./docs/config-reference";
 import { Diagram } from "./docs/diagram";
 import { BuiltOn, EcosystemGrid, ProviderRow } from "./docs/logos";
 import { Phone, Phones, Shot } from "./docs/shots";
-import { ExamplePr } from "./landing/example-pr";
+import { HeroFlow } from "./landing/hero-flow";
 
 /** A lucide icon by name, so .mdx files can write `icon={<Icon name="Bot" />}` without imports. */
 function Icon({ name, ...props }: { name: keyof typeof icons } & ComponentProps<"svg">) {
@@ -21,11 +21,11 @@ function Icon({ name, ...props }: { name: keyof typeof icons } & ComponentProps<
   return Glyph ? <Glyph {...props} /> : null;
 }
 
-/** The real PR from the landing page, inside a docs page. */
+/** The landing's real run, drawn as its flow, inside a docs page (it replaced the old PR mock). */
 function PrExample() {
   return (
-    <div className="not-prose my-6 max-w-xl">
-      <ExamplePr />
+    <div className="not-prose my-6 overflow-x-auto rounded-card bg-sheet p-5 shadow-card">
+      <HeroFlow />
     </div>
   );
 }

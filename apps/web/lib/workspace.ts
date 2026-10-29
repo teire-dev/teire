@@ -111,103 +111,6 @@ const checksLine = (v: Verification) => {
   return t ? `tests ${b ? `${b.passed}/${b.collected}` : "–"} → ${t.passed}/${t.collected}` : undefined;
 };
 
-/** One run with everything its proof sheet shows. */
-export async function kitRun(id: string) {
-  if (!/^[0-9a-f-]{36}$/.test(id)) return null;
-  const db = database();
-  // The kit's installation only, as every list in it (review round 2).
-  const [row] = await db
-    .select({ run: runs, repo: repos })
-    .from(runs)
-    .innerJoin(repos, eq(repos.id, runs.repoId))
-    .innerJoin(installations, eq(installations.id, repos.installationId))
-    .where(and(eq(runs.id, id), eq(installations.accountLogin, KIT_ACCOUNT)))
-    .limit(1);
-  if (!row || row.repo.isPrivate) return null;
-  const { run, repo } = row;
-  const [[artifact], events, execs, calls, reach] = await Promise.all([
-    db
-      .select()
-      .from(artifacts)
-      .where(and(eq(artifacts.repoId, repo.id), eq(artifacts.runId, run.id)))
-      .limit(1),
-    db.select().from(runEvents).where(eq(runEvents.runId, run.id)).orderBy(asc(runEvents.seq)),
-    db.select().from(sandboxExecs).where(eq(sandboxExecs.runId, run.id)).orderBy(asc(sandboxExecs.createdAt)),
-    db.select().from(llmCalls).where(eq(llmCalls.runId, run.id)).orderBy(asc(llmCalls.createdAt)),
-    reachOf([{ repoId: repo.id, groupKey: run.groupKey }]),
-  ]);
-  const verification = run.verification as Verification;
-  const { sites, advisory } = reach.get(reachKey(repo.id, run.groupKey)) ?? { sites: null, advisory: false };
-  const proof = proofOfRun({
-    kind: run.kind,
-    status: run.status,
-    step: run.step,
-    evidenceKind: run.evidenceKind,
-    prMode: run.prMode,
-    sites,
-    advisory,
-    artifact: artifact ? { kind: artifact.kind, url: artifact.url, number: artifact.number } : null,
-    ...(checksLine(verification) ? { checks: checksLine(verification) as string } : {}),
-  });
-  // The agent's model as the calls recorded it, not a name typed into the page.
-  const model = calls.find((c) => c.purpose === "fix")?.model ?? calls[0]?.model ?? null;
-  return {
-    run,
-    repo,
-    artifact: (artifact ?? null) as typeof artifact | null,
-    events,
-    execs,
-    calls,
-    sites,
-    advisory,
-    verification,
-    proof,
-    model,
-  };
-}
-
-export type KitRun = NonNullable<Awaited<ReturnType<typeof kitRun>>>;
-
-/**
- * The run as it stood at one of its events (`?at=<seq>` on the kit's run page): the live state, from
- * the run's own records up to that moment (review round 2: a live composition without waiting for a
- * run). Nothing later shows: no evidence, no PR, no command or model call after it.
- */
-export function kitRunAt(data: KitRun, seq: number): KitRun {
-  const events = data.events.filter((e) => e.seq <= seq);
-  const at = events.at(-1)?.at ?? data.run.startedAt ?? data.run.createdAt;
-  const before = (d: Date) => d.getTime() <= at.getTime();
-  const step = events.at(-1)?.step ?? "assess";
-  const run = {
-    ...data.run,
-    status: "running" as const,
-    step,
-    evidenceKind: null,
-    prMode: null,
-    verification: null,
-    finishedAt: null,
-  };
-  return {
-    ...data,
-    run,
-    events,
-    execs: data.execs.filter((x) => before(x.createdAt)),
-    calls: data.calls.filter((c) => before(c.createdAt)),
-    artifact: null,
-    verification: null,
-    proof: proofOfRun({
-      kind: run.kind,
-      status: "running",
-      step,
-      evidenceKind: null,
-      prMode: null,
-      sites: data.sites,
-      advisory: data.advisory,
-      artifact: null,
-    }),
-  };
-}
-
 /** A row in any list of runs or PRs: enough for the subject, the chain and the evidence. */
 export interface RunRow {
   id: string;
@@ -447,58 +350,6 @@ export async function repoOf(scope: Scope, fullName: string) {
   return { repo, fixMode, groups: [...groups], runs: recent };
 }
 
-/** The sidebar's installation and repositories, with a live dot where a run is going. */
-export async function kitShell() {
-  const db = database();
-  const [account] = await db
-    .select({ login: installations.accountLogin, avatarUrl: installations.avatarUrl })
-    .from(installations)
-    .where(eq(installations.accountLogin, KIT_ACCOUNT))
-    .limit(1);
-  const list = await db
-    .select({
-      fullName: repos.fullName,
-      config: repos.config,
-      fixMode: repos.fixMode,
-      defaultFixMode: installations.defaultFixMode,
-      securityFixMode: installations.securityFixMode,
-      languages: repos.languages,
-      live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status = 'running')`,
-    })
-    .from(repos)
-    .innerJoin(installations, eq(installations.id, repos.installationId))
-    .where(
-      and(
-        eq(installations.accountLogin, KIT_ACCOUNT),
-        eq(repos.isPrivate, false),
-        sql`exists (select 1 from findings f where f.repo_id = ${repos.id})`,
-      ),
-    )
-    .orderBy(asc(repos.fullName));
-  // The worker's heartbeat, as /trust reads it: the status line says what it says, never a literal.
-  const [worker] = await db.select().from(systemState).where(eq(systemState.key, "worker")).limit(1);
-  const at = (worker?.value as { at?: string } | undefined)?.at;
-  const quietMin = at ? Math.floor((Date.now() - Date.parse(at)) / 60_000) : null;
-  return {
-    system: {
-      alive: quietMin !== null && quietMin < 5,
-      label:
-        quietMin === null
-          ? "No worker heartbeat yet"
-          : quietMin < 5
-            ? "Worker running"
-            : `Worker quiet ${quietMin} min`,
-    },
-    account: { login: account?.login ?? KIT_ACCOUNT, avatarUrl: account?.avatarUrl ?? null },
-    repos: list.map((r) => ({
-      fullName: r.fullName,
-      live: r.live,
-      paused: repoFixMode(r, r).mode === "off",
-      languages: r.languages,
-    })),
-  };
-}
-
 /** Members of the teire-dev installation (or local dev) see the kit; everyone else gets a 404. */
 export async function requireKit() {
   const session = await getSession();
@@ -510,9 +361,6 @@ export function runsOf(scope: Scope, where: ReturnType<typeof and> = sql`true`, 
   return rowsOf(scope, where, limit, offset);
 }
 
-/** The kit compositions read the same queries over the kit's scope. */
-export const kitOverview = () => overviewOf(KIT_SCOPE);
-export const kitRepo = (fullName: string) => repoOf(KIT_SCOPE, fullName);
 export const kitRuns = () => runsOf(KIT_SCOPE, sql`true`, 40);
 
 /** One repository a change reaches, and what Fix now would do there. */

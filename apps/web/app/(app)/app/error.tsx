@@ -2,9 +2,10 @@
 
 import { RotateCcw } from "lucide-react";
 import Link from "next/link";
+import { BrokenFlow } from "@/components/state-page";
 import { Button } from "@/components/ui/button";
 
-/** A dashboard page failed to render: said inside the shell, so the sidebar and ⌘K stay. */
+/** A dashboard page failed to render: the broken flow inside the shell, so the sidebar and ⌘K stay. */
 export default function AppError({
   error,
   reset,
@@ -13,22 +14,19 @@ export default function AppError({
   reset: () => void;
 }) {
   return (
-    <section
-      className="mx-auto flex w-full max-w-xl flex-col gap-3 rounded-xl bg-sheet p-6 shadow-card"
-      role="alert"
-    >
-      <span className="eyebrow">Dashboard</span>
-      <h1 className="text-lg font-semibold text-ink">This page couldn&apos;t load.</h1>
-      <p className="text-sm text-ink-2">
-        Reading it failed on our side; nothing you asked for was changed.
-        {error.digest ? <span className="font-mono text-xs text-ink-3"> ref {error.digest}</span> : null}
-      </p>
+    <section className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 py-16 text-center" role="alert">
+      <BrokenFlow kind="error" />
+      <div className="flex flex-col gap-1.5">
+        <h1 className="heading text-2xl text-ink">This page couldn&apos;t load.</h1>
+        <p className="text-sm text-ink-2">Nothing you asked for was changed.</p>
+        {error.digest ? <p className="font-mono text-xs text-ink-3">ref {error.digest}</p> : null}
+      </div>
       <div className="flex gap-2">
-        <Button size="sm" onClick={reset}>
+        <Button onClick={reset}>
           <RotateCcw data-icon="inline-start" />
           Try again
         </Button>
-        <Button size="sm" variant="outline" asChild>
+        <Button variant="outline" asChild>
           <Link href="/app">Overview</Link>
         </Button>
       </div>

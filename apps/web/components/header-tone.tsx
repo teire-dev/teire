@@ -22,8 +22,8 @@ export function HeaderTone() {
         if (entry?.isIntersecting) root.dataset.overHero = "";
         else delete root.dataset.overHero;
       },
-      // The header's band: the hero counts while it is under the top 72px.
-      { rootMargin: "0px 0px -100% 0px", threshold: 0 },
+      // The header's own band (its top 72px): the hero counts while any of it is still under there.
+      { rootMargin: `0px 0px -${Math.max(0, window.innerHeight - 72)}px 0px`, threshold: 0 },
     );
     io.observe(hero);
     return () => {
