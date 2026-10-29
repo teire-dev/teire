@@ -84,7 +84,7 @@ export async function GET(req: Request, { params }: RouteContext<"/og/run/[id]">
   };
   return flowCard({
     origin,
-    eyebrow: "A run on a private repository",
+    eyebrow: repo.isPrivate ? "A run on a private repository" : "A Teire run",
     title: "A Teire run, step by step",
     graph,
   });

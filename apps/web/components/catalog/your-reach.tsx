@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ReachFan } from "@/components/flow/reach-fan";
 import { Mark } from "@/components/teire/mark";
 import type { Brand } from "@/lib/brands";
+import type { ChangeReach } from "@/lib/workspace";
 
 /**
  * "Reaches N of your repositories" on a public catalog row (plan revision 3.3, U5), for the signed-in
@@ -108,6 +110,45 @@ export function YourPackageReach({ pkg, brand }: { pkg: string; brand: Brand }) 
           ) : null}
         </ul>
       </div>
+    </section>
+  );
+}
+
+/**
+ * On a change page, signed in: the change fanning out to each of the reader's repositories it reaches,
+ * every branch in what Fix now would do there, and Fix in all when one would start (V5–V6 review).
+ */
+export function YourChangeReach({ changeId }: { changeId: string }) {
+  const [reaches, setReaches] = useState<ChangeReach[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/app/reach?change=${encodeURIComponent(changeId)}`, { cache: "no-store" })
+      .then(async (r) => (r.ok ? (((await r.json()) as { reaches?: ChangeReach[] }).reaches ?? []) : []))
+      .then((list) => alive && setReaches(list))
+      .catch(() => alive && setReaches([]));
+    return () => {
+      alive = false;
+    };
+  }, [changeId]);
+  if (!reaches?.length) return null;
+  const runs = reaches.some((r) => r.plan.kind === "run");
+  return (
+    <section
+      className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card ring-1 ring-broke/20"
+      aria-label="In your repositories"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="eyebrow">In your repositories</h2>
+        {runs ? (
+          <Link
+            href={`/app/changes?change=${encodeURIComponent(changeId)}`}
+            className="text-xs font-medium text-ink hover:underline"
+          >
+            Fix in all ›
+          </Link>
+        ) : null}
+      </div>
+      <ReachFan reaches={reaches} />
     </section>
   );
 }

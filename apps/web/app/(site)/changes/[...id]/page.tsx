@@ -1,12 +1,12 @@
 import type { ChangeV2 } from "@teire/engine/contract";
-import { ArrowRight, Quote as QuoteIcon, ScanSearch } from "lucide-react";
+import { ArrowRight, ChevronDown, Quote as QuoteIcon, ScanSearch } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AskContext } from "@/components/assistant/assistant-provider";
-import { YourReach } from "@/components/catalog/your-reach";
+import { YourChangeReach, YourReach } from "@/components/catalog/your-reach";
 import { ChangeFeedback } from "@/components/change-feedback";
 import { GhostFlow } from "@/components/flow/ghost-flow";
 import { StaticFlow } from "@/components/flow/static-flow";
@@ -128,38 +128,74 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
         <StaticFlow graph={graph} size="sm" label={`${record.title}: from its source to your code`} />
       </section>
 
+      <YourChangeReach changeId={record.id} />
+
+      {/* The source's words once, folded, with its link and hash (plan revision 3.4, V5 and row 443);
+          every other source a link chip beside it. */}
       <section className="flex flex-col gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
-          <QuoteIcon className="size-4 text-ink-3" aria-hidden />
-          In its own words
-        </h2>
-        {record.sources.map((s) => (
-          <figure
-            key={`${s.url}-${s.contentHash}`}
-            className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card"
-          >
-            {s.quote ? (
-              <blockquote className="border-l-2 border-rule-strong pl-3 font-mono text-xs break-words text-ink-2">
-                {s.quote}
-              </blockquote>
-            ) : null}
-            <figcaption className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
-              <a href={s.url} className="text-link hover:underline" rel="noreferrer">
-                {new URL(s.url).host}
-                {new URL(s.url).pathname.length > 40
-                  ? `${new URL(s.url).pathname.slice(0, 39)}…`
-                  : new URL(s.url).pathname}
-              </a>
-              <span className="rounded-full bg-sunken px-2 py-0.5">
-                {TRUST_BASIS[s.trustBasis] ?? s.trustBasis}
-              </span>
-              <span className="font-mono">checked {s.checkedAt.slice(0, 10)}</span>
-              <span className="font-mono" title="page hash">
-                #{s.contentHash.slice(0, 10)}
-              </span>
-            </figcaption>
-          </figure>
-        ))}
+        {(() => {
+          const lead = record.sources.find((x) => x.quote) ?? record.sources[0];
+          const rest = record.sources.filter((x) => x !== lead);
+          const label = (u: string) => {
+            const url = new URL(u);
+            return `${url.host}${url.pathname.length > 32 ? `${url.pathname.slice(0, 31)}…` : url.pathname}`;
+          };
+          return (
+            <>
+              {lead ? (
+                <details className="group/quote rounded-xl bg-sheet shadow-card">
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-3 text-sm [&::-webkit-details-marker]:hidden">
+                    <QuoteIcon className="size-4 text-ink-3" aria-hidden />
+                    <span className="font-medium text-ink">In its own words</span>
+                    <span className="rounded-full bg-proven-soft px-2 py-0.5 font-mono text-[11px] text-proven">
+                      {lead.quote ? "matches the page ✓" : "read from the page"}
+                    </span>
+                    <span className="font-mono text-[11px] text-ink-3">{new URL(lead.url).host}</span>
+                    <ChevronDown
+                      aria-hidden
+                      className="ml-auto size-3.5 text-ink-3 transition-transform group-open/quote:rotate-180"
+                    />
+                  </summary>
+                  <figure className="flex flex-col gap-3 border-t border-rule px-4 py-3">
+                    {lead.quote ? (
+                      <blockquote className="border-l-2 border-rule-strong pl-3 font-mono text-xs break-words text-ink-2">
+                        {lead.quote}
+                      </blockquote>
+                    ) : null}
+                    <figcaption className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
+                      <a href={lead.url} className="text-link hover:underline" rel="noreferrer">
+                        {label(lead.url)}
+                      </a>
+                      <span className="rounded-full bg-sunken px-2 py-0.5">
+                        {TRUST_BASIS[lead.trustBasis] ?? lead.trustBasis}
+                      </span>
+                      <span className="font-mono">checked {lead.checkedAt.slice(0, 10)}</span>
+                      <span className="font-mono" title="page hash">
+                        #{lead.contentHash.slice(0, 10)}
+                      </span>
+                    </figcaption>
+                  </figure>
+                </details>
+              ) : null}
+              {rest.length ? (
+                <ul className="flex flex-wrap gap-1.5" aria-label="Other sources">
+                  {rest.map((x) => (
+                    <li key={`${x.url}-${x.contentHash}`}>
+                      <a
+                        href={x.url}
+                        rel="noreferrer"
+                        title={`${TRUST_BASIS[x.trustBasis] ?? x.trustBasis} · checked ${x.checkedAt.slice(0, 10)}`}
+                        className="flex items-center gap-1.5 rounded-full bg-sheet px-2.5 py-1 font-mono text-[11px] text-ink-2 shadow-tile ring-1 ring-rule hover:text-ink"
+                      >
+                        {label(x.url)}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          );
+        })()}
         {record.migrationNotes.length ? (
           <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-ink-2">
             {record.migrationNotes.map((n) => (

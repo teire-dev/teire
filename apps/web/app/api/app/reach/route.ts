@@ -9,7 +9,8 @@ import { changesFor, scopeRaw } from "@/lib/workspace";
  * under their installation's rules (private repositories only where GitHub lists them for this
  * person). Without `package`: how many repositories each change reaches ("N repos affected" on
  * /changes). With `package=<ecosystem>/<name>`: which repositories that package's open findings are
- * in (the package page). Signed out, nothing.
+ * in (the package page). With `change=<id>`: where it reaches and what Fix now would do in each (the
+ * change page's fan). Signed out, nothing.
  */
 const none = { headers: { "cache-control": "private, no-store" } };
 
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
   const session = await getSession();
   const mine = session ? await myScope(session.user.id) : null;
   const pkg = new URL(request.url).searchParams.get("package");
-  if (!mine) return Response.json(pkg ? { repos: [] } : { reach: {} }, none);
+  if (!mine) return Response.json(pkg ? { repos: [] } : { reach: {}, reaches: [] }, none);
   if (pkg) {
     if (!/^[\w-]+\/[\w@./:-]{1,200}$/.test(pkg)) return Response.json({ repos: [] }, none);
     const prefix = `${pkg.replace(/[%_\\]/g, "")}/%`;
@@ -30,6 +31,9 @@ export async function GET(request: Request) {
     return Response.json({ repos: rows.map((r) => ({ repo: r.full_name, groups: r.groups })) }, none);
   }
   const changes = await changesFor(mine.scope);
+  // With `change=<id>`: where that change reaches, each with what Fix now would do (the change page's fan).
+  const change = new URL(request.url).searchParams.get("change");
+  if (change) return Response.json({ reaches: changes.find((c) => c.id === change)?.reaches ?? [] }, none);
   const reach = Object.fromEntries(changes.map((c) => [c.id, new Set(c.reaches.map((r) => r.repo)).size]));
   return Response.json({ reach }, none);
 }
