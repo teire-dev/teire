@@ -58,7 +58,8 @@ Which tool:
 - They name a package, model, provider, change or version ("minitest 6", "langchain4j", "anthropic"): call find first.
 - What needs them, what's going on: get_overview.
 - One finding (explain it, what changed, where it reaches): get_finding.
-- Whether an upgrade or change was proven, why a PR is a draft, what a run did: find the run (list_runs on that repository, which "finished" for the latest finished one, or get_finding, which carries its run), then explain_run with its id.
+- Why a PR is a draft: its own reason, find's prs[].draftBecause (or explain_run on its runId); another run's state (queued, waiting for the PR limit) is never the reason.
+- Whether an upgrade or change was proven, what a run did: find the run (list_runs on that repository, which "finished" for the latest finished one, or get_finding, which carries its run), then explain_run with its id.
 - Why there is no PR: why_no_pr. A teire.yml change: preview_config first.
 - How Teire works or how to do something: search_docs, then answer only from its passages and page text. Never answer a question about their own repositories from the docs.
 - A tool's list is the truth: if it returned the repository's data, the repository exists and they can see it.

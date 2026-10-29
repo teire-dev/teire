@@ -175,7 +175,7 @@ export function OverviewCard({ o }: { o: Out<"get_overview"> }) {
       <Figures
         items={[
           ["need a person", o.counts.needsAPerson],
-          ["running now", o.counts.runningNow],
+          ["going or waiting", o.counts.goingOrWaiting],
           ["open PRs", `${o.counts.openPrsProven}/${o.counts.openPrs}`],
           ["reaching code", o.counts.changesReachingCode],
         ]}
@@ -237,6 +237,7 @@ export function FindCard({ o }: { o: Out<"find"> }) {
             <li key={`${p.repo}:${p.number}`} className="text-xs">
               <SafeLink href={p.url}>
                 {p.kind === "issue" ? "Issue" : "PR"} #{p.number} · {p.state}
+                {p.draft ? " · draft" : ""}
               </SafeLink>
             </li>
           ))}

@@ -203,13 +203,13 @@ export function assistantTools(viewer: Viewer) {
             account: viewer.account,
             counts: {
               needsAPerson: o.counts.needsYou,
-              runningNow: o.counts.live,
+              goingOrWaiting: o.counts.live,
               openPrs: o.counts.open,
               openPrsProven: o.counts.proven,
               changesReachingCode: o.counts.reaching,
             },
             needsAPerson: o.needsYou.slice(0, 6).map((r) => ({ ...runLite(r), why: why(r) })),
-            runningNow: o.live.slice(0, 5).map(runLite),
+            goingOrWaiting: o.live.slice(0, 5).map(runLite),
             deadlines: o.deadlines.slice(0, 5).map((d) => ({
               changeId: d.changeId,
               title: d.title,
@@ -725,39 +725,61 @@ export function assistantTools(viewer: Viewer) {
               )
             ).filter(Boolean),
           );
+          // One entry per finding group (its strongest verdict and its call sites), PRs first, each
+          // draft with its own reason: what a reply needs, in the order it needs it (U4 walks).
+          const RANK = [
+            "affected",
+            "needs_human",
+            "check_by_hand",
+            "inconclusive",
+            "not_affected",
+            "not_applicable",
+          ];
+          const groups = new Map<
+            string,
+            { repo: string; key: string; verdict: string; state: string; callSites: number; link: string }
+          >();
+          for (const f of found.rows.filter((x) => visible.has(x.full_name))) {
+            const key = f.group_key ?? f.change_id;
+            const id = `${f.full_name}:${key}`;
+            const had = groups.get(id);
+            if (!had || RANK.indexOf(f.verdict) < RANK.indexOf(had.verdict))
+              groups.set(id, {
+                repo: f.full_name,
+                key,
+                verdict: f.verdict,
+                state: f.state,
+                callSites: Math.max(f.sites, had?.callSites ?? 0),
+                link: groupLink(f.full_name, key),
+              });
+            else had.callSites = Math.max(had.callSites, f.sites);
+          }
           return {
             asOf: now(),
             query,
-            findings: found.rows
-              .filter((f) => visible.has(f.full_name))
-              .map((f) => ({
-                repo: f.full_name,
-                key: f.group_key ?? f.change_id,
-                verdict: f.verdict,
-                state: f.state,
-                callSites: f.sites,
-                link: groupLink(f.full_name, f.group_key ?? f.change_id),
-              })),
+            prs: prs.rows
+              .filter((p) => visible.has(p.full_name))
+              .map((p) => {
+                const draft =
+                  p.kind === "pr" && (p.pr_mode === "draft" || (p.evidence ?? "verified") !== "verified");
+                return {
+                  repo: p.full_name,
+                  kind: p.kind,
+                  number: p.number,
+                  url: p.url,
+                  state: p.state,
+                  group: p.change_key,
+                  runId: p.run_id,
+                  draft,
+                  // Why this PR is a draft: its own run's evidence (rule 13), never another run's state.
+                  draftBecause: draft && p.evidence ? (EVIDENCE_MEANING[p.evidence] ?? p.evidence) : null,
+                };
+              }),
+            findings: [...groups.values()],
             runs: runRows.map((r) => ({
               ...runLite(r),
               meaning: r.evidence ? (EVIDENCE_MEANING[r.evidence] ?? null) : null,
             })),
-            prs: prs.rows
-              .filter((p) => visible.has(p.full_name))
-              .map((p) => ({
-                repo: p.full_name,
-                kind: p.kind,
-                number: p.number,
-                url: p.url,
-                state: p.state,
-                group: p.change_key,
-                runId: p.run_id,
-                // What this PR's own run proved: a draft says why (rule 13), not another run's state.
-                draft:
-                  p.kind === "pr" && (p.pr_mode === "draft" || (p.evidence ?? "verified") !== "verified"),
-                evidence: p.evidence,
-                meaning: p.evidence ? (EVIDENCE_MEANING[p.evidence] ?? null) : null,
-              })),
           };
         }),
       toModelOutput: fenced("find"),
