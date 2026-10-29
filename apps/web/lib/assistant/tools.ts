@@ -21,6 +21,7 @@ import {
   repoOf,
   reposOf,
   rowsOf,
+  scopeRaw,
   usageOf,
 } from "../workspace";
 import { assistantSpend } from "./budget";
@@ -164,6 +165,9 @@ async function findingRows(repoId: number) {
 const groupLink = (repo: string, key: string) =>
   `/app/repos/${repo}/findings?group=${encodeURIComponent(key)}`;
 
+/** Fix modes in words, as the dashboard says them, so a reply never has to map codes. */
+export const MODE_LABEL: Record<string, string> = { auto: "Automatic", ask: "Ask first", off: "Off" };
+
 /** What each fix mode does (plan revision 3.3, "Fix mode"), said the same way on the card and to the model. */
 export const MODE_MEANS: Record<string, string> = {
   auto: "Teire starts a fix for every finding that reaches the code and opens the PR with its evidence",
@@ -220,9 +224,9 @@ export function assistantTools(viewer: Viewer) {
 
     list_repos: tool({
       description:
-        "List the repositories Teire watches in the person's current installation. Fields: reaching = changes that reach the code; openPrs = Teire PRs open now; needsAPerson = runs in the last 7 days that ended as a draft, an issue or a stop; live = a run is going now.",
+        "List the repositories Teire watches in the person's current installation; byMode groups them by fix mode (Automatic, Ask first, Off), already counted. Fields: reaching = changes that reach the code; openPrs = Teire PRs open now; needsAPerson = runs in the last 7 days that ended as a draft, an issue or a stop; live = a run is going now.",
       inputSchema: z.object({
-        filter: z.enum(["all", "needs_you", "live", "paused", "failed_scan"]).default("all"),
+        filter: z.enum(["all", "needs_you", "live", "paused", "failed_scan", "not_automatic"]).default("all"),
       }),
       execute: ({ filter }) =>
         safely(async () => {
@@ -236,19 +240,28 @@ export function assistantTools(viewer: Viewer) {
                 ? r.live
                 : filter === "paused"
                   ? r.status === "paused"
-                  : filter === "failed_scan"
-                    ? r.lastScanFailed
-                    : true,
+                  : filter === "not_automatic"
+                    ? r.fixMode.mode !== "auto"
+                    : filter === "failed_scan"
+                      ? r.lastScanFailed
+                      : true,
           );
+          // Grouped already, so a reply reads the answer instead of sorting a long list itself.
+          const byMode: Record<string, string[]> = { Automatic: [], "Ask first": [], Off: [] };
+          for (const r of kept) byMode[MODE_LABEL[r.fixMode.mode] ?? r.fixMode.mode]?.push(r.fullName);
           return {
             asOf: now(),
             account: viewer.account,
+            filter,
+            /** How many match the filter, of how many the installation has. */
             total: kept.length,
+            inInstallation: all.length,
+            byMode,
             repos: kept.slice(0, 25).map((r) => ({
               fullName: r.fullName,
               status: r.status,
               pausedReason: r.pausedReason,
-              fixMode: r.fixMode.mode,
+              fixMode: MODE_LABEL[r.fixMode.mode] ?? r.fixMode.mode,
               fixOrigin: r.fixMode.file ?? r.fixMode.origin,
               reaching: r.affected,
               openPrs: r.openPrs,
@@ -297,7 +310,11 @@ export function assistantTools(viewer: Viewer) {
             isPrivate: got.repo.isPrivate,
             status: got.repo.status,
             pausedReason: got.repo.pausedReason,
-            fixMode: { mode: detail.fixMode.mode, origin: detail.fixMode.origin, file: detail.fixMode.file },
+            fixMode: {
+              mode: MODE_LABEL[detail.fixMode.mode] ?? detail.fixMode.mode,
+              origin: detail.fixMode.origin,
+              file: detail.fixMode.file,
+            },
             lastScan: scan
               ? { status: scan.status, at: iso(scan.at), error: scan.error?.slice(0, 200) ?? null }
               : null,
@@ -673,8 +690,8 @@ export function assistantTools(viewer: Viewer) {
             }>(sql`
               select r.full_name, f.group_key, f.change_id, f.verdict, f.state,
                 jsonb_array_length(coalesce(f.call_sites, '[]'::jsonb))::int as sites
-              from findings f join repos r on r.id = f.repo_id
-              where ${repoId !== null ? sql`f.repo_id = ${repoId}` : sql`r.installation_id = ${scope.installationId ?? -1}`}
+              from findings f join repos r on r.id = f.repo_id join installations i on i.id = r.installation_id
+              where ${repoId !== null ? sql`f.repo_id = ${repoId}` : scopeRaw(scope, "r", "i")}
                 and (${and(...words.map((w) => sql`(lower(coalesce(f.group_key, '')) like ${`%${w}%`} or lower(f.change_id) like ${`%${w}%`})`))})
               order by f.priority limit 8`),
             database().execute<{
@@ -685,9 +702,13 @@ export function assistantTools(viewer: Viewer) {
               kind: string;
               change_key: string;
               run_id: string | null;
+              evidence: string | null;
+              pr_mode: string | null;
             }>(sql`
-              select r.full_name, a.number, a.url, a.state, a.kind, a.change_key, a.run_id from artifacts a join repos r on r.id = a.repo_id
-              where a.kind in ('pr', 'issue') and ${repoId !== null ? sql`a.repo_id = ${repoId}` : sql`r.installation_id = ${scope.installationId ?? -1}`}
+              select r.full_name, a.number, a.url, a.state, a.kind, a.change_key, a.run_id, x.evidence_kind as evidence, x.pr_mode
+              from artifacts a join repos r on r.id = a.repo_id join installations i on i.id = r.installation_id
+                left join runs x on x.id = a.run_id
+              where a.kind in ('pr', 'issue') and ${repoId !== null ? sql`a.repo_id = ${repoId}` : scopeRaw(scope, "r", "i")}
                 and (${and(...words.map((w) => sql`lower(a.change_key) like ${`%${w}%`}`))})
               order by a.updated_at desc limit 6`),
           ]);
@@ -728,6 +749,11 @@ export function assistantTools(viewer: Viewer) {
                 state: p.state,
                 group: p.change_key,
                 runId: p.run_id,
+                // What this PR's own run proved: a draft says why (rule 13), not another run's state.
+                draft:
+                  p.kind === "pr" && (p.pr_mode === "draft" || (p.evidence ?? "verified") !== "verified"),
+                evidence: p.evidence,
+                meaning: p.evidence ? (EVIDENCE_MEANING[p.evidence] ?? null) : null,
               })),
           };
         }),

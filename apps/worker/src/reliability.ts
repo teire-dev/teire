@@ -1,5 +1,5 @@
 import { and, type Database, eq, gte, llmCalls, lt, repos, runs, scans, sql, systemState } from "@teire/db";
-import { RUNS } from "@teire/engine/constants";
+import { ASSISTANT, RUNS } from "@teire/engine/constants";
 import type { GitHubApp } from "@teire/engine/github";
 import { createTokenFactory, modelHealth, ping, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
 
@@ -195,6 +195,7 @@ export function startTicker(
 ) {
   let lastRedelivery = 0;
   let lastSchedule = 0;
+  let lastRetention = 0;
   const tick = async () => {
     await setState(db, "worker", { at: new Date().toISOString(), version });
     const reaped = await reap(db);
@@ -218,6 +219,19 @@ export function startTicker(
     if (enqueueScan && Date.now() - lastSchedule > RELIABILITY.scheduleEveryMs) {
       lastSchedule = Date.now();
       for (const id of await dueScheduledScans(db)) await enqueueScan(id);
+    }
+    // Ask Teire's threads are kept 90 days from their last message (plan revision 3.3, U4); their
+    // messages go with them. Receipts stay: they hold cost, not content.
+    if (Date.now() - lastRetention > 3_600_000) {
+      lastRetention = Date.now();
+      const { rows } = await db.execute<{ n: number }>(sql`
+        with gone as (delete from assistant_threads
+          where updated_at < now() - make_interval(days => ${ASSISTANT.retentionDays}) returning 1)
+        select count(*)::int as n from gone`);
+      if (rows[0]?.n)
+        console.log(
+          `[retention] removed ${rows[0].n} Ask Teire thread(s) older than ${ASSISTANT.retentionDays} days`,
+        );
     }
     if (gh && Date.now() - lastRedelivery > RELIABILITY.redeliveryEveryMs) {
       lastRedelivery = Date.now();

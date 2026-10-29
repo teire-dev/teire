@@ -119,6 +119,10 @@ const MODE: Record<string, { label: string; tone: Tone }> = {
   ask: { label: "Ask first", tone: "attention" },
   off: { label: "Off", tone: "neutral" },
 };
+// The same modes as the tools say them in words.
+MODE.Automatic = MODE.auto as { label: string; tone: Tone };
+MODE["Ask first"] = MODE.ask as { label: string; tone: Tone };
+MODE.Off = MODE.off as { label: string; tone: Tone };
 
 function ModeChip({ mode }: { mode: string }) {
   const m = MODE[mode] ?? { label: mode, tone: "neutral" as Tone };
@@ -696,7 +700,9 @@ export function DocsCard({ o }: { o: Out<"search_docs"> }) {
             <SafeLink href={r.url} className="text-sm text-ink">
               {r.title}
             </SafeLink>
-            <span className="line-clamp-2 text-[11px] text-ink-3">{r.snippet}</span>
+            {r.snippet && r.snippet !== r.title ? (
+              <span className="line-clamp-2 text-[11px] text-ink-3">{r.snippet}</span>
+            ) : null}
           </li>
         ))}
         {!o.results.length ? <li className="text-sm text-ink-3">Nothing in the docs matches.</li> : null}

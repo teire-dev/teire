@@ -10,6 +10,15 @@ export const docsSearch = createFromSource(source);
  */
 export async function searchDocs(query: string, limit = 5) {
   const hits = await docsSearch.search(query.slice(0, 200));
+  const clean = (t: unknown) =>
+    String(t)
+      .replace(/<[^>]+>/g, "")
+      .trim();
+  // The sentences and table rows that matched, each with where it lives: what an answer quotes.
+  const passages = hits
+    .filter((h) => h.type !== "page")
+    .slice(0, 8)
+    .map((h) => ({ url: h.url, text: clean(h.content).slice(0, 500) }));
   const seen = new Set<string>();
   const results: { title: string; url: string; snippet: string }[] = [];
   for (const hit of hits) {
@@ -41,5 +50,5 @@ export async function searchDocs(query: string, limit = 5) {
       )
     : undefined;
   const text = top ? (await top.data.getText("processed")).slice(0, 2_500) : null;
-  return { results, top: top && text ? { title: top.data.title, url: top.url, text } : null };
+  return { results, passages, top: top && text ? { title: top.data.title, url: top.url, text } : null };
 }

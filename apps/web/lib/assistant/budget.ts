@@ -106,15 +106,17 @@ export async function priceOf(model: string) {
 export async function assistantSpend(userId: string | null) {
   const who = userId ?? "operator";
   const [row] = (
-    await database().execute<{ today: string; month: string; replies: number }>(sql`
+    await database().execute<{ today: string; month: string; replies: number; tokens: string }>(sql`
       select coalesce(sum(cost_usd) filter (where created_at > ${DAY}), 0) as today,
-        coalesce(sum(cost_usd), 0) as month, count(*)::int as replies
+        coalesce(sum(cost_usd), 0) as month, count(*)::int as replies,
+        coalesce(sum(tokens_in + tokens_out), 0)::bigint as tokens
       from assistant_calls where user_id = ${who} and created_at > now() - interval '30 days' and status <> 'failed'`)
   ).rows;
   return {
     todayUsd: Number(row?.today ?? 0),
     monthUsd: Number(row?.month ?? 0),
     replies: row?.replies ?? 0,
+    tokens: Number(row?.tokens ?? 0),
     dailyCapUsd: ASSISTANT.perUserDailyUsd,
   };
 }

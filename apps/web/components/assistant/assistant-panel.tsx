@@ -197,16 +197,21 @@ function DocsOnly() {
   const path = usePathname();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<DocHit[]>([]);
+  const [searching, setSearching] = useState(false);
   useEffect(() => {
     if (q.trim().length < 2) {
       setHits([]);
       return;
     }
     const ctrl = new AbortController();
+    setSearching(true);
     const t = setTimeout(() => {
       fetch(`/api/search?query=${encodeURIComponent(q)}`, { signal: ctrl.signal })
         .then(async (r) => (r.ok ? ((await r.json()) as DocHit[]) : []))
-        .then((h) => setHits(h.slice(0, 8)))
+        .then((h) => {
+          setHits(h.slice(0, 8));
+          setSearching(false);
+        })
         .catch(() => {});
     }, 150);
     return () => {
@@ -230,12 +235,18 @@ function DocsOnly() {
         {hits.map((h) => (
           <li key={h.id}>
             <SafeLink href={h.url} className="block rounded-md px-2 py-1 text-sm text-ink hover:bg-hover">
-              {h.content.replace(/<[^>]+>/g, "").slice(0, 120)}
+              {h.content
+                .replace(/<[^>]+>/g, "")
+                .replace(/\|/g, " ")
+                .replace(/-{3,}/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 120)}
             </SafeLink>
           </li>
         ))}
         {q.trim().length >= 2 && !hits.length ? (
-          <li className="px-2 text-sm text-ink-3">Nothing matches.</li>
+          <li className="px-2 text-sm text-ink-3">{searching ? "Searching…" : "Nothing matches."}</li>
         ) : null}
       </ul>
       <div className="flex flex-col gap-2 rounded-lg bg-sunken p-3 ring-1 ring-rule ring-inset">

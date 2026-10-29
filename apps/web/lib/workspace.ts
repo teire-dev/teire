@@ -65,7 +65,7 @@ function scopeWhere(s: Scope) {
 }
 
 /** The scope in hand-written SQL, for the given aliases of `repos` and `installations`. */
-function scopeRaw(s: Scope, repo: string, inst: string) {
+export function scopeRaw(s: Scope, repo: string, inst: string) {
   return sql.join(
     [
       s.installationId !== null

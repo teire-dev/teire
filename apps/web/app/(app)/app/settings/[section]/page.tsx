@@ -14,6 +14,7 @@ import { Kpi } from "@/components/teire/kpi";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { myScope } from "@/lib/app-shell";
+import { assistantSpend } from "@/lib/assistant/budget";
 import { myInstallations } from "@/lib/dashboard";
 import { configCurrent } from "@/lib/fix-mode";
 import { getSession } from "@/lib/session";
@@ -146,7 +147,7 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
       );
     }
     case "usage": {
-      const u = await usageOf(mine.scope);
+      const [u, mineAsked] = await Promise.all([usageOf(mine.scope), assistantSpend(session.user.id)]);
       const cost = u.byPurpose.reduce((n, p) => n + p.costUsd, 0);
       return (
         <Part
@@ -164,7 +165,7 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
               </span>
             </div>
           </div>
-          {u.byPurpose.length ? (
+          {u.byPurpose.length || mineAsked.replies ? (
             <div className="overflow-hidden rounded-xl bg-sheet shadow-card">
               <table className="w-full text-sm">
                 <thead>
@@ -185,8 +186,27 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
                       <td className="px-4 py-2 tabular-nums text-ink">${p.costUsd.toFixed(3)}</td>
                     </tr>
                   ))}
+                  {/* Ask Teire has its own budget, apart from fix runs (D127): this person's replies. */}
+                  {mineAsked.replies ? (
+                    <tr>
+                      <td className="px-4 py-2 text-ink">
+                        assistant <span className="font-sans text-ink-3">(your Ask Teire replies)</span>
+                      </td>
+                      <td className="px-4 py-2 tabular-nums text-ink-2">
+                        {mineAsked.replies.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 tabular-nums text-ink-2">
+                        {mineAsked.tokens.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 tabular-nums text-ink">${mineAsked.monthUsd.toFixed(3)}</td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
+              <p className="border-t border-rule px-4 py-2 text-xs text-ink-3">
+                Ask Teire today: ${mineAsked.todayUsd.toFixed(3)} of its ${mineAsked.dailyCapUsd.toFixed(2)}{" "}
+                daily budget, kept apart from fix runs so chatting never stops a fix.
+              </p>
             </div>
           ) : (
             <p className="rounded-xl bg-sheet p-4 text-sm text-ink-3 shadow-card">
