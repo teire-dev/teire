@@ -71,7 +71,7 @@ function Drawn({
       {data?.label ? (
         <EdgeLabelRenderer>
           <span
-            className="nodrag nopan pointer-events-none absolute rounded-full bg-sheet px-1.5 py-px font-mono text-[10px] text-ink-2 shadow-tile"
+            className="nodrag nopan pointer-events-none absolute rounded-full bg-sheet px-1.5 py-px font-mono text-[11px] text-ink-2 shadow-tile"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           >
             {data.label}

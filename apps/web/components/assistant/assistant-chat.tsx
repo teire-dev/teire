@@ -612,7 +612,7 @@ function ReplyActions({
       </button>
       {cost !== undefined ? (
         <span
-          className="ml-1 font-mono text-[10px] text-ink-3 opacity-0 transition-opacity group-hover:opacity-100"
+          className="ml-1 font-mono text-[11px] text-ink-3 opacity-0 transition-opacity group-hover:opacity-100"
           title={`${message.metadata?.tokensIn ?? 0} tokens in, ${message.metadata?.tokensOut ?? 0} out`}
         >
           ${cost.toFixed(4)}
@@ -705,7 +705,7 @@ function Composer({
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-hover"
                 onClick={() => insert(m)}
               >
-                <span className="font-mono text-[10px] text-ink-3">{m.kind}</span>
+                <span className="font-mono text-[11px] text-ink-3">{m.kind}</span>
                 <span className="truncate text-ink">{m.label}</span>
               </button>
             </li>
@@ -728,7 +728,7 @@ function Composer({
         {prUrl ? (
           <p
             className={cn(
-              "px-3 pb-1 font-mono text-[10px]",
+              "px-3 pb-1 font-mono text-[11px]",
               prCheck?.url !== prUrl ? "text-ink-3" : prCheck.ok ? "text-proven" : "text-attention",
             )}
           >
@@ -748,7 +748,7 @@ function Composer({
                 <AtSign className="size-3.5" aria-hidden />
               </button>
             ) : null}
-            <span className="font-mono text-[10px] text-ink-3">{model} · Nebius Token Factory</span>
+            <span className="font-mono text-[11px] text-ink-3">{model} · Nebius Token Factory</span>
           </PromptInputTools>
           <PromptInputSubmit
             status={status}

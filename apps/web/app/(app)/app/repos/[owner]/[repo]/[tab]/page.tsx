@@ -509,7 +509,7 @@ async function Prs({ data, fullName, userId }: { data: Data; fullName: string; u
             {a.state !== "open" ? (
               <span
                 className={cn(
-                  "rounded-full px-2 py-0.5 font-mono text-[10px]",
+                  "rounded-full px-2 py-0.5 font-mono text-[11px]",
                   a.state === "merged" ? "bg-proven-soft text-proven" : "bg-sunken text-ink-3",
                 )}
               >
@@ -700,7 +700,7 @@ function Config({ data, fullName, picked }: { data: Data; fullName: string; pick
               <X className="size-3.5 shrink-0" strokeWidth={3} aria-hidden />
               {p.path ? <span className="font-medium">{p.path}</span> : null}
               <span className="truncate">{p.message}</span>
-              <span className="ml-auto shrink-0 text-[10px] opacity-75">uses its default</span>
+              <span className="ml-auto shrink-0 text-[11px]">uses its default</span>
             </li>
           ))}
         </ul>

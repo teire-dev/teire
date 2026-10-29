@@ -152,7 +152,7 @@ async function Board() {
             key={`${c.name}:${JSON.stringify(c.input)}`}
             className="mb-5 flex break-inside-avoid flex-col gap-1.5"
           >
-            <figcaption className="font-mono text-[10px] text-ink-3">{c.name}</figcaption>
+            <figcaption className="font-mono text-[11px] text-ink-3">{c.name}</figcaption>
             {field<string>(c.output, "error") ? (
               <p className="rounded-lg bg-sheet p-3 text-xs text-broke ring-1 ring-rule">
                 {field<string>(c.output, "error")}
@@ -163,7 +163,7 @@ async function Board() {
           </figure>
         ))}
         <figure className="mb-5 flex break-inside-avoid flex-col gap-1.5">
-          <figcaption className="font-mono text-[10px] text-ink-3">notice · budget</figcaption>
+          <figcaption className="font-mono text-[11px] text-ink-3">notice · budget</figcaption>
           <NoticeCard notice={notice} />
         </figure>
       </div>

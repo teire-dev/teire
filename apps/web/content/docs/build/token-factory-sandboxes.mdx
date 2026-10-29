@@ -20,6 +20,11 @@ When Token Factory isn't available to the worker (no project, or `whoami` grants
 
 Token Factory Sandboxes runs one command per microVM. A microVM that is kept saves what it changed as a new image, and the next command starts from that image. Teire chains them:
 
+<Diagram
+  name="sandbox-image"
+  alt="A public run on Token Factory Sandboxes: the image is built once by recipe hash; the checkout unpacks the tarball (up to 200 MB) in a kept microVM, saved as an image; the install runs with the network on; each check runs with no network, starting from the image the one before it left."
+/>
+
 <Steps>
 <Step>
 **The image.** Teire builds its sandbox images inside Token Factory, from the same Dockerfiles as the Cloudflare images: it imports the public base image, runs the build steps in one microVM, and tags the result by the recipe's hash, so each image is built once.

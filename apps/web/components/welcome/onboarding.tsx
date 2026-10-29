@@ -18,7 +18,6 @@ import { followAction } from "@/components/app/follow-action";
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { FlowCanvas, type PlacedTile } from "@/components/flow/flow-canvas";
 import { StaticFlow } from "@/components/flow/static-flow";
-import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import NumberTicker from "@/components/ui/number-ticker";
 import { Switch } from "@/components/ui/switch";
@@ -604,7 +603,7 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                       <span className="flex items-center gap-2 text-[15px] font-medium">
                         {m.name}
                         {m.tag ? (
-                          <span className="rounded-full bg-proven-soft px-2 py-0.5 text-[10px] font-medium text-proven">
+                          <span className="rounded-full bg-proven-soft px-2 py-0.5 text-[11px] font-medium text-proven">
                             {m.tag}
                           </span>
                         ) : null}
@@ -664,7 +663,7 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   ["reaching", reaching],
                 ].map(([k, v]) => (
                   <div key={k as string} className="rounded-card bg-sunken p-3">
-                    <dt className="font-mono text-[10px] text-ink-3">{k}</dt>
+                    <dt className="font-mono text-[11px] text-ink-3">{k}</dt>
                     <dd className="font-mono text-2xl">
                       <NumberTicker from={0} target={v as number} />
                     </dd>

@@ -330,4 +330,44 @@ export const DOC_FLOWS: Record<string, DocLane[]> = {
       [undefined, "tsc · vitest", "Verified."],
     ),
   ],
+  "build-webhook": [
+    lane(
+      "From GitHub to the worker",
+      [
+        {
+          id: "gh",
+          entity: "repository",
+          state: "done",
+          label: "GitHub",
+          meta: "signed",
+          brand: SPONSORS.github,
+        },
+        { id: "web", entity: "review", state: "done", label: "Webhook", meta: "answers 202", brand: TEIRE },
+        { id: "db", entity: "check", state: "done", label: "Outbox", meta: "stored once" },
+        { id: "wk", entity: "fix", state: "done", label: "Worker", meta: "claims 10", brand: TEIRE },
+        { id: "q", entity: "outcome", state: "done", label: "Queues", meta: "one per repo" },
+      ],
+      ["POST", "by ID", "NOTIFY", "pg-boss"],
+    ),
+  ],
+  "sandbox-image": [
+    lane(
+      "A public run on Token Factory Sandboxes",
+      [
+        {
+          id: "img",
+          entity: "sandbox",
+          state: "done",
+          label: "Image",
+          meta: "built once",
+          caption: "by recipe hash",
+          brand: STACK.tokenFactory,
+        },
+        { id: "co", entity: "code", state: "done", label: "Checkout", meta: "≤200 MB" },
+        { id: "in", entity: "update", state: "done", label: "Install", meta: "network on" },
+        { id: "ck", entity: "check", state: "proven", label: "Checks", meta: "no network" },
+      ],
+      ["kept microVM", "new image", "chained"],
+    ),
+  ],
 };

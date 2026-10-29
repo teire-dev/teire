@@ -43,7 +43,7 @@ export function MarkStack({ brands, max = 4 }: { brands: Brand[]; max?: number }
         <Mark key={b.label} brand={b} size="sm" className="ring-2 ring-sheet" />
       ))}
       {brands.length > max ? (
-        <span className="flex size-6 items-center justify-center rounded-md bg-sunken font-mono text-[10px] text-ink-3 ring-2 ring-sheet">
+        <span className="flex size-6 items-center justify-center rounded-md bg-sunken font-mono text-[11px] text-ink-3 ring-2 ring-sheet">
           +{brands.length - max}
         </span>
       ) : null}

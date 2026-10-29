@@ -102,7 +102,15 @@ export async function flowCard({
     >
       <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 24, color: "#c9d0e0" }}>
         <svg width="40" height="40" viewBox="0 0 32 32" role="img" aria-label="Teire">
-          <rect x="0.5" y="0.5" width="31" height="31" rx="8" fill="#1b2540" stroke="rgba(250,254,255,0.35)" />
+          <rect
+            x="0.5"
+            y="0.5"
+            width="31"
+            height="31"
+            rx="8"
+            fill="#1b2540"
+            stroke="rgba(250,254,255,0.35)"
+          />
           <path
             d="M8.6 16.9 13.6 21.6"
             fill="none"
@@ -111,7 +119,13 @@ export async function flowCard({
             strokeLinecap="round"
           />
           <path d="M12.6 20.7C14.5 14.2 19.1 10.2 24.6 9.1 24.4 14.6 20.6 20.4 14.7 22.6Z" fill="#d0f100" />
-          <path d="M14.3 20.9 21.9 12.3" fill="none" stroke="#1b2540" strokeWidth="0.9" strokeLinecap="round" />
+          <path
+            d="M14.3 20.9 21.9 12.3"
+            fill="none"
+            stroke="#1b2540"
+            strokeWidth="0.9"
+            strokeLinecap="round"
+          />
         </svg>
         <span style={{ color: "#fafeff", fontWeight: 600 }}>Teire</span>
         <span>·</span>

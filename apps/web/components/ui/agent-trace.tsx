@@ -207,18 +207,14 @@ export const TraceSpanRow = React.memo(function TraceSpanRow({
       style={{ "--p": 1 } as React.CSSProperties}
       className={cn(
         "group/row relative flex h-[var(--row)] items-center px-[var(--pad)] transition-colors duration-150",
-        "data-[selected=true]:bg-muted/40 data-[state=running]:bg-muted/60",
+        "data-[selected=true]:bg-sunken/40 data-[state=running]:bg-sunken/60",
       )}
     >
       {/* Guide rail: one hairline per ancestor, so a sub-agent's children read as inside it. */}
       {span.depth > 0 && (
         <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-[var(--pad)]">
           {Array.from({ length: span.depth }, (_, d) => (
-            <span
-              key={d}
-              className="bg-border absolute inset-y-0 w-px"
-              style={{ left: `${d * 12 + 11}px` }}
-            />
+            <span key={d} className="bg-rule absolute inset-y-0 w-px" style={{ left: `${d * 12 + 11}px` }} />
           ))}
         </div>
       )}
@@ -237,22 +233,22 @@ export const TraceSpanRow = React.memo(function TraceSpanRow({
         aria-label={`${span.label}, ${span.kind ?? "tool"}, ${formatMs(span.dur)}${
           span.attempt != null && span.attempt > 1 ? `, attempt ${span.attempt}` : ""
         }`}
-        className="hover:bg-muted focus-visible:ring-ring/50 flex w-[var(--gutter)] shrink-0 cursor-pointer items-center gap-1.5 rounded-md py-1 pr-2 text-left outline-none focus-visible:ring-[3px]"
+        className="hover:bg-sunken focus-visible:ring-ring/50 flex w-[var(--gutter)] shrink-0 cursor-pointer items-center gap-1.5 rounded-md py-1 pr-2 text-left outline-none focus-visible:ring-[3px]"
         style={{ paddingLeft: `${span.depth * 12 + 4}px` }}
       >
         <Icon
           aria-hidden="true"
           className={cn(
-            "text-muted-foreground group-data-[state=queued]/row:text-muted-foreground/60 size-3.5 shrink-0 transition-colors duration-200",
-            accent && "group-data-[state=done]/row:text-primary group-data-[state=running]/row:text-primary",
+            "text-ink-3 group-data-[state=queued]/row:text-ink-3/60 size-3.5 shrink-0 transition-colors duration-200",
+            accent && "group-data-[state=done]/row:text-signal group-data-[state=running]/row:text-signal",
           )}
         />
         {/* Queued rows step down in hue rather than opacity: 40% foreground would be ~2.8:1. */}
-        <span className="text-foreground group-data-[state=queued]/row:text-muted-foreground truncate font-mono text-xs transition-colors duration-200">
+        <span className="text-ink group-data-[state=queued]/row:text-ink-3 truncate font-mono text-xs transition-colors duration-200">
           {span.label}
         </span>
         {span.attempt != null && span.attempt > 1 && (
-          <span className="border-border text-muted-foreground shrink-0 rounded-md border px-1 font-mono text-[10px] leading-4 tabular-nums">
+          <span className="shrink-0 border-rule text-ink-3 rounded-md border px-1 font-mono text-[11px] leading-4 tabular-nums">
             ×{span.attempt}
           </span>
         )}
@@ -264,7 +260,7 @@ export const TraceSpanRow = React.memo(function TraceSpanRow({
           className="absolute top-1/2 h-2 min-w-[3px] -translate-y-1/2 overflow-hidden rounded-full"
           style={{ left, width }}
         >
-          <span aria-hidden="true" className="bg-foreground/10 absolute inset-0" />
+          <span aria-hidden="true" className="bg-ink/10 absolute inset-0" />
           <span
             aria-hidden="true"
             className={cn(
@@ -272,10 +268,10 @@ export const TraceSpanRow = React.memo(function TraceSpanRow({
               span.status === "error"
                 ? "bg-destructive"
                 : accent
-                  ? "bg-primary"
+                  ? "bg-signal"
                   : span.status === "cached"
-                    ? "bg-foreground/25"
-                    : "bg-foreground/50",
+                    ? "bg-ink/25"
+                    : "bg-ink/50",
             )}
             style={{ transform: "scaleX(var(--p,1))" }}
           />
@@ -287,12 +283,10 @@ export const TraceSpanRow = React.memo(function TraceSpanRow({
         {span.status === "error" && (
           <CircleAlert aria-hidden="true" className="text-destructive size-3.5 shrink-0" />
         )}
-        {span.status === "cached" && (
-          <Zap aria-hidden="true" className="text-muted-foreground size-3 shrink-0" />
-        )}
+        {span.status === "cached" && <Zap aria-hidden="true" className="text-ink-3 size-3 shrink-0" />}
         <span
           data-part="meta"
-          className="text-muted-foreground @md/trace:inline hidden truncate font-mono text-[11px] tabular-nums"
+          className="text-ink-3 @md/trace:inline hidden truncate font-mono text-[11px] tabular-nums"
         >
           {metaText(span, 1, showTokens)}
         </span>
@@ -300,7 +294,7 @@ export const TraceSpanRow = React.memo(function TraceSpanRow({
           data-part="dur"
           className={cn(
             "shrink-0 font-mono text-[11px] tabular-nums",
-            span.status === "error" ? "text-destructive" : "text-foreground/70",
+            span.status === "error" ? "text-destructive" : "text-ink/70",
           )}
         >
           {span.dur === 0 ? "" : formatMs(span.dur)}
@@ -644,25 +638,25 @@ export function AgentTrace({
         } as React.CSSProperties
       }
       className={cn(
-        "group/trace @container/trace bg-card text-card-foreground border-border w-full overflow-hidden rounded-xl border shadow-sm",
+        "group/trace @container/trace bg-sheet text-ink border-rule w-full overflow-hidden rounded-xl border shadow-sm",
         className,
       )}
       {...rest}
     >
       {/* Header: which run this is, and where the playhead stands in it. */}
-      <div data-slot="trace-header" className="border-border flex items-center gap-2.5 border-b px-3 py-2.5">
+      <div data-slot="trace-header" className="border-rule flex items-center gap-2.5 border-b px-3 py-2.5">
         <span
           aria-hidden="true"
-          className="bg-muted-foreground/40 group-data-[run=running]/trace:bg-primary size-1.5 shrink-0 rounded-full transition-colors duration-300"
+          className="bg-ink-3/40 group-data-[run=running]/trace:bg-signal size-1.5 shrink-0 rounded-full transition-colors duration-300"
         />
-        <span className="text-foreground font-mono text-[13px] leading-none font-medium">{runId}</span>
-        <span className="text-muted-foreground @sm/trace:inline hidden truncate text-xs leading-none">
+        <span className="text-ink font-mono text-[13px] leading-none font-medium">{runId}</span>
+        <span className="text-ink-3 @sm/trace:inline hidden truncate text-xs leading-none">
           {model ? `${model} · ` : ""}
           {rows.length} spans
         </span>
         <span
           ref={statusRef}
-          className="border-border text-muted-foreground ml-auto shrink-0 rounded-full border px-2 py-0.5 font-mono text-[11px] leading-4"
+          className="border-rule text-ink-3 ml-auto shrink-0 rounded-full border px-2 py-0.5 font-mono text-[11px] leading-4"
         >
           {live ? "Running" : "Completed"}
         </span>
@@ -685,13 +679,13 @@ export function AgentTrace({
             onPointerDown={onScrubDown}
             onPointerMove={onScrubMove}
             onPointerUp={onScrubUp}
-            className="border-border @max-sm/trace:hidden relative h-7 cursor-ew-resize touch-none border-b select-none"
+            className="border-rule @max-sm/trace:hidden relative h-7 cursor-ew-resize touch-none border-b select-none"
           >
             <div className={cn(trackBox, "inset-y-0")}>
               {ticks.map((t) => (
                 <span
                   key={t}
-                  className="text-muted-foreground absolute top-2 -translate-x-1/2 font-mono text-[10px] leading-none tabular-nums"
+                  className="absolute top-2 text-ink-3 -translate-x-1/2 font-mono text-[11px] leading-none tabular-nums"
                   style={{ left: `${(t / total) * 100}%` }}
                 >
                   {t < 1000 ? `${t}ms` : `${t / 1000}s`}
@@ -707,7 +701,7 @@ export function AgentTrace({
               {ticks.map((t) => (
                 <span
                   key={t}
-                  className="bg-border/60 absolute inset-y-0 w-px"
+                  className="bg-rule/60 absolute inset-y-0 w-px"
                   style={{ left: `${(t / total) * 100}%` }}
                 />
               ))}
@@ -736,8 +730,8 @@ export function AgentTrace({
               className="relative h-full w-full"
               style={{ transform: "translateX(calc(var(--t,0) * 100%))" }}
             >
-              <span className="bg-primary/70 absolute inset-y-0 w-px" />
-              <span className="bg-primary absolute top-0 size-1.5 -translate-x-[2.5px] rotate-45" />
+              <span className="bg-signal/70 absolute inset-y-0 w-px" />
+              <span className="bg-signal absolute top-0 size-1.5 -translate-x-[2.5px] rotate-45" />
             </div>
           </div>
 
@@ -753,14 +747,14 @@ export function AgentTrace({
       </div>
 
       {showTransport && (
-        <div className="border-border flex items-center gap-3 border-t px-3 py-2">
+        <div className="border-rule flex items-center gap-3 border-t px-3 py-2">
           <button
             type="button"
             data-slot="cta-primary"
             onClick={togglePlay}
             aria-label={playing ? "Pause replay" : "Play replay"}
             className={cn(
-              "bg-primary text-primary-foreground focus-visible:ring-ring/50 relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full",
+              "bg-signal text-signal-foreground focus-visible:ring-ring/50 relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full",
               "shadow-sm transition-[transform,box-shadow] duration-150 outline-none hover:shadow-md focus-visible:ring-[3px] active:scale-[0.98]",
               // The disc stays 36px; the touch target is 44px, per accessibility.md.
               "before:absolute before:-inset-1 before:content-['']",
@@ -788,10 +782,10 @@ export function AgentTrace({
             onKeyDown={onRailKeyDown}
             className="focus-visible:ring-ring/50 relative h-9 flex-1 cursor-ew-resize touch-none rounded-md outline-none select-none focus-visible:ring-[3px]"
           >
-            <div className="bg-foreground/10 absolute inset-x-1.5 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full">
+            <div className="bg-ink/10 absolute inset-x-1.5 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full">
               <div
                 aria-hidden="true"
-                className="bg-primary h-full w-full origin-left"
+                className="bg-signal h-full w-full origin-left"
                 style={{ transform: "scaleX(var(--t,0))" }}
               />
             </div>
@@ -800,14 +794,14 @@ export function AgentTrace({
                 className="relative h-full w-full"
                 style={{ transform: "translateX(calc(var(--t,0) * 100%))" }}
               >
-                <span className="bg-primary border-card absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-sm" />
+                <span className="bg-signal border-sheet absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-sm" />
               </div>
             </div>
           </div>
 
           <span
             ref={clockRef}
-            className="text-muted-foreground w-[7rem] shrink-0 text-right font-mono text-[11px] tabular-nums"
+            className="text-ink-3 w-[7rem] shrink-0 text-right font-mono text-[11px] tabular-nums"
           />
         </div>
       )}

@@ -129,13 +129,8 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
             ) : (
               <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
                 <TileSquare tile={{ entity: "repository", state: "pending", label: "" }} size="sm" />
-                <span className="flex min-w-0 flex-col">
-                  <span className="text-sm text-ink-2">
-                    No <span className="font-mono">{inst.login}/teire-config</span> yet
-                  </span>
-                  <span className="font-mono text-[11px] text-ink-3">
-                    one teire.yml there sets every repository&apos;s defaults
-                  </span>
+                <span className="text-sm text-ink-2">
+                  No <span className="font-mono">{inst.login}/teire-config</span> yet
                 </span>
                 <Button asChild size="sm" variant="ghost" className="ml-auto">
                   <a href="/docs/guide/configuration">How ›</a>
@@ -286,7 +281,7 @@ async function Installations({ userId }: { userId: string }) {
                   </span>
                 </span>
                 {i.suspendedAt ? (
-                  <span className="ml-auto rounded-full bg-attention-soft px-2 py-0.5 font-mono text-[10px] text-attention">
+                  <span className="ml-auto rounded-full bg-attention-soft px-2 py-0.5 font-mono text-[11px] text-attention">
                     suspended
                   </span>
                 ) : null}

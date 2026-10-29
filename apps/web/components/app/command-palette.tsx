@@ -10,7 +10,6 @@ import {
   GitPullRequestArrow,
   LayoutGrid,
   PauseCircle,
-  PlayCircle,
   RefreshCw,
   Settings,
   ShieldCheck,

@@ -3,6 +3,7 @@ import { ClassChip } from "@/app/(site)/changes/class-chip";
 import { BrandLogo } from "@/components/brand-logo";
 import { ecosystemOfSite } from "@/lib/brands";
 import { type CatalogRow, sourceLabel, sourceLogo, sourceOf } from "@/lib/catalog";
+import { packageHref, providerHref } from "@/lib/links";
 import { ago } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -170,28 +171,34 @@ export function WatchBand({
 
 /** The newest changes Teire picked up, as a row of cards you scroll sideways. */
 export function WhatsNew({ rows, names }: { rows: CatalogRow[]; names: Record<string, string> }) {
-  // The newest change per provider or package, so a big release is one card, not a row of its own.
-  const seen = new Set<string>();
-  const latest = [...rows]
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .filter((r) => {
-      // A provider is one card however many of its models changed; a package is one card per package.
-      const who = r.provider ? sourceOf(r) : `${sourceOf(r)}:${r.record.subject.name}`;
-      if (seen.has(who)) return false;
-      seen.add(who);
-      return true;
-    })
-    .slice(0, 12);
+  // The newest change per provider or package, so a big release is one card, not a row of its own;
+  // the card counts the rest and links to the page that lists them (V7 final review).
+  const groups = new Map<string, CatalogRow[]>();
+  for (const r of [...rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+    // A provider is one card however many of its models changed; a package is one card per package.
+    const who = r.provider ? sourceOf(r) : `${sourceOf(r)}:${r.record.subject.name}`;
+    groups.set(who, [...(groups.get(who) ?? []), r]);
+  }
+  const latest = [...groups.values()].slice(0, 12);
   if (!latest.length) return null;
   return (
     <section className="flex flex-col gap-3" aria-label="What's new">
       <h2 className="heading text-xl text-ink">What&apos;s new</h2>
       <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
-        {latest.map((r) => {
+        {latest.map(([r, ...rest]) => {
+          if (!r) return null;
           const key = sourceOf(r);
           const logo = sourceLogo(key);
+          const eco = r.record.subject.ecosystem;
+          const more = rest.length
+            ? r.provider
+              ? providerHref(r.provider)
+              : eco
+                ? packageHref(eco, r.record.subject.name)
+                : null
+            : null;
           return (
-            <li key={r.id} className="w-64 shrink-0 snap-start">
+            <li key={r.id} className="relative w-64 shrink-0 snap-start">
               <Link
                 href={`/changes/${r.id}`}
                 className="flex h-full flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card transition-shadow hover:shadow-card-hover"
@@ -208,6 +215,15 @@ export function WhatsNew({ rows, names }: { rows: CatalogRow[]; names: Record<st
                   <ClassChip value={r.class} />
                 </span>
               </Link>
+              {more ? (
+                <Link
+                  href={more}
+                  title={`${rest.length} more ${rest.length === 1 ? "change" : "changes"}`}
+                  className="absolute right-3 bottom-3 rounded-full bg-sunken px-2 py-0.5 font-mono text-[11px] text-ink-2 ring-1 ring-rule hover:text-ink"
+                >
+                  +{rest.length}
+                </Link>
+              ) : null}
             </li>
           );
         })}

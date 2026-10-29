@@ -20,7 +20,7 @@ export function AssistantLauncher({ onOpen }: { onOpen: () => void }) {
       <span className="grid grid-cols-[0fr] transition-[grid-template-columns] duration-200 ease-out group-hover:grid-cols-[1fr] group-focus-visible:grid-cols-[1fr] motion-reduce:transition-none">
         <span className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-sm font-medium">
           Ask Teire
-          <kbd className="rounded bg-sheet/15 px-1.5 font-mono text-[10px] text-sheet/80">⌘I</kbd>
+          <kbd className="rounded bg-sheet/15 px-1.5 font-mono text-[11px] text-sheet/80">⌘I</kbd>
         </span>
       </span>
     </button>

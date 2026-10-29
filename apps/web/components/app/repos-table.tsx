@@ -107,7 +107,7 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
             >
               {row.original.fullName.split("/")[1]}
             </span>
-            {row.original.isPrivate ? <span className="text-[10px] text-ink-3">private</span> : null}
+            {row.original.isPrivate ? <span className="text-[11px] text-ink-3">private</span> : null}
           </Link>
         ),
       },

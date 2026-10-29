@@ -1,8 +1,9 @@
 "use client";
 
 import { CONFIG_PR_KEYS, type ConfigPrKey, configValue } from "@teire/engine/config-keys";
-import { GitPullRequestArrow, Info, RefreshCw } from "lucide-react";
+import { GitPullRequestArrow, Info } from "lucide-react";
 import { useState } from "react";
+import { StaticFlow } from "@/components/flow/static-flow";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +13,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { FlowGraph } from "@/lib/flow/model";
 import { runAction } from "./run-action";
+
+/** What confirming does: a pull request, your merge, then the next scan reads the new value. */
+const AFTER: FlowGraph = {
+  tiles: [
+    { id: "pr", entity: "outcome", state: "pending", label: "Pull request", meta: "opens now" },
+    { id: "m", entity: "review", state: "pending", label: "You merge", meta: "nothing before" },
+    { id: "s", entity: "check", state: "pending", label: "Next scan", meta: "reads it" },
+  ],
+  links: [
+    { from: "pr", to: "m", state: "pending" },
+    { from: "m", to: "s", state: "pending" },
+  ],
+};
 
 const SAY: Record<ConfigPrKey, string> = {
   fixes: "Fix mode",
@@ -207,22 +222,17 @@ export function ConfigPrForm({
               {String(value).replace(/\n/g, ", ") || "empty"}
             </span>
           </div>
-          <ul className="flex flex-col gap-1.5 text-xs text-ink-2">
-            <li className="flex gap-2">
-              <GitPullRequestArrow className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden />
-              Opens a pull request; nothing changes until it merges.
-            </li>
-            <li className="flex gap-2">
-              <RefreshCw className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden />
-              Teire reads it at the next scan after the merge.
-            </li>
-            {EFFECT[key] ? (
-              <li className="flex gap-2">
-                <Info className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden />
-                {EFFECT[key]}
-              </li>
-            ) : null}
-          </ul>
+          <StaticFlow
+            graph={AFTER}
+            size="sm"
+            label="A pull request, your merge, then the next scan reads it."
+          />
+          {EFFECT[key] ? (
+            <p className="flex gap-2 text-xs text-ink-2">
+              <Info className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden />
+              {EFFECT[key]}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(false)}>
               Cancel

@@ -123,7 +123,8 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
         total={all.length}
         week={all.filter((r) => r.createdAt >= weekAgo).length}
         checkedToday={
-          pages.filter((x) => x.checked && x.checked >= new Date(Date.now() - 86_400_000).toISOString()).length
+          pages.filter((x) => x.checked && x.checked >= new Date(Date.now() - 86_400_000).toISOString())
+            .length
         }
         ahead={all.filter((r) => r.deadline && r.deadline >= today).length}
       />

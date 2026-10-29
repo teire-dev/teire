@@ -86,7 +86,6 @@ export function AssistantPanel({ hidden, signedIn }: { hidden: boolean; signedIn
       )}
     >
       {docked ? (
-        // biome-ignore lint/a11y/noStaticElementInteractions: a drag handle; the width is also kept between visits.
         <div
           onPointerDown={startResize}
           className="absolute top-0 bottom-0 -left-1 w-2 cursor-col-resize hover:bg-signal/20"

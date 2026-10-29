@@ -21,6 +21,11 @@ icon: Network
 
 ## From GitHub to the worker
 
+<Diagram
+  name="build-webhook"
+  alt="From GitHub to the worker: GitHub sends a signed delivery to the webhook route, which checks the signature, stores it once in the Postgres outbox by delivery ID and answers 202; the worker, woken by pg_notify or its 5-second poll, claims up to 10, queues scans and runs on pg-boss one job per repository in order, and stores any failure on the scan or run."
+/>
+
 <Steps>
 <Step>
 

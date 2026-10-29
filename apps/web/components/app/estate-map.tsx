@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type EstateGraph, type EstateTile, planTile } from "@/lib/estate";
-import { FLOW_STATE_LABEL, type FlowGraph, type FlowTile } from "@/lib/flow/model";
+import { FLOW_STATE_LABEL, type FlowGraph } from "@/lib/flow/model";
 import { cn } from "@/lib/utils";
 import type { ChangeReach } from "@/lib/workspace";
 import { runAction } from "./run-action";
@@ -478,7 +478,7 @@ function EstateList({ graph, onPick }: { graph: EstateGraph; onPick: (change: Es
               >
                 {c.brand ? <Mark brand={c.brand} size="sm" /> : null}
                 <span className="max-w-32 truncate text-ink">{c.label}</span>
-                {c.caption ? <span className="font-mono text-[10px] text-signal">{c.caption}</span> : null}
+                {c.caption ? <span className="font-mono text-[11px] text-signal">{c.caption}</span> : null}
               </button>
             </li>
           ))}

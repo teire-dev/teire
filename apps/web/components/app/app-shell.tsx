@@ -210,7 +210,7 @@ export function AppShell({
                   )}
                   <span className="truncate">{i.login}</span>
                   {i.suspendedAt ? (
-                    <span className="ml-auto font-mono text-[10px] text-attention">suspended</span>
+                    <span className="ml-auto font-mono text-[11px] text-attention">suspended</span>
                   ) : null}
                   {i.id === current?.id ? <Check className="ml-auto size-3.5" aria-label="Current" /> : null}
                 </DropdownMenuItem>
@@ -380,7 +380,7 @@ export function AppShell({
           >
             <Search className="size-3.5" aria-hidden />
             <span className="hidden md:inline">Jump to a repo, page or doc…</span>
-            <kbd className="ml-auto hidden rounded bg-sunken px-1.5 font-mono text-[10px] text-ink-3 ring-1 ring-rule md:inline">
+            <kbd className="ml-auto hidden rounded bg-sunken px-1.5 font-mono text-[11px] text-ink-3 ring-1 ring-rule md:inline">
               ⌘K
             </kbd>
           </button>

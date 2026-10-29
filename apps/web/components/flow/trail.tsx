@@ -80,9 +80,7 @@ function Segment({ tile, first, runHref }: { tile: FlowTile; first: boolean; run
           )}
           <span className="max-w-44 truncate font-medium">{said.main}</span>
           {said.sub ? (
-            <span className="hidden min-w-0 truncate font-mono text-[10px] opacity-80 2xl:inline">
-              {said.sub}
-            </span>
+            <span className="hidden min-w-0 truncate font-mono text-[11px] 2xl:inline">{said.sub}</span>
           ) : null}
         </button>
       </PopoverTrigger>

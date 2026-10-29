@@ -138,7 +138,7 @@ export function AssistantHistory({
                   onClick={() => onOpen(t.id)}
                 >
                   <span className="truncate text-sm text-ink">{t.title}</span>
-                  <span className="truncate font-mono text-[10px] text-ink-3">
+                  <span className="truncate font-mono text-[11px] text-ink-3">
                     {ago(t.updatedAt)}
                     {t.context ? ` · ${t.context.label}` : ""}
                   </span>
