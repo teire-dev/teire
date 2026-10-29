@@ -9,12 +9,13 @@ import { type PyProject, readPythonInventory } from "../inventory/python";
 import type { RepoTree } from "../inventory/tree";
 import { locatePython } from "../locate/python";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
-import { gatherPypiNotes } from "../notes/sources";
+import { gatherPypiNotes, githubRepoOf } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { pypiScheme } from "../registry/versions";
+import { pythonDocsLookup } from "../surface/pydoc";
 import { fetchPypiWheel, pypiSurfaceDiff } from "../surface/pypi";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
@@ -189,6 +190,9 @@ export async function fixPyDependency(
 
   input.onEvent?.({ step: "transaction", detail: `reading release notes ${from} → ${target}` });
   const { sources } = await gatherPypiNotes(a.instance.name, from, target, options);
+  // The package's own repository, from the notes' sources, so docs prefer its library.
+  const repoOf = sources.map((src) => githubRepoOf(src.url)).find(Boolean);
+  const sourceRepo = repoOf ? `${repoOf.owner}/${repoOf.repo}` : undefined;
   const docs = documentsForReading(sources);
   const extraction = docs.length
     ? await extractNotes(
@@ -249,8 +253,13 @@ export async function fixPyDependency(
     ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
     targetDir: targetWheel.dir,
     targetPaths: new Set(),
-    docs: async () =>
-      "Version-pinned documentation lookup is not available for PyPI packages yet; rely on the quoted migration notes.",
+    docs: pythonDocsLookup({
+      name: a.instance.name,
+      target,
+      targetDir: targetWheel.dir,
+      ...(sourceRepo ? { sourceRepo } : {}),
+      ...(options.context7Key ? { context7Key: options.context7Key } : {}),
+    }),
     onEvent: input.onEvent,
   });
   const groupKey = `pypi/${a.instance.name}/${target}`;

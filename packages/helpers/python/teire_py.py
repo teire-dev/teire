@@ -4,6 +4,7 @@ One process per call, JSON on stdout, never executes the code it reads:
   inventory <dir>                                   manifests and lockfiles → dependency instances
   unpack-wheel <wheel> <dest> <sha256>              hash-checked, path-checked wheel extraction
   surface-diff <old_dir> <new_dir>                  griffe breaking changes (allow_inspection=False)
+  docs <target_dir> <query>                         signatures, docstrings and README sections for a question
   resolve-refs <repo> <project_root> <names.json> <site_dir>...
                                                     jedi references to package symbols (safe mode)
 
@@ -632,12 +633,112 @@ def cmd_resolve_refs(repo: str, project_root: str, names_file: str, *site_dirs: 
     out({"hits": hits, "unresolved": unresolved, "unresolvedAt": unresolved_at, "filesScanned": scanned, "filesSkipped": skipped})
 
 
+# --- docs (the agent's lookup_docs, R21.5) --------------------------------------------------------
+def _render_signature(obj) -> "str | None":
+    """A function's or class's signature as the target version declares it, read statically."""
+    try:
+        kind = obj.kind.value
+        target = obj
+        if kind == "class":
+            target = obj.members.get("__init__")
+            if target is None or getattr(target, "is_alias", False):
+                return f"class {obj.name}"
+        elif kind == "attribute":
+            annotation = f": {obj.annotation}" if obj.annotation is not None else ""
+            value = f" = {obj.value}" if obj.value is not None else ""
+            return f"{obj.name}{annotation}{value}"
+        elif kind != "function":
+            return None
+        params = []
+        star = False
+        for p in target.parameters:
+            pk = p.kind.value
+            if pk == "keyword-only" and not star:
+                params.append("*")
+                star = True
+            text = p.name
+            if pk == "variadic positional":
+                text, star = f"*{text}", True
+            elif pk == "variadic keyword":
+                text = f"**{text}"
+            if p.annotation is not None:
+                text += f": {p.annotation}"
+            if p.default is not None:
+                text += f" = {p.default}"
+            params.append(text)
+            if pk == "positional-only" and p is list(target.parameters)[-1]:
+                params.append("/")
+        if kind == "class":
+            return f"class {obj.name}({', '.join(x for x in params if x != 'self')})"
+        returns = f" -> {target.returns}" if getattr(target, "returns", None) is not None else ""
+        return f"def {obj.name}({', '.join(params)}){returns}"
+    except Exception:
+        return None
+
+
+def _readme_sections(directory: Path, tokens: list[str]) -> list[str]:
+    """The README's sections that name what was asked, from the wheel's own METADATA description."""
+    sections: list[str] = []
+    for info in directory.glob("*.dist-info/METADATA"):
+        text = info.read_text("utf-8", errors="replace")
+        body = text.split("\n\n", 1)[1] if "\n\n" in text else ""
+        parts = re.split(r"(?m)^(?=#{1,4} )", body)
+        for part in parts:
+            if any(t.split(".")[-1] in part for t in tokens):
+                sections.append(part.strip()[:1500])
+            if len(sections) >= 3:
+                break
+    return sections
+
+
+def cmd_docs(target_dir: str, query: str) -> None:
+    """The target version's own documentation for one question: the objects the query names, each with
+    its signature and docstring (griffe, statically, never importing the package), and the README
+    sections that mention them."""
+    import griffe
+
+    root = Path(target_dir)
+    tokens = [t for t in re.findall(r"[A-Za-z_][A-Za-z0-9_.]*", query) if len(t) > 2]
+    scored = []
+    unread: list[str] = []
+    for name in top_level(root):
+        try:
+            module = griffe.load(name, search_paths=[target_dir], allow_inspection=False, try_relative_path=False, resolve_aliases=False)
+        except Exception as error:
+            unread.append(f"{name}: {type(error).__name__}")
+            continue
+        for obj in iter_objects(module):
+            path = obj.path
+            last = path.rsplit(".", 1)[-1]
+            score = 0
+            for t in tokens:
+                if path == t or path.endswith("." + t):
+                    score += 3
+                elif last == t.rsplit(".", 1)[-1]:
+                    score += 2
+            if score and not last.startswith("_"):
+                scored.append((score, path, obj))
+    scored.sort(key=lambda m: (-m[0], len(m[1])))
+    objects = []
+    seen = set()
+    for _, path, obj in scored:
+        if path in seen:
+            continue
+        seen.add(path)
+        doc = obj.docstring.value if getattr(obj, "docstring", None) is not None else None
+        objects.append({"path": path, "kind": obj.kind.value, "signature": _render_signature(obj), "docstring": (doc or "")[:1500] or None})
+        if len(objects) >= 6:
+            break
+    out({"objects": objects, "readme": _readme_sections(root, tokens), "unread": unread})
+
+
 def main(argv: list[str]) -> None:
     commands = {
         "inventory": cmd_inventory,
         "unpack-wheel": cmd_unpack_wheel,
         "surface-diff": cmd_surface_diff,
         "resolve-refs": cmd_resolve_refs,
+        "docs": cmd_docs,
     }
     if len(argv) < 2 or argv[1] not in commands:
         sys.stderr.write(f"usage: teire_py.py {{{','.join(commands)}}} …\n")

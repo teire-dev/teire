@@ -11,7 +11,7 @@ icon: Package
 | API diff | griffe 2.4.1, static only (no code imported) |
 | Finds your lines with | jedi, in safe mode, against the installed wheel |
 | Sandbox | Python 3.10, 3.11, 3.12 and 3.13 with uv 0.13.5, Poetry, Pipenv and pip-tools; the project's own version is used (CI `setup-python`, `.python-version`, `requires-python`) |
-| Docs for the agent | none yet |
+| Docs for the agent | Context7 (pinned when it indexes the target), then the target wheel's own signatures, docstrings and README, read by griffe |
 
 ## What Teire reads
 
@@ -56,5 +56,5 @@ Install with `uv sync --frozen --all-groups`, `poetry install --no-root`, `pipen
 The look-alike resolves to the repository's own class, not to httpx, so it isn't counted.
 
 <Callout type="warn" title="Limits">
-  A project that asks for a Python outside 3.10–3.13 runs on the nearest one, and the PR says so. Targets that need a newer Python than the project's are skipped, with the reason. griffe can't see return or attribute type changes; release notes cover those. The agent has no version-pinned docs lookup for PyPI packages yet. Only uv installs are proven to work offline.
+  A project that asks for a Python outside 3.10–3.13 runs on the nearest one, and the PR says so. Targets that need a newer Python than the project's are skipped, with the reason. griffe can't see return or attribute type changes; release notes cover those. Only uv installs are proven to work offline.
 </Callout>
