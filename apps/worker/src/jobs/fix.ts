@@ -15,6 +15,7 @@ import {
   type FixRun,
   type MigrationNote,
   type RequestUpgrade,
+  readbackMismatch,
   type Transaction,
   usageCell,
   usageOf,
@@ -1116,6 +1117,33 @@ async function packageOutcome(
                   assessment: assessment as unknown as Assessment<JvmProject>,
                 })
               : await fixJsDependency({ ...input, assessment: assessment as unknown as Assessment });
+  // S15.1, S15.7: the files the PR commits, read back with Teire's own lockfile readers, must lock the
+  // lead and every moved package at the versions the run names, and a security fix clear of every
+  // advisory it claims. A lockfile the readers can't read isn't taken as a mismatch.
+  if (result.run.files.length && result.run.after.install.ok) {
+    const after = await repoInstances(repoDir, directoryTree(repoDir)).catch(() => null);
+    if (after) {
+      const mismatch = readbackMismatch(after, ecosystem, packageName, result.run.target, result.run.moved);
+      if (mismatch) throw new ResolverStopError("readback_mismatch", mismatch);
+      if (assessment.purpose === "security") {
+        const lockedAt = [
+          ...new Set(
+            after
+              .filter((i) => i.ecosystem === ecosystem && i.name === packageName && i.version)
+              .map((i) => i.version as string),
+          ),
+        ];
+        const still = assessment.records.filter(
+          (r) => r.kind === "security-advisory" && lockedAt.some((v) => stillAffected(r, v, ecosystem)),
+        );
+        if (still.length)
+          throw new ResolverStopError(
+            "fix_not_resolvable",
+            `the files this PR commits lock ${packageName} at ${lockedAt.join(", ")}, which ${still.map((a) => a.id.split("/").at(-1)).join(", ")} still affect`,
+          );
+      }
+    }
+  }
   // D71: a major whose checks still fail after the agent's attempts falls back one major, once.
   let fallback: Outcome["fallback"];
   if (
@@ -2116,6 +2144,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         ...outcome.labels,
         // A draft says why in its label too: needs-live-access, typecheck-only, …
         ...(prMode === "draft" ? [fix.evidence.kind.replace(/_/g, "-")] : []),
+        // A pass proven with the network off (S15.6).
+        ...(fix.evidence.kind === "verified" ? ["proven-offline"] : []),
         ...(config?.pullRequests?.labels ?? []),
       ],
     });

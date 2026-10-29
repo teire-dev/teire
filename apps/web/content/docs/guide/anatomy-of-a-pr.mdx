@@ -133,6 +133,8 @@ A change from an unconfirmed source that you asked Teire to try (`@teire fix` on
 
 A **Teire needs a human** issue says why a person is needed, your version and the version the change is about, where the code is, how far Teire's search could see (files searched, how uses were resolved, what it couldn't resolve), what changed upstream with its quote, and what to do. For a removed parameter with no replacement that is the call sites to change; for a behaviour change, a short checklist to compare the paths before and after; for an account setting, the step the source names.
 
+A verified PR also says **Proven offline** and carries the `proven-offline` label: its checks passed with no network, on Token Factory in microVMs with no network interface, on Cloudflare with every request refused and listed. Before a PR opens, Teire reads back the files it commits with its own lockfile readers: the upgrade and every package moved with it must be locked at the versions the PR names, and a security fix must clear every advisory it claims, or the run stops and says which.
+
 `pullRequests.labels` in `teire.yml` adds your own labels.
 
 ## On GitHub

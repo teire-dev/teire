@@ -259,6 +259,22 @@ function verificationLines(
       `| ${c.name} \`${escapeCell(c.argv.join(" ")).slice(0, 80)}\` | ${cell(run.baseline, c.name)} | ${cell(run.after, c.name)} |`,
     );
   out.push(`Evidence: **${run.evidence.kind.replace(/_/g, " ")}**. ${saidReasons(run.evidence.reasons)}.`);
+  // S15.6: a pass proven with no network says so, and how the network was kept out.
+  if (run.evidence.kind === "verified") {
+    const refused = run.after.deniedHosts.length;
+    out.push(
+      backendNote.startsWith("Token Factory")
+        ? "**Proven offline:** the checks passed in microVMs with no network interface at all."
+        : `**Proven offline:** the checks passed with every request refused${
+            refused
+              ? `; ${refused} host${refused === 1 ? "" : "s"} tried and ${refused === 1 ? "was" : "were"} refused (${run.after.deniedHosts
+                  .slice(0, 5)
+                  .map((h) => `\`${h}\``)
+                  .join(", ")})`
+              : ", and none was tried"
+          }.`,
+    );
+  }
   // The other projects the change touches, each with its own checks (D94).
   if (run.others?.length) {
     const side = (s: FixRun["baseline"]) =>
