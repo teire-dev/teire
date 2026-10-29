@@ -180,9 +180,9 @@ function Figures({
   items: { label: string; value: number | string; icon: LucideIcon; tone: FigureTone; zero?: boolean }[];
 }) {
   return (
-    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {items.map(({ label, value, icon: Icon, tone, zero }) => (
-        <div
+        <li
           key={label}
           className="flex items-center gap-2 rounded-md bg-sunken/60 p-1.5 ring-1 ring-rule ring-inset"
         >
@@ -196,12 +196,12 @@ function Figures({
             <Icon className="size-3.5" strokeWidth={2} />
           </span>
           <span className="flex min-w-0 flex-col">
-            <dd className="font-mono text-base leading-none text-ink tabular-nums">{value}</dd>
-            <dt className="mt-0.5 truncate text-[11px] text-ink-3">{label}</dt>
+            <span className="font-mono text-base leading-none text-ink tabular-nums">{value}</span>
+            <span className="mt-0.5 truncate text-[11px] text-ink-3">{label}</span>
           </span>
-        </div>
+        </li>
       ))}
-    </dl>
+    </ul>
   );
 }
 

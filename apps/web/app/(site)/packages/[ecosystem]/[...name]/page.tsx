@@ -128,7 +128,11 @@ async function Package({ params }: { params: Params }) {
   // is cached, and always every target with changes and every version an advisory is fixed in, so
   // the rail stands on Teire's own data when the registry list is missing (V5–V6 review).
   const BREAKING = new Set(["breaks-on-upgrade", "already-broken", "breaks-on-date"]);
-  const registryRail = [...(versions?.info.versions ?? [])].slice(-16);
+  // Releases only: a canary, beta or rc stays off the rail unless Teire computed changes for it.
+  const PRE = /-(alpha|beta|canary|rc|next|dev|pre|insiders|experimental)/i;
+  const registryRail = [...(versions?.info.versions ?? [])]
+    .filter((v) => !PRE.test(v.version) || byTarget.has(v.version))
+    .slice(-16);
   const meta = new Map(registryRail.map((v) => [v.version, v]));
   const fixesAt = new Map<string, string[]>();
   for (const r of advisories)

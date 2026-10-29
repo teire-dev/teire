@@ -11,11 +11,11 @@ import {
   ReactFlow,
   useNodesState,
 } from "@xyflow/react";
-import { useTheme } from "fumadocs-ui/provider/base";
 import { RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EDGE_TYPES, type FlowEdgeT, HANDLE_CLASS } from "@/components/flow/flow-edge";
 import { TileLabel, TileSquare } from "@/components/flow/tile";
+import { useCanvasMode } from "@/components/flow/use-canvas-mode";
 import { FLOW_STATE_LABEL, type FlowGraph, type FlowTile } from "@/lib/flow/model";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +30,10 @@ type TileData = { tile: FlowTile; selected: boolean; onSelect: (id: string) => v
 type TileNodeT = Node<TileData, "tile">;
 
 const GAP = 132;
+const ROW = 184;
 const SIZE = 64;
+/** Room the fitted view keeps around the tiles, in pixels: what a column count is measured against. */
+const SIDE = 56;
 
 function TileNode({ id, data }: NodeProps<TileNodeT>) {
   const { tile, selected, onSelect } = data;
@@ -86,6 +89,25 @@ export function RunCanvas({
   caption?: string | null;
   className?: string;
 }) {
+  // The tiles wrap into rows by the canvas's own width, so they stay at full size with readable
+  // labels (V7 walk: one fitted row shrank them to ~8px text beside the inspector).
+  const box = useRef<HTMLDivElement>(null);
+  const count = graph.tiles.length;
+  const [cols, setCols] = useState<number | null>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry?.contentRect.width ?? 0;
+      setCols(Math.max(3, Math.min(count, Math.floor((w - SIDE + GAP - SIZE) / GAP))));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [count]);
+  const place = useCallback(
+    (i: number) => ({ x: (i % (cols ?? count)) * GAP, y: Math.floor(i / (cols ?? count)) * ROW }),
+    [cols, count],
+  );
   // Seeded once (the parent keys this canvas by its set of tiles); the poll updates data, never positions.
   const [nodes, setNodes, onNodesChange] = useNodesState<TileNodeT>(
     graph.tiles.map((t, i) => ({
@@ -97,9 +119,16 @@ export function RunCanvas({
       data: { tile: t, selected: t.id === selected, onSelect },
     })),
   );
+  // A new column count re-lays the tiles nobody dragged.
+  useEffect(() => {
+    if (cols === null) return;
+    const saved = savedPositions(runId);
+    setNodes((ns) => ns.map((n, i) => (saved[n.id] ? n : { ...n, position: place(i) })));
+  }, [cols, place, runId, setNodes]);
+  const rows = Math.ceil(count / (cols ?? count));
   // React Flow puts its own `light`/`dark` class on the canvas; it must match the app's theme or the
   // `.light` token pin would keep light ink on a dark page.
-  const { resolvedTheme } = useTheme();
+  const canvasMode = useCanvasMode();
 
   // Positions this person dragged to, kept for this run in this browser.
   useEffect(() => {
@@ -147,12 +176,18 @@ export function RunCanvas({
     try {
       localStorage.removeItem(storeKey(runId));
     } catch {}
-    setNodes((ns) => ns.map((n, i) => ({ ...n, position: { x: i * GAP, y: 0 } })));
+    setNodes((ns) => ns.map((n, i) => ({ ...n, position: place(i) })));
   };
 
   return (
-    <div className={cn("relative h-[260px] w-full", className)}>
+    <div
+      ref={box}
+      className={cn("relative w-full transition-opacity", cols === null && "opacity-0", className)}
+      style={{ height: Math.max(240, rows * ROW + 110) }}
+    >
       <ReactFlow
+        // Refit when the tiles wrap differently (a resize), never on a poll.
+        key={cols ?? 0}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
@@ -168,12 +203,12 @@ export function RunCanvas({
         preventScrolling={false}
         panOnScroll={false}
         fitView
-        fitViewOptions={{ padding: { top: 0.32, bottom: 0.62, left: 0.08, right: 0.08 }, maxZoom: 1.15 }}
+        fitViewOptions={{ padding: { top: "48px", bottom: "64px", left: "28px", right: "28px" }, maxZoom: 1 }}
         minZoom={0.4}
         proOptions={{ hideAttribution: true }}
         maxZoom={1.6}
         aria-label="The run, tile by tile"
-        colorMode={resolvedTheme === "dark" ? "dark" : "light"}
+        colorMode={canvasMode}
       >
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} />
         <Controls showInteractive={false} position="top-left" orientation="horizontal" />

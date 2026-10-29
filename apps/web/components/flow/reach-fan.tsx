@@ -21,7 +21,7 @@ export function ReachFan({ reaches }: { reaches: ChangeReach[] }) {
     skipped: "var(--rule-strong)",
   };
   return (
-    <div className="flex items-center">
+    <div className="flex items-center" data-flow>
       <Mark brand={brand} />
       <svg width={40} height={h} viewBox={`0 0 40 ${h}`} aria-hidden className="shrink-0 overflow-visible">
         {shown.map((r, i) => {

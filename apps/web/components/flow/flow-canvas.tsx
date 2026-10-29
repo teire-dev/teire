@@ -12,12 +12,12 @@ import {
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
-import { useTheme } from "fumadocs-ui/provider/base";
 import { GripVertical } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo } from "react";
 import { EDGE_TYPES, type FlowEdgeT, HANDLE_CLASS } from "@/components/flow/flow-edge";
 import { TileLabel, type TileSize, TileSquare } from "@/components/flow/tile";
+import { useCanvasMode } from "@/components/flow/use-canvas-mode";
 import type { FlowLink, FlowTile } from "@/lib/flow/model";
 import { cn } from "@/lib/utils";
 
@@ -104,7 +104,7 @@ function Canvas({
   label: string;
   className?: string;
 }) {
-  const { resolvedTheme } = useTheme();
+  const canvasMode = useCanvasMode();
   const flow = useReactFlow();
   const reduce = useReducedMotion();
   const [nodes, setNodes, onNodesChange] = useNodesState<TileNodeT>(toNodes(tiles));
@@ -157,7 +157,7 @@ function Canvas({
         fitViewOptions={{ padding: 0.18, maxZoom: 1.25, minZoom: 0.2 }}
         minZoom={0.2}
         proOptions={{ hideAttribution: true }}
-        colorMode={resolvedTheme === "dark" ? "dark" : "light"}
+        colorMode={canvasMode}
         aria-label={label}
       >
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} />

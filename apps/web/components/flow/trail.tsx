@@ -21,7 +21,8 @@ const FILL: Record<FlowState, string> = {
   proven: "bg-proven-soft text-proven",
   not_proven: "bg-attention-soft text-attention",
   failed: "bg-broke-soft text-broke",
-  skipped: "bg-canvas text-ink-3 opacity-60",
+  // Skipped reads by its dashed-grey tone, not by fading: faded text fails contrast (V7 walk).
+  skipped: "bg-canvas text-ink-3",
 };
 
 /** The arrow: a notch on the left (but not on the first), a point on the right. */
@@ -146,7 +147,7 @@ export function Trail({
     (t) => !omit.includes(t.entity) && (t.state !== "skipped" || t.entity === "outcome"),
   );
   return (
-    <nav aria-label={label} className={cn("min-w-0", className)}>
+    <nav aria-label={label} className={cn("min-w-0", className)} data-flow>
       {/* Steps keep their size and the row scrolls sideways when it can't fit (a phone), never crushes. */}
       <ol className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tiles.map((t, i) => (

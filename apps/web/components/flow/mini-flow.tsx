@@ -61,7 +61,7 @@ export function MiniFlow({
   const box = size === "xs" ? "size-[18px] rounded-[5px]" : "size-[22px] rounded-[6px]";
   const icon = size === "xs" ? "size-2.5" : "size-3";
   return (
-    <span className={cn("inline-flex items-center", className)} role="img" aria-label={said}>
+    <span className={cn("inline-flex items-center", className)} role="img" data-flow aria-label={said}>
       {PROOF_STEPS.map((s, i) => {
         const state = states[i] as FlowState;
         const link = proof[s.key];
@@ -107,6 +107,7 @@ export function GraphStrip({ graph, className }: { graph: FlowGraph; className?:
     <span
       className={cn("inline-flex items-center", className)}
       role="img"
+      data-flow
       aria-label={graph.tiles.map((t) => `${t.label}: ${FLOW_STATE_LABEL[t.state]}`).join(", ")}
     >
       {graph.tiles.map((t, i) => {

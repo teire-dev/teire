@@ -72,11 +72,14 @@ export function WatchBand({
   watched,
   total,
   week,
+  rereadToday,
   ahead,
 }: {
   watched: Watched[];
   total: number;
   week: number;
+  /** Changes whose source Teire read again in the last day: the figure when everything is new. */
+  rereadToday: number;
   ahead: number;
 }) {
   const latest = watched.find((w) => w.checked)?.checked ?? null;
@@ -101,7 +104,8 @@ export function WatchBand({
           <dl className="flex gap-6">
             {[
               ["in the catalog", total],
-              ["new this week", week],
+              // A catalog built this week makes "new this week" the total; then the day's re-reads say more.
+              week < total ? ["new this week", week] : ["re-read today", rereadToday],
               ["dated ahead", ahead],
             ].map(([k, v]) => (
               <div key={k as string} className="flex flex-col">
@@ -151,7 +155,17 @@ export function WatchBand({
 
 /** The newest changes Teire picked up, as a row of cards you scroll sideways. */
 export function WhatsNew({ rows, names }: { rows: CatalogRow[]; names: Record<string, string> }) {
-  const latest = [...rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 12);
+  // The newest change per package or provider, so a big release is one card, not a row of its own.
+  const seen = new Set<string>();
+  const latest = [...rows]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .filter((r) => {
+      const who = `${sourceOf(r)}:${r.record.subject.name}`;
+      if (seen.has(who)) return false;
+      seen.add(who);
+      return true;
+    })
+    .slice(0, 12);
   if (!latest.length) return null;
   return (
     <section className="flex flex-col gap-3" aria-label="What's new">

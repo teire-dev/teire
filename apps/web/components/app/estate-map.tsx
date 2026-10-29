@@ -12,7 +12,6 @@ import {
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
-import { useTheme } from "fumadocs-ui/provider/base";
 import { ArrowUpRight, Check, GripVertical, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +20,7 @@ import { toast } from "sonner";
 import { EDGE_TYPES, type FlowEdgeT, HANDLE_CLASS } from "@/components/flow/flow-edge";
 import { StaticFlow } from "@/components/flow/static-flow";
 import { TILE_ICON, TileSquare } from "@/components/flow/tile";
+import { useCanvasMode } from "@/components/flow/use-canvas-mode";
 import { Mark } from "@/components/teire/mark";
 import { Button } from "@/components/ui/button";
 import {
@@ -336,7 +336,7 @@ function Canvas({
 }) {
   const router = useRouter();
   const flow = useReactFlow();
-  const { resolvedTheme } = useTheme();
+  const canvasMode = useCanvasMode();
   const geo = frame(graph, width);
   const seeded = useMemo(() => place(graph, view, geo.col), [graph, view, geo.col]);
   const [nodes, setNodes, onNodesChange] = useNodesState<TileNodeT | CaptionNodeT>(seeded);
@@ -445,7 +445,7 @@ function Canvas({
           maxZoom={1}
           panOnScroll={false}
           proOptions={{ hideAttribution: true }}
-          colorMode={resolvedTheme === "dark" ? "dark" : "light"}
+          colorMode={canvasMode}
           aria-label="What reaches your repositories and what Teire has open"
         >
           <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} />

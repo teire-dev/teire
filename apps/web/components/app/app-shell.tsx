@@ -273,7 +273,7 @@ export function AppShell({
                           asChild
                           size="sm"
                           isActive={path.startsWith(href)}
-                          className={cn(quiet && !isLive && "opacity-55")}
+                          className={cn(quiet && !isLive && "text-ink-3 [&_img]:opacity-60")}
                           title={
                             r.status === "paused"
                               ? `${r.fullName}: paused`

@@ -160,7 +160,9 @@ export function ChangeFan({
                   }
                   className={cn(
                     "flex min-w-0 items-center gap-2 rounded-full bg-sheet py-0.5 pr-2.5 pl-1 text-xs shadow-tile ring-1 ring-rule hover:ring-rule-strong",
-                    state === "skipped" && "opacity-60",
+                    // Skipped by its dashed edge, not by fading (faded text fails contrast, V7 walk).
+                    state === "skipped" &&
+                      "bg-canvas shadow-none ring-0 outline-1 outline-rule-strong outline-dashed",
                   )}
                   title={
                     r.plan.kind === "off"
@@ -184,7 +186,7 @@ export function ChangeFan({
                     )}
                   />
                   <span className="truncate text-ink">{r.repo.split("/")[1]}</span>
-                  <span className="shrink-0 font-mono text-[10px] text-ink-3">{said(r)}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-ink-3">{said(r)}</span>
                 </Link>
               </li>
             );
