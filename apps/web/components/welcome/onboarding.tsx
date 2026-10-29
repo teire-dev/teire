@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import NumberTicker from "@/components/ui/number-ticker";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { LeafBurst } from "@/components/welcome/leaf-burst";
 import { type Brand, ECOSYSTEMS, SPONSORS, STACK, TEIRE } from "@/lib/brands";
 import { FIX_MODES } from "@/lib/fix-mode-options";
 import type { FlowLink, FlowState } from "@/lib/flow/model";
@@ -652,7 +653,7 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
 
           {step === 5 ? (
             <div className="flex flex-col gap-4">
-              <LogoMark className="size-14" />
+              <LeafBurst />
               <dl className="grid grid-cols-3 gap-2">
                 {[
                   [

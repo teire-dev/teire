@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { LeafBurst } from "@/components/welcome/leaf-burst";
 import { SPONSORS, STACK } from "@/lib/brands";
 import { type FlowEntity, type FlowState, proofFlow, type RunFlowInput, runFlow } from "@/lib/flow/model";
 import { kitRuns, requireKit } from "@/lib/kit";
@@ -311,6 +312,10 @@ async function Kit() {
         <Board />
         <Board dark />
       </div>
+      <section className="flex items-center gap-6 rounded-feature bg-sheet p-6 shadow-card sm:p-8">
+        <p className="eyebrow">Motion · onboarding's finish</p>
+        <LeafBurst />
+      </section>
       <section className="flex flex-col gap-10 rounded-feature bg-sheet p-6 shadow-card sm:p-8">
         <p className="eyebrow">Run spine · every state</p>
         {SPINES.map(([label, input]) => (
