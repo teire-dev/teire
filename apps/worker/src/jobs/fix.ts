@@ -13,6 +13,7 @@ import {
   coMovedFindings,
   coMovedToDiff,
   type FixRun,
+  type MigrationNote,
   type RequestUpgrade,
   type Transaction,
   usageCell,
@@ -58,6 +59,7 @@ import {
   fixRubyDependency,
   fixRustDependency,
   type GoAssessment,
+  movedPackageNotes,
   repoInstances,
 } from "@teire/engine/pipeline";
 import { cratesIndexLines } from "@teire/engine/registry";
@@ -988,7 +990,7 @@ async function packageOutcome(
   // D-10: what else the updater moved, diffed and located like the lead, so the agent meets those
   // sites too and the PR says what each move means for this code.
   const co = resolved?.moved?.length
-    ? await coMovedAssessed(assess, resolved, packageName, roots, common.onEvent)
+    ? await coMovedAssessed(assess, resolved, packageName, roots, common)
     : null;
   const transaction = resolved && co ? { ...resolved, moved: co.moved } : resolved;
   if (roots.length > 1 && !transaction)
@@ -1009,6 +1011,7 @@ async function packageOutcome(
       : {}),
     ...(transaction ? { transaction } : {}),
     ...(co?.findings.length ? { extraFindings: co.findings, extraRecords: co.records } : {}),
+    ...(co?.notes.length ? { extraNotes: [...(common.extraNotes ?? []), ...co.notes] } : {}),
     ...(transaction && resolved
       ? {
           requestUpgrade: upgradeRequests(
@@ -1121,13 +1124,19 @@ async function coMovedAssessed(
   transaction: Transaction,
   lead: string,
   roots: string[],
-  onEvent: Common["onEvent"],
-): Promise<{ moved: NonNullable<Transaction["moved"]>; findings: FindingDraft[]; records: ChangeV2[] }> {
+  common: Common,
+): Promise<{
+  moved: NonNullable<Transaction["moved"]>;
+  findings: FindingDraft[];
+  records: ChangeV2[];
+  notes: MigrationNote[];
+}> {
   const moved = transaction.moved ?? [];
   const { diff, capped } = coMovedToDiff(moved, lead);
   const usage = new Map<string, CoMovedUsage>();
   const findings: FindingDraft[] = [];
   const records: ChangeV2[] = [];
+  const notes: MigrationNote[] = [];
   for (const m of diff) {
     const pin = { name: m.name, version: m.to as string };
     let found: Assessment<AssessedProject> | undefined;
@@ -1164,10 +1173,32 @@ async function coMovedAssessed(
       usage.set(m.name, { diffed: false, breaking: 0, sites: 0, note: "not declared by this repository" });
       continue;
     }
-    const pinned = { name: m.name, from: m.from as string, to: m.to as string };
+    // The updater may not say where a package moved from; the inventory knows (D-7).
+    const pinned = { name: m.name, from: m.from ?? found.instance.version ?? "?", to: m.to as string };
     const breaking = coMovedFindings(pinned, lead, found.summary?.breaking ?? []);
     findings.push(...breaking, ...coMovedFindings(pinned, lead, found.summary?.annotations ?? []));
-    if (breaking.length) records.push(...found.records);
+    if (breaking.length) {
+      records.push(...found.records);
+      // Its own release notes too (D-10), read like the lead's; a source that can't be read is said.
+      notes.push(
+        ...(await movedPackageNotes({
+          tf: common.tf,
+          ...(common.prices ? { prices: common.prices } : {}),
+          ecosystem: found.instance.ecosystem,
+          name: m.name,
+          from: pinned.from,
+          to: pinned.to,
+          removedApis: breaking.flatMap((f) => f.callSites.map((c) => c.snippet.trim().slice(0, 80))),
+          options: common.options,
+        }).catch((error) => {
+          common.onEvent?.({
+            step: "transaction",
+            detail: `${m.name}'s release notes couldn't be read: ${forGitHub(String(error), 160)}`,
+          });
+          return [];
+        })),
+      );
+    }
     usage.set(m.name, usageOf(breaking));
   }
   for (const m of capped)
@@ -1178,11 +1209,11 @@ async function coMovedAssessed(
       note: `not diffed (only the ${FIX.maxCoMovedDiffed} largest moves are)`,
     });
   if (diff.length)
-    onEvent?.({
+    common.onEvent?.({
       step: "transaction",
       detail: `moved with ${lead}: ${diff.map((m) => `${m.name} ${m.from} → ${m.to} (${usageCell(usage.get(m.name))})`).join("; ")}`,
     });
-  return { moved: withUsage(moved, usage), findings, records };
+  return { moved: withUsage(moved, usage), findings, records, notes };
 }
 
 /** A provider group (`models/nebius-token-factory`): re-scan against the stored catalog, then swap and fix. */

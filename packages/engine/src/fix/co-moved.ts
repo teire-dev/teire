@@ -33,12 +33,13 @@ export function coMovedToDiff(
   lead: string,
   max = FIX.maxCoMovedDiffed,
 ): { diff: Moved[]; capped: Moved[] } {
-  const changed = moved.filter(
-    (m) => m.name !== lead && !m.removed && m.from && m.to && m.from !== m.to,
-  ) as (Moved & { from: string; to: string })[];
-  const ranked = [...changed].sort(
-    (a, b) => jumpRank(b.from, b.to) - jumpRank(a.from, a.to) || a.name.localeCompare(b.name),
-  );
+  // A move with no `from` (the updater didn't say) is still diffed: the inventory has the installed
+  // version (D-7); unknown jumps rank as breaking.
+  const changed = moved.filter((m) => m.name !== lead && !m.removed && m.to && m.from !== m.to) as (Moved & {
+    to: string;
+  })[];
+  const rank = (m: Moved & { to: string }) => (m.from ? jumpRank(m.from, m.to) : 3);
+  const ranked = [...changed].sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name));
   return { diff: ranked.slice(0, max), capped: ranked.slice(max) };
 }
 
