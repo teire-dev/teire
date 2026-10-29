@@ -6,24 +6,26 @@ import Link from "next/link";
 import { useState } from "react";
 import { ActionButton } from "@/components/app/action-button";
 import { BrandLogo } from "@/components/brand-logo";
+import { TileLabel, TileSquare } from "@/components/flow/tile";
 import { Markdown } from "@/components/markdown";
 import { DiffView } from "@/components/run/diff-view";
 import { Receipt } from "@/components/run/receipt";
-import { Ledger, type LedgerCheck, notCoveredFrom } from "@/components/teire/ledger";
+import type { LedgerCheck } from "@/components/teire/ledger";
+import { notCoveredFrom } from "@/components/teire/ledger";
 import { Mark } from "@/components/teire/mark";
-import { PhaseStrip } from "@/components/teire/phase-strip";
-import { ProofChain } from "@/components/teire/proof-chain";
-import { EvidenceChip } from "@/components/teire/status-chip";
 import { AgentTrace } from "@/components/ui/agent-trace";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { activityOf, type Exec, modelLabel } from "@/lib/activity";
-import { SPONSORS } from "@/lib/brands";
+import { SPONSORS, STACK } from "@/lib/brands";
+import { type FlowTile, runFlow } from "@/lib/flow/model";
 import { subjectMark } from "@/lib/marks";
-import { proofOfRun } from "@/lib/proof";
+import { proofOfRun, STEP_DOING } from "@/lib/proof";
 import type { RunSheetData, RunSheetTick } from "@/lib/run-sheet";
 import { traceOf } from "@/lib/trace";
 import { backendName, cn } from "@/lib/utils";
+import { Inspector, type InspectorData } from "./inspector";
+import { RunCanvas } from "./run-canvas";
 import { ShareRun } from "./share-run";
 import {
   ActivityItem,
@@ -48,9 +50,10 @@ const FINAL_EVENTS_MS = 15_000;
 const ACTIVE = new Set(["queued", "running", "stopping"]);
 
 /**
- * The run proof sheet (plan revision 3.3, U2): what changed, where it reaches the code, what was
- * fixed, what proves it and what wasn't proven, readable in ten seconds, and live from start to
- * finish without a reload: one poll feeds every section.
+ * The run page (plan revision 3.4, V3; 3.3's U2 data contract kept): a canvas of the run's tiles with
+ * an inspector for the selected tile's evidence, and a console underneath (the replayable timeline,
+ * steps, changes, receipt, raw events). Live from start to finish without a reload: one poll feeds
+ * everything, a failed tick keeps the last data, and the poll runs a little past the final status.
  */
 export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const client = useQueryClient();
@@ -147,24 +150,64 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const stopping = [...sheet.events].reverse().find((e) => e.step === "run" && e.type === "stopping")
     ?.payload as { during?: string; doing?: string | null } | undefined;
 
+  // The run as tiles (plan revision 3.4, A2): one adapter, so the canvas, the rows and the cards agree.
+  const graph = runFlow({
+    kind: run.kind,
+    status: run.status,
+    step: run.step,
+    evidenceKind: run.evidenceKind,
+    prMode: run.prMode,
+    sites: sheet.reach.sites,
+    advisory: sheet.reach.advisory,
+    artifact: artifact ? { kind: artifact.kind, url: artifact.url, number: artifact.number } : null,
+    subject: subjectMark(run.groupKey),
+    // A tile holds a short name: Maven's group:artifact becomes the artifact.
+    subjectLabel: (subject.name || run.groupKey || "Change").split(":").at(-1) as string,
+    repo: { fullName: repo.fullName },
+    agent: sheet.events.some((e) => e.step === "agent")
+      ? { calls: sheet.calls.filter((c) => c.purpose === "fix").length }
+      : null,
+    codemod: sheet.events.some((e) => e.step === "codemod"),
+    backend: run.backend,
+    // Model and API changes are swaps in the code; only package changes go through the updater.
+    updater: !/^(models|api)\//.test(run.groupKey ?? ""),
+    ...(test && testBefore
+      ? { checksFigure: `${testBefore.passed}/${testBefore.collected} → ${test.passed}/${test.collected}` }
+      : {}),
+  });
+  const [picked, setPicked] = useState<string | null>(null);
+  const liveTile = graph.tiles.find((t) => t.state === "live")?.id;
+  const selectedId =
+    picked ??
+    liveTile ??
+    (active ? "change" : graph.tiles.some((t) => t.id === "check") ? "check" : "outcome");
+  const selectedTile = graph.tiles.find((t) => t.id === selectedId) ?? (graph.tiles[0] as FlowTile);
+  const caption = active && run.step ? (STEP_DOING[run.step] ?? null) : null;
+  const inspector: InspectorData = {
+    sheet,
+    rows,
+    baseline,
+    after,
+    notCovered,
+    liveLedger: !!live && active,
+    context,
+  };
+
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
       <header className="flex animate-enter flex-wrap items-start justify-between gap-6">
         <div className="flex min-w-0 items-start gap-4">
           <Mark brand={subjectMark(run.groupKey)} size="lg" />
           <div className="flex min-w-0 flex-col gap-2">
-            <span className="eyebrow flex flex-wrap items-center gap-2">
+            <span className="flex flex-wrap items-center gap-2 text-[13px] text-ink-3">
               {active ? <span className="size-1.5 rounded-full bg-signal animate-live" /> : null}
               <a href={`https://github.com/${repo.fullName}`} className="hover:text-ink">
                 {repo.fullName}
               </a>
-              <span>·</span>
-              {dry ? "Dry run" : run.kind === "reverify" ? "Re-verify" : "Fix run"} · {subject.kind}
+              <span aria-hidden>·</span>
+              <span>{dry ? "Dry run" : run.kind === "reverify" ? "Re-verify" : "Fix run"}</span>
               {sheet.report ? (
-                <Link
-                  href={`/scan/${sheet.report}`}
-                  className="normal-case tracking-normal text-ink-2 hover:text-ink"
-                >
+                <Link href={`/scan/${sheet.report}`} className="text-ink-2 hover:text-ink">
                   ← the report
                 </Link>
               ) : null}
@@ -174,7 +217,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
               {subject.from.slice(0, 3).map((v) => (
                 <span
                   key={v}
-                  className="rounded-md bg-sunken px-2 py-1 text-ink-3 line-through decoration-ink-3/40 ring-1 ring-rule ring-inset"
+                  className="rounded-full bg-sunken px-2.5 py-1 text-ink-3 line-through decoration-ink-3/40"
                 >
                   {v}
                 </span>
@@ -184,10 +227,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
               ) : null}
               <ArrowRight className="mx-1 size-3.5 text-ink-3" aria-hidden />
               {subject.to.slice(0, 3).map((v) => (
-                <span
-                  key={v}
-                  className="rounded-md bg-sheet px-2 py-1 text-ink ring-1 ring-rule-strong ring-inset"
-                >
+                <span key={v} className="rounded-full bg-sheet px-2.5 py-1 text-ink shadow-card">
                   {v}
                 </span>
               ))}
@@ -260,48 +300,76 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
         </div>
       </header>
 
-      <section className="flex animate-enter flex-col gap-6 rounded-xl bg-sheet px-6 pt-6 pb-5 shadow-card [animation-delay:60ms]">
-        <ProofChain proof={proof} />
-        <div className="border-t border-rule pt-4">
-          <PhaseStrip phases={phasesOf(sheet)} />
-        </div>
-      </section>
-
       {failureCount > 0 ? (
-        <p className="rounded-lg bg-sunken px-4 py-2 font-mono text-xs text-ink-3" role="status">
-          {error?.message === "gone"
-            ? "This run is no longer visible to you: its repository may have turned private. What's shown is from before."
-            : "Reconnecting… the page keeps what it last read."}
+        <p className="w-fit rounded-full bg-sunken px-3 py-1 font-mono text-xs text-ink-3" role="status">
+          {error?.message === "gone" ? "No longer visible to you · showing what was read" : "Reconnecting…"}
         </p>
       ) : null}
       {run.status === "stopping" ? (
-        <p className="rounded-lg bg-signal-soft px-4 py-3 text-sm text-signal">
-          Stopping: {run.cancelledBy ? `@${run.cancelledBy} asked` : "asked"} during{" "}
-          {stopping?.during ?? run.step ?? "its work"}
-          {stopping?.doing ? <span className="font-mono text-xs"> ({stopping.doing})</span> : null}. Its model
-          calls, updater job and sandbox commands are being stopped; this takes up to 30 seconds.
+        <p className="w-fit rounded-full bg-signal-soft px-3 py-1 text-[13px] text-signal" role="status">
+          Stopping{stopping?.during ? ` during ${stopping.during}` : ""} · up to 30 s
         </p>
       ) : stale ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-attention-soft px-4 py-3 text-sm text-attention">
-          <p>
-            Evidence is from an older base: the base branch moved
-            {stale.base ? <span className="font-mono text-xs"> ({stale.base})</span> : null} while fixes are
-            off. Re-verify checks it merged into the base as it is now.
-          </p>
+        <div className="flex flex-wrap items-center gap-3 rounded-card bg-attention-soft px-4 py-2.5 text-[13px] text-attention">
+          <span>Base moved{stale.base ? ` (${stale.base})` : ""} · evidence is from the older base</span>
           {sheet.member ? (
             <ActionButton kind="reverify-run" params={{ runId: run.id }} repo={repo.fullName}>
-              Re-verify
+              Re-verify on the new base
             </ActionButton>
           ) : null}
         </div>
       ) : run.error ? (
-        <p className="rounded-lg bg-broke-soft px-4 py-3 font-mono text-xs text-broke">{run.error}</p>
+        <p className="rounded-card bg-broke-soft px-4 py-3 font-mono text-xs text-broke">{run.error}</p>
       ) : null}
 
-      <div className="grid animate-enter grid-cols-1 items-start gap-6 [animation-delay:120ms] *:min-w-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
-        <div className="flex min-w-0 flex-col gap-6">
-          <section className="flex flex-col gap-3">
-            <h2 className="eyebrow">Trace</h2>
+      {/* The canvas and its inspector (n8n's execution view). Phones get the tiles as a list. */}
+      <section className="grid animate-enter overflow-hidden rounded-feature bg-sheet shadow-card [animation-delay:60ms] lg:grid-cols-[minmax(0,1fr)_370px]">
+        <div className="hidden border-rule md:block max-lg:border-b lg:border-r">
+          <RunCanvas
+            key={graph.tiles.map((t) => t.id).join("|")}
+            runId={run.id}
+            graph={graph}
+            selected={selectedId}
+            onSelect={setPicked}
+            caption={caption}
+            className="h-[280px]"
+          />
+        </div>
+        <ol className="flex flex-col px-4 pt-4 md:hidden" aria-label="The run, step by step">
+          {graph.tiles.map((t, i) => (
+            <li key={t.id} className="flex flex-col">
+              {i > 0 ? <span aria-hidden className="ml-[21px] h-4 w-px bg-rule-strong" /> : null}
+              <button
+                type="button"
+                onClick={() => setPicked(t.id)}
+                aria-pressed={t.id === selectedId}
+                className={cn(
+                  "flex items-center gap-3 rounded-card p-1 text-left",
+                  t.id === selectedId && "bg-signal-soft",
+                )}
+              >
+                <TileSquare tile={t} size="sm" />
+                <TileLabel tile={t} size="sm" className="items-start text-left" />
+              </button>
+            </li>
+          ))}
+        </ol>
+        <div className="max-h-[640px] overflow-y-auto p-5">
+          <Inspector tile={selectedTile} data={inspector} />
+        </div>
+      </section>
+
+      {/* The console (n8n's bottom panel): the timeline that replays the run, and the raw record. */}
+      <section className="animate-enter rounded-feature bg-sheet p-4 shadow-card [animation-delay:120ms] sm:p-5">
+        <Tabs defaultValue="timeline" className="gap-4">
+          <TabsList>
+            <TabsTrigger value="timeline">Timeline</TabsTrigger>
+            <TabsTrigger value="steps">Steps</TabsTrigger>
+            {run.diff ? <TabsTrigger value="changes">Changes</TabsTrigger> : null}
+            <TabsTrigger value="receipt">Receipt</TabsTrigger>
+            <TabsTrigger value="events">Events</TabsTrigger>
+          </TabsList>
+          <TabsContent value="timeline">
             {spans.length ? (
               <AgentTrace
                 spans={spans}
@@ -315,14 +383,13 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
                 labelWidth={220}
               />
             ) : (
-              <p className="rounded-xl bg-sheet px-4 py-6 text-sm text-ink-3 shadow-card">
-                {active ? "Connecting to the sandbox…" : "Nothing was recorded for this run."}
+              <p className="py-6 text-sm text-ink-3">
+                {active ? "Connecting to the sandbox…" : "Nothing recorded."}
               </p>
             )}
-          </section>
-          <section className="rounded-xl bg-sheet shadow-card">
-            <h2 className="eyebrow px-4 pt-3 pb-2">Steps</h2>
-            <ol className="divide-y divide-rule border-t border-rule">
+          </TabsContent>
+          <TabsContent value="steps">
+            <ol className="divide-y divide-rule overflow-hidden rounded-card shadow-card">
               {rows.map((row, i) => (
                 <ActivityItem
                   key={row.key}
@@ -332,212 +399,59 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
               ))}
             </ol>
             {!active ? <Closing sheet={sheet} /> : null}
-          </section>
+          </TabsContent>
           {run.diff ? (
-            <section className="flex flex-col gap-3">
-              <h2 className="eyebrow">Changes</h2>
-              <div className="rounded-xl bg-sheet p-4 shadow-card">
-                <DiffView patch={run.diff} />
-              </div>
-            </section>
+            <TabsContent value="changes">
+              <DiffView patch={run.diff} />
+            </TabsContent>
           ) : null}
-          {dry && sheet.preview?.body ? (
-            <section className="flex flex-col gap-3">
-              <h2 className="eyebrow">
-                {sheet.preview.mode === "issue" ? "The issue" : "The PR"}, as GitHub would show it
-              </h2>
-              <article className="rounded-xl bg-sheet p-5 shadow-card">
-                {sheet.preview.title ? (
-                  <h3 className="mb-3 text-lg font-medium">{sheet.preview.title}</h3>
-                ) : null}
-                <Markdown>{sheet.preview.body}</Markdown>
-              </article>
-            </section>
-          ) : null}
-          <details className="rounded-xl bg-sheet shadow-card">
-            <summary className="cursor-pointer px-4 py-3 eyebrow">Receipt</summary>
-            <div className="border-t border-rule p-4">
-              <Receipt calls={sheet.calls} execs={sheet.execs} total={Number(run.costUsd)} />
+          <TabsContent value="receipt" className="flex flex-col gap-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Fact
+                mark={
+                  <BrandLogo light={STACK.nemotron.light} dark={STACK.nemotron.dark} alt="" className="h-4" />
+                }
+                label={modelLabel(model) ?? "Models"}
+                value={`${sheet.calls.length} calls · $${Number(run.costUsd).toFixed(3)}`}
+              />
+              <Fact
+                mark={
+                  <BrandLogo
+                    light={SPONSORS.nebius.light}
+                    dark={SPONSORS.nebius.dark}
+                    alt=""
+                    className="h-3"
+                  />
+                }
+                label={backendName(run.backend).replace("Token Factory ", "")}
+                value={duration(sandboxMs)}
+              />
+              <Fact label="Total" value={`${tokens.toLocaleString("en")} tokens · ${duration(ms)}`} />
             </div>
-          </details>
-          <details className="rounded-xl bg-sheet shadow-card">
-            <summary className="cursor-pointer px-4 py-3 eyebrow">Raw events ({sheet.events.length})</summary>
-            <pre className="max-h-96 overflow-auto border-t border-rule p-4 font-mono text-[11px] leading-relaxed text-ink-2">
+            <Receipt calls={sheet.calls} execs={sheet.execs} total={Number(run.costUsd)} />
+          </TabsContent>
+          <TabsContent value="events">
+            <pre className="max-h-96 overflow-auto rounded-card bg-console p-4 font-mono text-[11px] leading-relaxed text-console-ink-2">
               {sheet.events
                 .map((e) => `${e.seq} ${e.at.slice(11, 19)} ${e.step} ${e.type} ${JSON.stringify(e.payload)}`)
                 .join("\n")}
             </pre>
-          </details>
-        </div>
+          </TabsContent>
+        </Tabs>
+      </section>
+    </div>
+  );
+}
 
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-16">
-          <Tabs defaultValue="proof" className="gap-3">
-            <TabsList>
-              <TabsTrigger value="proof">Proof</TabsTrigger>
-              <TabsTrigger value="context">
-                Context{context.length ? ` (${context.reduce((n, [, l]) => n + l.length, 0)})` : ""}
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="proof" className="flex flex-col gap-4">
-              <section className="flex flex-col gap-4 rounded-xl bg-sheet p-5 shadow-card">
-                <div className="flex items-center justify-between">
-                  <span className="eyebrow">Proof</span>
-                  {run.evidenceKind ? <EvidenceChip kind={run.evidenceKind} /> : null}
-                </div>
-                {test ? (
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
-                    <div className="flex flex-col gap-1">
-                      <span className="eyebrow">Before</span>
-                      <span className="font-mono text-3xl leading-none text-ink tabular-nums">
-                        {testBefore ? `${testBefore.passed}/${testBefore.collected}` : "—"}
-                      </span>
-                    </div>
-                    <ArrowRight className="mb-1.5 size-4 text-ink-3" aria-hidden />
-                    <div className="flex flex-col gap-1">
-                      <span className="eyebrow">After</span>
-                      <span
-                        className={cn(
-                          "font-mono text-3xl leading-none tabular-nums",
-                          test.failed
-                            ? "text-broke"
-                            : run.evidenceKind === "verified"
-                              ? "text-proven"
-                              : "text-ink",
-                        )}
-                      >
-                        {test.passed}/{test.collected}
-                      </span>
-                    </div>
-                  </div>
-                ) : null}
-                {baseline.length || after.length ? (
-                  <Ledger
-                    baseline={baseline}
-                    after={after}
-                    evidence={run.evidenceKind}
-                    verdict={verification?.reasons?.[0] ?? ""}
-                    notCovered={notCovered}
-                    live={!!live && active}
-                  />
-                ) : (
-                  <p className="text-sm text-ink-3">
-                    {active ? "The checks run before and after the change." : "No checks ran."}
-                  </p>
-                )}
-              </section>
-              {verification?.others?.length ? (
-                <section className="flex flex-col gap-3 rounded-xl bg-sheet p-5 shadow-card">
-                  <span className="eyebrow">Other projects the change touched</span>
-                  <ul className="flex flex-col gap-3">
-                    {verification.others.map((o) => (
-                      <li key={`${o.ecosystem}:${o.root}`} className="flex flex-col gap-2">
-                        <span className="font-mono text-xs text-ink">
-                          {o.root === "." ? "(root)" : o.root} · {o.ecosystem}
-                        </span>
-                        {/* Each project its own ledger rows (D94), even one that couldn't be checked. */}
-                        <Ledger
-                          baseline={o.baseline as LedgerCheck[]}
-                          after={o.after as LedgerCheck[]}
-                          evidence={o.evidence}
-                          verdict={o.reasons[0] ?? ""}
-                          notCovered={notCoveredFrom(
-                            o.baseline as LedgerCheck[],
-                            o.after as LedgerCheck[],
-                            o.reasons,
-                          )}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-              <section className="flex flex-col gap-3 rounded-xl bg-sheet p-5 shadow-card">
-                <span className="eyebrow">Receipt</span>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-2">
-                    <BrandLogo
-                      light={SPONSORS.nvidia.light}
-                      dark={SPONSORS.nvidia.dark}
-                      alt="NVIDIA"
-                      className="h-3.5"
-                    />
-                    <span className="text-xs text-ink-2">
-                      {modelLabel(model) ?? "Models"} · {sheet.calls.length} calls
-                    </span>
-                  </span>
-                  <span className="font-mono text-xs text-ink">${Number(run.costUsd).toFixed(3)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-2">
-                    <BrandLogo
-                      light={SPONSORS.nebius.light}
-                      dark={SPONSORS.nebius.dark}
-                      alt="Nebius"
-                      className="h-3"
-                    />
-                    <span className="text-xs text-ink-2">
-                      {backendName(run.backend).replace("Token Factory ", "")}
-                    </span>
-                  </span>
-                  <span className="font-mono text-xs text-ink">{duration(sandboxMs)}</span>
-                </div>
-                <div className="flex items-center justify-between border-t border-rule pt-3 font-mono text-[11px] text-ink-3">
-                  <span>{tokens.toLocaleString("en")} tokens</span>
-                  <span>{duration(ms)} total</span>
-                </div>
-              </section>
-            </TabsContent>
-            <TabsContent value="context" className="flex flex-col gap-3">
-              {context.length ? (
-                context.map(([group, items]) => (
-                  <section key={group} className="flex flex-col gap-2 rounded-xl bg-sheet p-4 shadow-card">
-                    <span className="eyebrow">
-                      {group} ({items.length})
-                    </span>
-                    <ul className="flex flex-col gap-3">
-                      {items.slice(0, 12).map((item, i) => (
-                        // biome-ignore lint/suspicious/noArrayIndexKey: two sources can share a title; order is stable
-                        <li key={`${item.title}-${i}`} className="flex flex-col gap-1">
-                          <span className="text-xs font-medium text-ink">
-                            {item.url?.startsWith("https://") ? (
-                              <a
-                                href={item.url}
-                                className="hover:underline"
-                                rel="noreferrer noopener"
-                                target="_blank"
-                              >
-                                {item.title}
-                              </a>
-                            ) : (
-                              item.title
-                            )}
-                          </span>
-                          {item.quote ? (
-                            <details className="group/q">
-                              <summary className="cursor-pointer list-none font-mono text-[11px] text-ink-3 [&::-webkit-details-marker]:hidden">
-                                What it said
-                              </summary>
-                              <blockquote className="mt-1 max-h-48 overflow-auto border-l-2 border-rule pl-2 text-[11px] leading-relaxed whitespace-pre-wrap text-ink-2">
-                                {item.quote}
-                              </blockquote>
-                            </details>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ))
-              ) : (
-                <p className="rounded-xl bg-sheet p-4 text-sm text-ink-3 shadow-card">
-                  {active
-                    ? "What the run reads to decide shows here as it reads it."
-                    : "This run read no release notes or provider pages."}
-                </p>
-              )}
-            </TabsContent>
-          </Tabs>
-        </aside>
-      </div>
+/** A receipt figure: an optional mark, what it is, and the number. */
+function Fact({ mark, label, value }: { mark?: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-card bg-sunken p-3">
+      <span className="flex items-center gap-2 text-xs text-ink-2">
+        {mark}
+        {label}
+      </span>
+      <span className="font-mono text-sm text-ink">{value}</span>
     </div>
   );
 }

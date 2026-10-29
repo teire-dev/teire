@@ -144,6 +144,8 @@ export interface RunFlowInput extends RunForProof {
   repo: { fullName: string; avatar?: string };
   /** Whether the Nemotron agent edited code (an `agent` step ran), or a replacement did. */
   agent?: { calls: number; attempts?: number } | null;
+  /** Deterministic edits ran (a `codemod` step). Neither this nor the agent: a plain bump, no code edits. */
+  codemod?: boolean;
   /** The sandbox backend, for its mark ("tokenfactory" | "cloudflare"). */
   backend?: string | null;
   /** The checks' figures, already formatted ("4/4 → 4/4"). */
@@ -174,7 +176,6 @@ export function runFlow(input: RunFlowInput): FlowGraph {
     return me < at ? "done" : me === at ? "live" : "pending";
   };
 
-  const sandboxBrand = input.backend === "cloudflare" ? STACK.cloudflare : STACK.tokenFactory;
   const tiles: FlowTile[] = [
     { id: "change", entity: "change", state: "done", label: input.subjectLabel, brand: input.subject },
     {
@@ -198,7 +199,9 @@ export function runFlow(input: RunFlowInput): FlowGraph {
           {
             id: "update",
             entity: "update" as const,
-            state: within("update", ["update", "fix"], fixed),
+            // The updater did its part even when no change passed: only the steps that failed are red.
+            state:
+              fixed === "failed" && !active ? ("done" as const) : within("update", ["update", "fix"], fixed),
             label: "dependabot-core",
             brand: STACK.dependabot,
           },
@@ -206,16 +209,29 @@ export function runFlow(input: RunFlowInput): FlowGraph {
     {
       id: "fix",
       entity: "fix",
-      state: within("fix", ["update", "fix"], fixed),
-      label: input.agent ? "Nemotron 3 Ultra" : "Replacement",
-      ...(input.agent ? { brand: STACK.nemotron, meta: `${input.agent.calls} calls` } : { meta: "$0" }),
+      ...(input.agent
+        ? {
+            state: within("fix", ["update", "fix"], fixed),
+            label: "Nemotron 3 Ultra",
+            brand: STACK.nemotron,
+            meta: `${input.agent.calls} calls`,
+          }
+        : input.codemod
+          ? { state: within("fix", ["update", "fix"], fixed), label: "Replacement", meta: "$0" }
+          : // A finished run that edited nothing: the updater's change was the whole fix.
+            !active && fixed !== "pending" && fixed !== "failed"
+            ? { state: "skipped" as const, label: "No code edits" }
+            : { state: within("fix", ["update", "fix"], fixed), label: "Fix" }),
     },
     {
       id: "sandbox",
       entity: "sandbox",
       state: within("sandbox", ["sandbox", "check", "review"], proven === "proven" ? "done" : proven),
-      label: input.backend === "cloudflare" ? "Cloudflare" : "Sandbox",
-      brand: sandboxBrand,
+      label: "Sandbox",
+      // Square marks only on a tile; Token Factory's wordmark stays in the figure.
+      ...(input.backend === "cloudflare"
+        ? { brand: STACK.cloudflare, meta: "Cloudflare" }
+        : { meta: "Token Factory" }),
     },
     {
       id: "check",
