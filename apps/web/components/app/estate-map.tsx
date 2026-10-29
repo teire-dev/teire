@@ -20,7 +20,8 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { toast } from "sonner";
 import { EDGE_TYPES, type FlowEdgeT, HANDLE_CLASS } from "@/components/flow/flow-edge";
 import { StaticFlow } from "@/components/flow/static-flow";
-import { TileSquare } from "@/components/flow/tile";
+import { TILE_ICON, TileSquare } from "@/components/flow/tile";
+import { Mark } from "@/components/teire/mark";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -480,18 +481,23 @@ function EstateList({ graph }: { graph: EstateGraph }) {
                 <span className="truncate font-mono text-[11px] text-ink-3">{r.meta ?? ""}</span>
               </span>
               <span className="flex items-center -space-x-1.5">
-                {into
-                  .slice(0, 3)
-                  .map((t) =>
-                    t ? (
-                      <TileSquare
-                        key={t.id}
-                        tile={t}
-                        size="sm"
-                        className="!size-6 rounded-md ring-2 ring-sheet"
-                      />
-                    ) : null,
-                  )}
+                {into.slice(0, 3).map((t) => {
+                  if (!t) return null;
+                  const Icon = TILE_ICON[t.entity];
+                  return t.brand ? (
+                    <Mark key={t.id} brand={t.brand} size="sm" className="ring-2 ring-sheet" />
+                  ) : (
+                    <span
+                      key={t.id}
+                      className={cn(
+                        "flex size-6 items-center justify-center rounded-md bg-sunken ring-2 ring-sheet",
+                        t.state === "not_proven" ? "text-attention" : "text-ink-2",
+                      )}
+                    >
+                      <Icon className="size-3.5" aria-hidden />
+                    </span>
+                  );
+                })}
               </span>
               <span className="flex items-center gap-1.5 font-mono text-xs">
                 {out.map((l) => {
