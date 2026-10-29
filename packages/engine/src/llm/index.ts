@@ -51,7 +51,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * the failover model (Nemotron 3 Super), so a run continues instead of dying.
  */
 export function tokenFactoryFetch(config: TokenFactoryConfig, base: typeof fetch = fetch): typeof fetch {
-  const failover = config.models.failover;
+  // Per role (plan revision 3.3): the assistant's model fails over to its own failover (Ultra);
+  // every other model to the shared failover (Super).
+  const failoverOf = (model: string | undefined) =>
+    model && model === config.models.assistant ? config.models.assistantFailover : config.models.failover;
   const withModel = (body: RequestInit["body"], model: string) => {
     if (typeof body !== "string") return body;
     try {
@@ -69,6 +72,7 @@ export function tokenFactoryFetch(config: TokenFactoryConfig, base: typeof fetch
       } catch {
         model = undefined;
       }
+    const failover = failoverOf(model);
     if (model && model !== failover && (unhealthyUntil.get(model) ?? 0) > Date.now()) {
       body = withModel(body, failover);
       model = failover;
@@ -123,9 +127,8 @@ export function createTokenFactory(config: TokenFactoryConfig, fetchImpl?: typeo
   // The model a request will actually use: the failover while the role's model is unhealthy.
   const active = (role: ModelRole) => {
     const id = config.models[role];
-    return id !== config.models.failover && (unhealthyUntil.get(id) ?? 0) > Date.now()
-      ? config.models.failover
-      : id;
+    const failover = role === "assistant" ? config.models.assistantFailover : config.models.failover;
+    return id !== failover && (unhealthyUntil.get(id) ?? 0) > Date.now() ? failover : id;
   };
   return {
     config,

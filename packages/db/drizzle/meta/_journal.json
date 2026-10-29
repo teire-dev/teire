@@ -141,6 +141,13 @@
       "when": 1793239000000,
       "tag": "0019_u3_user_repos",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793246000000,
+      "tag": "0020_u4_assistant",
+      "breakpoints": true
     }
   ]
 }

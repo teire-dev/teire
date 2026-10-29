@@ -24,11 +24,15 @@ export const NEMOTRON = {
  * agent  — writes and repairs code (Ultra: 3/3 correct fixes vs Super 2/3);
  * reader — extraction and triage, reasoning on (Ultra: 29/29 records on every run);
  * failover — used only while the other model is unavailable (Super).
+ * assistant — Ask Teire's chat (plan revision 3.3, D120): Super for speed, thinking off; it fails
+ *   over to Ultra (assistantFailover), not to itself (per-role failover).
  */
 export const MODEL_ENV = {
   agent: "TEIRE_MODEL_AGENT",
   reader: "TEIRE_MODEL_READER",
   failover: "TEIRE_MODEL_FAILOVER",
+  assistant: "TEIRE_MODEL_ASSISTANT",
+  assistantFailover: "TEIRE_MODEL_ASSISTANT_FAILOVER",
 } as const;
 
 /** The same choice when its env var is unset (the CLI, run with only a Token Factory key). */
@@ -36,7 +40,26 @@ export const MODEL_DEFAULTS: Record<keyof typeof MODEL_ENV, string> = {
   agent: "nvidia/Nemotron-3-Ultra-550b-a55b",
   reader: "nvidia/Nemotron-3-Ultra-550b-a55b",
   failover: "nvidia/nemotron-3-super-120b-a12b",
+  assistant: "nvidia/nemotron-3-super-120b-a12b",
+  assistantFailover: "nvidia/Nemotron-3-Ultra-550b-a55b",
 };
+
+/** Ask Teire's limits (plan revision 3.3, U4, D127): per reply, per person per day, all of it per day. */
+export const ASSISTANT = {
+  /** One reply's model time and tool steps. */
+  replyMs: 60_000,
+  maxSteps: 8,
+  maxOutputTokens: 2_000,
+  /** What a reply is reserved at before it runs; the receipt replaces it with what it cost. */
+  estimateUsd: 0.02,
+  /** Assistant spend per person per day, and across everyone, apart from fix runs' budget. */
+  perUserDailyUsd: 0.5,
+  totalDailyUsd: 5,
+  /** Threads and their messages are kept this long. */
+  retentionDays: 90,
+  /** Tool output handed to the model, per call. */
+  maxToolChars: 12_000,
+} as const;
 
 export const FIX = {
   /** Lines kept after an error line, up to the next blank line (a rustc diagnostic with its `help:`). */

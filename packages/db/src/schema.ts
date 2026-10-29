@@ -1,5 +1,6 @@
 import {
   bigint,
+  bigserial,
   boolean,
   index,
   integer,
@@ -8,6 +9,7 @@ import {
   pgTable,
   primaryKey,
   real,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -690,4 +692,57 @@ export const sandboxSnapshots = pgTable(
     lastRestoredAt: timestamp("last_restored_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("sandbox_snapshots_key_idx").on(t.repoId, t.lockfileHash, t.imageDigest, t.backend)],
+);
+
+/** Ask Teire's threads (plan revision 3.3, U4): one person's conversation, kept 90 days. */
+export const assistantThreads = pgTable(
+  "assistant_threads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    installationId: githubId("installation_id"),
+    title: text("title").notNull().default("New thread"),
+    /** What the thread was opened on (a repository, a run, a change): the context chip. */
+    context: jsonb("context").$type<{ kind: "repo" | "run" | "change"; id: string; label: string } | null>(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("assistant_threads_user_idx").on(t.userId, t.updatedAt)],
+);
+
+/** One message of a thread, as the AI SDK's UI message: its parts (text, tool calls and results). */
+export const assistantMessages = pgTable(
+  "assistant_messages",
+  {
+    id: text("id").primaryKey(),
+    threadId: uuid("thread_id").notNull(),
+    role: text("role").$type<"user" | "assistant">().notNull(),
+    parts: jsonb("parts").notNull(),
+    metadata: jsonb("metadata"),
+    /** `interrupted`: the reply stopped before it finished (Stop, a closed tab, the time limit). */
+    status: text("status").$type<"complete" | "interrupted">().notNull().default("complete"),
+    /** Helpful (1) or not (-1), from the person. */
+    rating: smallint("rating"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("assistant_messages_thread_idx").on(t.threadId, t.createdAt)],
+);
+
+/** One reply's receipt (D127): reserved at an estimate before the model runs, settled to what it cost. */
+export const assistantCalls = pgTable(
+  "assistant_calls",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: text("user_id").notNull(),
+    threadId: uuid("thread_id"),
+    messageId: text("message_id"),
+    model: text("model").notNull(),
+    tokensIn: integer("tokens_in").notNull().default(0),
+    tokensOut: integer("tokens_out").notNull().default(0),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    latencyMs: integer("latency_ms"),
+    status: text("status").$type<"reserved" | "done" | "failed">().notNull().default("reserved"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("assistant_calls_user_idx").on(t.userId, t.createdAt)],
 );
