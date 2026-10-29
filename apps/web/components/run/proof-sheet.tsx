@@ -15,10 +15,12 @@ import { notCoveredFrom } from "@/components/teire/ledger";
 import { Mark } from "@/components/teire/mark";
 import { AgentTrace } from "@/components/ui/agent-trace";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { activityOf, type Exec, modelLabel } from "@/lib/activity";
 import { SPONSORS, STACK } from "@/lib/brands";
-import { type FlowTile, runFlow } from "@/lib/flow/model";
+import { canReplay, sheetAt } from "@/lib/flow/clock";
+import { type FlowTile, runFlow, TILE_OF_STEP } from "@/lib/flow/model";
 import { subjectMark } from "@/lib/marks";
 import { proofOfRun, STEP_DOING } from "@/lib/proof";
 import type { RunSheetData, RunSheetTick } from "@/lib/run-sheet";
@@ -151,31 +153,42 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
     ?.payload as { during?: string; doing?: string | null } | undefined;
 
   // The run as tiles (plan revision 3.4, A2): one adapter, so the canvas, the rows and the cards agree.
+  // One clock (plan revision 3.4, B5): the timeline's playhead; null rests on now / the final state.
+  const [replayAt, setReplayAt] = useState<number | null>(null);
+  const moment = !active ? sheetAt(sheet.events, began, replayAt, traceEnd - 1) : null;
+  const attempts = new Set(sheet.calls.filter((c) => c.purpose === "fix").map((c) => c.step)).size;
+  // The run as tiles (plan revision 3.4, A2): one adapter, so the canvas, the rows and the cards agree.
   const graph = runFlow({
     kind: run.kind,
-    status: run.status,
-    step: run.step,
-    evidenceKind: run.evidenceKind,
-    prMode: run.prMode,
+    // During a replay the canvas shows the run as it was then: on that step, before any verdict.
+    status: moment ? (moment.step ? "running" : "queued") : run.status,
+    step: moment ? moment.step : run.step,
+    evidenceKind: moment ? null : run.evidenceKind,
+    prMode: moment ? null : run.prMode,
     sites: sheet.reach.sites,
     advisory: sheet.reach.advisory,
-    artifact: artifact ? { kind: artifact.kind, url: artifact.url, number: artifact.number } : null,
+    artifact:
+      !moment && artifact ? { kind: artifact.kind, url: artifact.url, number: artifact.number } : null,
     subject: subjectMark(run.groupKey),
     // A tile holds a short name: Maven's group:artifact becomes the artifact.
     subjectLabel: (subject.name || run.groupKey || "Change").split(":").at(-1) as string,
     repo: { fullName: repo.fullName },
     agent: sheet.events.some((e) => e.step === "agent")
-      ? { calls: sheet.calls.filter((c) => c.purpose === "fix").length }
+      ? { calls: sheet.calls.filter((c) => c.purpose === "fix").length, attempts }
       : null,
     codemod: sheet.events.some((e) => e.step === "codemod"),
     backend: run.backend,
     // Model and API changes are swaps in the code; only package changes go through the updater.
     updater: !/^(models|api)\//.test(run.groupKey ?? ""),
+    lastStep: [...sheet.events].reverse().find((e) => TILE_OF_STEP[e.step])?.step ?? null,
+    preview: !!sheet.preview?.body,
+    checkCount: new Set(after.map((c) => c.name)).size,
     ...(test && testBefore
       ? { checksFigure: `${testBefore.passed}/${testBefore.collected} → ${test.passed}/${test.collected}` }
       : {}),
   });
   const [picked, setPicked] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const liveTile = graph.tiles.find((t) => t.state === "live")?.id;
   const selectedId =
     picked ??
@@ -335,18 +348,17 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
             className="h-[280px]"
           />
         </div>
-        <ol className="flex flex-col px-4 pt-4 md:hidden" aria-label="The run, step by step">
+        <ol className="flex flex-col p-4 md:hidden" aria-label="The run, step by step">
           {graph.tiles.map((t, i) => (
             <li key={t.id} className="flex flex-col">
               {i > 0 ? <span aria-hidden className="ml-[21px] h-4 w-px bg-rule-strong" /> : null}
               <button
                 type="button"
-                onClick={() => setPicked(t.id)}
-                aria-pressed={t.id === selectedId}
-                className={cn(
-                  "flex items-center gap-3 rounded-card p-1 text-left",
-                  t.id === selectedId && "bg-signal-soft",
-                )}
+                onClick={() => {
+                  setPicked(t.id);
+                  setSheetOpen(true);
+                }}
+                className="flex items-center gap-3 rounded-card p-1 text-left active:bg-hover"
               >
                 <TileSquare tile={t} size="sm" />
                 <TileLabel tile={t} size="sm" className="items-start text-left" />
@@ -354,9 +366,19 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
             </li>
           ))}
         </ol>
-        <div className="max-h-[640px] overflow-y-auto p-5">
+        <div className="hidden max-h-[640px] overflow-y-auto p-5 md:block">
           <Inspector tile={selectedTile} data={inspector} />
         </div>
+        {/* Phones: a tile's evidence opens in a bottom sheet (plan revision 3.4, V3). */}
+        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+          <SheetContent
+            side="bottom"
+            className="max-h-[85svh] overflow-y-auto rounded-t-feature p-5 md:hidden"
+          >
+            <SheetTitle className="sr-only">{selectedTile.label}</SheetTitle>
+            <Inspector tile={selectedTile} data={inspector} />
+          </SheetContent>
+        </Sheet>
       </section>
 
       {/* The console (n8n's bottom panel): the timeline that replays the run, and the raw record. */}
@@ -372,6 +394,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
           <TabsContent value="timeline">
             {spans.length ? (
               <AgentTrace
+                onTime={canReplay(sheet.events) ? setReplayAt : undefined}
                 spans={spans}
                 duration={traceEnd}
                 runId={run.id.slice(0, 8)}

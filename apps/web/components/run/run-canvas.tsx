@@ -51,7 +51,7 @@ function TileNode({ id, data }: NodeProps<TileNodeT>) {
         type="button"
         onClick={() => onSelect(id)}
         aria-pressed={selected}
-        aria-label={`${tile.label}: ${FLOW_STATE_LABEL[tile.state]}${tile.meta ? `, ${tile.meta}` : ""}. Show its evidence`}
+        aria-label={`${tile.label}: ${FLOW_STATE_LABEL[tile.state]}${tile.meta ? `, ${tile.meta}` : ""}${tile.caption ? `, ${tile.caption}` : ""}. Show its evidence`}
         className={cn(
           "nodrag rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2",
           selected && "ring-2 ring-signal ring-offset-4 ring-offset-canvas",
@@ -230,6 +230,9 @@ export function RunCanvas({
         onNodeDragStop={keep}
         nodesConnectable={false}
         elementsSelectable={false}
+        // The tile's own button is the one tab stop (not React Flow's wrapper as well).
+        nodesFocusable={false}
+        edgesFocusable={false}
         zoomOnScroll={false}
         preventScrolling={false}
         panOnScroll={false}
@@ -254,6 +257,16 @@ export function RunCanvas({
       <p className="sr-only" aria-live="polite">
         {caption ?? ""}
       </p>
+      {/* The same run as a list, in order, for screen readers (plan revision 3.4, B5). */}
+      <ol className="sr-only">
+        {graph.tiles.map((t) => (
+          <li key={t.id}>
+            {t.label}: {FLOW_STATE_LABEL[t.state]}
+            {t.meta ? `, ${t.meta}` : ""}
+            {t.caption ? `, ${t.caption}` : ""}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

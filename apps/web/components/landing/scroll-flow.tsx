@@ -51,8 +51,19 @@ export function Reveal({ children, className }: { children: React.ReactNode; cla
   // who scrolled before hydration never finds an empty station behind them).
   const [passed, setPassed] = useState(false);
   useEffect(() => {
-    setPassed((ref.current?.getBoundingClientRect().top ?? 0) < window.innerHeight);
+    const check = () => {
+      // In view or scrolled past (an anchor jump, End, a fast scroll): show it.
+      if ((ref.current?.getBoundingClientRect().top ?? 0) < window.innerHeight * 0.9) setPassed(true);
+    };
+    check();
     setLive(true);
+    window.addEventListener("scroll", check, { passive: true });
+    const print = () => setPassed(true);
+    window.addEventListener("beforeprint", print);
+    return () => {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("beforeprint", print);
+    };
   }, []);
   const shown = reduce || !live || seen || passed;
   return (

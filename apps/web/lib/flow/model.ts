@@ -139,45 +139,66 @@ export const OUTCOME_LABEL: Record<OutcomeKind, string> = {
 export interface RunFlowInput extends RunForProof {
   /** The change's own mark (provider for models and APIs, ecosystem for packages). */
   subject: Brand;
-  /** `zod 3.25.76 → 4.6.6` or `gpt-4.1-nano → gpt-5.6-luna`. */
+  /** A short name for the change's tile (`zod`, `gpt-4.1-nano`). */
   subjectLabel: string;
   repo: { fullName: string; avatar?: string };
-  /** Whether the Nemotron agent edited code (an `agent` step ran), or a replacement did. */
+  /** The Nemotron agent edited code (an `agent` step ran): its calls, and its attempts when known. */
   agent?: { calls: number; attempts?: number } | null;
-  /** Deterministic edits ran (a `codemod` step). Neither this nor the agent: a plain bump, no code edits. */
+  /** Deterministic edits ran (a `codemod` step). Neither this nor the agent: no code edits. */
   codemod?: boolean;
-  /** The sandbox backend, for its mark ("tokenfactory" | "cloudflare"). */
+  /** The sandbox backend ("tokenfactory" | "cloudflare"). */
   backend?: string | null;
-  /** The checks' figures, already formatted ("4/4 → 4/4"). */
+  /** The checks' figure, already formatted ("4/4 → 4/4"), and how many checks ran. */
   checksFigure?: string;
+  checks?: string;
+  checkCount?: number;
+  /** Package changes go through dependabot-core's updater; model and API swaps and re-verifies don't. */
   updater?: boolean;
+  /** The last step the run recorded (where a failed or cancelled run stopped). */
+  lastStep?: string | null;
+  /** A dry run produced its PR as GitHub would show it. */
+  preview?: boolean;
 }
 
 /**
- * A run as the canonical spine of tiles (the hero, MiniFlow and the run canvas start from this).
- * The proof chain decides each tile's state; the live step picks the one live tile.
+ * A run as the canonical spine of tiles (the hero, MiniFlow cards and the run canvas start here), each
+ * tile's state from where the run is (plan revision 3.4, A2; implementation reviews V0–V3):
+ *   queued     the change and the repository are facts; the rest waits;
+ *   live       tiles before the live one are done, the live one pulses, the rest wait;
+ *   failed     only the tile where it stopped is red (the run's last step); what follows is skipped;
+ *              an issue for a person is the outcome, drawn as an issue;
+ *   cancelled  where it stopped is skipped with "cancelled";
+ *   succeeded  everything done, the checks proven (green) or not proven (amber) by the evidence.
+ * Steps that never apply are skipped: no call site, no code edits, no updater for a swap or re-verify.
  */
 export function runFlow(input: RunFlowInput): FlowGraph {
   const proof: Proof = proofOfRun(input);
   const verified = input.evidenceKind === "verified";
+  const queued = input.status === "queued";
   const active = input.status === "running" || input.status === "stopping";
-  const liveEntity = active ? (TILE_OF_STEP[input.step ?? ""] ?? null) : null;
+  const cancelled = input.status === "cancelled";
   const outcome = outcomeOf(input);
+  const reverify = input.kind === "reverify";
+  const edits = reverify ? "pr" : input.agent ? "agent" : input.codemod ? "codemod" : "none";
+  const withUpdater = input.updater !== false && !reverify;
 
-  const reach = flowStateOf(proof.reaches.state);
-  const fixed = flowStateOf(proof.fixed.state);
-  const proven = flowStateOf(proof.proven.state, { verified });
-  const pr = flowStateOf(proof.pr.state);
-  // Within a proof step, the tile Teire is on is live; tiles before it in the same step are done.
-  const within = (entity: FlowEntity, order: FlowEntity[], stepState: FlowState): FlowState => {
-    if (!liveEntity || !order.includes(liveEntity)) return stepState;
-    const at = order.indexOf(liveEntity);
-    const me = order.indexOf(entity);
-    return me < at ? "done" : me === at ? "live" : "pending";
-  };
+  const sites = input.sites;
+  const reach: { state: FlowState; meta?: string } =
+    input.advisory && !sites
+      ? { state: "done", meta: "installed version" }
+      : sites
+        ? { state: "done", meta: `${sites} call site${sites === 1 ? "" : "s"}` }
+        : { state: "skipped", meta: sites === 0 ? "no call site" : "plain bump" };
 
   const tiles: FlowTile[] = [
-    { id: "change", entity: "change", state: "done", label: input.subjectLabel, brand: input.subject },
+    {
+      id: "change",
+      entity: "change",
+      state: "done",
+      label: input.subjectLabel,
+      brand: input.subject,
+      ...(queued ? { caption: "Queued" } : {}),
+    },
     {
       id: "repository",
       entity: "repository",
@@ -189,46 +210,43 @@ export function runFlow(input: RunFlowInput): FlowGraph {
     {
       id: "code",
       entity: "code",
-      state: reach,
+      state: reach.state,
       label: "Your code",
-      ...(shortDetail(proof.reaches.detail) ? { meta: shortDetail(proof.reaches.detail) as string } : {}),
+      ...(reach.meta ? { meta: reach.meta } : {}),
     },
-    ...(input.updater === false
-      ? []
-      : [
+    ...(withUpdater
+      ? [
           {
             id: "update",
             entity: "update" as const,
-            // The updater did its part even when no change passed: only the steps that failed are red.
-            state:
-              fixed === "failed" && !active ? ("done" as const) : within("update", ["update", "fix"], fixed),
+            state: "done" as FlowState,
             label: "dependabot-core",
             brand: STACK.dependabot,
           },
-        ]),
-    {
-      id: "fix",
-      entity: "fix",
-      ...(input.agent
-        ? {
-            state: within("fix", ["update", "fix"], fixed),
-            label: "Nemotron 3 Ultra",
-            brand: STACK.nemotron,
-            meta: `${input.agent.calls} calls`,
-          }
-        : input.codemod
-          ? { state: within("fix", ["update", "fix"], fixed), label: "Replacement", meta: "$0" }
-          : // A finished run that edited nothing: the updater's change was the whole fix.
-            !active && fixed !== "pending" && fixed !== "failed"
-            ? { state: "skipped" as const, label: "No code edits" }
-            : { state: within("fix", ["update", "fix"], fixed), label: "Fix" }),
-    },
+        ]
+      : []),
+    edits === "agent"
+      ? {
+          id: "fix",
+          entity: "fix",
+          state: "done",
+          label: "Nemotron 3 Ultra",
+          brand: STACK.nemotron,
+          meta:
+            input.agent?.attempts && input.agent.attempts > 1
+              ? `${input.agent.attempts} attempts · ${input.agent.calls} calls`
+              : `${input.agent?.calls ?? 0} calls`,
+        }
+      : edits === "codemod"
+        ? { id: "fix", entity: "fix", state: "done", label: "Replacement", meta: "$0" }
+        : edits === "pr"
+          ? { id: "fix", entity: "fix", state: "done", label: "The PR's code", meta: "unchanged" }
+          : { id: "fix", entity: "fix", state: "skipped", label: "No code edits" },
     {
       id: "sandbox",
       entity: "sandbox",
-      state: within("sandbox", ["sandbox", "check", "review"], proven === "proven" ? "done" : proven),
+      state: "done",
       label: "Sandbox",
-      // Square marks only on a tile; Token Factory's wordmark stays in the figure.
       ...(input.backend === "cloudflare"
         ? { brand: STACK.cloudflare, meta: "Cloudflare" }
         : { meta: "Token Factory" }),
@@ -236,40 +254,120 @@ export function runFlow(input: RunFlowInput): FlowGraph {
     {
       id: "check",
       entity: "check",
-      state: within("check", ["sandbox", "check", "review"], proven),
-      label: "Your checks",
+      state: verified ? "proven" : "done",
+      label: input.checkCount && input.checkCount > 1 ? `${input.checkCount} checks` : "Your checks",
       ...(input.checksFigure ? { meta: input.checksFigure } : {}),
-      ...(proof.proven.state === "not_proven" || proof.proven.state === "failed"
-        ? { caption: shortDetail(proof.proven.detail) as string }
-        : {}),
     },
+    { id: "review", entity: "review", state: "done", label: "Review" },
     {
       id: "outcome",
       entity: "outcome",
-      state: outcome === "preview" ? (proven === "proven" ? "done" : "pending") : pr,
-      label: OUTCOME_LABEL[outcome],
+      state: "done",
+      label: outcome === "none" ? "Pull request" : OUTCOME_LABEL[outcome],
       ...(shortDetail(proof.pr.detail) && outcome !== "preview"
         ? { meta: shortDetail(proof.pr.detail) as string }
         : {}),
       ...(proof.pr.href ? { href: proof.pr.href } : {}),
     },
   ];
-  const ids = tiles.map((t) => t.id);
-  const links: FlowLink[] = ids.slice(1).map((to, i) => {
-    const from = ids[i] as string;
+  const at = (id: string) => tiles.findIndex((t) => t.id === id);
+  const work = at("code"); // the first tile the run itself does (the change and the repo are facts)
+  const set = (i: number, state: FlowState, extra: Partial<FlowTile> = {}) => {
+    const t = tiles[i] as FlowTile;
+    tiles[i] = { ...t, ...extra, state: t.state === "skipped" && state !== "failed" ? "skipped" : state };
+  };
+  // Which tile the run is on (live) or stopped at (failed, cancelled).
+  const stepTile = (step: string | null | undefined) => {
+    const e = TILE_OF_STEP[step ?? ""];
+    if (!e) return -1;
+    if (e === "update" && !withUpdater) return at("fix");
+    return at(e);
+  };
+
+  if (queued) {
+    for (let i = work; i < tiles.length; i++) set(i, "pending");
+  } else if (active) {
+    const live = Math.max(stepTile(input.step), work);
+    for (let i = work; i < tiles.length; i++) set(i, i < live ? "done" : i === live ? "live" : "pending");
+  } else if (cancelled) {
+    const stop = Math.max(stepTile(input.lastStep), work);
+    for (let i = work; i < tiles.length; i++)
+      set(i, i < stop ? "done" : "skipped", i === stop ? { caption: "cancelled" } : {});
+    tiles[tiles.length - 1] = {
+      ...(tiles.at(-1) as FlowTile),
+      state: "skipped",
+      label: "Cancelled",
+      meta: undefined,
+      href: undefined,
+    };
+  } else if (input.status === "failed" || outcome === "issue") {
+    // Where it stopped: the last step it recorded, else the proof's own failed step.
+    let stop = stepTile(input.lastStep);
+    if (
+      stop < work ||
+      (tiles[stop] as FlowTile).id === "outcome" ||
+      (tiles[stop] as FlowTile).id === "review"
+    )
+      stop = proof.proven.state === "failed" ? at("check") : at("fix");
+    if ((tiles[stop] as FlowTile).id === "fix" && edits === "none" && withUpdater) stop = at("update");
+    const why =
+      (tiles[stop] as FlowTile).id === "check"
+        ? shortDetail(proof.proven.detail)
+        : (tiles[stop] as FlowTile).id === "fix" || (tiles[stop] as FlowTile).id === "update"
+          ? shortDetail(proof.fixed.detail)
+          : undefined;
+    for (let i = work; i < tiles.length - 1; i++)
+      set(
+        i,
+        i < stop ? "done" : i === stop ? "failed" : "skipped",
+        i === stop && why ? { caption: why } : {},
+      );
+    const last = tiles.length - 1;
+    tiles[last] =
+      outcome === "issue"
+        ? {
+            ...(tiles[last] as FlowTile),
+            state: "done",
+            label: "Issue",
+            meta: shortDetail(proof.pr.detail) ?? "for a person",
+          }
+        : { ...(tiles[last] as FlowTile), state: "skipped" };
+  } else {
+    // Succeeded: the evidence colours the checks and the PR.
+    const ci = at("check");
+    if (proof.proven.state === "not_proven")
+      set(ci, "not_proven", { caption: shortDetail(proof.proven.detail) as string });
+    const last = tiles.length - 1;
+    tiles[last] = {
+      ...(tiles[last] as FlowTile),
+      state:
+        outcome === "preview"
+          ? input.preview || verified
+            ? "done"
+            : "pending"
+          : outcome === "pr-draft"
+            ? "not_proven"
+            : verified
+              ? "proven"
+              : "done",
+    };
+  }
+
+  const links: FlowLink[] = tiles.slice(1).map((b, i) => {
     const a = tiles[i] as FlowTile;
-    const b = tiles[i + 1] as FlowTile;
     const state: FlowState =
       b.state === "live"
         ? "live"
-        : b.state === "pending" || b.state === "skipped"
+        : b.state === "pending" || (b.state === "skipped" && a.state !== "done")
           ? "pending"
           : b.state === "failed"
             ? "failed"
-            : b.state === "proven" || (a.state === "proven" && b.entity === "outcome")
+            : b.state === "proven" || (a.state === "proven" && b.state !== "skipped")
               ? "proven"
-              : "done";
-    return { from, to, state };
+              : b.state === "not_proven"
+                ? "not_proven"
+                : "done";
+    return { from: a.id, to: b.id, state };
   });
   return { tiles, links };
 }

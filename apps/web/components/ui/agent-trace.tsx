@@ -66,6 +66,11 @@ export interface AgentTraceProps extends React.ComponentProps<"div"> {
   onSpanSelect?: (span: TraceSpan) => void;
   /** The run is still going: its last recorded span is not its end, so it never reads "Completed". */
   live?: boolean;
+  /**
+   * The playhead, reported about ten times a second while it moves (plan revision 3.4, B5: one clock,
+   * so the run canvas and the inspector follow the replay).
+   */
+  onTime?: (ms: number) => void;
 }
 
 interface LaidSpan extends TraceSpan {
@@ -333,6 +338,7 @@ export function AgentTrace({
   rowHeight = 34,
   onSpanSelect,
   live = false,
+  onTime,
   className,
   style,
   ref,
@@ -344,6 +350,8 @@ export function AgentTrace({
   const statusRef = React.useRef<HTMLSpanElement>(null);
   const rowsRef = React.useRef<(RowHandle | null)[]>([]);
   const timeRef = React.useRef(defaultTime);
+  const onTimeRef = React.useRef(onTime);
+  onTimeRef.current = onTime;
   const playingRef = React.useRef(false);
   const seekRef = React.useRef<(ms: number) => void>(() => {});
   const runRef = React.useRef<() => void>(() => {});
@@ -386,8 +394,19 @@ export function AgentTrace({
 
     let lastT = "";
     let lastRun = "";
+    let reported = -1;
+    let reportedAt = 0;
     const paint = () => {
       const t = timeRef.current;
+      // One clock for the page: tell the run canvas where the playhead is, at most ~10 times a second.
+      if (onTimeRef.current && t !== reported) {
+        const at = performance.now();
+        if (at - reportedAt > 95 || t >= opts.current.total || t === 0) {
+          reported = t;
+          reportedAt = at;
+          onTimeRef.current(t);
+        }
+      }
       const o = opts.current;
       const ratio = (t / o.total).toFixed(5);
       if (ratio !== lastT) {

@@ -53,6 +53,7 @@
   --color-hero-2: var(--hero-2);
   --color-hero-ink: var(--hero-ink);
   --color-hero-ink-2: var(--hero-ink-2);
+  --color-hero-proven: var(--hero-proven);
   --color-hero-rule: var(--hero-rule);
   --color-console: var(--console);
   --color-console-2: var(--console-2);
@@ -226,6 +227,7 @@
   --hero-2: #0a2a8a;
   --hero-ink: #fafeff;
   --hero-ink-2: #b9c8e8;
+  --hero-proven: #3ddc97;
   --hero-rule: rgb(224 246 255 / 0.16);
   --console: #0b1226;
   --console-2: #121b36;

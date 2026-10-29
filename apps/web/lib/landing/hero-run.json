@@ -1,5 +1,5 @@
 {
-  "takenAt": "2026-10-29T11:22:57.536Z",
+  "takenAt": "2026-10-29T12:07:42.451Z",
   "run": {
     "id": "d1b0c4d8-a46e-4e9d-b057-30b6d12be23b",
     "href": "/runs/d1b0c4d8-a46e-4e9d-b057-30b6d12be23b",
@@ -32,6 +32,8 @@
     "sourceFiles": 2,
     "added": 8,
     "removed": 8,
+    "srcAdded": 3,
+    "srcRemoved": 3,
     "peek": {
       "file": "npm-zod/src/schema.ts",
       "lines": [
@@ -84,7 +86,10 @@
     "number": 30,
     "url": "https://github.com/teire-dev/examples/pull/30",
     "title": "Upgrade zod from 3.25.76 to 4.6.6 to fix GHSA-mrhx-c7xc-m3w5",
-    "state": "open"
+    "state": "open",
+    "draft": false,
+    "mode": "ready",
+    "verified": true
   },
   "steps": [
     {
@@ -162,6 +167,11 @@
   ],
   "more": [
     {
+      "groupKey": "models/google-gemini",
+      "from": "gemini-2.0-flash",
+      "to": "gemini-3.6-flash",
+      "evidence": "verified",
+      "mode": "ready",
       "repo": "teire-dev/nlsh",
       "number": 6,
       "title": "Replace retired model gemini-2.0-flash with gemini-3.6-flash",
@@ -172,6 +182,11 @@
       "run": "7e9d2d48-21ba-4811-80e9-a58fa53dd6f2"
     },
     {
+      "groupKey": "pypi/pydantic/2.14.1",
+      "from": "1.10.18",
+      "to": "2.14.1",
+      "evidence": "verified",
+      "mode": "ready",
       "repo": "teire-dev/examples",
       "number": 16,
       "title": "Upgrade pydantic from 1.10.18 to 2.14.1 and adapt the code",
@@ -182,6 +197,11 @@
       "run": "190c9ecf-5303-48fb-a5ed-76ef07f986e8"
     },
     {
+      "groupKey": "npm/form-data/2.5.6",
+      "from": "2.3.3",
+      "to": "2.5.6",
+      "evidence": "verified",
+      "mode": "ready",
       "repo": "teire-dev/serve-handler",
       "number": 16,
       "title": "Upgrade form-data from 2.3.3 to 2.5.6 to fix 2 advisories",

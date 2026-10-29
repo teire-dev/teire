@@ -46,7 +46,7 @@ export default function SignInPage({ searchParams }: PageProps<"/signin">) {
         <SignIn searchParams={searchParams} />
       </Suspense>
       <aside className="relative hidden overflow-hidden rounded-feature bg-hero p-10 text-hero-ink lg:flex lg:flex-col lg:justify-between">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_70%_at_70%_20%,#0a2a8a_0%,transparent_70%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_70%_at_70%_20%,var(--hero-2)_0%,transparent_70%)]" />
         <p className="relative max-w-xs text-[15px] text-hero-ink-2">
           GitHub tells Teire which repositories you can see.
         </p>

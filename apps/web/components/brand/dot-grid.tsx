@@ -585,7 +585,7 @@ export function HeroShader({ className }: { className?: string }) {
   }, []);
   return (
     <div aria-hidden className={className}>
-      <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_0%,#0a2a8a_0%,#001033_55%,#000a24_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_0%,var(--hero-2)_0%,var(--hero)_55%,#000a24_100%)]" />
       {/* The dots fade behind the headline so the words sit on calm navy. */}
       {on ? (
         <ShaderBackground className="absolute inset-0 opacity-55 mix-blend-screen [mask-image:radial-gradient(70%_60%_at_50%_45%,transparent_15%,black_75%)]" />

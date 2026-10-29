@@ -31,12 +31,21 @@ export const metadata = {
  * deadlines at the change, what Teire reads at the repository, the model and its platform at the fix,
  * more real PRs at the PR. Words only where a sentence earns its place.
  */
-const PROVEN: Proof = {
+/** A linked PR's chain, from its own run's evidence in the snapshot. */
+const proofOf = (m: { evidence: string | null; mode: string | null; draft: boolean }): Proof => ({
   changed: { state: "done" },
   reaches: { state: "done" },
   fixed: { state: "done" },
-  proven: { state: "done", detail: "verified" },
-  pr: { state: "done" },
+  proven:
+    m.evidence === "verified"
+      ? { state: "done", detail: "verified" }
+      : { state: "not_proven", detail: m.evidence ?? "" },
+  pr: { state: "done", detail: m.draft || m.mode === "draft" ? "draft" : "ready" },
+});
+/** "gemini-2.0-flash → gemini-3.6-flash", "pydantic 1.10.18 → 2.14.1": a linked change in mono. */
+const changeOf = (m: { groupKey: string | null; from: string | null; to: string | null }) => {
+  const [kind, name] = (m.groupKey ?? "").split("/");
+  return kind === "models" || kind === "api" ? `${m.from} → ${m.to}` : `${name} ${m.from} → ${m.to}`;
 };
 
 const MORE_MARK: Record<string, { light: string; dark: string; label: string }> = {
@@ -56,13 +65,14 @@ export default function Home() {
       {/* The one dark band (≤60vh): the promise, two actions, and the flow's first tile on its edge. */}
       <section data-hero className="relative isolate -mt-16 overflow-hidden bg-hero pt-16 text-hero-ink">
         <HeroShader className="absolute inset-0 -z-10" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-b from-transparent to-[#0a2a8a]/30" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-b from-transparent to-hero-2/30" />
         <div className="mx-auto flex min-h-[min(56vh,560px)] w-full max-w-6xl flex-col items-center justify-center gap-6 px-4 pt-10 pb-20 text-center">
           <Link
             href={hero.run.href}
             className="group inline-flex items-center gap-2 rounded-full bg-white/8 py-1 pr-3 pl-1 text-[13px] text-hero-ink-2 shadow-[inset_0_0_0_1px_var(--hero-rule)] backdrop-blur transition-colors hover:text-hero-ink"
           >
-            <span className="rounded-full bg-cta px-2 py-0.5 text-[11px] font-semibold text-cta-ink">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-hero-ink">
+              <span className="size-1.5 rounded-full bg-hero-proven" />
               Live proof
             </span>
             {hero.repo} · PR #{hero.pr.number}
@@ -99,7 +109,7 @@ export default function Home() {
             <Station
               tile={tile({ entity: "change", state: "done", label: hero.run.package, brand: subject })}
               title="Upstream changes"
-              line="A security advisory lands on a new major version."
+              line="An advisory, on a new major."
               side={
                 <div className="flex flex-col gap-3 md:items-end">
                   <span className="eyebrow">Also</span>
@@ -153,7 +163,7 @@ export default function Home() {
                 brand: SPONSORS.github,
               })}
               title={hero.repo}
-              line={`Its installed ${hero.run.package} is in the vulnerable range.`}
+              line={`The installed ${hero.run.package} is vulnerable.`}
               side={
                 <div className="flex flex-col gap-3 md:items-end">
                   <span className="eyebrow">Teire reads</span>
@@ -189,7 +199,7 @@ export default function Home() {
             <Station
               tile={tile({ entity: "fix", state: "done", label: "Nemotron 3 Ultra", brand: STACK.nemotron })}
               title="Nemotron fixes it"
-              line="dependabot-core moves the version; Nemotron rewrites what broke."
+              line="Nemotron rewrites what broke."
               side={
                 <div className="flex flex-col gap-3 md:items-end">
                   <span className="eyebrow">On</span>
@@ -257,8 +267,8 @@ export default function Home() {
                       <span className="truncate">{hero.diff.peek.file}</span>
                       <span data-flow>
                         {hero.diff.sourceFiles} files adapted ·{" "}
-                        <span className="text-console-add">+{hero.diff.added}</span>{" "}
-                        <span className="text-console-del">−{hero.diff.removed}</span>
+                        <span className="text-console-add">+{hero.diff.srcAdded}</span>{" "}
+                        <span className="text-console-del">−{hero.diff.srcRemoved}</span>
                       </span>
                     </figcaption>
                     <pre className="overflow-x-auto py-2 leading-6">
@@ -287,7 +297,7 @@ export default function Home() {
             <Station
               tile={tile({ entity: "sandbox", state: "done", label: "Sandbox" })}
               title="In a sandbox"
-              line="Installs with the network on, then runs your checks with it off."
+              line="Installs online, checks offline."
             >
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full bg-sheet px-3 py-1 text-[13px] shadow-card">
@@ -302,7 +312,7 @@ export default function Home() {
             <Station
               tile={tile({ entity: "check", state: "proven", label: "Your checks" })}
               title="Your tests prove it"
-              line="The same checks, before the change and after it."
+              line="Before and after the change."
             >
               <dl className="grid max-w-md grid-cols-2 gap-3">
                 <Figure label="tests" before={tests.before ?? "–"} after={tests.after ?? "–"} />
@@ -324,7 +334,7 @@ export default function Home() {
                 href: hero.pr.url ?? undefined,
               })}
               title="One pull request"
-              line="Ready to merge, with the proof written into it."
+              line="With the proof inside."
               side={
                 <div className="flex flex-col gap-3 md:items-end">
                   <span className="eyebrow">More real PRs</span>
@@ -336,7 +346,7 @@ export default function Home() {
                         href={m.url}
                         className="flex w-full max-w-72 items-center gap-3 rounded-card bg-sheet p-2.5 shadow-card hover:shadow-card-hover"
                       >
-                        <MiniFlow size="xs" proof={PROVEN} {...(mark ? { subject: mark } : {})} />
+                        <MiniFlow size="xs" proof={proofOf(m)} {...(mark ? { subject: mark } : {})} />
                         <span className="min-w-0 text-left">
                           <span className="block truncate text-[13px] font-medium">{m.title}</span>
                           <span className="block font-mono text-[11px] text-ink-3">
@@ -357,7 +367,8 @@ export default function Home() {
                 <span className="min-w-0">
                   <span className="block text-[15px] font-medium leading-snug">{hero.pr.title}</span>
                   <span className="mt-1 block font-mono text-xs text-ink-3">
-                    {hero.repo} #{hero.pr.number} · ready
+                    {hero.repo} #{hero.pr.number} ·{" "}
+                    {hero.pr.draft ? "draft" : hero.pr.verified ? "ready · proven" : "ready"}
                   </span>
                 </span>
                 <ArrowUpRight className="ml-auto size-4 shrink-0 text-ink-3 group-hover:text-ink" />

@@ -96,6 +96,16 @@ const cost = sheet.calls.reduce((s, c) => s + Number(c.costUsd || 0), 0);
 const diff = sheet.run.diff ?? "";
 // Teire's diffs are unified diffs with "--- a/<file>" headers (no "diff --git" lines).
 const files = [...diff.matchAll(/^--- a\/(\S+)/gm)].map((m) => m[1] as string);
+const isManifest = (f: string) => /(^|\/)(package(-lock)?\.json|[^/]*\.lock|[^/]*lock\.(json|yaml))$/.test(f);
+// Lines changed in the code Nemotron adapted (the manifest and the lockfile are the updater's).
+let srcAdded = 0;
+let srcRemoved = 0;
+for (const section of diff.split(/^=+$/m)) {
+  const f = /^--- a\/(\S+)/m.exec(section)?.[1];
+  if (!f || isManifest(f)) continue;
+  srcAdded += (section.match(/^\+(?!\+\+ )/gm) ?? []).length;
+  srcRemoved += (section.match(/^-(?!-- )/gm) ?? []).length;
+}
 const added = (diff.match(/^\+(?!\+\+ )/gm) ?? []).length;
 const removed = (diff.match(/^-(?!-- )/gm) ?? []).length;
 const sourceFile = files.find((f) => !/package(-lock)?\.json|lock|\.lock$/.test(f)) ?? files[0];
@@ -130,7 +140,13 @@ const more = [];
 for (const m of MORE) {
   const p = await pr(m.repo, m.number);
   const run = p.body?.match(/run=([0-9a-f-]{36})/)?.[1] ?? null;
+  const ms = run ? await json<Sheet>(`${ORIGIN}/api/runs/${run}/sheet?after=0`).catch(() => null) : null;
   more.push({
+    groupKey: ms?.run.groupKey ?? null,
+    from: ms?.run.fromVersion ?? null,
+    to: ms?.run.targetVersion ?? null,
+    evidence: ms?.run.evidenceKind ?? null,
+    mode: ms?.run.prMode ?? null,
     repo: m.repo,
     number: m.number,
     title: p.title,
@@ -168,11 +184,11 @@ const snapshot = {
   diff: {
     files: files.length,
     // The code Nemotron adapted, apart from the manifest and the lockfile the updater changed.
-    sourceFiles: files.filter(
-      (f) => !/(^|\/)(package(-lock)?\.json|[^/]*\.lock|[^/]*lock\.(json|yaml))$/.test(f),
-    ).length,
+    sourceFiles: files.filter((f) => !isManifest(f)).length,
     added,
     removed,
+    srcAdded,
+    srcRemoved,
     peek,
   },
   checks: {
@@ -182,7 +198,15 @@ const snapshot = {
       after: check("after", "typecheck")?.exitCode === 0,
     },
   },
-  pr: { number: sheet.artifact.number, url: sheet.artifact.url, title: heroPr.title, state: heroPr.state },
+  pr: {
+    number: sheet.artifact.number,
+    url: sheet.artifact.url,
+    title: heroPr.title,
+    state: heroPr.state,
+    draft: heroPr.draft,
+    mode: sheet.run.prMode,
+    verified: sheet.run.evidenceKind === "verified",
+  },
   steps,
   more,
 };

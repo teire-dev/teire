@@ -1,4 +1,3 @@
-import { Loader } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -6,15 +5,18 @@ import { Suspense } from "react";
 import { AppProviders } from "@/components/app/providers";
 import { AskContext } from "@/components/assistant/assistant-provider";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { GhostFlow } from "@/components/flow/ghost-flow";
 import { ProofSheet } from "@/components/run/proof-sheet";
+import { BrokenFlow } from "@/components/state-page";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { dryRunRequest, runSheet } from "@/lib/run-sheet";
 
 export const metadata: Metadata = { title: "Run", robots: { index: false } };
 
 /**
- * One run's proof sheet (plan revision 3.3, U2): what changed, where it reaches the code, what was
- * fixed, what proves it and what wasn't proven, live while it works and replayable after; for a dry
- * run, the PR it would open.
+ * One run (plan revision 3.4, V3): its canvas, the selected tile's evidence and the console, live
+ * while it works and replayable after; for a dry run, the PR it would open.
  */
 export default function RunPage({ params }: PageProps<"/runs/[id]">) {
   return (
@@ -47,56 +49,62 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
   );
 }
 
-/** The sheet's shape while it loads: header, the chain, the two columns. */
+/** The page's shape while it loads: the header, the canvas with its ghost flow, the console. */
 function SheetLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6" role="status" aria-label="Loading the run">
-      <div className="h-16 w-2/3 animate-pulse rounded-lg bg-sunken" />
-      <div className="h-36 animate-pulse rounded-xl bg-sheet shadow-card" />
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="h-96 animate-pulse rounded-xl bg-sheet shadow-card" />
-        <div className="h-72 animate-pulse rounded-xl bg-sheet shadow-card" />
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5" role="status" aria-label="Loading the run">
+      <div className="flex items-center gap-4">
+        <Skeleton className="size-11 rounded-[12px]" />
+        <Skeleton className="h-9 w-1/2" />
       </div>
+      <div className="flex h-[300px] items-center justify-center rounded-feature bg-sheet shadow-card">
+        <GhostFlow tiles={6} />
+      </div>
+      <Skeleton className="h-48 w-full rounded-feature" />
     </div>
   );
 }
 
+/** A dry run asked for and not started yet: the spine waiting, one line, the time it has waited. */
 function Pending({ id }: { id: string }) {
   return (
-    <section className="flex flex-col gap-3 rounded-lg bg-card p-6 shadow-card" aria-live="polite">
-      <p className="flex items-center gap-2 font-medium">
-        <Loader className="size-4 animate-spin text-running" aria-hidden />
-        Starting the dry run · <AutoRefresh since={new Date().toISOString()} />
-      </p>
-      <p className="text-sm text-muted-foreground">
-        The worker is picking it up. This page turns into the live run as soon as it starts: the fix, then
-        your own checks before and after in a sandbox. Run <span className="font-mono">{id.slice(0, 8)}</span>
-        .{" "}
-        <Link href="/scan" className="text-link hover:underline">
-          Back to public scans
-        </Link>
-        .
-      </p>
+    <section
+      className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 rounded-feature bg-sheet px-6 py-14 text-center shadow-card"
+      aria-live="polite"
+    >
+      <GhostFlow tiles={6} />
+      <div className="flex flex-col gap-1.5">
+        <h1 className="heading text-2xl">Starting the dry run</h1>
+        <p className="font-mono text-xs text-ink-3">
+          {id.slice(0, 8)} · <AutoRefresh since={new Date().toISOString()} />
+        </p>
+      </div>
+      <Link href="/scan" className="text-[13px] text-link hover:underline">
+        Back to public scans
+      </Link>
     </section>
   );
 }
 
+/** No run to show: it doesn't exist, it's private to its installation, or the dry run couldn't start. */
 function NoRun({ error }: { error: string | null }) {
   return (
-    <section className="mx-auto flex w-full max-w-xl flex-col gap-3 rounded-xl bg-sheet p-6 shadow-card">
-      <h1 className="text-lg font-semibold">{error ? "The dry run couldn't start" : "No run here"}</h1>
-      <p className="text-sm text-ink-2">
-        {error ??
-          "This run doesn't exist, or it is on a private repository: its runs open for people with access to the installation, once signed in."}
-      </p>
-      <p className="flex gap-4 text-sm">
-        <Link href="/signin" className="text-link hover:underline">
-          Sign in
-        </Link>
-        <Link href="/scan" className="text-link hover:underline">
-          Scan a public repository
-        </Link>
-      </p>
+    <section className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 py-14 text-center">
+      <BrokenFlow kind="not-found" />
+      <div className="flex flex-col gap-1.5">
+        <h1 className="heading text-2xl">{error ? "The dry run couldn't start" : "No run here"}</h1>
+        <p className="text-sm text-ink-2">
+          {error ?? "Private runs open for people with access, signed in."}
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <Button asChild>
+          <Link href="/signin">Sign in</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/scan">Scan a public repo</Link>
+        </Button>
+      </div>
     </section>
   );
 }

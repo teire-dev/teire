@@ -54,7 +54,11 @@ function fileWords(file: string): Count {
   if (hit) return hit;
   const src = fs.readFileSync(file, "utf8");
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const inFlowDir = file.includes(`${path.sep}components${path.sep}flow${path.sep}`);
+  // Tile vocabulary: the flow parts, and the labels, captions and brand names they draw.
+  const inFlowDir =
+    file.includes(`${path.sep}components${path.sep}flow${path.sep}`) ||
+    file.includes(`${path.sep}lib${path.sep}flow${path.sep}`) ||
+    /lib[\\/](proof|brands|logos|marks)\.ts$/.test(file);
   const out: Count = { prose: 0, flow: 0, imports: [] };
   const add = (n: number, flow: boolean) => {
     if (flow || inFlowDir) out.flow += n;
@@ -122,8 +126,12 @@ function routeWords(entry: string) {
     if (seen.has(f)) continue;
     seen.add(f);
     const c = fileWords(f);
-    // shadcn primitives render the caller's words, not their own.
-    if (!f.includes(`${path.sep}components${path.sep}ui${path.sep}`)) {
+    // shadcn primitives render the caller's words, not their own; the assistant's tool descriptions and
+    // prompts are read by the model, never rendered.
+    if (
+      !f.includes(`${path.sep}components${path.sep}ui${path.sep}`) &&
+      !f.includes(`${path.sep}lib${path.sep}assistant${path.sep}`)
+    ) {
       prose += c.prose;
       flow += c.flow;
     }
