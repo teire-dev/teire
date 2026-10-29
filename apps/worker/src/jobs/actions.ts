@@ -27,6 +27,7 @@ import {
   setRun,
   settleRunActions,
   upgradeMatches,
+  upsertArtifact,
 } from "../store";
 import { canWrite, FixesOffError, fixesOffReply, runState, startRun } from "./commands";
 import { configPr } from "./config-pr";
@@ -208,6 +209,39 @@ async function repoAction(
   const { db } = ctx;
   const [owner = "", name = ""] = repo.fullName.split("/");
   switch (kind) {
+    case "activate": {
+      // Active BEFORE the onboarding PR closes: the close webhook then reads this as Teire's own close,
+      // not a person's "no thanks" (events.ts treats a close of an onboarding repo as an opt-out).
+      if (repo.status === "disabled") return refused("Teire isn't installed on this repository any more");
+      const was = repo.status;
+      await setRepo(db, repo.id, { status: "active", pausedFrom: null, pausedReason: null });
+      const onboarding = await getArtifact(db, repo.id, "onboarding");
+      let closed = "";
+      if (!params.keep && onboarding?.state === "open" && onboarding.number) {
+        await octokit.rest.issues.createComment({
+          owner,
+          repo: name,
+          issue_number: onboarding.number,
+          body: `Teire was turned on for this repository by @${login} from the welcome page, so this pull request isn't needed. Closing it; Teire's settings live in \`.github/teire.yml\` whenever you want one.`,
+        });
+        await octokit.rest.pulls.update({
+          owner,
+          repo: name,
+          pull_number: onboarding.number,
+          state: "closed",
+        });
+        await upsertArtifact(db, { ...onboarding, state: "closed" });
+        closed = `; onboarding PR #${onboarding.number} closed`;
+      } else if (onboarding?.state === "open" && onboarding.number)
+        closed = `; onboarding PR #${onboarding.number} kept open`;
+      await ctx.enqueueScan(repo.id, "command");
+      const mode = await fixModeOf(db, repo);
+      return {
+        status: "done",
+        result: `${was === "active" ? "Already on" : "On"}: scans daily, fixes ${describeFixMode(mode)}${closed}`,
+        links: [{ label: repo.fullName, href: `/app/repos/${repo.fullName}` }],
+      };
+    }
     case "rescan":
       if (repo.status === "paused") return refused("This repository is paused; resume it first");
       await ctx.enqueueScan(repo.id, "manual");

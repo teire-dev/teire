@@ -1,163 +1,100 @@
-import { and, desc, eq, repos, scans, sql, userInstallations } from "@teire/db";
-import { CheckCircle2, Loader } from "lucide-react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
-import { AutoRefresh } from "@/components/auto-refresh";
+import { GithubMark } from "@/components/icons";
 import { SignInButton } from "@/components/sign-in-button";
 import { Button } from "@/components/ui/button";
-import { refreshInstallations } from "@/lib/auth";
-import { database } from "@/lib/db";
+import { Skeleton } from "@/components/ui/skeleton";
+import { WelcomeFlow } from "@/components/welcome/welcome-flow";
 import { getSession } from "@/lib/session";
+import { INSTALL_URL } from "@/lib/site";
+import { welcomeOf } from "@/lib/welcome";
 
 export const metadata = { title: "Welcome" };
 
 /**
- * GitHub's setup URL after an install (C1, rule 11): each selected repository's first scan, live,
- * then the Configure Teire PR it opens. GitHub passes `installation_id` and `setup_action`.
+ * GitHub's setup URL after an install (C1, rule 11, plan revision 3.3 U5): the welcome flow for the
+ * installation GitHub names (`installation_id`, `setup_action`), or the one chosen last when someone
+ * comes back to finish it.
  */
 export default function Welcome({ searchParams }: PageProps<"/welcome">) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-14">
-      <Suspense fallback={<div className="h-72 animate-pulse rounded-lg bg-muted" aria-hidden />}>
-        <Progress searchParams={searchParams} />
+      <Suspense
+        fallback={
+          <div className="flex flex-col gap-6" role="status" aria-label="Loading">
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-10 w-2/3" />
+            <Skeleton className="h-56 w-full" />
+          </div>
+        }
+      >
+        <Flow searchParams={searchParams} />
       </Suspense>
     </main>
   );
 }
 
-async function Progress({ searchParams }: { searchParams: PageProps<"/welcome">["searchParams"] }) {
-  const params = await searchParams;
+async function Flow({ searchParams }: { searchParams: PageProps<"/welcome">["searchParams"] }) {
+  await connection();
+  const [params, session] = await Promise.all([searchParams, getSession()]);
+  const raw = typeof params.installation_id === "string" ? Number(params.installation_id) : Number.NaN;
+  const asked = Number.isFinite(raw) ? raw : null;
   const updated = params.setup_action === "update";
-  const installationId = Number(typeof params.installation_id === "string" ? params.installation_id : NaN);
-  const heading = (
-    <header className="flex flex-col gap-3">
-      <h1 className="text-3xl font-semibold tracking-tight">
-        {updated ? "Teire's access is updated." : "Teire is installed."}
-      </h1>
-      <p className="text-subtle">
-        Teire is reading each repository you gave it: the exact versions your lockfiles pin, what newer
-        versions change, and which of your lines use what changed. Each repository then gets a pull request
-        named <span className="font-mono">Configure Teire</span> with what it found. Merge it to turn Teire
-        on.
-      </p>
-    </header>
-  );
-  const session = await getSession();
   if (!session)
     return (
-      <>
-        {heading}
-        <section className="flex flex-col items-start gap-3 rounded-lg bg-card p-5 shadow-card">
-          <p className="text-sm text-muted-foreground">Sign in to watch each repository's first scan here.</p>
-          <SignInButton
-            next={`/welcome?installation_id=${Number.isFinite(installationId) ? installationId : ""}`}
-            label="Sign in with GitHub"
-          />
-        </section>
-      </>
+      <Card title="Teire is installed." eyebrow="Welcome">
+        <p className="text-sm text-ink-2">
+          Sign in with the same GitHub account to watch each repository's first scan and choose how Teire
+          fixes.
+        </p>
+        <SignInButton
+          next={`/welcome${asked ? `?installation_id=${asked}` : ""}`}
+          label="Sign in with GitHub"
+        />
+      </Card>
     );
-  const db = database();
-  const visible = async () =>
-    Number.isFinite(installationId)
-      ? (
-          await db
-            .select()
-            .from(userInstallations)
-            .where(
-              and(
-                eq(userInstallations.userId, session.user.id),
-                eq(userInstallations.installationId, installationId),
-              ),
-            )
-            .limit(1)
-        )[0]
-      : undefined;
-  let allowed = await visible();
-  // A brand-new installation is not in the list read at sign-in: ask GitHub again, once.
-  if (!allowed && Number.isFinite(installationId)) {
-    await refreshInstallations(session.user.id).catch(() => undefined);
-    allowed = await visible();
-  }
-  // A private repository shows only to people GitHub lists for it (U3 review).
-  const rows = allowed
-    ? await db
-        .select()
-        .from(repos)
-        .where(
-          and(
-            eq(repos.installationId, installationId),
-            sql`(not "repos"."is_private" or exists (select 1 from user_repos ur where ur.user_id = ${session.user.id} and ur.repo_id = "repos"."id"))`,
-          ),
-        )
-        .orderBy(repos.fullName)
-    : [];
-  const latest = await Promise.all(
-    rows.map(async (r) => {
-      const [scan] = await db
-        .select()
-        .from(scans)
-        .where(eq(scans.repoId, r.id))
-        .orderBy(desc(scans.createdAt))
-        .limit(1);
-      return { repo: r, scan: scan ?? null };
-    }),
-  );
-  const pending = latest.some((l) => !l.scan || l.scan.status === "running" || l.scan.status === "queued");
-  return (
-    <>
-      {heading}
-      <section className="flex flex-col gap-3" aria-live="polite">
-        <h2 className="flex items-center gap-2 text-sm font-medium">
-          First scans
-          {pending ? (
-            <span className="text-xs font-normal text-muted-foreground">
-              · updating · <AutoRefresh since={new Date().toISOString()} everyMs={4000} />
-            </span>
-          ) : null}
-        </h2>
-        {latest.length ? (
-          <ul className="divide-y overflow-hidden rounded-lg bg-card shadow-card">
-            {latest.map(({ repo, scan }) => (
-              <li key={repo.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                <span className="flex min-w-0 items-center gap-2">
-                  {scan?.status === "done" ? (
-                    <CheckCircle2 className="size-4 shrink-0 text-clear" aria-hidden />
-                  ) : scan?.status === "failed" ? (
-                    <span className="size-2 shrink-0 rounded-full bg-affected" aria-hidden />
-                  ) : (
-                    <Loader className="size-4 shrink-0 animate-spin text-running" aria-hidden />
-                  )}
-                  <span className="truncate font-mono">{repo.fullName}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-                  {scan?.status === "done"
-                    ? "scanned"
-                    : scan?.status === "failed"
-                      ? "scan failed"
-                      : "scanning"}
-                  <Link href={`/app/repos/${repo.fullName}`} className="text-link hover:underline">
-                    Open
-                  </Link>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="rounded-lg bg-card p-5 text-sm text-muted-foreground shadow-card">
-            {allowed
-              ? "GitHub is still sending the repository list; this page updates in a moment."
-              : "Teire is setting up. Your repositories appear in the dashboard as soon as GitHub confirms the installation."}
-          </p>
-        )}
-      </section>
-      <div className="flex flex-wrap gap-3">
-        <Button asChild shape="pill">
+  const data = await welcomeOf(session.user.id, asked);
+  if (data.state === "not-visible")
+    return (
+      <Card title="This installation isn't visible to you yet." eyebrow="Welcome">
+        <p className="text-sm text-ink-2">
+          Someone else may have installed Teire on that account, or GitHub hasn't told Teire yet. Ask them to
+          add you on GitHub, or open the dashboard in a minute.
+        </p>
+        <Button asChild>
           <Link href="/app">Open the dashboard</Link>
         </Button>
-        <Button asChild shape="pill" variant="outline">
-          <Link href="/docs">Read how Teire works</Link>
-        </Button>
-      </div>
-    </>
+      </Card>
+    );
+  if (data.state === "none")
+    return (
+      <Card title="Install Teire on a repository." eyebrow="Welcome">
+        <p className="text-sm text-ink-2">
+          Pick the account and the repositories on GitHub; Teire comes back here with each one's first scan.
+        </p>
+        <span className="flex flex-wrap gap-2">
+          <Button asChild>
+            <a href={INSTALL_URL}>
+              <GithubMark data-icon="inline-start" />
+              Install on GitHub
+            </a>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/scan">Scan a public repository first</Link>
+          </Button>
+        </span>
+      </Card>
+    );
+  return <WelcomeFlow data={data} updated={updated} />;
+}
+
+function Card({ title, eyebrow, children }: { title: string; eyebrow: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col items-start gap-4 rounded-xl bg-sheet p-6 shadow-card">
+      <span className="eyebrow">{eyebrow}</span>
+      <h1 className="font-mono text-2xl font-medium tracking-tight text-ink uppercase">{title}</h1>
+      {children}
+    </section>
   );
 }

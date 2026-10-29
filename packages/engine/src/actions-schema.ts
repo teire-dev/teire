@@ -48,6 +48,11 @@ export const ACTION_PARAMS: Record<ActionKind, z.ZodObject> = {
       .min(1)
       .max(100),
   }),
+  /**
+   * Turn Teire on for a repository from the welcome flow (plan revision 3.3, U5, R-P32): active first,
+   * then the onboarding PR is closed with a comment, unless the person keeps it.
+   */
+  activate: z.object({ keep: z.boolean().default(false) }),
   feedback: z.object({
     reason: z.string().trim().min(1).max(2000),
     groupKey: z.string().max(300).optional(),

@@ -24,6 +24,7 @@ export const ACTION_KINDS = [
   "starter-config-pr",
   "fix-in-all",
   "feedback",
+  "activate",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
@@ -111,6 +112,8 @@ export function describeAction(kind: ActionKind, params: Record<string, unknown>
       return `Fix in all: ${String(params.title ?? params.changeId)}`;
     case "feedback":
       return "Report a wrong finding";
+    case "activate":
+      return params.keep ? "Turn Teire on, keeping the onboarding PR" : "Turn Teire on";
     default:
       if ((kind as string) === "close-pr") return `Closed #${params.number}`;
       return `${kind[0]?.toUpperCase()}${kind.slice(1)}`;

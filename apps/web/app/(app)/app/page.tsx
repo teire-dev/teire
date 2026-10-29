@@ -11,6 +11,7 @@ import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import { RunRowItem } from "@/components/teire/run-row";
 import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
+import { NextStep } from "@/components/welcome/next-step";
 import { myScope } from "@/lib/app-shell";
 import { providerLogo } from "@/lib/logos";
 import { languageMarks, subjectMark } from "@/lib/marks";
@@ -97,6 +98,7 @@ async function Overview() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+      <NextStep />
       <header className="flex flex-wrap items-end justify-between gap-4">
         <h1 className="heading text-3xl text-ink">Overview</h1>
         {data.counts.live ? (
