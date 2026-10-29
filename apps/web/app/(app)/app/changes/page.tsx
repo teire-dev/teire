@@ -123,9 +123,11 @@ async function Changes({ searchParams }: { searchParams: PageProps<"/app/changes
         </div>
       ) : null}
       {shown.length ? (
-        <ul className="flex flex-col gap-3">
+        // Two fans to a row on wide screens: each card is its fan, so a single-repository change
+        // doesn't leave a wide empty card.
+        <ul className="grid gap-3 xl:grid-cols-2">
           {shown.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} className="min-w-0">
               <ChangeFan
                 change={c}
                 focus={c.id === focus}

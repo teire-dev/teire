@@ -13,7 +13,7 @@ import type { ChangeForYou, ChangeReach } from "@/lib/workspace";
  */
 const SHOWN = 5;
 const ROW = 30;
-const FAN = 56;
+const FAN = 88;
 
 export function reachState(r: ChangeReach): FlowState {
   switch (r.plan.kind) {
@@ -74,14 +74,16 @@ export function ChangeFan({
     <article
       id={`change-${change.id}`}
       className={cn(
-        "grid gap-x-6 gap-y-4 rounded-xl bg-sheet p-4 shadow-card lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)]",
+        // The fan is the card (V7 final review): one header line — what, when, Fix in all — over it.
+        "flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card",
         focus && "ring-2 ring-signal",
       )}
     >
-      <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
         <Link
           href={`/changes/${change.id}`}
-          className="line-clamp-2 text-sm font-medium text-ink hover:underline"
+          className="min-w-0 flex-1 truncate text-sm font-medium text-ink hover:underline"
+          title={change.title}
         >
           {change.title}
         </Link>
@@ -109,7 +111,7 @@ export function ChangeFan({
             </span>
           ) : null}
         </span>
-        {action ? <div className="mt-auto flex items-center gap-2 pt-1">{action}</div> : null}
+        {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
       </div>
       <figure className="flex items-center">
         <figcaption className="sr-only">Reaches {repos} of your repositories</figcaption>
