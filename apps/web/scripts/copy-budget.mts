@@ -73,7 +73,8 @@ function fileWords(file: string): Count {
   const visit = (node: TS.Node, flow: boolean) => {
     const here = flow || isFlowElement(node);
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      out.imports.push(node.moduleSpecifier.text);
+      // A type-only import renders nothing of the module it names.
+      if (!node.importClause?.isTypeOnly) out.imports.push(node.moduleSpecifier.text);
     } else if (ts.isJsxText(node)) {
       add(words(node.text), here);
     } else if (

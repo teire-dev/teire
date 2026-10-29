@@ -538,7 +538,7 @@ export function EstateMap({ graphs }: { graphs: Record<View, EstateGraph> }) {
           {view === "changes" && graph.tiles.some((t) => t.drag) ? (
             <span className="hidden items-center gap-1.5 text-xs text-ink-3 md:flex">
               <GripVertical className="size-3.5" aria-hidden />
-              Drag a change onto a repository to fix it there
+              Drag a change onto a repo to fix it
             </span>
           ) : null}
           <ToggleGroup
