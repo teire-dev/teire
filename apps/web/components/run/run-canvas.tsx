@@ -26,7 +26,8 @@ import { cn } from "@/lib/utils";
  * the tiles' data: ids and positions stay, so nothing remounts or jumps. The page never scrolls into a
  * zoom: wheel scrolling passes through, pinch and the controls zoom.
  */
-type TileData = { tile: FlowTile; selected: boolean; onSelect: (id: string) => void };
+/** `flip`: the tile sits on a right-to-left row of the snake, so it takes edges on its right. */
+type TileData = { tile: FlowTile; selected: boolean; onSelect: (id: string) => void; flip?: boolean };
 type TileNodeT = Node<TileData, "tile">;
 
 const GAP = 132;
@@ -36,10 +37,15 @@ const SIZE = 64;
 const SIDE = 56;
 
 function TileNode({ id, data }: NodeProps<TileNodeT>) {
-  const { tile, selected, onSelect } = data;
+  const { tile, selected, onSelect, flip } = data;
   return (
     <div className="relative" style={{ width: SIZE, height: SIZE }}>
-      <Handle type="target" position={Position.Left} className={HANDLE_CLASS} isConnectable={false} />
+      <Handle
+        type="target"
+        position={flip ? Position.Right : Position.Left}
+        className={HANDLE_CLASS}
+        isConnectable={false}
+      />
       <button
         type="button"
         onClick={() => onSelect(id)}
@@ -52,7 +58,12 @@ function TileNode({ id, data }: NodeProps<TileNodeT>) {
       >
         <TileSquare tile={tile} size="md" />
       </button>
-      <Handle type="source" position={Position.Right} className={HANDLE_CLASS} isConnectable={false} />
+      <Handle
+        type="source"
+        position={flip ? Position.Left : Position.Right}
+        className={HANDLE_CLASS}
+        isConnectable={false}
+      />
       <TileLabel
         tile={tile}
         className="pointer-events-none absolute top-[calc(100%+10px)] left-1/2 w-36 -translate-x-1/2"
@@ -106,9 +117,17 @@ export function RunCanvas({
     ro.observe(el);
     return () => ro.disconnect();
   }, [count]);
+  // A snake (V7 final review): odd rows run right to left, so a row's last tile and the next row's
+  // first sit one above the other and the edge between them is a short bracket at the side, never a
+  // loop back over the row.
+  const flipOf = useCallback((i: number) => Math.floor(i / (cols ?? count)) % 2 === 1, [cols, count]);
   const place = useCallback(
-    (i: number) => ({ x: (i % (cols ?? count)) * GAP, y: Math.floor(i / (cols ?? count)) * ROW }),
-    [cols, count],
+    (i: number) => {
+      const c = cols ?? count;
+      const col = i % c;
+      return { x: (flipOf(i) ? c - 1 - col : col) * GAP, y: Math.floor(i / c) * ROW };
+    },
+    [cols, count, flipOf],
   );
   // Seeded once (the parent keys this canvas by its set of tiles); the poll updates data, never positions.
   const [nodes, setNodes, onNodesChange] = useNodesState<TileNodeT>(
@@ -128,10 +147,11 @@ export function RunCanvas({
     setNodes((ns) =>
       ns.map((n, i) => ({
         ...n,
+        data: { ...n.data, flip: flipOf(i) },
         position: (saved[n.id] as { x: number; y: number } | undefined) ?? place(i),
       })),
     );
-  }, [cols, place, runId, setNodes]);
+  }, [cols, place, flipOf, runId, setNodes]);
   const rows = Math.ceil(count / (cols ?? count));
   // React Flow puts its own `light`/`dark` class on the canvas; it must match the app's theme or the
   // `.light` token pin would keep light ink on a dark page.
@@ -143,7 +163,7 @@ export function RunCanvas({
     setNodes((ns) =>
       ns.map((n) => {
         const tile = byId.get(n.id);
-        return tile ? { ...n, data: { tile, selected: n.id === selected, onSelect } } : n;
+        return tile ? { ...n, data: { ...n.data, tile, selected: n.id === selected, onSelect } } : n;
       }),
     );
   }, [graph, selected, onSelect, setNodes]);

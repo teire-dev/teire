@@ -43,6 +43,15 @@ export function Inspector({
   const { sheet, rows } = data;
   const { run, artifact, verification, repo } = sheet;
   const own = rowsFor(rows, tile.entity);
+  // Attempts: a new one starts when a row's title comes round again; the last is shown, the rest fold.
+  const attempts: (typeof own)[] = [];
+  for (const row of own) {
+    const current = attempts.at(-1);
+    if (!current || current.some((r) => r.title === row.title)) attempts.push([row]);
+    else current.push(row);
+  }
+  const latest = attempts.at(-1) ?? [];
+  const earlier = attempts.slice(0, -1).flat();
   return (
     <section aria-label={`${tile.label}: evidence`} className={cn("flex min-w-0 flex-col gap-4", className)}>
       <header className="flex items-center gap-3">
@@ -179,11 +188,27 @@ export function Inspector({
       ) : null}
 
       {own.length ? (
-        <ol className="divide-y divide-rule overflow-hidden rounded-card bg-sheet shadow-card">
-          {own.map((row, i) => (
-            <ActivityItem key={row.key} row={row} open={row.state === "live" || i === own.length - 1} />
-          ))}
-        </ol>
+        <>
+          {/* A step the agent repeated (checks, evidence per attempt): the last attempt open, the
+              earlier ones folded, so identical rows never stack up unexplained (V7 final review). */}
+          <ol className="divide-y divide-rule overflow-hidden rounded-card bg-sheet shadow-card">
+            {latest.map((row, i) => (
+              <ActivityItem key={row.key} row={row} open={row.state === "live" || i === latest.length - 1} />
+            ))}
+          </ol>
+          {earlier.length ? (
+            <details className="group/earlier">
+              <summary className="w-fit cursor-pointer list-none font-mono text-[11px] text-ink-3 hover:text-ink [&::-webkit-details-marker]:hidden">
+                Earlier attempts ({attempts.length - 1}) ›
+              </summary>
+              <ol className="mt-2 divide-y divide-rule overflow-hidden rounded-card bg-sheet shadow-card">
+                {earlier.map((row) => (
+                  <ActivityItem key={row.key} row={row} open={false} />
+                ))}
+              </ol>
+            </details>
+          ) : null}
+        </>
       ) : tile.entity !== "change" &&
         tile.entity !== "repository" &&
         tile.entity !== "outcome" &&

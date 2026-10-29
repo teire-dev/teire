@@ -18,6 +18,21 @@ type Params = PageProps<"/packages/[ecosystem]/[...name]">["params"];
 
 const decode = (parts: string[]) => parts.map(decodeURIComponent).join("/");
 
+/** What each kind of computed change means, in a few words. */
+const KIND_SAID: Record<string, string> = {
+  "symbol-removed": "Removes APIs",
+  "symbol-changed": "Changes types",
+  "symbol-deprecated": "Deprecates APIs",
+  "parameter-change": "Changes arguments",
+  "arity-changed": "Changes argument counts",
+  "optional-to-required": "Makes arguments required",
+  "required-added": "Adds required arguments",
+  "deep-import-removed": "Removes import paths",
+  "package-deprecated": "Package deprecated",
+  "package-major": "A new major",
+  "security-advisory": "Security advisory",
+};
+
 /** Versions in release order: numeric parts as numbers ("v1.10.0" after "v1.9.2"), the rest as text. */
 function compareVersions(a: string, b: string) {
   const pa = a.replace(/^v/, "").split(/[.+-]/);
@@ -306,24 +321,53 @@ async function Package({ params }: { params: Params }) {
           Changes Teire computed <span className="font-mono text-xs text-ink-3">{rows.length}</span>
         </h2>
         {rows.length ? (
-          [...byTarget].map(([target, list]) => (
-            <div key={target} id={anchor(target)} className="flex scroll-mt-24 flex-col gap-2">
-              <p className="font-mono text-xs text-ink-3">→ {target}</p>
-              <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-                {list.map((r) => (
-                  <li key={r.id}>
-                    <Link
-                      href={`/changes/${r.id}`}
-                      className="flex flex-col gap-1 px-4 py-2.5 hover:bg-hover sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <span className="text-sm text-ink">{r.title}</span>
-                      <ClassChip value={r.class} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
+          // One row per kind of change, its target versions as chips (V7 final review: the same five
+          // kinds under every target read as a grey list). Each chip is that change, with its figure.
+          <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
+            {(() => {
+              const anchored = new Set<string>();
+              const byKind = new Map<string, typeof rows>();
+              for (const r of rows) byKind.set(r.kind, [...(byKind.get(r.kind) ?? []), r]);
+              return [...byKind].map(([kind, list]) => (
+                <li key={kind} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
+                  <span className="flex min-w-0 items-center gap-2 sm:w-80 sm:shrink-0">
+                    <span className="text-sm whitespace-nowrap text-ink">
+                      {KIND_SAID[kind] ?? kind.replace(/-/g, " ")}
+                    </span>
+                    <ClassChip value={list[0]?.class ?? null} />
+                  </span>
+                  <span className="flex flex-wrap gap-1.5">
+                    {[...list]
+                      .sort((x, y) =>
+                        compareVersions(
+                          x.record.applicability.toVersion ?? x.record.applicability.fixedIn?.[0] ?? "",
+                          y.record.applicability.toVersion ?? y.record.applicability.fixedIn?.[0] ?? "",
+                        ),
+                      )
+                      .map((r) => {
+                        const target =
+                          r.record.applicability.toVersion ?? r.record.applicability.fixedIn?.[0] ?? "";
+                        const figure = /(\d[\d,]*)/.exec(r.title.split(": ").slice(1).join(": "))?.[1];
+                        const id = target && !anchored.has(target) ? anchor(target) : undefined;
+                        if (id) anchored.add(target);
+                        return (
+                          <Link
+                            key={r.id}
+                            id={id}
+                            href={`/changes/${r.id}`}
+                            title={r.title}
+                            className="flex scroll-mt-24 items-center gap-1.5 rounded-full bg-sunken px-2.5 py-1 font-mono text-[11px] text-ink-2 ring-1 ring-rule ring-inset hover:text-ink hover:ring-rule-strong"
+                          >
+                            → {target || "?"}
+                            {figure ? <span className="text-ink-3">· {figure}</span> : null}
+                          </Link>
+                        );
+                      })}
+                  </span>
+                </li>
+              ));
+            })()}
+          </ul>
         ) : (
           <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
             <TileSquare tile={{ entity: "update", state: "pending", label: "" }} size="sm" />
