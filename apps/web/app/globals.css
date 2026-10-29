@@ -4,6 +4,8 @@
 /* /docs: Fumadocs adopts the shadcn variables below (its own colours stay unused). */
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
+/* Ask Teire renders Markdown with Streamdown; its classes live in its build. */
+@source "../node_modules/streamdown/dist/*.js";
 
 /*
  * Teire tokens (plan revision 3.3, "The revamp"; design note context/13-design/u0-design-note.md).
@@ -372,4 +374,14 @@
 .markdown sub {
   color: var(--muted-foreground);
   font-size: 0.75rem;
+}
+
+/*
+ * Ask Teire docked (plan revision 3.3, U4): at 1440px and wider the page reflows beside the panel;
+ * narrower, the panel overlays so the content keeps its width.
+ */
+@media (min-width: 1440px) {
+  html[data-assistant-dock] body {
+    padding-right: var(--assistant-w, 420px);
+  }
 }

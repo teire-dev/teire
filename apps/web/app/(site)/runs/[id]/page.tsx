@@ -4,6 +4,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AppProviders } from "@/components/app/providers";
+import { AskContext } from "@/components/assistant/assistant-provider";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ProofSheet } from "@/components/run/proof-sheet";
 import { dryRunRequest, runSheet } from "@/lib/run-sheet";
@@ -36,6 +37,11 @@ async function Run({ params }: { params: PageProps<"/runs/[id]">["params"] }) {
   }
   return (
     <AppProviders>
+      <AskContext
+        kind="run"
+        id={sheet.run.id}
+        label={`${sheet.repo.fullName.split("/")[1]} ${sheet.run.groupKey?.split("/").slice(-2).join(" ") ?? "run"}`}
+      />
       <ProofSheet initial={sheet} />
     </AppProviders>
   );

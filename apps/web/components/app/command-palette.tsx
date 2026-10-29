@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAssistant } from "@/components/assistant/assistant-provider";
+import { LogoMark } from "@/components/logo";
 import {
   Command,
   CommandDialog,
@@ -94,6 +96,7 @@ export function CommandPalette({
 }) {
   const router = useRouter();
   const path = usePathname();
+  const assistant = useAssistant();
   const [query, setQuery] = useState("");
   const [confirm, setConfirm] = useState<{
     kind: ActionKind;
@@ -277,6 +280,30 @@ export function CommandPalette({
               ))}
             </CommandGroup>
           ) : null}
+          {/* The last row is always Ask Teire (plan revision 3.3, "⌘K palette"): the query goes to it. */}
+          <CommandGroup heading="Ask" forceMount>
+            <CommandItem
+              value={`ask-teire ${query}`}
+              forceMount
+              onSelect={() => {
+                onOpenChange(false);
+                if (query.trim()) assistant.ask(query.trim());
+                else assistant.setOpen(true);
+              }}
+            >
+              <LogoMark className="size-4" />
+              <span className="truncate text-ink">
+                {query.trim() ? (
+                  <>
+                    Ask Teire: <span className="font-medium">{query.trim()}</span>
+                  </>
+                ) : (
+                  "Ask Teire…"
+                )}
+              </span>
+              <CommandShortcut>⌘I</CommandShortcut>
+            </CommandItem>
+          </CommandGroup>
         </CommandList>
       </Command>
       <div className="flex items-center justify-end gap-1.5 border-t border-rule px-3 py-2 font-mono text-[10px] text-ink-3">

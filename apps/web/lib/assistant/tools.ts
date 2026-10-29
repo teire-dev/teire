@@ -1,10 +1,11 @@
-import { and, desc, eq, findings, inArray, runs, scans, sql } from "@teire/db";
+import { and, desc, eq, findings, inArray, or, runs, scans, sql } from "@teire/db";
 import { type ActionKind, describeAction, INSTALLATION_ACTIONS } from "@teire/engine/actions";
 import { parseAction } from "@teire/engine/actions-schema";
 import { CONFIG_PR_KEYS, type ConfigPrKey, configValue } from "@teire/engine/config-keys";
 import { ASSISTANT } from "@teire/engine/constants";
 import { tool } from "ai";
 import { z } from "zod";
+import { type LedgerCheck, notCoveredFrom } from "@/components/teire/ledger";
 import { getChange, listChanges } from "../catalog";
 import { database } from "../db";
 import { searchDocs } from "../docs-search";
@@ -25,7 +26,7 @@ import {
 import { assistantSpend } from "./budget";
 import { signProposal } from "./proposal";
 import { type ReadableRepo, readableRepo, scopeOfRepo, type Viewer } from "./viewer";
-import { whyNoPr } from "./why";
+import { keyHas, whyNoPr } from "./why";
 
 /**
  * Ask Teire's tools (plan revision 3.3, U4). Every read goes through the viewer's access, the same
@@ -162,6 +163,13 @@ async function findingRows(repoId: number) {
 
 const groupLink = (repo: string, key: string) =>
   `/app/repos/${repo}/findings?group=${encodeURIComponent(key)}`;
+
+/** What each fix mode does (plan revision 3.3, "Fix mode"), said the same way on the card and to the model. */
+export const MODE_MEANS: Record<string, string> = {
+  auto: "Teire starts a fix for every finding that reaches the code and opens the PR with its evidence",
+  ask: "Nothing new starts until you ask (Fix now or @teire fix); PRs already open keep being refreshed",
+  off: "Teire lists what it finds but never starts a fix; open PRs are marked stale instead of refreshed",
+};
 
 const MODE_FROM_FILE = { automatic: "auto", ask: "ask", off: "off" } as const;
 const MODE_TO_FILE = { auto: "automatic", ask: "ask", off: "off" } as const;
@@ -426,7 +434,8 @@ export function assistantTools(viewer: Viewer) {
             scope = scopeOfRepo(viewer, got.repo);
             where = sql`${runs.repoId} = ${got.repo.id}`;
           }
-          if (!scope) return needScope();
+          if (!scope)
+            return { error: "Teire isn't installed on an account you can see yet", link: "/welcome" };
           const filter =
             which === "live"
               ? inArray(runs.status, ["queued", "running", "stopping"])
@@ -780,7 +789,15 @@ async function runFacts(viewer: Viewer, runId: string) {
         }
       : null,
     ledger,
-    notCovered: (sheet.verification?.reasons ?? []).slice(0, 6).map((r) => r.slice(0, 240)),
+    // The run page's own "Not covered" (from the checks), and the evidence's reasons apart from it.
+    notCovered: notCoveredFrom(
+      (sheet.verification?.baseline ?? []) as LedgerCheck[],
+      (sheet.verification?.after ?? []) as LedgerCheck[],
+      sheet.verification?.reasons ?? [],
+    )
+      .slice(0, 6)
+      .map((r) => r.slice(0, 240)),
+    reasons: (sheet.verification?.reasons ?? []).slice(0, 4).map((r) => r.slice(0, 240)),
     others: (sheet.verification?.others ?? []).map((o) => ({ root: o.root, evidence: o.evidence })),
     modelCalls: sheet.calls.length,
     link: `/runs/${run.id}`,
@@ -901,6 +918,7 @@ async function propose(
       repo: null,
       scope: viewer.account,
       effect,
+      means: kind === "set-installation-fix-mode" ? (MODE_MEANS[String(valid.mode)] ?? null) : null,
       why: input.why ?? null,
       note:
         kind === "set-installation-fix-mode"
@@ -961,7 +979,11 @@ async function propose(
       .where(
         and(
           eq(findings.repoId, repo.id),
-          sql`(${findings.groupKey} = ${valid.target} or ${findings.changeId} = ${valid.target} or ${findings.dependencyKey} = ${valid.target} or ${findings.groupKey} like ${`${String(valid.target).replace(/[%_]/g, "")}/%`})`,
+          or(
+            eq(findings.changeId, String(valid.target)),
+            keyHas(findings.groupKey, String(valid.target)),
+            keyHas(findings.dependencyKey, String(valid.target)),
+          ),
         ),
       )
       .limit(1);
@@ -995,6 +1017,12 @@ async function propose(
     repo: repo.fullName,
     scope: repo.fullName,
     effect,
+    means:
+      kind === "set-fix-mode"
+        ? valid.mode
+          ? (MODE_MEANS[String(valid.mode)] ?? null)
+          : "This repository follows the installation's fix mode again"
+        : null,
     why: input.why ?? null,
     note: "Teire checks your write access on GitHub when you confirm",
   };

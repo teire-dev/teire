@@ -1,6 +1,7 @@
 import { RootProvider } from "fumadocs-ui/provider/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AssistantProvider } from "@/components/assistant/assistant-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -37,7 +38,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         >
           <TooltipProvider delayDuration={200}>
-            {children}
+            {/* Ask Teire (U4): one provider, so the panel stays open and docked across navigation. */}
+            <AssistantProvider>{children}</AssistantProvider>
             {/* Bottom left: the bottom right is Ask Teire's launcher (plan revision 3.3). */}
             <Toaster position="bottom-left" />
           </TooltipProvider>

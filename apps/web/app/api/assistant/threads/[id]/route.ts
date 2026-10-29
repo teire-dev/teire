@@ -20,7 +20,8 @@ async function owned(request: Request, params: Promise<{ id: string }>) {
 
 export async function GET(request: Request, ctx: RouteContext<"/api/assistant/threads/[id]">) {
   const found = await owned(request, ctx.params);
-  if (!found) return Response.json({ error: "No such thread" }, { status: 404 });
+  // A thread not started yet (or not this person's) reads as empty: nothing is said about anyone else's.
+  if (!found) return Response.json({ thread: null, messages: [] });
   return Response.json({
     thread: { id: found.thread.id, title: found.thread.title, context: found.thread.context },
     messages: await messagesOf(found.thread.id),

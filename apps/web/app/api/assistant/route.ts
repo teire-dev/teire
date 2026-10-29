@@ -151,7 +151,18 @@ export async function POST(request: Request) {
   const price = await priceOf(model);
   const started = Date.now();
   let usage: LanguageModelUsage | null = null;
-  const receipt = () => receiptFor(usage ?? ({} as LanguageModelUsage), price);
+  // Steps that finished, totalled as they end: a reply stopped mid-way still pays for what it used.
+  const steps = { inputTokens: 0, outputTokens: 0, cached: 0 };
+  const receipt = () =>
+    receiptFor(
+      usage ??
+        ({
+          inputTokens: steps.inputTokens,
+          outputTokens: steps.outputTokens,
+          inputTokenDetails: { cacheReadTokens: steps.cached },
+        } as LanguageModelUsage),
+      price,
+    );
 
   const result = streamText({
     model: tf.model("assistant"),
@@ -169,6 +180,11 @@ export async function POST(request: Request) {
     timeout: { totalMs: ASSISTANT.replyMs },
     ...nemotronSampling,
     providerOptions: nemotronOptions({ thinking: false }),
+    onStepEnd: ({ usage: step }) => {
+      steps.inputTokens += step.inputTokens ?? 0;
+      steps.outputTokens += step.outputTokens ?? 0;
+      steps.cached += step.inputTokenDetails?.cacheReadTokens ?? 0;
+    },
     onEnd: ({ usage: total }) => {
       usage = total;
     },

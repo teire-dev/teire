@@ -30,6 +30,15 @@ export interface Gate {
   href?: string;
 }
 
+/**
+ * A key naming the asked target as one of its segments: "anthropic" finds `models/anthropic`, "zod"
+ * finds `npm/zod/4.1.0`, "npm/zod" finds `npm/zod/4.1.0`.
+ */
+export function keyHas(column: Parameters<typeof eq>[0], asked: string) {
+  const t = asked.replace(/[%_\\]/g, "");
+  return sql`(${column} = ${t} or ${column} like ${`${t}/%`} or ${column} like ${`%/${t}`} or ${column} like ${`%/${t}/%`})`;
+}
+
 const ISSUE_EVIDENCE = new Set(["regression", "unverified", "timeout", "pre_existing_failure"]);
 
 export async function whyNoPr(repo: ReadableRepo, asked: string) {
@@ -47,7 +56,8 @@ export async function whyNoPr(repo: ReadableRepo, asked: string) {
             eq(findings.groupKey, target),
             eq(findings.changeId, target),
             eq(findings.dependencyKey, target),
-            sql`${findings.groupKey} like ${`${target.replace(/[%_]/g, "")}/%`}`,
+            keyHas(findings.groupKey, target),
+            keyHas(findings.dependencyKey, target),
           ),
         ),
       )
@@ -70,7 +80,8 @@ export async function whyNoPr(repo: ReadableRepo, asked: string) {
     db.select().from(systemState).where(eq(systemState.key, "credits")).limit(1),
   ]);
   const upgrade = ((scan?.upgrades as ScanUpgrade[] | null) ?? []).find(
-    (u) => u.groupKey === target || u.groupKey.startsWith(`${target}/`),
+    (u) =>
+      u.groupKey.split("/").includes(target) || u.groupKey === target || u.groupKey.startsWith(`${target}/`),
   );
   const finding = rows.find((f) => f.state === "open") ?? rows[0];
   const group = finding?.groupKey ?? upgrade?.groupKey ?? null;
@@ -219,6 +230,16 @@ export async function whyNoPr(repo: ReadableRepo, asked: string) {
     const settledLately = Date.now() - run.createdAt.getTime() < 7 * 86_400_000;
     if (run.status === "queued" || run.status === "running" || run.status === "stopping")
       ok("Run", `A run is ${run.status === "queued" ? "waiting for its turn" : "going now"}`, href);
+    else if (
+      run.evidenceKind &&
+      ISSUE_EVIDENCE.has(run.evidenceKind) &&
+      !(pr?.kind === "pr" && pr.state === "open")
+    )
+      hold(
+        "Run",
+        `The last run's evidence was "${run.evidenceKind.replace(/_/g, " ")}", so it opened an issue, not a PR. Open draft anyway is on the run page`,
+        href,
+      );
     else if (run.status === "failed" && run.error?.startsWith("stopped:"))
       hold("Run", `The last run stopped: ${run.error.slice(9, 220)}`, href);
     else if (run.status === "failed")
@@ -235,16 +256,6 @@ export async function whyNoPr(repo: ReadableRepo, asked: string) {
       );
     else if (run.step === "nothing to change" || run.step === "no longer applies")
       hold("Run", `The last run found ${run.step}`, href);
-    else if (
-      run.evidenceKind &&
-      ISSUE_EVIDENCE.has(run.evidenceKind) &&
-      !(pr?.kind === "pr" && pr.state === "open")
-    )
-      hold(
-        "Run",
-        `The last run's evidence was "${run.evidenceKind.replace(/_/g, " ")}", so it opened an issue, not a PR. Open draft anyway is on the run page`,
-        href,
-      );
     else if (run.step?.startsWith("fell back")) note("Run", `The last run ${run.step}`, href);
     else
       note(

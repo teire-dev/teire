@@ -7,6 +7,8 @@ import { Suspense } from "react";
 import { ActionButton } from "@/components/app/action-button";
 import { FixModeControl } from "@/components/app/fix-mode-control";
 import { RepoTabs } from "@/components/app/repo-tabs";
+import { AskButton } from "@/components/assistant/ask-button";
+import { AskContext } from "@/components/assistant/assistant-provider";
 import { MarkStack } from "@/components/teire/mark";
 import { ago } from "@/components/teire/run-row";
 import { StatusChip } from "@/components/teire/status-chip";
@@ -57,6 +59,7 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
   const base = `/app/repos/${fullName}`;
   return (
     <header className="flex flex-col gap-4">
+      <AskContext kind="repo" id={fullName} label={fullName} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
           <span className="eyebrow flex items-center gap-2">
@@ -88,6 +91,10 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
           <Button asChild variant="ghost" size="sm">
             <Link href={`${base}/findings#ignored`}>Show ignores</Link>
           </Button>
+          <AskButton
+            question={`Explain where ${fullName} stands: what reaches its code, what Teire is doing and what needs me`}
+            context={{ kind: "repo", id: fullName, label: fullName }}
+          />
           <Button asChild variant="outline" size="sm">
             <a href={`https://github.com/${fullName}`}>
               GitHub <ExternalLink data-icon="inline-end" aria-hidden />

@@ -3,6 +3,7 @@ import { ArrowRight, Flag } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AskContext } from "@/components/assistant/assistant-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
@@ -67,6 +68,7 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
 
   return (
     <article className="flex flex-col gap-8">
+      <AskContext kind="change" id={record.id} label={record.title.slice(0, 60)} />
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {logo ? <BrandLogo light={logo.light} dark={logo.dark} alt="" className="h-4" /> : null}

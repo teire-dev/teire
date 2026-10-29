@@ -12,6 +12,7 @@ import { ActionButton } from "@/components/app/action-button";
 import { ConfigPrForm } from "@/components/app/config-pr-form";
 import { IgnoreMenu } from "@/components/app/ignore-menu";
 import { InventoryTable } from "@/components/app/inventory-table";
+import { AskButton } from "@/components/assistant/ask-button";
 import { BrandLogo } from "@/components/brand-logo";
 import { FindingGroupCard } from "@/components/findings/finding-group";
 import { ProofGlyphs } from "@/components/teire/proof-glyphs";
@@ -249,6 +250,9 @@ async function Findings({
                         </ActionButton>
                       )}
                       <IgnoreMenu repo={fullName} group={g.key} />
+                      <AskButton
+                        question={`Explain the finding ${g.key} on ${fullName}: what changed, where it reaches the code and what Teire will do`}
+                      />
                     </>
                   }
                 />
