@@ -857,7 +857,7 @@ export function assistantTools(viewer: Viewer) {
           .record(z.string(), z.unknown())
           .default({})
           .describe(
-            "set-fix-mode {mode: auto|ask|off|null}; set-installation-fix-mode {mode}; fix {target}; ignore/unignore {target, update?: major|minor|patch}; refresh/rebase/recreate {group}; cancel-run/retry-run/reverify-run/open-draft-anyway {runId}; config-pr {key, value}; fix-in-all {changeId, title?, repos[]}; others {}",
+            "set-fix-mode {mode: auto|ask|off|null}; set-installation-fix-mode {mode, security?: auto|ask} (security is the mode for security fixes: ask = they also wait for a person; leave it out to keep it as it is); fix {target}; ignore/unignore {target, update?: major|minor|patch}; refresh/rebase/recreate {group}; cancel-run/retry-run/reverify-run/open-draft-anyway {runId}; config-pr {key, value}; fix-in-all {changeId, title?, repos[]}; others {}",
           ),
         why: z.string().max(300).optional().describe("One line on why, in the person's terms"),
       }),
@@ -1121,6 +1121,7 @@ async function propose(
       scope: viewer.account,
       effect,
       details,
+      say: `Confirm below to ${effect.charAt(0).toLowerCase()}${effect.slice(1)}${details.length ? `: ${details.join("; ")}` : ""}.`,
       means: kind === "set-installation-fix-mode" ? (MODE_MEANS[String(valid.mode)] ?? null) : null,
       why: input.why ?? null,
       note:
@@ -1245,6 +1246,7 @@ async function propose(
     scope: repo.fullName,
     effect,
     details,
+    say: `Confirm below to ${effect.charAt(0).toLowerCase()}${effect.slice(1)}${details.length ? `: ${details.join("; ")}` : ""}.`,
     means:
       kind === "set-fix-mode"
         ? valid.mode
