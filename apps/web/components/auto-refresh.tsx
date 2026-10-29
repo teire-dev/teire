@@ -17,6 +17,12 @@ export function AutoRefresh({ since, everyMs = 3000 }: { since: string; everyMs?
   }, [router, everyMs]);
   const s = Math.max(0, Math.round((now - Date.parse(since)) / 1000));
   return (
-    <span className="font-mono tabular-nums">{s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`}</span>
+    <span className="font-mono tabular-nums">
+      {s < 60
+        ? `${s}s`
+        : s < 3600
+          ? `${Math.floor(s / 60)}m ${s % 60}s`
+          : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`}
+    </span>
   );
 }

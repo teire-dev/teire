@@ -1,21 +1,28 @@
 import { PUBLIC_LIMITS } from "@teire/engine/constants";
-import { FlaskConical, GitPullRequest, Loader } from "lucide-react";
+import { ChevronDown, FlaskConical, GitPullRequest } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { BrandLogo } from "@/components/brand-logo";
-import { FindingGroupCard } from "@/components/findings/finding-group";
+import { FindingFlow } from "@/components/findings/finding-flow";
+import { GhostFlow } from "@/components/flow/ghost-flow";
+import { StaticFlow } from "@/components/flow/static-flow";
+import { TileSquare } from "@/components/flow/tile";
 import { GithubMark } from "@/components/icons";
 import { ShareLink } from "@/components/run/share-run";
+import { BrokenFlow } from "@/components/state-page";
+import { Mark } from "@/components/teire/mark";
 import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
 import { bucketGroups, type FindingGroup, groupFindings } from "@/lib/findings";
-import { proofOfFinding, proofOfRun } from "@/lib/proof";
+import { subjectMark } from "@/lib/marks";
+import { proofOfRun } from "@/lib/proof";
 import { dryRunsFor, publicReport, usageToday } from "@/lib/reports";
 import { getSession } from "@/lib/session";
 import { INSTALL_URL } from "@/lib/site";
+import { cn } from "@/lib/utils";
 import { startDryRun } from "../actions";
 
 export async function generateMetadata({ params }: PageProps<"/scan/[id]">): Promise<Metadata> {
@@ -23,7 +30,11 @@ export async function generateMetadata({ params }: PageProps<"/scan/[id]">): Pro
   return { title: `Scan report ${id.slice(0, 8)}`, robots: { index: false } };
 }
 
-/** A public scan report (C9): findings grouped as Teire opens PRs, a dry run per affected group. */
+/**
+ * A public scan report (plan revision 3.4, V5): what the scan read and found as one flow, then each
+ * change reaching the code as its change → code → fix → PR-preview flow with a dry run beside it; what
+ * Teire couldn't check and what doesn't reach folded; the install band last.
+ */
 export default function ReportPage({ params }: PageProps<"/scan/[id]">) {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12">
@@ -41,37 +52,49 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
   const { request, scan, repo } = report;
   const name = repo?.fullName ?? request.repoFullName;
 
-  if (request.status === "queued" || request.status === "running")
+  if (request.status === "queued" || request.status === "running") {
+    const running = request.status === "running";
+    // What a scan does, as the flow it is; the first step works while the rest wait.
+    const steps = [
+      { id: "repo", entity: "repository", label: "The repository", meta: "default branch" },
+      { id: "deps", entity: "update", label: "Manifests", meta: "exact versions" },
+      { id: "apis", entity: "change", label: "API changes", meta: "per upgrade" },
+      { id: "providers", entity: "change", label: "Providers", meta: "hosts and models" },
+      { id: "lines", entity: "code", label: "Your lines", meta: "what each reaches" },
+    ] as const;
     return (
       <>
         <RepoHeader name={name} />
-        <section className="flex flex-col gap-4 rounded-lg bg-card p-6 shadow-card" aria-live="polite">
-          <p className="flex items-center gap-2 font-medium">
-            <Loader className="size-4 animate-spin text-running" aria-hidden />
-            {request.status === "queued" ? "Waiting for the worker" : "Scanning"} ·{" "}
+        <section className="flex flex-col gap-5 rounded-xl bg-sheet p-6 shadow-card" aria-live="polite">
+          <StaticFlow
+            label="What the scan is doing"
+            graph={{
+              tiles: steps.map((t, i) => ({ ...t, state: running && i === 0 ? "live" : "pending" })),
+              links: steps.slice(1).map((t, i) => ({
+                from: steps[i]?.id as string,
+                to: t.id,
+                state: running && i === 0 ? "live" : "pending",
+              })),
+            }}
+          />
+          <p className="flex items-center gap-2 font-mono text-xs text-ink-3">
+            {running ? "scanning" : "waiting for the worker"} · usually 1–5 min ·{" "}
             <AutoRefresh since={request.createdAt.toISOString()} />
-          </p>
-          <ol className="flex flex-col gap-2 text-sm text-muted-foreground">
-            <li>Downloading the repository at its default branch</li>
-            <li>Reading every manifest and lockfile, and the exact versions they pin</li>
-            <li>Comparing each dependency's API with the version it would upgrade to</li>
-            <li>Checking the API hosts and model IDs the code calls against their providers' pages</li>
-            <li>Finding the lines each change reaches</li>
-          </ol>
-          <p className="text-xs text-muted-foreground">
-            Most repositories take one to five minutes. This page updates by itself.
           </p>
         </section>
       </>
     );
+  }
 
   if (request.status === "failed")
     return (
       <>
         <RepoHeader name={name} />
-        <section className="flex flex-col items-start gap-3 rounded-lg bg-card p-6 shadow-card">
-          <p className="font-medium">The scan did not finish</p>
-          <p className="text-sm text-muted-foreground">{request.error ?? scan?.error ?? "Unknown error."}</p>
+        <section className="flex flex-col items-start gap-4 rounded-xl bg-sheet p-6 shadow-card">
+          <BrokenFlow kind="error" />
+          <p className="max-w-xl font-mono text-xs text-broke">
+            {request.error ?? scan?.error ?? "unknown error"}
+          </p>
           <Button asChild variant="outline">
             <Link href="/scan">Scan another repository</Link>
           </Button>
@@ -91,190 +114,183 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
   } | null;
   const runs = repo ? await dryRunsFor(repo.id, sha) : [];
   const runFor = new Map(runs.map((r) => [r.groupKey, r]));
-  // Each group's chain: its dry run's when there is one (a dry run opens no PR), else the finding's own.
-  const chainOf = (g: FindingGroup) => {
+  // Each group's dry run as the flow reads it (a dry run opens no PR, only its preview).
+  const runOf = (g: FindingGroup) => {
     const run = runFor.get(g.key);
+    if (!run) return undefined;
     const advisory = g.key.startsWith("advisory/") || g.changeIds.some((c) => c.includes("advisor"));
-    return run
-      ? proofOfRun({
-          kind: "dry_run",
-          status: run.status,
-          step: run.step,
-          evidenceKind: run.evidenceKind,
-          prMode: null,
-          sites: g.sites.length,
-          advisory,
-          artifact: null,
-          runHref: `/runs/${run.id}`,
-        })
-      : proofOfFinding({ sites: g.sites.length, advisory });
+    return {
+      id: run.id,
+      status: run.status,
+      proof: proofOfRun({
+        kind: "dry_run",
+        status: run.status,
+        step: run.step,
+        evidenceKind: run.evidenceKind,
+        prMode: null,
+        sites: g.sites.length,
+        advisory,
+        artifact: null,
+        runHref: `/runs/${run.id}`,
+      }),
+    };
   };
+  const deps = report.inventory.reduce((n, i) => n + i.direct + (i.transitive ?? 0), 0);
+  const reaching = b.affected.length + b.human.length;
+  const couldnt = [
+    ...(coverage?.advisoryStatus && coverage.advisoryStatus !== "complete"
+      ? [`Security advisories: ${coverage.advisoryStatus}`]
+      : []),
+    ...(coverage?.gaps ?? []),
+  ];
+  const flow = (g: FindingGroup, opts: { undecided?: boolean; action?: boolean } = {}) => (
+    <FindingFlow
+      key={g.key}
+      group={g}
+      repo={name}
+      sha={sha}
+      latest={runOf(g)}
+      mode="auto"
+      preview
+      {...(opts.undecided ? { undecided: true } : {})}
+      {...(opts.action
+        ? { actions: <DryRun publicScanId={request.id} group={g} existing={runFor.get(g.key)} /> }
+        : {})}
+    />
+  );
 
   return (
     <>
       <RepoHeader name={name} sha={sha} finishedAt={request.finishedAt} reportId={request.id} />
 
-      <section className="grid gap-px overflow-hidden rounded-lg bg-border shadow-card sm:grid-cols-[2fr_1fr]">
-        <div className="flex flex-col gap-3 bg-card p-5">
-          <p className="text-xs text-muted-foreground">Dependencies read</p>
-          {report.inventory.length ? (
-            <ul className="flex flex-wrap gap-x-6 gap-y-3">
-              {report.inventory.map((i) => {
-                const e = ecosystemOf(i.ecosystem);
-                return (
-                  <li key={i.ecosystem} className="flex items-center gap-2 text-sm">
-                    {e ? <BrandLogo light={e.light} dark={e.dark} alt="" className="h-4" /> : null}
-                    <span>{e?.label ?? i.ecosystem}</span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {i.direct} direct{i.transitive ? ` · ${i.transitive} transitive` : ""}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No manifest or lockfile Teire reads was found.</p>
-          )}
-          {coverage?.filesScanned ? (
-            <p className="font-mono text-xs text-muted-foreground">
-              {coverage.filesScanned} files searched
-              {coverage.languages?.length ? ` · ${coverage.languages.join(", ")}` : ""}
-              {coverage.resolutionLevel ? ` · ${coverage.resolutionLevel}-level resolution` : ""}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-col justify-center gap-1 bg-card p-5">
-          <p
-            className={`text-3xl font-semibold tabular-nums ${b.affected.length ? "text-affected" : "text-clear"}`}
-          >
-            {b.affected.length}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            change{b.affected.length === 1 ? "" : "s"} reaching this code
-            {b.human.length ? ` · ${b.human.length} for a person to decide` : ""}
-          </p>
-        </div>
-      </section>
-
-      {coverage?.gaps?.length ? (
-        <section className="flex flex-col gap-2 rounded-lg bg-card p-5 shadow-card">
-          <h2 className="text-sm font-medium">
-            What Teire could not check
-            {coverage.advisoryStatus && coverage.advisoryStatus !== "complete"
-              ? ` · advisories ${coverage.advisoryStatus}`
-              : ""}
-          </h2>
-          <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
-            {coverage.gaps.map((g) => (
-              <li key={g}>{g}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {b.deadlines.length ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium">Deadlines</h2>
-          <ul className="divide-y overflow-hidden rounded-lg bg-card text-sm shadow-card">
-            {b.deadlines.slice(0, 8).map((g) => {
-              const row = (
-                <>
-                  <span className="truncate">{g.title}</span>
-                  <span className="shrink-0 font-mono text-xs text-human">{g.deadline?.slice(0, 10)}</span>
-                </>
-              );
+      <section className="flex flex-col gap-4 rounded-xl bg-sheet p-5 shadow-card">
+        <StaticFlow
+          label="What the scan found"
+          graph={{
+            tiles: [
+              {
+                id: "deps",
+                entity: "update",
+                state: "done",
+                label: "Dependencies",
+                meta: `${deps.toLocaleString()} read`,
+              },
+              {
+                id: "files",
+                entity: "code",
+                state: "done",
+                label: "Your code",
+                ...(coverage?.filesScanned
+                  ? { meta: `${coverage.filesScanned.toLocaleString()} files` }
+                  : {}),
+              },
+              {
+                id: "reach",
+                entity: "change",
+                state: reaching ? "not_proven" : "proven",
+                label: reaching ? `${reaching} reaching` : "Nothing reaching",
+                meta: `${groups.length} checked`,
+              },
+              {
+                id: "dry",
+                entity: "sandbox",
+                state: runs.length ? "done" : "pending",
+                label: "Dry runs",
+                meta: String(runs.length),
+              },
+            ],
+            links: [
+              { from: "deps", to: "files", state: "done" },
+              { from: "files", to: "reach", state: reaching ? "not_proven" : "proven" },
+              { from: "reach", to: "dry", state: runs.length ? "done" : "pending" },
+            ],
+          }}
+        />
+        {report.inventory.length ? (
+          <ul className="flex flex-wrap gap-2">
+            {report.inventory.map((i) => {
+              const e = ecosystemOf(i.ecosystem);
               return (
-                <li key={g.key}>
-                  {g.changeIds[0] ? (
-                    <Link
-                      href={`/changes/${g.changeIds[0]}`}
-                      className="row-link flex items-center justify-between gap-4 px-4 py-2.5 pr-10 hover:bg-accent"
-                    >
-                      {row}
-                    </Link>
-                  ) : (
-                    <div className="flex items-center justify-between gap-4 px-4 py-2.5">{row}</div>
-                  )}
+                <li
+                  key={i.ecosystem}
+                  className="flex items-center gap-2 rounded-full bg-sunken py-1 pr-3 pl-1.5 text-xs"
+                  title={`${i.direct} direct${i.transitive ? `, ${i.transitive} transitive` : ""}`}
+                >
+                  <span className="flex size-5 items-center justify-center rounded-full bg-sheet">
+                    {e ? <BrandLogo light={e.light} dark={e.dark} alt="" className="h-3 w-auto" /> : null}
+                  </span>
+                  <span className="text-ink">{e?.label ?? i.ecosystem}</span>
+                  <span className="font-mono text-ink-3">{i.direct + (i.transitive ?? 0)}</span>
                 </li>
               );
             })}
           </ul>
-        </section>
-      ) : null}
+        ) : null}
+      </section>
 
-      <Section
-        title="Affected"
-        count={b.affected.length}
-        empty="Nothing Teire knows about reaches this code right now."
-      >
-        {b.affected.map((g) => (
-          <FindingGroupCard
-            key={g.key}
-            group={g}
-            repo={name}
-            sha={sha}
-            proof={chainOf(g)}
-            action={<DryRun publicScanId={request.id} group={g} existing={runFor.get(g.key)} />}
-          />
-        ))}
-      </Section>
-
-      {b.undecided.length ? (
-        <Section title="Decided in the sandbox" count={b.undecided.length}>
-          <p className="text-sm text-muted-foreground">
-            The code alone doesn&apos;t settle these: some references could not be resolved. A dry run
-            upgrades and runs this repo&apos;s checks before and after; that result decides.
-          </p>
-          {b.undecided.map((g) => (
-            <FindingGroupCard
-              key={g.key}
-              group={g}
-              repo={name}
-              sha={sha}
-              proof={chainOf(g)}
-              action={<DryRun publicScanId={request.id} group={g} existing={runFor.get(g.key)} />}
-            />
-          ))}
-        </Section>
-      ) : null}
-
-      {b.human.length ? (
-        <Section title="Needs a person" count={b.human.length}>
-          {b.human.map((g) => (
-            <FindingGroupCard key={g.key} group={g} repo={name} sha={sha} />
-          ))}
-        </Section>
-      ) : null}
-
-      {b.quiet.length || b.outside.length ? (
-        <details className="group rounded-lg bg-card shadow-card">
-          <summary className="cursor-pointer list-none px-4 py-3 text-sm">
-            <span className="font-medium">Checked, not reaching this code</span>{" "}
-            <span className="text-muted-foreground">
-              · {b.quiet.length} change{b.quiet.length === 1 ? "" : "s"}
-              {b.outside.length ? ` · ${b.outside.length} outside the installed versions` : ""}
-            </span>
-          </summary>
-          <div className="flex flex-col gap-3 border-t p-4">
-            {[...b.quiet, ...b.outside].map((g) => (
-              <FindingGroupCard key={g.key} group={g} repo={name} sha={sha} />
-            ))}
-          </div>
-        </details>
-      ) : null}
-
-      <section className="flex flex-col items-start justify-between gap-4 rounded-lg bg-card p-5 shadow-card sm:flex-row sm:items-center">
-        <div>
-          <p className="font-medium">Get these as pull requests</p>
-          <p className="text-sm text-muted-foreground">
-            Installed, Teire rescans when a push to your default branch changes dependencies or code, and
-            opens a pull request per change, ready once your own checks pass before and after.{" "}
-            <Link href="/docs/guide/how-it-works" className="text-link hover:underline">
-              How Teire works
-            </Link>
-          </p>
+      {b.affected.length || b.undecided.length || b.human.length ? (
+        <div className="flex flex-col gap-3">
+          {b.affected.map((g) => flow(g, { action: true }))}
+          {b.undecided.map((g) => flow(g, { undecided: true, action: true }))}
+          {b.human.map((g) => flow(g))}
         </div>
-        <Button asChild shape="pill">
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+          <TileSquare tile={{ entity: "check", state: "proven", label: "" }} size="sm" />
+          <span className="text-sm text-ink-2">Nothing Teire knows about reaches this code</span>
+        </div>
+      )}
+
+      {couldnt.length || b.quiet.length || b.outside.length ? (
+        <div className="flex flex-col gap-2">
+          {couldnt.length ? (
+            <Fold tone="attention" label="Couldn't check" count={couldnt.length}>
+              <ul className="flex flex-col gap-1 p-4 text-sm text-ink-2">
+                {couldnt.map((g) => (
+                  <li key={g}>{g}</li>
+                ))}
+              </ul>
+            </Fold>
+          ) : null}
+          {b.quiet.length || b.outside.length ? (
+            <Fold tone="proven" label="Checked, not reaching" count={b.quiet.length + b.outside.length}>
+              <ul className="divide-y divide-rule">
+                {[...b.quiet, ...b.outside].map((g) => (
+                  <li key={g.key} className="flex items-center gap-2.5 px-4 py-2">
+                    <Mark brand={subjectMark(g.key)} size="sm" />
+                    {g.changeIds[0] ? (
+                      <Link
+                        href={`/changes/${g.changeIds[0]}`}
+                        className="min-w-0 truncate text-sm text-ink hover:underline"
+                      >
+                        {g.title}
+                      </Link>
+                    ) : (
+                      <span className="min-w-0 truncate text-sm text-ink">{g.title}</span>
+                    )}
+                    {g.verdict === "not_applicable" ? (
+                      <span className="ml-auto shrink-0 font-mono text-[11px] text-ink-3">
+                        other versions
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </Fold>
+          ) : null}
+        </div>
+      ) : null}
+
+      <section className="flex flex-col items-start justify-between gap-4 rounded-xl bg-hero p-6 text-hero-ink sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3">
+          <p className="display text-2xl">Get these as pull requests</p>
+          <ul className="flex flex-wrap gap-2 font-mono text-[11px] text-hero-ink-2">
+            <li className="rounded-full bg-white/10 px-2.5 py-1">rescans on push</li>
+            <li className="rounded-full bg-white/10 px-2.5 py-1">one PR per change</li>
+            <li className="rounded-full bg-white/10 px-2.5 py-1">ready when your checks pass</li>
+          </ul>
+        </div>
+        <Button asChild variant="cta" size="xl" shape="pill">
           <a href={INSTALL_URL}>
             <GithubMark className="size-4" />
             Install on GitHub
@@ -282,6 +298,37 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
         </Button>
       </section>
     </>
+  );
+}
+
+/** A folded list under the findings: a chip with its count that opens in place. */
+function Fold({
+  label,
+  count,
+  tone,
+  children,
+}: {
+  label: string;
+  count: number;
+  tone: "attention" | "proven";
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group/fold overflow-hidden rounded-xl bg-sheet shadow-card">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+        <span
+          aria-hidden
+          className={cn("size-2 rounded-full", tone === "attention" ? "bg-attention" : "bg-proven")}
+        />
+        {label}
+        <span className="font-mono text-xs text-ink-3">{count}</span>
+        <ChevronDown
+          aria-hidden
+          className="ml-auto size-3.5 text-ink-3 transition-transform group-open/fold:rotate-180"
+        />
+      </summary>
+      <div className="border-t border-rule">{children}</div>
+    </details>
   );
 }
 
@@ -299,8 +346,8 @@ function RepoHeader({
 }) {
   return (
     <header className="flex flex-col gap-2">
-      <p className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <Link href="/scan" className="entity-link hover:text-foreground">
+      <p className="flex items-center justify-between gap-3 text-xs text-ink-3">
+        <Link href="/scan" className="hover:text-ink">
           Public scan
         </Link>
         {reportId ? (
@@ -318,39 +365,19 @@ function RepoHeader({
           />
         ) : null}
       </p>
-      <h1 className="flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">
-        <a href={`https://github.com/${name}`} className="font-mono entity-link">
+      <h1 className="heading flex flex-wrap items-center gap-3 text-3xl text-ink">
+        <TileSquare tile={{ entity: "repository", state: "done", label: name }} size="sm" />
+        <a href={`https://github.com/${name}`} className="hover:underline">
           {name}
         </a>
       </h1>
       {sha ? (
-        <p className="font-mono text-xs text-muted-foreground">
+        <p className="font-mono text-xs text-ink-3">
           {sha.slice(0, 7)}
           {finishedAt ? ` · scanned ${finishedAt.toISOString().slice(0, 16).replace("T", " ")} UTC` : ""}
         </p>
       ) : null}
     </header>
-  );
-}
-
-function Section({
-  title,
-  count,
-  empty,
-  children,
-}: {
-  title: string;
-  count: number;
-  empty?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-sm font-medium">
-        {title} <span className="text-muted-foreground">({count})</span>
-      </h2>
-      {count ? children : <p className="text-sm text-muted-foreground">{empty}</p>}
-    </section>
   );
 }
 
@@ -364,16 +391,13 @@ async function DryRun({
   existing?: { id: string; status: string; evidenceKind: string | null } | undefined;
 }) {
   // A runtime's end of life is a notice: Teire never changes the runtime a repo runs on.
-  if (group.key.startsWith("runtime/"))
-    return (
-      <span className="text-xs text-muted-foreground">A notice: Teire does not change runtimes for you.</span>
-    );
+  if (group.key.startsWith("runtime/")) return null;
   if (existing)
     return (
       <Button asChild size="sm" variant="outline">
         <Link href={`/runs/${existing.id}`}>
           <GitPullRequest data-icon="inline-start" />
-          See the dry run ({existing.evidenceKind?.replace(/_/g, " ") ?? existing.status})
+          Its dry run
         </Link>
       </Button>
     );
@@ -383,20 +407,24 @@ async function DryRun({
     ? (await usageToday(session.user.id)).dryRuns >= PUBLIC_LIMITS.dryRunsPerUserPerDay
     : false;
   return (
-    <form action={startDryRun} className="flex flex-wrap items-center gap-3">
+    <form action={startDryRun}>
       <input type="hidden" name="publicScanId" value={publicScanId} />
       <input type="hidden" name="groupKey" value={group.key} />
-      <Button type="submit" size="sm" disabled={!session || spent}>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={!session || spent}
+        title={
+          !session
+            ? `Sign in with GitHub to dry-run a fix (${PUBLIC_LIMITS.dryRunsPerUserPerDay} a day)`
+            : spent
+              ? `Today's ${PUBLIC_LIMITS.dryRunsPerUserPerDay} dry run is used; installed, Teire opens these as PRs`
+              : "Fix and verify it in a sandbox; no PR is opened"
+        }
+      >
         <FlaskConical data-icon="inline-start" />
-        Dry-run a fix
+        {!session ? "Sign in to dry-run" : spent ? "Used today" : "Dry-run a fix"}
       </Button>
-      <span className="text-xs text-muted-foreground">
-        {!session
-          ? "Sign in with GitHub to dry-run a fix (one a day)."
-          : spent
-            ? `You've used today's ${PUBLIC_LIMITS.dryRunsPerUserPerDay} dry run. Install Teire for fixes as pull requests.`
-            : "Fix and verify in a sandbox, no PR opened."}
-      </span>
     </form>
   );
 }
@@ -404,10 +432,10 @@ async function DryRun({
 function ReportSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-hidden>
-      <div className="h-8 w-64 animate-pulse rounded bg-muted" />
-      <div className="h-28 animate-pulse rounded-lg bg-muted" />
-      <div className="h-40 animate-pulse rounded-lg bg-muted" />
-      <div className="h-40 animate-pulse rounded-lg bg-muted" />
+      <div className="h-9 w-72 animate-pulse rounded-lg bg-sunken" />
+      <div className="flex h-40 items-center justify-center rounded-xl bg-sheet shadow-card">
+        <GhostFlow tiles={4} />
+      </div>
     </div>
   );
 }

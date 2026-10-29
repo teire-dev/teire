@@ -18,8 +18,10 @@ export interface FindingFlowProps {
   group: FindingGroup;
   repo: string;
   sha: string | null;
-  /** The group's newest run, if any ran. */
-  latest?: RunRow | undefined;
+  /** The group's newest run, if any ran (on a public report, its dry run). */
+  latest?: Pick<RunRow, "id" | "status" | "proof"> | undefined;
+  /** A public report: the run is a dry run, so its outcome is a PR preview, never a PR. */
+  preview?: boolean;
   /** Its open PR or issue on GitHub. */
   opened?: { kind: string; number: number | null; url: string | null; state: string } | undefined;
   mode: "auto" | "ask" | "off";
@@ -86,6 +88,14 @@ function outcomeTile(p: FindingFlowProps, fix: FlowTile): FlowTile {
       ...(o.url ? { href: o.url } : {}),
     };
   }
+  if (p.preview)
+    return {
+      id: "out",
+      entity: "outcome",
+      state: p.latest?.status === "succeeded" ? "done" : fix.state === "skipped" ? "skipped" : "pending",
+      label: "PR preview",
+      ...(p.latest ? { href: `/runs/${p.latest.id}` } : {}),
+    };
   return {
     id: "out",
     entity: "outcome",
