@@ -32,7 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { EstateGraph, EstateTile } from "@/lib/estate";
+import { type EstateGraph, type EstateTile, planTile } from "@/lib/estate";
 import { FLOW_STATE_LABEL, type FlowGraph, type FlowTile } from "@/lib/flow/model";
 import { cn } from "@/lib/utils";
 import type { ChangeReach } from "@/lib/workspace";
@@ -61,10 +61,17 @@ const COL_MIN = 250;
 const COL_MAX = 470;
 
 /** Who is being dragged, which repositories it reaches, and which one it is over. */
-const Drag = createContext<{ id: string | null; targets: Set<string>; over: string | null }>({
+const Drag = createContext<{
+  id: string | null;
+  targets: Set<string>;
+  over: string | null;
+  /** A tile's own button: a change opens what it reaches, anything else goes to its page. */
+  open: (id: string) => void;
+}>({
   id: null,
   targets: new Set(),
   over: null,
+  open: () => undefined,
 });
 
 const CAPTION_TONE: Record<string, string> = {
@@ -98,33 +105,40 @@ function TileNode({ id, data }: NodeProps<TileNodeT>) {
       {tile.column > 0 ? (
         <Handle type="target" position={Position.Left} className={HANDLE_CLASS} isConnectable={false} />
       ) : null}
-      <TileSquare tile={tile} size="sm" />
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span
-          className={cn(
-            "truncate text-[13px] font-medium leading-tight text-ink",
-            tile.state === "pending" && "text-ink-2",
-          )}
-        >
-          {tile.label}
-        </span>
-        {tile.meta || tile.caption ? (
-          <span className="flex min-w-0 gap-1.5 truncate font-mono text-[11px] leading-tight text-ink-3">
-            {tile.meta ? <span className="truncate">{tile.meta}</span> : null}
-            {tile.caption ? (
-              <span className={cn("shrink-0", CAPTION_TONE[tile.state] ?? "text-signal")}>
-                {tile.caption}
-              </span>
-            ) : null}
+      <button
+        type="button"
+        onClick={() => drag.open(id)}
+        aria-label={`${tile.label}${tile.meta ? `, ${tile.meta}` : ""}${tile.caption ? `, ${tile.caption}` : ""}${tile.drag ? ". Show where it reaches and fix it" : tile.href ? ". Open" : ""}`}
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-sheet"
+      >
+        <TileSquare tile={tile} size="sm" />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span
+            className={cn(
+              "truncate text-[13px] font-medium leading-tight text-ink",
+              tile.state === "pending" && "text-ink-2",
+            )}
+          >
+            {tile.label}
           </span>
+          {tile.meta || tile.caption ? (
+            <span className="flex min-w-0 gap-1.5 truncate font-mono text-[11px] leading-tight text-ink-3">
+              {tile.meta ? <span className="truncate">{tile.meta}</span> : null}
+              {tile.caption ? (
+                <span className={cn("shrink-0", CAPTION_TONE[tile.state] ?? "text-signal")}>
+                  {tile.caption}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+        </span>
+        {tile.drag ? (
+          <GripVertical
+            aria-hidden
+            className="size-3.5 shrink-0 text-ink-3 opacity-60 group-hover:opacity-100"
+          />
         ) : null}
-      </span>
-      {tile.drag ? (
-        <GripVertical
-          aria-hidden
-          className="size-3.5 shrink-0 text-ink-3 opacity-60 group-hover:opacity-100"
-        />
-      ) : null}
+      </button>
       {tile.column < 2 ? (
         <Handle type="source" position={Position.Right} className={HANDLE_CLASS} isConnectable={false} />
       ) : null}
@@ -208,35 +222,6 @@ const edgesOf = (graph: EstateGraph): FlowEdgeT[] =>
       ...(l.weight ? { weight: l.weight } : {}),
     },
   }));
-
-/** What Fix now would do on one repository, as the preview's last tile. */
-function planTile(r: ChangeReach): FlowTile {
-  switch (r.plan.kind) {
-    case "run":
-      return {
-        id: "plan",
-        entity: "fix",
-        state: "pending",
-        label: "Fix now",
-        ...(r.sites ? { meta: `${r.sites} call site${r.sites === 1 ? "" : "s"}` } : {}),
-        ...(r.plan.waits ? { caption: "waits for the PR limit" } : {}),
-      };
-    case "open":
-      return {
-        id: "plan",
-        entity: "outcome",
-        state: "done",
-        label: `PR #${r.plan.number}`,
-        caption: "already open",
-      };
-    case "running":
-      return { id: "plan", entity: "fix", state: "live", label: "Fixing", caption: "a run is going" };
-    case "off":
-      return { id: "plan", entity: "fix", state: "skipped", label: "Fixes off", caption: r.plan.why };
-    default:
-      return { id: "plan", entity: "fix", state: "skipped", label: "Paused" };
-  }
-}
 
 function FixPreview({
   change,
@@ -334,7 +319,21 @@ function FixPreview({
   );
 }
 
-function Canvas({ graph, view, width }: { graph: EstateGraph; view: View; width: number }) {
+function Canvas({
+  graph,
+  view,
+  width,
+  onPick,
+  onPreview,
+}: {
+  graph: EstateGraph;
+  view: View;
+  width: number;
+  /** A change's own button: show where it reaches. */
+  onPick: (change: EstateTile) => void;
+  /** A change dropped on a repository it reaches: that repository's Fix now. */
+  onPreview: (change: EstateTile, reach: ChangeReach) => void;
+}) {
   const router = useRouter();
   const flow = useReactFlow();
   const { resolvedTheme } = useTheme();
@@ -347,7 +346,6 @@ function Canvas({ graph, view, width }: { graph: EstateGraph; view: View; width:
     targets: new Set(),
     over: null,
   });
-  const [preview, setPreview] = useState<{ change: EstateTile; reach: ChangeReach } | null>(null);
   const moved = useRef(false);
   const overRef = useRef<string | null>(null);
   // A refresh (a run started, a PR opened) or a new width re-places the tiles; the map stays at
@@ -369,7 +367,18 @@ function Canvas({ graph, view, width }: { graph: EstateGraph; view: View; width:
     );
 
   return (
-    <Drag.Provider value={drag}>
+    <Drag.Provider
+      value={{
+        ...drag,
+        open: (id) => {
+          // The click that ends a drag is not a click on the tile.
+          if (moved.current) return;
+          const tile = tileOf(id);
+          if (tile?.drag) onPick(tile);
+          else if (tile?.href) router.push(tile.href);
+        },
+      }}
+    >
       <div className="relative w-full" style={{ height: geo.height }}>
         <ReactFlow
           nodes={nodes}
@@ -420,13 +429,8 @@ function Canvas({ graph, view, width }: { graph: EstateGraph; view: View; width:
             }, 0);
             if (!change?.drag || !over?.repo) return;
             const reach = change.drag.reaches.find((r) => r.repo === over.repo);
-            if (reach) setPreview({ change, reach });
+            if (reach) onPreview(change, reach);
             else toast(`${change.drag.subject} doesn't reach ${over.label}`);
-          }}
-          onNodeClick={(_, n) => {
-            if (moved.current) return;
-            const href = tileOf(n.id)?.href;
-            if (href) router.push(href);
           }}
           nodesConnectable={false}
           elementsSelectable={false}
@@ -447,11 +451,6 @@ function Canvas({ graph, view, width }: { graph: EstateGraph; view: View; width:
           <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} />
         </ReactFlow>
       </div>
-      <FixPreview
-        change={preview?.change ?? null}
-        reach={preview?.reach ?? null}
-        onClose={() => setPreview(null)}
-      />
     </Drag.Provider>
   );
 }
@@ -463,63 +462,153 @@ const COUNT_GLYPH = {
 } as const;
 
 /** Phones: each repository on the map as a row, with what reaches it and what is open there. */
-function EstateList({ graph }: { graph: EstateGraph }) {
+function EstateList({ graph, onPick }: { graph: EstateGraph; onPick: (change: EstateTile) => void }) {
   const repos = graph.tiles.filter((t) => t.column === 1);
+  const changes = graph.tiles.filter((t) => t.drag);
   return (
-    <ul className="flex flex-col divide-y divide-rule">
-      {repos.map((r) => {
-        const into = graph.links
-          .filter((l) => l.to === r.id)
-          .map((l) => graph.tiles.find((t) => t.id === l.from));
-        const out = graph.links.filter((l) => l.from === r.id && l.to in COUNT_GLYPH);
-        return (
-          <li key={r.id}>
-            <Link href={r.href ?? "/app/repos"} className="flex items-center gap-3 px-1 py-3">
-              <TileSquare tile={r} size="sm" />
+    <>
+      {changes.length ? (
+        <ul className="flex gap-2 overflow-x-auto border-b border-rule py-3 [scrollbar-width:none]">
+          {changes.map((c) => (
+            <li key={c.id} className="shrink-0">
+              <button
+                type="button"
+                onClick={() => onPick(c)}
+                className="flex items-center gap-2 rounded-full bg-sheet py-1 pr-3 pl-1 text-xs shadow-tile ring-1 ring-rule"
+              >
+                {c.brand ? <Mark brand={c.brand} size="sm" /> : null}
+                <span className="max-w-32 truncate text-ink">{c.label}</span>
+                {c.caption ? <span className="font-mono text-[10px] text-signal">{c.caption}</span> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <ul className="flex flex-col divide-y divide-rule">
+        {repos.map((r) => {
+          const into = graph.links
+            .filter((l) => l.to === r.id)
+            .map((l) => graph.tiles.find((t) => t.id === l.from));
+          const out = graph.links.filter((l) => l.from === r.id && l.to in COUNT_GLYPH);
+          return (
+            <li key={r.id}>
+              <Link href={r.href ?? "/app/repos"} className="flex items-center gap-3 px-1 py-3">
+                <TileSquare tile={r} size="sm" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm font-medium text-ink">{r.label}</span>
+                  <span className="truncate font-mono text-[11px] text-ink-3">{r.meta ?? ""}</span>
+                </span>
+                <span className="flex items-center -space-x-1.5">
+                  {into.slice(0, 3).map((t) => {
+                    if (!t) return null;
+                    const Icon = TILE_ICON[t.entity];
+                    return t.brand ? (
+                      <Mark key={t.id} brand={t.brand} size="sm" className="ring-2 ring-sheet" />
+                    ) : (
+                      <span
+                        key={t.id}
+                        className={cn(
+                          "flex size-6 items-center justify-center rounded-md bg-sunken ring-2 ring-sheet",
+                          t.state === "not_proven" ? "text-attention" : "text-ink-2",
+                        )}
+                      >
+                        <Icon className="size-3.5" aria-hidden />
+                      </span>
+                    );
+                  })}
+                </span>
+                <span className="flex items-center gap-1.5 font-mono text-xs">
+                  {out.map((l) => {
+                    const g = COUNT_GLYPH[l.to as keyof typeof COUNT_GLYPH];
+                    return (
+                      <span
+                        key={l.to}
+                        className={cn("flex items-center gap-0.5", g.tone)}
+                        title={`${l.weight ?? 1} ${l.to === "o:ready" ? "ready to merge" : l.to === "o:drafts" ? "drafts" : "issues"}`}
+                      >
+                        {g.Icon ? (
+                          <g.Icon className="size-3" strokeWidth={3} aria-hidden />
+                        ) : (
+                          <span aria-hidden>◐</span>
+                        )}
+                        {l.weight ?? 1}
+                        <span className="sr-only">
+                          {l.to === "o:ready"
+                            ? " ready to merge"
+                            : l.to === "o:drafts"
+                              ? " drafts"
+                              : " issues"}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
+/** Where a change reaches, each repository with what Fix now would do there: the drag, by keyboard or touch. */
+function Reaches({
+  change,
+  onClose,
+  onFix,
+}: {
+  change: EstateTile | null;
+  onClose: () => void;
+  onFix: (reach: ChangeReach) => void;
+}) {
+  return (
+    <Dialog open={!!change} onOpenChange={(o) => (o ? null : onClose())}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2.5">
+            {change?.brand ? <Mark brand={change.brand} size="sm" /> : null}
+            {change?.drag?.subject}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs">{change?.meta ?? ""}</DialogDescription>
+        </DialogHeader>
+        <ul className="flex max-h-80 flex-col divide-y divide-rule overflow-auto rounded-lg ring-1 ring-rule">
+          {(change?.drag?.reaches ?? []).map((r) => (
+            <li key={`${r.repo}-${r.groupKey}`} className="flex items-center gap-3 px-3 py-2">
+              <TileSquare tile={planTile(r)} size="sm" className="!size-8" />
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-medium text-ink">{r.label}</span>
-                <span className="truncate font-mono text-[11px] text-ink-3">{r.meta ?? ""}</span>
+                <span className="truncate text-sm text-ink">{r.repo.split("/")[1]}</span>
+                <span className="truncate font-mono text-[11px] text-ink-3">
+                  {planTile(r).label}
+                  {planTile(r).caption ? ` · ${planTile(r).caption}` : ""}
+                </span>
               </span>
-              <span className="flex items-center -space-x-1.5">
-                {into.slice(0, 3).map((t) => {
-                  if (!t) return null;
-                  const Icon = TILE_ICON[t.entity];
-                  return t.brand ? (
-                    <Mark key={t.id} brand={t.brand} size="sm" className="ring-2 ring-sheet" />
-                  ) : (
-                    <span
-                      key={t.id}
-                      className={cn(
-                        "flex size-6 items-center justify-center rounded-md bg-sunken ring-2 ring-sheet",
-                        t.state === "not_proven" ? "text-attention" : "text-ink-2",
-                      )}
-                    >
-                      <Icon className="size-3.5" aria-hidden />
-                    </span>
-                  );
-                })}
-              </span>
-              <span className="flex items-center gap-1.5 font-mono text-xs">
-                {out.map((l) => {
-                  const g = COUNT_GLYPH[l.to as keyof typeof COUNT_GLYPH];
-                  return (
-                    <span key={l.to} className={cn("flex items-center gap-0.5", g.tone)}>
-                      {g.Icon ? <g.Icon className="size-3" strokeWidth={3} aria-hidden /> : "◐"}
-                      {l.weight ?? 1}
-                    </span>
-                  );
-                })}
-              </span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+              <Button
+                size="sm"
+                variant={r.plan.kind === "run" ? "default" : "outline"}
+                onClick={() => onFix(r)}
+              >
+                {r.plan.kind === "run" ? "Fix now" : "Open"}
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <DialogFooter>
+          {change?.href ? (
+            <Button asChild variant="ghost">
+              <Link href={change.href}>In Changes for you ›</Link>
+            </Button>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 export function EstateMap({ graphs }: { graphs: Record<View, EstateGraph> }) {
   const [view, setView] = useState<View>("changes");
+  const [picked, setPicked] = useState<EstateTile | null>(null);
+  const [preview, setPreview] = useState<{ change: EstateTile; reach: ChangeReach } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -557,14 +646,20 @@ export function EstateMap({ graphs }: { graphs: Record<View, EstateGraph> }) {
       <div ref={box} className="hidden md:block">
         {width ? (
           <ReactFlowProvider key={view}>
-            <Canvas graph={graph} view={view} width={width} />
+            <Canvas
+              graph={graph}
+              view={view}
+              width={width}
+              onPick={setPicked}
+              onPreview={(change, reach) => setPreview({ change, reach })}
+            />
           </ReactFlowProvider>
         ) : (
           <div className="h-[420px]" />
         )}
       </div>
       <div className="px-3 md:hidden">
-        <EstateList graph={graph} />
+        <EstateList graph={graph} onPick={setPicked} />
       </div>
       {/* The same map as lists of links, in order, for screen readers. */}
       <nav aria-label="The estate as lists" className="sr-only">
@@ -574,7 +669,7 @@ export function EstateMap({ graphs }: { graphs: Record<View, EstateGraph> }) {
               .filter((t) => t.column === c)
               .map((t) => (
                 <li key={t.id}>
-                  <Link href={t.href ?? "/app"}>
+                  <Link href={t.href ?? "/app"} tabIndex={-1}>
                     {t.label}: {FLOW_STATE_LABEL[t.state]}
                     {t.meta ? `, ${t.meta}` : ""}
                     {t.caption ? `, ${t.caption}` : ""}
@@ -584,6 +679,19 @@ export function EstateMap({ graphs }: { graphs: Record<View, EstateGraph> }) {
           </ul>
         ))}
       </nav>
+      <Reaches
+        change={picked}
+        onClose={() => setPicked(null)}
+        onFix={(reach) => {
+          if (picked) setPreview({ change: picked, reach });
+          setPicked(null);
+        }}
+      />
+      <FixPreview
+        change={preview?.change ?? null}
+        reach={preview?.reach ?? null}
+        onClose={() => setPreview(null)}
+      />
     </section>
   );
 }

@@ -171,6 +171,12 @@ function repoColumns(e: Estate) {
         });
     }
   }
+  // What is open in repositories off the map flows from "N more", so every outcome total is accounted for.
+  if (e.moreRepos > 0)
+    for (const o of outs) {
+      const hidden = o.n - e.repos.reduce((n, r) => n + r[o.key], 0);
+      if (hidden > 0) links.push({ from: "r:more", to: o.id, state: o.state, weight: hidden });
+    }
   // Nothing open yet: the column still says where fixes land, and the reached repositories point there.
   if (!outs.some((o) => o.n)) {
     tiles.push({
@@ -214,16 +220,12 @@ export function changesGraph(e: Estate): EstateGraph {
     for (const r of c.reaches) {
       const to = repoId(e, r.repo);
       const hit = seen.get(to);
+      // The edge carries the call sites it stands for (drawn heavier as they add up, capped in the edge).
       if (hit) {
-        hit.weight = (hit.weight ?? 0) + 1;
+        hit.weight = (hit.weight ?? 0) + r.sites;
         continue;
       }
-      const link: EstateLink = {
-        from: id,
-        to,
-        state: reachState(r),
-        weight: r.sites >= 3 ? 2 : r.sites ? 1 : 0,
-      };
+      const link: EstateLink = { from: id, to, state: reachState(r), weight: r.sites };
       seen.set(to, link);
       links.push(link);
     }
@@ -277,4 +279,33 @@ export function sourcesGraph(e: Estate): EstateGraph {
       });
   }
   return { tiles: [...tiles, ...right.tiles], links: [...links, ...right.links] };
+}
+
+/** What Fix now would do on one repository, as the preview's last tile. */
+export function planTile(r: ChangeReach): FlowTile {
+  switch (r.plan.kind) {
+    case "run":
+      return {
+        id: "plan",
+        entity: "fix",
+        state: "pending",
+        label: "Fix now",
+        ...(r.sites ? { meta: `${r.sites} call site${r.sites === 1 ? "" : "s"}` } : {}),
+        ...(r.plan.waits ? { caption: "waits for the PR limit" } : {}),
+      };
+    case "open":
+      return {
+        id: "plan",
+        entity: "outcome",
+        state: "done",
+        label: `PR #${r.plan.number}`,
+        caption: "already open",
+      };
+    case "running":
+      return { id: "plan", entity: "fix", state: "live", label: "Fixing", caption: "a run is going" };
+    case "off":
+      return { id: "plan", entity: "fix", state: "skipped", label: "Fixes off", caption: r.plan.why };
+    default:
+      return { id: "plan", entity: "fix", state: "skipped", label: "Paused" };
+  }
 }

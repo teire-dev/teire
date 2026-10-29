@@ -87,7 +87,15 @@ function Value({ value, suffix }: { value: unknown; suffix?: string | undefined 
   if (value === false) return <Minus className="size-4 text-ink-3" strokeWidth={2.5} aria-label="off" />;
   if (Array.isArray(value))
     return value.length ? (
-      <span title={value.join("\n")}>{value.length}</span>
+      // The entries themselves, two then "+N", so nothing important hides behind a hover.
+      <span className="flex min-w-0 items-center gap-1 text-xs">
+        {value.slice(0, 2).map((v) => (
+          <span key={String(v)} className="truncate rounded bg-sunken px-1.5 py-px">
+            {String(v)}
+          </span>
+        ))}
+        {value.length > 2 ? <span className="shrink-0 text-ink-3">+{value.length - 2}</span> : null}
+      </span>
     ) : (
       <span className="text-ink-3">none</span>
     );

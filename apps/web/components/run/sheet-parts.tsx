@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { LedgerCheck } from "@/components/teire/ledger";
-import type { Phase } from "@/components/teire/phase-strip";
 import { EvidenceChip, StatusChip, type Tone } from "@/components/teire/status-chip";
 import type { ActivityRow, Exec, PlanItem } from "@/lib/activity";
 import { STEP_DOING } from "@/lib/proof";
@@ -88,6 +87,14 @@ export function firstStart(sheet: RunSheetData) {
 }
 
 /** Where the run's time went, from its own records (no figure it didn't measure). */
+/** One phase of a run's timeline: its name, how long it took, and how it ended. */
+export interface Phase {
+  key: string;
+  label: string;
+  ms: number | null;
+  state: "done" | "live" | "failed" | "skipped" | "pending";
+}
+
 export function phasesOf(sheet: RunSheetData): Phase[] {
   const { run, events, execs } = sheet;
   // A run's sandbox records are written together when it ends; while it works, the line each command

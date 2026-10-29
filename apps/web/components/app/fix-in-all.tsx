@@ -3,6 +3,7 @@
 import { Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { TileSquare } from "@/components/flow/tile";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,6 +14,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { planTile } from "@/lib/estate";
+import { cn } from "@/lib/utils";
 import type { ChangeReach } from "@/lib/workspace";
 import { runAction } from "./run-action";
 
@@ -50,38 +53,44 @@ export function FixInAll({
           <DialogTitle>Fix in all</DialogTitle>
           <DialogDescription>{title}</DialogDescription>
         </DialogHeader>
-        <ul className="flex max-h-72 flex-col divide-y divide-rule overflow-auto rounded-lg ring-1 ring-rule ring-inset">
-          {reaches.map((r) => (
-            <li
-              key={`${r.repo}-${r.groupKey}`}
-              className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
-            >
-              <span className="min-w-0 truncate font-mono text-xs text-ink">{r.repo}</span>
-              <span
-                className={
-                  r.plan.kind === "run"
-                    ? "text-xs text-signal"
-                    : r.plan.kind === "open" || r.plan.kind === "running"
-                      ? "text-xs text-ink-2"
-                      : "text-xs text-ink-3"
-                }
-              >
-                {r.plan.kind === "run"
-                  ? (r.plan.waits ?? "starts a run")
-                  : r.plan.kind === "open"
-                    ? `#${r.plan.number} is open`
-                    : r.plan.kind === "running"
-                      ? "a run is already going"
-                      : r.plan.kind === "paused"
-                        ? "Teire is paused here"
-                        : `fixes off (${r.plan.why})`}
-              </span>
-            </li>
-          ))}
+        {/* Each repository as what Fix now does there: a state tile and its words, nothing to read twice. */}
+        <ul className="flex max-h-80 flex-col divide-y divide-rule overflow-auto rounded-lg ring-1 ring-rule ring-inset">
+          {reaches.map((r) => {
+            const t = planTile(r);
+            return (
+              <li key={`${r.repo}-${r.groupKey}`} className="flex items-center gap-3 px-3 py-2">
+                <TileSquare tile={t} size="sm" className="!size-8" />
+                <span className="min-w-0 flex-1 truncate text-sm text-ink">{r.repo.split("/")[1]}</span>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px]",
+                    r.plan.kind === "run"
+                      ? r.plan.waits
+                        ? "bg-attention-soft text-attention"
+                        : "bg-signal-soft text-signal"
+                      : "bg-sunken text-ink-3",
+                  )}
+                  title={
+                    r.plan.kind === "off" ? r.plan.why : r.plan.kind === "run" ? r.plan.waits : undefined
+                  }
+                >
+                  {r.plan.kind === "run"
+                    ? r.plan.waits
+                      ? "waits for the PR limit"
+                      : "starts a run"
+                    : r.plan.kind === "open"
+                      ? `#${r.plan.number} open`
+                      : r.plan.kind === "running"
+                        ? "running"
+                        : r.plan.kind === "paused"
+                          ? "paused"
+                          : "fixes off"}
+                </span>
+              </li>
+            );
+          })}
         </ul>
-        <p className="text-xs text-ink-3">
-          Each run needs your write access on that repository; Teire checks it on GitHub when it starts.
-        </p>
+        <p className="font-mono text-[11px] text-ink-3">needs write access · checked on GitHub</p>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel

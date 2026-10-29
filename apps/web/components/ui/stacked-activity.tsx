@@ -164,10 +164,21 @@ export function StackedActivityBars({
         <div className="min-w-0 flex-[1_1_380px]">
           <svg
             viewBox={`0 0 ${W} ${H}`}
-            className="w-full"
             role="img"
-            aria-label={segments.map((s) => s.label).join(" + ")}
+            aria-label={`${segments.map((s) => s.label).join(" + ")} per day; the arrow keys move the day`}
+            // Keyboard: the arrows move the pinned day, as hovering does, and the legend follows.
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+              e.preventDefault();
+              setHover((h) => {
+                const at = h ?? focusIndex;
+                return Math.min(n - 1, Math.max(0, at + (e.key === "ArrowRight" ? 1 : -1)));
+              });
+            }}
+            onBlur={() => setHover(null)}
             onPointerLeave={() => setHover(null)}
+            className="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-signal"
           >
             <defs>
               <pattern
@@ -288,6 +299,29 @@ export function StackedActivityBars({
               />
             ))}
           </svg>
+          {/* The same figures as a table, for screen readers. */}
+          <table className="sr-only">
+            <thead>
+              <tr>
+                <th scope="col">Day</th>
+                {segments.map((s) => (
+                  <th key={s.key} scope="col">
+                    {s.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {days.map((d, i) => (
+                <tr key={d}>
+                  <th scope="row">{fmtDay(d)}</th>
+                  {segments.map((s) => (
+                    <td key={s.key}>{fmt(s.values[i] ?? 0)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {/* live legend: it is the tooltip */}

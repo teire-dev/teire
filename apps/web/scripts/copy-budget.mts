@@ -58,7 +58,7 @@ function fileWords(file: string): Count {
   const inFlowDir =
     file.includes(`${path.sep}components${path.sep}flow${path.sep}`) ||
     file.includes(`${path.sep}lib${path.sep}flow${path.sep}`) ||
-    /lib[\\/](proof|brands|logos|marks)\.ts$/.test(file);
+    /lib[\\/](proof|brands|logos|marks|estate)\.ts$/.test(file);
   const out: Count = { prose: 0, flow: 0, imports: [] };
   const add = (n: number, flow: boolean) => {
     if (flow || inFlowDir) out.flow += n;
@@ -92,7 +92,8 @@ function fileWords(file: string): Count {
         : ts.isJsxExpression(init) && init.expression && ts.isStringLiteralLike(init.expression)
           ? init.expression.text
           : null;
-      if (val && TEXT_KEYS.has(name)) add(words(val), here);
+      // A JSX `title` is a hover tooltip, not on-screen copy (plan revision 3.4, B4); data keys still count.
+      if (val && TEXT_KEYS.has(name) && name !== "title") add(words(val), here);
     } else if (ts.isPropertyAssignment(node) && TEXT_KEYS.has(node.name.getText(sf).replace(/["']/g, ""))) {
       if (ts.isStringLiteralLike(node.initializer)) add(words(node.initializer.text), here);
     }

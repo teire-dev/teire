@@ -86,7 +86,9 @@ export function ChangeFan({
           {change.title}
         </Link>
         <span className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-3">
-          {change.subject ? <span className="truncate">{change.subject}</span> : null}
+          {change.subject && !change.title.includes(change.subject) ? (
+            <span className="truncate">{change.subject}</span>
+          ) : null}
           {change.from || change.to ? (
             <span>
               {change.from ?? "?"} → {change.to ?? "?"}

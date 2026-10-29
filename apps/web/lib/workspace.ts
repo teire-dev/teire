@@ -234,70 +234,45 @@ export async function gapsOf(scope: Scope): Promise<CoverageGap[]> {
 }
 
 /** The Overview's sections, most urgent first (plan revision 3.3, "Overview"). */
-export async function overviewOf(scope: Scope) {
+export async function overviewOf(scope: Scope, gapsIn?: CoverageGap[] | Promise<CoverageGap[]>) {
   const db = database();
-  const [needsYou, needsYouCount, liveCount, openPrs, live, recent, deadlines, repoRows, gaps] =
-    await Promise.all([
-      rowsOf(scope, NEEDS_YOU, 8),
-      countRuns(scope, NEEDS_YOU),
-      // The same runs the "Working now" list shows: queued, running and stopping (U4 review).
-      countRuns(scope, inArray(runs.status, ["queued", "running", "stopping"])),
-      rowsOf(
-        scope,
+  const [needsYou, needsYouCount, liveCount, live, deadlines, [repoCount], gaps] = await Promise.all([
+    rowsOf(scope, NEEDS_YOU, 8),
+    countRuns(scope, NEEDS_YOU),
+    // The same runs the "Working now" list shows: queued, running and stopping (U4 review).
+    countRuns(scope, inArray(runs.status, ["queued", "running", "stopping"])),
+    rowsOf(scope, inArray(runs.status, ["queued", "running", "stopping"]), 6),
+    db
+      .select({
+        changeId: changes.id,
+        title: changes.title,
+        deadline: changes.deadline,
+        provider: changes.providerSlug,
+        repos: sql<number>`count(distinct ${findings.repoId})::int`,
+      })
+      .from(findings)
+      .innerJoin(changes, eq(changes.id, findings.changeId))
+      .innerJoin(repos, eq(repos.id, findings.repoId))
+      .innerJoin(installations, eq(installations.id, repos.installationId))
+      .where(
         and(
-          // Every run that holds an open PR now, whatever it ended as: the list its count counts.
-          sql`exists (select 1 from artifacts a where a.run_id = ${runs.id} and a.kind = 'pr' and a.state = 'open')`,
+          scopeWhere(scope),
+          eq(findings.verdict, "affected"),
+          // Only what still needs fixing: an ignored or fixed finding has no deadline for you (U4 review).
+          eq(findings.state, "open"),
+          sql`${changes.deadline} > now() - interval '30 days'`,
         ),
-        8,
-      ),
-      rowsOf(scope, inArray(runs.status, ["queued", "running", "stopping"]), 6),
-      rowsOf(scope, sql`${runs.finishedAt} > now() - interval '2 days'`, 8),
-      db
-        .select({
-          changeId: changes.id,
-          title: changes.title,
-          deadline: changes.deadline,
-          provider: changes.providerSlug,
-          repos: sql<number>`count(distinct ${findings.repoId})::int`,
-        })
-        .from(findings)
-        .innerJoin(changes, eq(changes.id, findings.changeId))
-        .innerJoin(repos, eq(repos.id, findings.repoId))
-        .innerJoin(installations, eq(installations.id, repos.installationId))
-        .where(
-          and(
-            scopeWhere(scope),
-            eq(findings.verdict, "affected"),
-            // Only what still needs fixing: an ignored or fixed finding has no deadline for you (U4 review).
-            eq(findings.state, "open"),
-            sql`${changes.deadline} > now() - interval '30 days'`,
-          ),
-        )
-        .groupBy(changes.id, changes.title, changes.deadline, changes.providerSlug)
-        .orderBy(asc(changes.deadline))
-        .limit(6),
-      db
-        .select({
-          id: repos.id,
-          fullName: repos.fullName,
-          status: repos.status,
-          config: repos.config,
-          fixMode: repos.fixMode,
-          defaultFixMode: installations.defaultFixMode,
-          securityFixMode: installations.securityFixMode,
-          pausedReason: repos.pausedReason,
-          lastScannedAt: repos.lastScannedAt,
-          languages: repos.languages,
-          affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f where f.repo_id = ${repos.id} and f.state = 'open' and f.verdict in ('affected', 'needs_human', 'check_by_hand'))`,
-          openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
-          live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status in ('running', 'stopping'))`,
-        })
-        .from(repos)
-        .innerJoin(installations, eq(installations.id, repos.installationId))
-        .where(scopeWhere(scope))
-        .orderBy(desc(repos.lastScannedAt)),
-      gapsOf(scope),
-    ]);
+      )
+      .groupBy(changes.id, changes.title, changes.deadline, changes.providerSlug)
+      .orderBy(asc(changes.deadline))
+      .limit(6),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(repos)
+      .innerJoin(installations, eq(installations.id, repos.installationId))
+      .where(scopeWhere(scope)),
+    gapsIn ?? gapsOf(scope),
+  ]);
   // Every figure counts the same repositories its lists show (round 2); "reaching code" is the Findings
   // tab's own count, per repository: open groups that are affected or need a person (U3 review).
   const [counts] = (
@@ -312,14 +287,9 @@ export async function overviewOf(scope: Scope) {
   ).rows;
   return {
     needsYou,
-    openPrs,
     live,
-    recent,
     deadlines,
-    repos: repoRows.map(({ config, defaultFixMode, securityFixMode, fixMode, ...r }) => ({
-      ...r,
-      fixMode: repoFixMode({ config, fixMode, fullName: r.fullName }, { defaultFixMode, securityFixMode }),
-    })),
+    repoCount: repoCount?.n ?? 0,
     gaps,
     counts: { ...(counts ?? { proven: 0, open: 0, reaching: 0 }), needsYou: needsYouCount, live: liveCount },
   };
@@ -636,7 +606,7 @@ export interface EstateSource {
  * the same reaches by source (provider, ecosystem), with what Teire couldn't check as its own source.
  * Every figure counts stored rows. `gaps` can be passed when the caller already read them.
  */
-export async function estateOf(scope: Scope, gaps?: CoverageGap[]) {
+export async function estateOf(scope: Scope, gaps?: CoverageGap[] | Promise<CoverageGap[]>) {
   const db = database();
   const [all, outcomeRows, repoRows, gapList] = await Promise.all([
     changesFor(scope),

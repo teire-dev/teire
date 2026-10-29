@@ -9,6 +9,7 @@ import {
   FolderGit2,
   GitCompareArrows,
   LayoutGrid,
+  Pause,
   Plus,
   RefreshCw,
   Search,
@@ -385,11 +386,23 @@ export function AppShell({
           </button>
         </header>
         {current?.suspendedAt ? (
-          // Said on every page, not only a repository's (U4 review): nothing runs while it's suspended.
-          <p className="border-b border-attention/30 bg-attention-soft px-4 py-2 text-sm text-attention md:px-8">
-            {current.login}'s installation is suspended on GitHub: Teire scans nothing and opens nothing until
-            it's unsuspended in GitHub's settings.
-          </p>
+          // Said on every page (U4 review): nothing runs while the installation is suspended.
+          <div className="flex items-center gap-3 border-b border-broke/20 bg-broke-soft px-4 py-2 md:px-8">
+            <span className="flex size-6 items-center justify-center rounded-md bg-broke text-white">
+              <Pause className="size-3.5" aria-hidden />
+            </span>
+            <span className="text-sm font-medium text-broke">Suspended on GitHub</span>
+            <a
+              href={
+                current.type === "Organization"
+                  ? `https://github.com/organizations/${current.login}/settings/installations/${current.id}`
+                  : `https://github.com/settings/installations/${current.id}`
+              }
+              className="ml-auto text-xs text-broke hover:underline"
+            >
+              Open GitHub ›
+            </a>
+          </div>
         ) : null}
         <div className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</div>
       </SidebarInset>

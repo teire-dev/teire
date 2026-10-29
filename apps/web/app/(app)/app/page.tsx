@@ -16,7 +16,7 @@ import { changesGraph, sourcesGraph } from "@/lib/estate";
 import { subjectMark } from "@/lib/marks";
 import { STEP_DOING } from "@/lib/proof";
 import { getSession } from "@/lib/session";
-import { type DayCount, dailyCounts, estateOf, overviewOf, type RunRow } from "@/lib/workspace";
+import { type DayCount, dailyCounts, estateOf, gapsOf, overviewOf, type RunRow } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "./gate";
 
 export const metadata = { title: "Overview" };
@@ -92,12 +92,14 @@ async function Overview() {
   if (!session) return <SignInCard next="/app" />;
   const mine = await myScope(session.user.id);
   if (!mine) return <InstallCard />;
+  // One read of the coverage gaps feeds the figures and the map's "Couldn't check", all in parallel.
+  const gaps = gapsOf(mine.scope);
   const [data, days, estate] = await Promise.all([
-    overviewOf(mine.scope),
+    overviewOf(mine.scope, gaps),
     dailyCounts(mine.scope, DAYS),
-    estateOf(mine.scope),
+    estateOf(mine.scope, gaps),
   ]);
-  if (!data.repos.length) return <InstallCard />;
+  if (!data.repoCount) return <InstallCard />;
   const graphs = { changes: changesGraph(estate), sources: sourcesGraph(estate) };
 
   return (

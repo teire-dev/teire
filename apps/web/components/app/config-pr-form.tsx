@@ -1,9 +1,17 @@
 "use client";
 
 import { CONFIG_PR_KEYS, type ConfigPrKey, configValue } from "@teire/engine/config-keys";
-import { GitPullRequestArrow } from "lucide-react";
+import { GitPullRequestArrow, Info, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { runAction } from "./run-action";
 
 const SAY: Record<ConfigPrKey, string> = {
@@ -68,6 +76,7 @@ export function ConfigPrForm({
   };
   const [value, setValue] = useState(() => start(initialKey));
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const spec = CONFIG_PR_KEYS[key];
   const checked = configValue(key, value);
   const now = shown(current[key]);
@@ -81,15 +90,11 @@ export function ConfigPrForm({
   return (
     <form
       className="flex flex-col gap-3"
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
+        // The PR opens only after its diff is seen: before → after, and what merging it does.
         if ("error" in checked || !changed) return;
-        setBusy(true);
-        try {
-          await runAction({ kind: "config-pr", params: { key, value }, repo });
-        } finally {
-          setBusy(false);
-        }
+        setConfirming(true);
       }}
     >
       <div className="flex flex-wrap items-start gap-2">
@@ -108,7 +113,7 @@ export function ConfigPrForm({
         >
           {keys.map((k) => (
             <option key={k} value={k}>
-              {SAY[k]} ({k})
+              {SAY[k]}
             </option>
           ))}
         </select>
@@ -181,16 +186,65 @@ export function ConfigPrForm({
           >
             {changed ? String(value).replace(/\n/g, ", ") || "empty" : "no change"}
           </span>
-          {changed ? (
-            <span
-              className="cursor-help rounded-full px-1.5 text-ink-3 ring-1 ring-rule"
-              title={`Opening the PR changes nothing yet: Teire reads it at the next scan after it merges.${EFFECT[key] ? ` ${EFFECT[key]}` : ""}`}
-            >
-              i
-            </span>
-          ) : null}
         </p>
       )}
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{SAY[key]}</DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              {repo} · .github/teire.yml · {key}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-sunken p-3 font-mono text-xs">
+            <span className="rounded bg-broke-soft px-1.5 py-0.5 text-broke line-through decoration-broke/50">
+              {now ? now.replace(/\n/g, ", ") : "unset"}
+            </span>
+            <span className="text-ink-3" aria-hidden>
+              →
+            </span>
+            <span className="rounded bg-proven-soft px-1.5 py-0.5 text-proven">
+              {String(value).replace(/\n/g, ", ") || "empty"}
+            </span>
+          </div>
+          <ul className="flex flex-col gap-1.5 text-xs text-ink-2">
+            <li className="flex gap-2">
+              <GitPullRequestArrow className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden />
+              Opens a pull request; nothing changes until it merges.
+            </li>
+            <li className="flex gap-2">
+              <RefreshCw className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden />
+              Teire reads it at the next scan after the merge.
+            </li>
+            {EFFECT[key] ? (
+              <li className="flex gap-2">
+                <Info className="mt-0.5 size-3.5 shrink-0 text-ink-3" aria-hidden />
+                {EFFECT[key]}
+              </li>
+            ) : null}
+          </ul>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await runAction({ kind: "config-pr", params: { key, value }, repo });
+                  setConfirming(false);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <GitPullRequestArrow data-icon="inline-start" aria-hidden />
+              Open the PR
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

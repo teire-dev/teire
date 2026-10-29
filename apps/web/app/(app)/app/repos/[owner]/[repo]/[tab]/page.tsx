@@ -801,14 +801,14 @@ function Activity({ data }: { data: Data }) {
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="flex flex-wrap items-baseline gap-x-2">
                   <span className="text-sm text-ink">{describeAction(a.kind as ActionKind, a.params)}</span>
-                  <span className="font-mono text-[11px] text-ink-3">
-                    {whoOf(a)} · {WHERE[a.source] ?? a.source} · {ago(a.createdAt)}
+                  <span className="font-mono text-[11px] text-ink-3" title={a.result ?? undefined}>
+                    {whoOf(a)}
+                    {a.source !== "web" ? ` · ${WHERE[a.source] ?? a.source}` : ""} · {ago(a.createdAt)}
                   </span>
                 </span>
-                {a.result ? (
-                  <span className={cn("truncate text-xs", state === "failed" ? "text-broke" : "text-ink-3")}>
-                    {a.result}
-                  </span>
+                {/* The outcome's words only when it went wrong; a done action is its green tile. */}
+                {a.result && state === "failed" ? (
+                  <span className="truncate text-xs text-broke">{a.result}</span>
                 ) : null}
               </div>
               {a.links.length ? (

@@ -14,6 +14,7 @@ import {
 } from "@xyflow/react";
 import { useTheme } from "fumadocs-ui/provider/base";
 import { GripVertical } from "lucide-react";
+import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo } from "react";
 import { EDGE_TYPES, type FlowEdgeT, HANDLE_CLASS } from "@/components/flow/flow-edge";
 import { TileLabel, type TileSize, TileSquare } from "@/components/flow/tile";
@@ -105,6 +106,7 @@ function Canvas({
 }) {
   const { resolvedTheme } = useTheme();
   const flow = useReactFlow();
+  const reduce = useReducedMotion();
   const [nodes, setNodes, onNodesChange] = useNodesState<TileNodeT>(toNodes(tiles));
   // The caller's layout is the truth: a new step, a new choice or new data re-places the tiles.
   const sig = JSON.stringify(
@@ -118,9 +120,13 @@ function Canvas({
   // Re-frame when tiles join or leave (a fan-out growing), smoothly.
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed by the set of tiles
   useEffect(() => {
-    const t = setTimeout(() => void flow.fitView({ padding: 0.18, duration: 500, maxZoom: 1.25 }), 30);
+    // Re-framing glides, unless the person asked for less motion.
+    const t = setTimeout(
+      () => void flow.fitView({ padding: 0.18, duration: reduce ? 0 : 500, maxZoom: 1.25 }),
+      30,
+    );
     return () => clearTimeout(t);
-  }, [ids, flow]);
+  }, [ids, flow, reduce]);
   const edges = useMemo<FlowEdgeT[]>(
     () =>
       links.map((l) => ({
