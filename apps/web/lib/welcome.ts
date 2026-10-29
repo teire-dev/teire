@@ -8,7 +8,8 @@ import { repoFixMode } from "./fix-mode";
 /**
  * The welcome flow's data (plan revision 3.3, U5): the installation GitHub just sent the person back
  * from (or the one they chose last), each repository it covers that they can see, its first scan as it
- * stands, what reaches its code, its onboarding PR and the fix mode it will run with.
+ * stands, the languages and packages it read, what reaches its code (the three most urgent changes by
+ * name), its onboarding PR and the fix mode it will run with.
  */
 export type WelcomeData = Awaited<ReturnType<typeof welcomeOf>>;
 
@@ -39,7 +40,11 @@ export async function welcomeOf(userId: string, asked: number | null) {
     )
     .orderBy(repos.fullName);
   const ids = rows.map((r) => r.id);
-  const [latest, reaching, onboarding] = ids.length
+  const idList = sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `,
+  );
+  const [latest, reaching, onboarding, packages, top] = ids.length
     ? await Promise.all([
         db.execute<{
           repo_id: number;
@@ -49,10 +54,7 @@ export async function welcomeOf(userId: string, asked: number | null) {
           finished_at: Date | null;
         }>(sql`
           select distinct on (repo_id) repo_id, status, error, created_at, finished_at from scans
-          where repo_id in (${sql.join(
-            ids.map((id) => sql`${id}`),
-            sql`, `,
-          )}) order by repo_id, created_at desc`),
+          where repo_id in (${idList}) order by repo_id, created_at desc`),
         db
           .select({
             repoId: findings.repoId,
@@ -77,8 +79,30 @@ export async function welcomeOf(userId: string, asked: number | null) {
           .from(artifacts)
           .where(and(inArray(artifacts.repoId, ids), eq(artifacts.kind, "onboarding")))
           .orderBy(desc(artifacts.updatedAt)),
+        // The packages each repository's last finished scan read.
+        db.execute<{ repo_id: number; n: number }>(sql`
+          select d.repo_id, count(distinct d.dependency_key)::int as n
+          from dependency_instances d
+          join (select distinct on (repo_id) id from scans
+                where repo_id in (${idList}) and status = 'done'
+                order by repo_id, finished_at desc) s on s.id = d.scan_id
+          group by d.repo_id`),
+        // What reaches each repository's code, most urgent first; a group counts once.
+        db.execute<{
+          repo_id: number;
+          key: string;
+          title: string;
+          verdict: string;
+          deadline: Date | null;
+        }>(sql`
+          select f.repo_id, coalesce(f.group_key, f.change_id) as key, c.title, f.verdict, c.deadline
+          from findings f join changes c on c.id = f.change_id
+          where f.repo_id in (${idList}) and f.state = 'open'
+            and f.verdict in ('affected', 'needs_human', 'check_by_hand')
+          order by f.repo_id, f.priority asc nulls last, c.deadline asc nulls last
+          limit 2000`),
       ])
-    : [{ rows: [] }, [], []];
+    : [{ rows: [] }, [], [], { rows: [] }, { rows: [] }];
   const manage =
     installation.type === "Organization"
       ? `https://github.com/organizations/${installation.login}/settings/installations/${installation.id}`
@@ -91,9 +115,23 @@ export async function welcomeOf(userId: string, asked: number | null) {
       const scan = latest.rows.find((s) => Number(s.repo_id) === r.id) ?? null;
       const pr = onboarding.find((a) => a.repoId === r.id) ?? null;
       const mode = repoFixMode(r, installation);
+      const changes: { key: string; title: string; verdict: string; deadline: string | null }[] = [];
+      for (const t of top.rows) {
+        if (Number(t.repo_id) !== r.id || changes.some((c) => c.key === t.key)) continue;
+        changes.push({
+          key: t.key,
+          title: t.title,
+          verdict: t.verdict,
+          deadline: t.deadline ? new Date(t.deadline).toISOString() : null,
+        });
+        if (changes.length === 3) break;
+      }
       return {
         fullName: r.fullName,
         isPrivate: r.isPrivate,
+        languages: Array.isArray(r.languages) ? r.languages : [],
+        packages: Number(packages.rows.find((p) => Number(p.repo_id) === r.id)?.n ?? 0),
+        changes,
         status: r.status,
         pausedReason: r.pausedReason,
         createdAt: r.createdAt.toISOString(),

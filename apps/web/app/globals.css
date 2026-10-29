@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* React Flow's own styles, after Tailwind so the `--xy-*` mapping below wins (plan 3.4, A4). */
+@import "@xyflow/react/dist/style.css";
 /* /docs: Fumadocs adopts the shadcn variables below (its own colours stay unused). */
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
@@ -8,14 +10,15 @@
 @source "../node_modules/streamdown/dist/*.js";
 
 /*
- * Teire tokens (plan revision 3.3, "The revamp"; design note context/13-design/u0-design-note.md).
- * The page is a desk (canvas) with flat sheets on it, held by 1px rules, never shadows; shadows are
- * for floating layers only. Colour carries meaning only:
- *   signal    Teire is acting: a live run, progress, the assistant, the focus ring. Never a CTA fill.
- *   proven    verified evidence;   attention  a draft, a person needed, a deadline;
- *   broke     a regression or failure.
- * Primary actions are ink. shadcn's and the earlier status names alias onto these, so every page
- * keeps working while it is rebuilt.
+ * Teire tokens (plan revision 3.4, "show, don't tell"; reference lock: Antimetal, n8n's canvas).
+ * Daylight product on a cool canvas, navy ink at every level (never black), one dark band at most per
+ * page. Colour has one job each:
+ *   cta        the primary action's fill (CTA-size buttons only), navy text on it, a 3:1 olive edge;
+ *   signal     Teire is acting: a live tile, the dot travelling an edge, progress, the assistant, focus;
+ *   proven     verified evidence;   attention  a draft, a person needed, a deadline;
+ *   broke      a regression or a failure.
+ * Logos carry identity, colour carries state. Switches, checkboxes and selected items are navy.
+ * shadcn's and the earlier status names alias onto these so Fumadocs and every primitive keep working.
  */
 /* Dark inside `.dark`, except inside a region pinned `.light` within it (the kit's side-by-side boards). */
 @custom-variant dark (&:where(.dark, .dark *):not(:where(.dark .light, .dark .light *)));
@@ -29,6 +32,7 @@
   --color-ink-3: var(--ink-3);
   --color-rule: var(--rule);
   --color-rule-strong: var(--rule-strong);
+  --color-hover: var(--hover);
   --color-signal: var(--signal);
   --color-signal-soft: var(--signal-soft);
   --color-proven: var(--proven);
@@ -37,6 +41,24 @@
   --color-attention-soft: var(--attention-soft);
   --color-broke: var(--broke);
   --color-broke-soft: var(--broke-soft);
+  /* The mark's navy: the same in both themes, like any logo. */
+  --color-brand: #1b2540;
+  --color-cta: var(--cta);
+  --color-cta-ink: var(--cta-ink);
+  --color-cta-hover: var(--cta-hover);
+  --color-cta-edge: var(--cta-edge);
+  --color-hero: var(--hero);
+  --color-hero-2: var(--hero-2);
+  --color-hero-ink: var(--hero-ink);
+  --color-hero-ink-2: var(--hero-ink-2);
+  --color-hero-rule: var(--hero-rule);
+  --color-console: var(--console);
+  --color-console-2: var(--console-2);
+  --color-console-ink: var(--console-ink);
+  --color-console-ink-2: var(--console-ink-2);
+  --color-console-rule: var(--console-rule);
+  --color-console-add: var(--console-add);
+  --color-console-del: var(--console-del);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -76,82 +98,183 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);
-  --radius-sm: calc(var(--radius) * 0.66);
+  /* The serif is a display face only: public pages and docs titles at 32px and up (B8). */
+  --font-display: var(--font-newsreader);
+  --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) * 1.34);
-  --radius-xl: calc(var(--radius) * 2);
-  --radius-2xl: calc(var(--radius) * 2.66);
-  --radius-3xl: calc(var(--radius) * 3.33);
-  --radius-4xl: calc(var(--radius) * 4);
+  --radius-lg: calc(var(--radius) * 1.2);
+  --radius-xl: calc(var(--radius) * 1.6);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 2.4);
+  --radius-4xl: calc(var(--radius) * 3.2);
+  --radius-card: 1rem;
+  --radius-tile: 1rem;
+  --radius-feature: 1.25rem;
   --shadow-card: var(--card-shadow);
   --shadow-card-hover: var(--card-shadow-hover);
+  --shadow-tile: var(--tile-shadow);
   --shadow-float: var(--float-shadow);
-  --animate-enter: enter 200ms ease-out both;
+  --shadow-cta: var(--cta-shadow);
+  /* Antimetal's spring: a 4% overshoot, so things arrive rather than fade in. */
+  --ease-spring: linear(
+    0,
+    0.026 1.8%,
+    0.108 3.9%,
+    0.59 12.2%,
+    0.792 16.5%,
+    0.931 21%,
+    0.978 23.4%,
+    1.01 25.9%,
+    1.033 29.3%,
+    1.04 33.3%,
+    1.001 56.9%,
+    1
+  );
+  --animate-enter: enter 560ms var(--ease-spring) both;
   --animate-live: live 1.6s ease-out infinite;
+  --animate-shimmer: shimmer 1.8s linear infinite;
 }
 
 @keyframes enter {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px) scale(0.985);
   }
 }
 
-/* The live dot's ring: Teire is working right now. */
+/* The live ring: Teire is working right now (a live dot, a live tile). */
 @keyframes live {
   0% {
     box-shadow: 0 0 0 0 color-mix(in oklab, var(--signal) 45%, transparent);
   }
   70%,
   100% {
-    box-shadow: 0 0 0 6px color-mix(in oklab, var(--signal) 0%, transparent);
+    box-shadow: 0 0 0 7px color-mix(in oklab, var(--signal) 0%, transparent);
+  }
+}
+
+/* Skeletons and live captions: one sweep of light across the surface. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* The dot travelling a live connector: down on phones, across from md up. */
+@keyframes travel-x {
+  from {
+    left: 0%;
+  }
+  to {
+    left: calc(100% - 8px);
+  }
+}
+@keyframes travel-y {
+  from {
+    top: 0%;
+  }
+  to {
+    top: calc(100% - 8px);
+  }
+}
+
+/* An edge drawing itself in (stroke-dasharray set to the path length by the flow parts). */
+@keyframes draw {
+  from {
+    stroke-dashoffset: var(--len, 400);
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
 
 :root,
 .light {
-  /* 6px controls; sheets 8px (radius-lg); floating layers 12px (radius-xl). `.light` pins a region light. */
-  --radius: 0.375rem;
-  --canvas: #f4f4f5;
+  /* 10px controls; 16px cards, panels and tiles; 20px feature cards; pills for buttons and chips. */
+  --radius: 0.625rem;
+  --canvas: #f8f9fc;
   --sheet: #ffffff;
-  --sunken: #fafafa;
-  --ink: #0a0a0b;
-  --ink-2: #52525b;
-  --ink-3: #67676f;
-  --rule: #e4e4e7;
-  --rule-strong: #d4d4d8;
-  --signal: #2b50e6;
-  --signal-soft: #eef1fd;
-  --proven: #15803d;
-  --proven-soft: #ecf7ef;
-  --attention: #b45309;
-  --attention-soft: #fdf4e6;
-  --broke: #c2332b;
-  --broke-soft: #fcedec;
-  --hover: #f1f1f2;
+  --sunken: #f1f4f9;
+  --ink: #1b2540;
+  --ink-2: #4a5470;
+  --ink-3: #5e677f;
+  --rule: #e3e7f0;
+  --rule-strong: #cdd4e2;
+  --hover: #eef1f7;
+  --signal: #0047e0;
+  --signal-soft: #e8efff;
+  --proven: #0b7a4b;
+  --proven-soft: #e5f5ee;
+  --attention: #a65200;
+  --attention-soft: #fdf2e2;
+  --broke: #c8283a;
+  --broke-soft: #fdecee;
+  --cta: #d0f100;
+  --cta-ink: #1b2540;
+  --cta-hover: #c4e400;
+  /* 3.46:1 against white, 3.28:1 against the canvas: the button's boundary (WCAG 1.4.11). */
+  --cta-edge: #7f9300;
+  --cta-shadow:
+    0 0 0 1px var(--cta-edge), inset 0 1px 0 rgb(255 255 255 / 0.55), 0 1px 2px rgb(24 37 66 / 0.24),
+    0 10px 20px -10px rgb(24 37 66 / 0.45);
+  --hero: #001033;
+  --hero-2: #0a2a8a;
+  --hero-ink: #fafeff;
+  --hero-ink-2: #b9c8e8;
+  --hero-rule: rgb(224 246 255 / 0.16);
+  --console: #0b1226;
+  --console-2: #121b36;
+  --console-ink: #dce6ff;
+  --console-ink-2: #8b9bc4;
+  --console-rule: #1f2a4a;
+  --console-add: #3ddc97;
+  --console-del: #ff6b76;
+  /* App cards are flat with a 1px ring; elevation belongs to tiles and floating layers (B8). */
+  --card-shadow: 0 0 0 1px rgb(0 39 80 / 0.08);
+  --card-shadow-hover: 0 0 0 1px rgb(0 39 80 / 0.14), 0 4px 12px -6px rgb(0 39 80 / 0.12);
+  --tile-shadow:
+    0 0 0 1px rgb(0 39 80 / 0.07), 0 6px 12px -3px rgb(0 39 80 / 0.06), 0 24px 32px -16px rgb(0 39 80 / 0.07);
   --float-shadow:
-    0 0 0 1px rgb(10 10 11 / 0.06), 0 8px 24px -6px rgb(10 10 11 / 0.16), 0 2px 6px rgb(10 10 11 / 0.06);
+    0 0 0 1px rgb(0 39 80 / 0.07), 0 6px 12px -3px rgb(0 39 80 / 0.07), 0 32px 32px -16px rgb(0 39 80 / 0.07),
+    0 56px 72px -16px rgb(0 39 80 / 0.08);
+  --overlay: rgb(6 11 26 / 0.32);
 }
 
 .dark {
-  --canvas: #0b0b0c;
-  --sheet: #131315;
-  --sunken: #0f0f10;
-  --ink: #ededef;
-  --ink-2: #a1a1aa;
-  --ink-3: #8e8e96;
-  --rule: #26262b;
-  --rule-strong: #34343a;
-  --signal: #7c93ff;
-  --signal-soft: #161b33;
-  --proven: #4ade80;
-  --proven-soft: #0f2418;
+  /* Night navy: the same hues, deep. */
+  --canvas: #060b1a;
+  --sheet: #0c1326;
+  --sunken: #091022;
+  --ink: #e8edfb;
+  --ink-2: #aab4cd;
+  --ink-3: #8c96b0;
+  --rule: #1a2440;
+  --rule-strong: #283456;
+  --hover: #121b33;
+  --signal: #6b97ff;
+  --signal-soft: #0e1b3d;
+  --proven: #3ddc97;
+  --proven-soft: #0b2a1e;
   --attention: #fbbf24;
   --attention-soft: #2a1e08;
-  --broke: #f87171;
-  --broke-soft: #2c1110;
-  --hover: #1a1a1d;
-  --float-shadow: 0 0 0 1px #34343a, 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  --broke: #ff6b76;
+  --broke-soft: #2c1116;
+  --cta: #d0f100;
+  --cta-ink: #0a1024;
+  --cta-hover: #ddff2a;
+  --cta-edge: #d0f100;
+  --cta-shadow: 0 0 0 1px var(--cta-edge), 0 10px 24px -12px rgb(208 241 0 / 0.35);
+  --console: #050a18;
+  --console-2: #0b1428;
+  --console-rule: #1a2440;
+  --card-shadow: 0 0 0 1px var(--rule);
+  --card-shadow-hover: 0 0 0 1px var(--rule-strong);
+  --tile-shadow: 0 0 0 1px #1f2a4a, 0 12px 28px -12px rgb(0 0 0 / 0.6);
+  --float-shadow: 0 0 0 1px var(--rule-strong), 0 18px 40px -12px rgb(0 0 0 / 0.7);
+  --overlay: rgb(0 0 0 / 0.55);
 }
 
 /* shadcn's roles and the earlier status names, on the tokens above (light and dark alike). */
@@ -164,6 +287,7 @@
   --card-foreground: var(--ink);
   --popover: var(--sheet);
   --popover-foreground: var(--ink);
+  /* `primary` is navy: shadcn's checked, selected and filled states. The CTA fill is `cta` (A5). */
   --primary: var(--ink);
   --primary-foreground: var(--sheet);
   --secondary: var(--sunken);
@@ -190,21 +314,58 @@
   --sidebar-foreground: var(--ink-2);
   --sidebar-primary: var(--ink);
   --sidebar-primary-foreground: var(--sheet);
-  --sidebar-accent: var(--hover);
+  --sidebar-accent: var(--sheet);
   --sidebar-accent-foreground: var(--ink);
   --sidebar-border: var(--rule);
   --sidebar-ring: var(--signal);
-  /* Sheets are flat: a 1px rule, no blur. */
-  --card-shadow: 0 0 0 1px var(--rule);
-  --card-shadow-hover: 0 0 0 1px var(--rule-strong);
 }
 
-/* In the docs the active page and links take the signal colour; the rest follows the aliases above. */
+/* In the docs the active page and links take the signal colour (never the CTA's chartreuse). */
 :root,
 .dark {
   --color-fd-primary: var(--signal);
   --color-fd-primary-foreground: var(--sheet);
   --fd-layout-width: 1400px;
+}
+
+/*
+ * React Flow on the tokens: canvases follow light and dark through CSS, no JS (plan 3.4, A4). The
+ * pane lets the page scroll vertically on touch; panning is opt-in per canvas.
+ */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-background-pattern-color: color-mix(in oklab, var(--ink-3) 28%, transparent);
+  --xy-node-background-color-default: var(--sheet);
+  --xy-node-border-default: 0;
+  --xy-node-border-radius-default: var(--radius-tile);
+  --xy-node-boxshadow-default: none;
+  --xy-node-color-default: var(--ink);
+  --xy-node-boxshadow-selected-default: 0 0 0 2px var(--signal);
+  --xy-edge-stroke-default: var(--rule-strong);
+  --xy-edge-stroke-selected-default: var(--signal);
+  --xy-edge-stroke-width-default: 1.5;
+  --xy-connectionline-stroke-default: var(--signal);
+  --xy-handle-background-color-default: var(--sheet);
+  --xy-handle-border-color-default: var(--rule-strong);
+  --xy-selection-background-color-default: color-mix(in oklab, var(--signal) 8%, transparent);
+  --xy-selection-border-default: 1px dashed var(--signal);
+  --xy-controls-button-background-color-default: var(--sheet);
+  --xy-controls-button-background-color-hover-default: var(--hover);
+  --xy-controls-button-color-default: var(--ink-2);
+  --xy-controls-button-color-hover-default: var(--ink);
+  --xy-controls-button-border-color-default: var(--rule);
+  --xy-controls-box-shadow-default: var(--tile-shadow);
+  --xy-minimap-background-color-default: var(--sheet);
+  --xy-minimap-mask-background-color-default: color-mix(in oklab, var(--canvas) 70%, transparent);
+  --xy-minimap-node-background-color-default: var(--rule-strong);
+  --xy-attribution-background-color-default: transparent;
+  font-family: var(--font-geist-sans);
+}
+.react-flow__pane {
+  touch-action: pan-y;
+}
+.react-flow__attribution a {
+  color: var(--ink-3);
 }
 
 /*
@@ -259,16 +420,32 @@
   color: var(--ink-3);
 }
 
-/* Headings: tight tracking at weight 560–600, never black-bold. */
+/* App headings: Geist, tight tracking at weight 560–600, never black-bold. */
 @utility heading {
   font-weight: 580;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.022em;
 }
 
+/* Public display headlines: the serif, whole headlines only, 32px and up (plan 3.4, B8). */
 @utility display {
-  font-weight: 580;
-  letter-spacing: -0.04em;
-  line-height: 1.02;
+  font-family: var(--font-newsreader), ui-serif, Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  line-height: 1.04;
+  font-optical-sizing: auto;
+}
+
+/* The one loading surface: a sunken block with a sweep of light (skeletons, pending tiles). */
+@utility shimmer {
+  background-color: var(--sunken);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--sheet) 70%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
 }
 
 @layer base {

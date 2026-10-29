@@ -277,7 +277,7 @@ export function DataTableToolbarColumns({
             align="end"
             sideOffset={6}
             aria-label={`Visible ${label.toLowerCase()}`}
-            className="w-auto min-w-[184px] rounded-[14px] border-0 bg-popover p-1 text-[13px]/[18px] text-popover-foreground shadow-[0_0_0_1px_var(--rule-strong),0_16px_32px_-12px_oklch(0_0_0/0.32),0_4px_8px_-4px_oklch(0_0_0/0.12)] data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 data-[state=open]:zoom-in-96 data-open:zoom-in-96 data-[state=open]:duration-180 data-open:duration-180 data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-open:ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none"
+            className="w-auto min-w-[184px] rounded-[14px] border-0 bg-popover p-1 text-[13px]/[18px] text-popover-foreground shadow-float data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 data-[state=open]:zoom-in-96 data-open:zoom-in-96 data-[state=open]:duration-180 data-open:duration-180 data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-open:ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none"
           >
             <fieldset className="m-0 grid min-w-0 gap-px border-0 p-0">
               <legend className="sr-only">{`Visible ${label.toLowerCase()}`}</legend>

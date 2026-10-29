@@ -12,8 +12,8 @@ export function Mark({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  // Wordmark brands (Nebius, NVIDIA, Stripe, Tavily) widen their tile instead of shrinking to a square.
-  const wide = /nebius|nvidia|stripe|tavily/i.test(brand.light);
+  // Wordmark brands widen their tile instead of shrinking to a square (Stripe's file is a wordmark too).
+  const wide = brand.wide ?? /stripe/i.test(brand.light);
   const box = {
     sm: wide ? "h-6 px-1.5 rounded-md" : "size-6 rounded-md",
     md: wide ? "h-8 px-2 rounded-lg" : "size-8 rounded-lg",

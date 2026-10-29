@@ -6,6 +6,8 @@ export interface Brand {
   label: string;
   light: string;
   dark: string;
+  /** A wordmark (NVIDIA, Nebius, Tavily): its tile widens instead of shrinking to a square. */
+  wide?: boolean;
 }
 
 export const ECOSYSTEMS: Record<string, Brand & { reads: string }> = {
@@ -23,10 +25,31 @@ export const ECOSYSTEMS: Record<string, Brand & { reads: string }> = {
 };
 
 export const SPONSORS = {
-  nvidia: { label: "NVIDIA", light: "/logos/nvidia-light.svg", dark: "/logos/nvidia-dark.svg" },
-  nebius: { label: "Nebius", light: "/logos/nebius-light.svg", dark: "/logos/nebius-dark.svg" },
-  tavily: { label: "Tavily", light: "/logos/tavily-light.svg", dark: "/logos/tavily-dark.svg" },
+  nvidia: { label: "NVIDIA", light: "/logos/nvidia-light.svg", dark: "/logos/nvidia-dark.svg", wide: true },
+  nebius: { label: "Nebius", light: "/logos/nebius-light.svg", dark: "/logos/nebius-dark.svg", wide: true },
+  tavily: { label: "Tavily", light: "/logos/tavily-light.svg", dark: "/logos/tavily-dark.svg", wide: true },
   github: { label: "GitHub", light: "/logos/github-light.svg", dark: "/logos/github-dark.svg" },
+} satisfies Record<string, Brand>;
+
+/** What a run is built on, drawn on its tiles: the updater, the sandboxes, the model (plan 3.4). */
+export const STACK = {
+  dependabot: {
+    label: "dependabot-core",
+    light: "/logos/dependabot-light.svg",
+    dark: "/logos/dependabot-dark.svg",
+  },
+  cloudflare: { label: "Cloudflare", light: "/logos/cloudflare.svg", dark: "/logos/cloudflare.svg" },
+  nemotron: {
+    label: "Nemotron 3 Ultra",
+    light: "/logos/nvidia-icon-light.svg",
+    dark: "/logos/nvidia-icon-dark.svg",
+  },
+  tokenFactory: {
+    label: "Token Factory",
+    light: "/logos/nebius-light.svg",
+    dark: "/logos/nebius-dark.svg",
+    wide: true,
+  },
 } satisfies Record<string, Brand>;
 
 export function ecosystemOf(key: string | null | undefined) {
