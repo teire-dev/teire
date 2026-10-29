@@ -44,7 +44,7 @@ You meet Teire in five places:
 
 - **A GitHub App.** An onboarding PR, one fix PR per change, and a Dashboard issue you tick to fix, rebase or rescan.
 - **`@teire` commands** in any issue or PR: `rescan`, `fix`, `ignore`, `rebase`, `recreate`, `explain`, `config`, `pause`, `resume`, `wrong` and `help`.
-- **A web dashboard,** plus a public catalog of every confirmed change.
+- **A web dashboard drawn as flows:** your whole estate as one map (changes → repositories → what is open; drag a change onto a repository to fix it), every PR as a breadcrumb trail of its run, and **Ask Teire** beside it, answering with the same flows and acting only when you click Confirm. Plus a public catalog that shows Teire checking its sources.
 - **A public scan with a dry-run fix,** for any public repository, with no install.
 - **A CLI and MCP server,** so terminals, CI and coding agents ask the same questions.
 
@@ -87,7 +87,7 @@ You meet Teire in five places:
 - **Evaluation.** 12 package majors across all six ecosystems and 7 model retirements (in TypeScript, Python, Go, Java, Ruby and Rust), each verified end to end: two fixed by Nemotron 3 Ultra as the agent, five by a deterministic swap, four of them with Ultra reviewing the diff. No false positive across 6 clean repositories.
 - **Every PR carries its own evidence:** quotes, call sites, a before/after table, and a receipt down to the cent. A PR opens ready only when that evidence verifies it; otherwise it's a draft or an issue that says why.
 - **Discovery.** Teire finds providers with no hand-written reader from the code itself, and reads their notices with Nemotron under a quote gate.
-- **A complete product.** GitHub App, dashboard, public scan, dry run, catalog, CLI, MCP, a live trust page, and docs with real captures of every screen.
+- **A complete product, shown rather than told.** GitHub App, dashboard, Ask Teire, public scan, dry run, catalog, CLI, MCP, a live trust page, and docs whose diagrams are live flows; every process is drawn as tiles with real logos.
 
 ## What we learned
 
