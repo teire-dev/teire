@@ -18,10 +18,10 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Tool, ToolContent, ToolHeader } from "@/components/ai-elements/tool";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TextShimmer } from "@/components/ui/text-shimmer";
 import type { AssistantContext, AssistantMessage } from "@/lib/assistant/message";
 import { cn } from "@/lib/utils";
 import {
@@ -212,7 +212,9 @@ function Thread({
               />
             ))
           )}
-          {status === "submitted" ? <Shimmer className="font-mono text-[11px]">Reading…</Shimmer> : null}
+          {status === "submitted" ? (
+            <TextShimmer className="font-mono text-[11px]">Reading…</TextShimmer>
+          ) : null}
           {error ? <ModelDown question={lastQuestion} onRetry={() => void regenerate()} /> : null}
         </ConversationContent>
         <ConversationScrollButton className="bg-sheet" />
