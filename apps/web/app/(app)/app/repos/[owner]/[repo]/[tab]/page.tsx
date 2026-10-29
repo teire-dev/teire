@@ -38,7 +38,6 @@ import { FindingFlow } from "@/components/findings/finding-flow";
 import { TileSquare } from "@/components/flow/tile";
 import { Trail } from "@/components/flow/trail";
 import { Mark } from "@/components/teire/mark";
-import { RunRowItem } from "@/components/teire/run-row";
 import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
@@ -554,26 +553,41 @@ function Quiet({ label, meta }: { label: string; meta?: string }) {
 }
 
 async function Runs({ data, userId }: { data: Data; userId: string }) {
-  const mine = { scope: repoScope(data, userId) };
   const ids = data.runs.map((r) => r.id);
-  const rows = ids.length ? await rowsOf(mine.scope, inArray(runs.id, ids), ids.length) : [];
-  return rows.length ? (
+  const flows = await runFlowsOf(repoScope(data, userId), ids);
+  if (!ids.length) return <Quiet label="No runs yet" />;
+  return (
     <div className="flex flex-col gap-2">
       <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
-        {rows.map((r) => (
-          <RunRowItem key={r.id} row={r} href={`/runs/${r.id}`} />
-        ))}
+        {data.runs.map((r) => {
+          const input = flows.get(r.id);
+          return input ? (
+            <li key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+              <Trail
+                graph={runFlow(input)}
+                omit={["repository"]}
+                runHref={`/runs/${r.id}`}
+                label="The run"
+                className="min-w-0 flex-1"
+              />
+              <Link
+                href={`/runs/${r.id}`}
+                className="shrink-0 font-mono text-[11px] text-ink-3 hover:text-ink"
+              >
+                {r.status === "queued" ? "waiting" : ago(r.finishedAt ?? r.startedAt ?? r.createdAt)} ›
+              </Link>
+            </li>
+          ) : null;
+        })}
       </ul>
       {/* The newest few here; every run of the repository, paged, on Runs. */}
       <Link
         href={`/app/runs?repo=${encodeURIComponent(data.repo.fullName)}`}
         className="self-end font-mono text-xs text-ink-2 hover:text-ink"
       >
-        Every run of {data.repo.fullName} →
+        Every run ›
       </Link>
     </div>
-  ) : (
-    <Quiet label="No runs yet" />
   );
 }
 

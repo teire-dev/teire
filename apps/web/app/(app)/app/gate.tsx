@@ -1,81 +1,71 @@
-import { ShieldCheck, X } from "lucide-react";
+import { ArrowUpRight, Eye, GitPullRequest } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ConnectDiagram } from "@/components/brand/beam";
+import { BrandLogo } from "@/components/brand-logo";
 import { GithubMark } from "@/components/icons";
-import { SignInButton } from "@/components/sign-in-button";
 import { Button } from "@/components/ui/button";
+import { ECOSYSTEMS } from "@/lib/brands";
 import { INSTALL_URL } from "@/lib/site";
 
-/** Signed out: one GitHub button and what it is for (C1). */
-export function SignInCard({ next }: { next: string }) {
-  return (
-    <section className="mx-auto flex w-full max-w-md flex-col items-start gap-4 rounded-lg bg-card p-6 shadow-card">
-      <h1 className="text-xl font-semibold tracking-tight">Sign in to see your repositories</h1>
-      <p className="text-sm text-muted-foreground">
-        Teire uses your GitHub sign-in only to know which installations you can see. It does not ask your
-        account for access to any repository.
-      </p>
-      <SignInButton next={next} label="Sign in with GitHub" />
-    </section>
-  );
+/**
+ * Signed out (plan revision 3.4, V4): the sign-in split, which comes back here once GitHub says who
+ * this is. A component so every app page keeps one line for it.
+ */
+export function SignInCard({ next }: { next: string }): never {
+  redirect(`/signin?next=${encodeURIComponent(next)}`);
 }
 
-const WILL = [
-  "Read your manifests, lockfiles and code to find what each change reaches",
-  "Push one branch per fix and open a pull request with its evidence",
-  "Keep one Dashboard issue per repository, and answer @teire commands",
-];
-const WONT = [
-  "Push to your default branch or merge anything",
-  "Run your code anywhere but a sandbox, with the network off for your checks",
-  "Send your code to any model but NVIDIA Nemotron on Nebius Token Factory",
-];
-
-/** No installation yet: the trust card, then install or scan (design ledger: Linear 8058e1c0). */
+/**
+ * Nothing installed yet (plan revision 3.4, V4): GitHub → Teire → your repositories as a beam, the two
+ * things Teire does with access as chips, Install on GitHub; what Teire will and won't do lives on
+ * /trust, one link away.
+ */
 export function InstallCard() {
   return (
-    <section className="grid gap-px overflow-hidden rounded-lg bg-border shadow-card md:grid-cols-[1.2fr_1fr]">
-      <div className="flex flex-col items-start gap-4 bg-card p-6">
-        <h1 className="text-xl font-semibold tracking-tight">Install Teire on a repository</h1>
-        <p className="text-sm text-muted-foreground">
-          Pick the account and the repositories on GitHub. Teire scans each one within minutes and opens a
-          pull request named Configure Teire with what it found; merge it to turn Teire on.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Button asChild shape="pill">
+    <section className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-card bg-sheet shadow-card md:grid-cols-[1fr_1.1fr]">
+      <div className="flex flex-col items-start justify-center gap-5 p-8">
+        <h1 className="display text-4xl text-ink">Install Teire</h1>
+        <ul className="flex flex-wrap gap-2 text-xs">
+          <li className="flex items-center gap-1.5 rounded-full bg-sunken px-3 py-1 text-ink-2">
+            <Eye className="size-3.5" aria-hidden />
+            reads your code
+          </li>
+          <li className="flex items-center gap-1.5 rounded-full bg-sunken px-3 py-1 text-ink-2">
+            <GitPullRequest className="size-3.5" aria-hidden />
+            opens pull requests
+          </li>
+        </ul>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="cta" size="xl" shape="pill">
             <a href={INSTALL_URL}>
               <GithubMark className="size-4" />
               Install on GitHub
             </a>
           </Button>
-          <Button asChild shape="pill" variant="outline">
-            <Link href="/scan">Scan a public repo first</Link>
+          <Button asChild variant="ghost" size="xl" shape="pill">
+            <Link href="/scan">Scan a public repo</Link>
           </Button>
         </div>
+        <Link href="/trust" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink">
+          What Teire will and won&apos;t do <ArrowUpRight className="size-3" aria-hidden />
+        </Link>
       </div>
-      <div className="flex flex-col gap-4 bg-card p-6 text-sm">
-        <div>
-          <p className="mb-2 font-medium">Teire will</p>
-          <ul className="flex flex-col gap-2">
-            {WILL.map((w) => (
-              <li key={w} className="flex gap-2 text-muted-foreground">
-                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-clear" aria-hidden />
-                {w}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <p className="mb-2 font-medium">Teire won&apos;t</p>
-          <ul className="flex flex-col gap-2">
-            {WONT.map((w) => (
-              <li key={w} className="flex gap-2 text-muted-foreground">
-                <X className="mt-0.5 size-4 shrink-0 text-affected" aria-hidden />
-                {w}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      <aside className="relative flex flex-col justify-center overflow-hidden bg-hero p-8 text-hero-ink">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_60%_at_70%_20%,var(--hero-2),transparent)] opacity-70"
+        />
+        <ConnectDiagram
+          className="relative px-2"
+          repos={[ECOSYSTEMS.npm, ECOSYSTEMS.pypi, ECOSYSTEMS.go].filter(Boolean).map((e) => ({
+            key: e?.label ?? "",
+            node: (
+              <BrandLogo light={e?.light ?? ""} dark={e?.dark} alt={e?.label ?? ""} className="h-5 max-w-7" />
+            ),
+          }))}
+        />
+      </aside>
     </section>
   );
 }
