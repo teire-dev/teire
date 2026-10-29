@@ -91,7 +91,7 @@ Every model fix and every package fix follows the same loop. The [Go major](http
 
 <p align="center">
   <a href="https://teire.vercel.app/scan">
-    <img src=".github/assets/demo-cover.png" width="960" alt="Watch Teire fix a breaking upgrade: a play button over a real run page, the Go dry run's timeline with Nemotron's steps." />
+    <img src=".github/assets/demo-cover.png" width="960" alt="Watch Teire fix a breaking upgrade: a play button over the live run page for zod 3.25.76 → 4.6.6, its tiles running from the package through Nemotron 3 Ultra and the sandbox to 2 checks proven and pull request #30." />
   </a>
 </p>
 
