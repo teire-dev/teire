@@ -5,7 +5,15 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 /** A command chip with copy: the icon becomes a check for a moment (Factory's share pattern). */
-export function CopyCommand({ command, tone = "light" }: { command: string; tone?: "light" | "hero" }) {
+export function CopyCommand({
+  command,
+  tone = "light",
+  className,
+}: {
+  command: string;
+  tone?: "light" | "hero";
+  className?: string;
+}) {
   const [done, setDone] = useState(false);
   return (
     <button
@@ -20,6 +28,7 @@ export function CopyCommand({ command, tone = "light" }: { command: string; tone
         tone === "hero"
           ? "bg-white/6 text-hero-ink-2 shadow-[inset_0_0_0_1px_var(--hero-rule)] hover:text-hero-ink"
           : "bg-sunken text-ink-2 hover:text-ink",
+        className,
       )}
       aria-label={done ? "Copied" : `Copy ${command}`}
     >

@@ -324,7 +324,8 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
       ) : null}
       {run.status === "stopping" ? (
         <p className="w-fit rounded-full bg-signal-soft px-3 py-1 text-[13px] text-signal" role="status">
-          Stopping{stopping?.during ? ` during ${stopping.during}` : ""} · up to 30 s
+          Stopping{run.cancelledBy ? ` for @${run.cancelledBy}` : ""}
+          {stopping?.during ? ` during ${stopping.during}` : ""} · up to 30 s
         </p>
       ) : stale ? (
         <div className="flex flex-wrap items-center gap-3 rounded-card bg-attention-soft px-4 py-2.5 text-[13px] text-attention">

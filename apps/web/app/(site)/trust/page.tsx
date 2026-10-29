@@ -152,7 +152,7 @@ async function Live() {
   const alive = worker && Date.now() - Date.parse(worker.at) < 5 * 60_000;
   const total = outcomes.reduce((n, o) => n + o.n, 0);
   return (
-    <section className="flex flex-col gap-3" aria-label="Live state">
+    <section id="status" className="flex scroll-mt-24 flex-col gap-3" aria-label="Live state">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Status
           icon={Activity}

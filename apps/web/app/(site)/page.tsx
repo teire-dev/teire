@@ -62,11 +62,11 @@ export default function Home() {
   const tests = hero.checks.tests;
   return (
     <main className="flex flex-col">
-      {/* The one dark band (≤60vh): the promise, two actions, and the flow's first tile on its edge. */}
+      {/* The one dark band (≤60vh, ≤50vh on phones): the promise, two actions, the flow's first tile on its edge. */}
       <section data-hero className="relative isolate -mt-16 overflow-hidden bg-hero pt-16 text-hero-ink">
         <HeroShader className="absolute inset-0 -z-10" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-b from-transparent to-hero-2/30" />
-        <div className="mx-auto flex min-h-[min(56vh,560px)] w-full max-w-6xl flex-col items-center justify-center gap-6 px-4 pt-10 pb-20 text-center">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-center gap-4 px-4 pt-5 pb-[4.5rem] text-center sm:min-h-[min(50vh,476px)] sm:gap-5 sm:pt-8 sm:pb-16">
           <Link
             href={hero.run.href}
             className="group inline-flex items-center gap-2 rounded-full bg-white/8 py-1 pr-3 pl-1 text-[13px] text-hero-ink-2 shadow-[inset_0_0_0_1px_var(--hero-rule)] backdrop-blur transition-colors hover:text-hero-ink"
@@ -78,10 +78,10 @@ export default function Home() {
             {hero.repo} · PR #{hero.pr.number}
             <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
-          <h1 className="display max-w-4xl text-[44px] text-hero-ink sm:text-6xl md:text-[72px]">
+          <h1 className="display max-w-4xl text-[34px] text-hero-ink sm:text-6xl md:text-[64px]">
             When upstream breaks, Teire fixes your code.
           </h1>
-          <p className="max-w-xl text-[17px] text-hero-ink-2">
+          <p className="max-w-xl text-[15px] text-hero-ink-2 sm:text-[17px]">
             Found, fixed by Nemotron, proven by your own tests.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -98,7 +98,7 @@ export default function Home() {
               </Link>
             </Button>
           </div>
-          <CopyCommand command="npx teire-cli scan" tone="hero" />
+          <CopyCommand command="npx teire-cli scan" tone="hero" className="hidden sm:flex" />
         </div>
       </section>
 

@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { connection } from "next/server";
+import { Suspense } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { Logo } from "@/components/logo";
+import { systemLine } from "@/lib/app-shell";
 import { SPONSORS, STACK } from "@/lib/brands";
 import { INSTALL_URL, NPM_URL, SOURCE_URL } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 const COLUMNS = [
   {
@@ -40,6 +44,30 @@ const BUILT_ON = [
   { brand: STACK.cloudflare, label: "Cloudflare", height: "h-4" },
 ];
 
+/** The worker's heartbeat as one dot, linking to /trust's live state (plan revision 3.4: the footer). */
+async function SystemDot() {
+  // The heartbeat is minutes old or not: read per request, inside its own boundary.
+  await connection();
+  const system = await systemLine();
+  return <Dot alive={system.alive} label={system.label} />;
+}
+
+function Dot({ alive, label }: { alive: boolean | null; label: string }) {
+  return (
+    <Link href="/trust#status" className="flex w-fit items-center gap-2 text-xs text-ink-3 hover:text-ink">
+      <span
+        aria-hidden
+        className={cn(
+          "size-2 rounded-full",
+          alive === null ? "bg-rule-strong" : alive ? "bg-proven" : "bg-attention",
+          alive && "animate-live",
+        )}
+      />
+      {label}
+    </Link>
+  );
+}
+
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-rule bg-canvas">
@@ -47,6 +75,9 @@ export function SiteFooter() {
         <div className="flex flex-col gap-4">
           <Logo />
           <p className="max-w-xs text-sm text-ink-2">When upstream breaks, Teire fixes your code.</p>
+          <Suspense fallback={<Dot alive={null} label="System status" />}>
+            <SystemDot />
+          </Suspense>
           <div className="flex flex-col gap-2">
             <span className="eyebrow">Built on</span>
             <ul className="flex flex-wrap items-center gap-x-5 gap-y-3">
