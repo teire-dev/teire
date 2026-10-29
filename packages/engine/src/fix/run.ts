@@ -35,7 +35,7 @@ import { type Change, runChecks, runSide, type SideRun, type VerifyRun, verifyCh
 import { RepositoryNotPublicError, TarballTooLargeError } from "../verify/tokenfactory";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
-import { type InstallTriage, type Review, reviewFix, triageInstall } from "./review";
+import { type InstallTriage, type Review, reviewBump, reviewFix, triageInstall } from "./review";
 import { prepareTransaction, type RequestUpgrade, type Transaction, utf8 } from "./transaction";
 import type { ManifestEdit } from "./upgrade-js";
 
@@ -958,6 +958,46 @@ async function runLead(input: FixInput): Promise<FixRun> {
       return { evidence, text: checkText(checks) };
     };
 
+    // A run with no code to review still gets a short Ultra read of the dependency change (S15.5):
+    // what moved, the quoted notes and the checks, for what the checks can't see.
+    const bumpReview = async (evidence: Evidence) => {
+      const moves = [...(input.transaction.moved ?? []), ...extraMoved].filter(
+        (m) => m.name !== input.instance?.name,
+      );
+      const review = await reviewBump({
+        tf: input.tf,
+        prices: input.prices,
+        brief,
+        notes: input.notes,
+        moved: [
+          ...manifest.map((m) => `${m.path}: ${m.from} → ${m.to}`),
+          lockfile ? `${lockfile.path}: +${lockfile.added}/−${lockfile.removed} lines` : "",
+          ...moves
+            .slice(0, 30)
+            .map(
+              (m) => `moved with it: ${m.name} ${m.from ?? "new"} → ${m.removed ? "removed" : (m.to ?? "?")}`,
+            ),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        checks: `${evidence.kind.replace(/_/g, " ")}: ${evidence.reasons.join("; ")}`,
+        file: manifest[0]?.path ?? lockfile?.path ?? "the dependency files",
+      }).catch(() => null);
+      if (review)
+        emit({
+          step: "review",
+          model: review.model,
+          detail:
+            review.error ??
+            (review.problems.length
+              ? review.problems.map((p) => p.problem).join(" | ")
+              : "nothing here needs a person"),
+          ms: review.ms,
+          costUsd: review.costUsd,
+        });
+      return review;
+    };
+
     let current = await verify("after the upgrade and deterministic edits");
     if (acceptable(current.evidence)) {
       // Deterministic edits that pass get the same review as an agent's (Ultra on every run, S15.5).
@@ -971,8 +1011,8 @@ async function runLead(input: FixInput): Promise<FixRun> {
             patch,
             rationale: `Deterministic edits at located sites: ${codemods.map((c) => `${c.file}:${c.line} ${c.reason}`).join("; ")}`,
           })
-        : null;
-      if (review)
+        : await bumpReview(current.evidence);
+      if (review && patch)
         emit({
           step: "review",
           model: review.model,
@@ -990,7 +1030,16 @@ async function runLead(input: FixInput): Promise<FixRun> {
     // runs past its limit on the unchanged code: no edit can make it pass in time (live walk,
     // explain-error-plugin: eight attempts against a suite that timed out on the baseline too).
     if (!baseline.install.ok || baseline.checks.some((c) => c.timedOut))
-      return finish(current.evidence, lastAfter, [], codemods, [], "", false);
+      return finish(
+        current.evidence,
+        lastAfter,
+        [],
+        codemods,
+        [],
+        "",
+        false,
+        await bumpReview(current.evidence),
+      );
 
     // 4. Agent attempts.
     const postCodemod = new Map([...originals.keys()].map((p) => [p, read(p)]));
@@ -1200,7 +1249,16 @@ async function runLead(input: FixInput): Promise<FixRun> {
       }
       failures.push(current.text.slice(0, 4000));
     }
-    return finish(current.evidence, lastAfter, attempts, codemods, agentSteps, summary, true);
+    return finish(
+      current.evidence,
+      lastAfter,
+      attempts,
+      codemods,
+      agentSteps,
+      summary,
+      true,
+      await bumpReview(current.evidence),
+    );
   } finally {
     await Promise.all([base.close(), after.close()]);
   }

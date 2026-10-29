@@ -300,9 +300,15 @@ function receiptLines(
       `| Fix attempt ${a.n}${a.replan ? " (replanned)" : ""}: ${a.steps} steps → ${a.evidence.replace(/_/g, " ")} | ${modelName(a.model)}${a.failover ? " (failover)" : ""} | ${tokens(tin)} / ${tokens(tout)} | ${usd(a.costUsd)} |`,
     );
   }
+  if (run.triage)
+    out.push(
+      `| Why the install failed: ${run.triage.error ? "not concluded" : run.triage.kind} | ${modelName(run.triage.model)} | ${tokens(run.triage.tokensIn)} / ${tokens(run.triage.tokensOut)} | ${usd(run.triage.costUsd)} |`,
+    );
   if (run.review)
     out.push(
-      `| Review of the passing diff: ${run.review.problems.length ? `${run.review.problems.length} problem(s) noted` : "no problems found"}${run.review.refuted?.length ? `, ${run.review.refuted.length} refuted by the checks` : ""} | ${modelName(run.review.model)} | ${tokens(run.review.tokensIn)} / ${tokens(run.review.tokensOut)} | ${usd(run.review.costUsd)} |`,
+      run.review.scope === "change"
+        ? `| Review of the dependency change: ${run.review.error ? "not concluded" : run.review.problems.length ? `${run.review.problems.length} thing(s) to look at` : "nothing needs a person"} | ${modelName(run.review.model)} | ${tokens(run.review.tokensIn)} / ${tokens(run.review.tokensOut)} | ${usd(run.review.costUsd)} |`
+        : `| Review of the passing diff: ${run.review.problems.length ? `${run.review.problems.length} problem(s) noted` : "no problems found"}${run.review.refuted?.length ? `, ${run.review.refuted.length} refuted by the checks` : ""} | ${modelName(run.review.model)} | ${tokens(run.review.tokensIn)} / ${tokens(run.review.tokensOut)} | ${usd(run.review.costUsd)} |`,
     );
   const sandboxMs = [...run.baseline.checks, ...run.after.checks].reduce(
     (n, c) => n + c.ms,
