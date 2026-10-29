@@ -239,9 +239,13 @@ export async function assessCheckout(
     blocked: string | null;
     /** Providers whose pages just yielded new records: other repos using them rescan (D95). */
     onProviderChanges?: (slugs: string[]) => Promise<void>;
+    /** Where the scan is, for a public report's live flow: the packages, the providers, the findings. */
+    onStep?: (step: "deps" | "providers" | "lines") => Promise<unknown>;
   },
 ) {
   const { repoId, scanId, fullName, dir, tree, config, sha, blocked } = input;
+  const step = (s: "deps" | "providers" | "lines") => input.onStep?.(s).catch(() => undefined);
+  await step("deps");
   const [owner = "", name = ""] = fullName.split("/");
   // What this scan could not check (advisory sources down, registries that did not answer), D96.
   const coverage = newScanCoverage();
@@ -316,6 +320,7 @@ export async function assessCheckout(
     ...jvm.projects,
   ];
   // Provider changes (S04, D82): only for the API providers this repo talks to, read on demand.
+  await step("providers");
   const api = !on.apis
     ? {
         // `ecosystems.apis: false`: no API-host or model checks for this repo.
@@ -347,6 +352,7 @@ export async function assessCheckout(
         },
       );
   for (const n of api.openapiNotes) console.log(`[scan] ${fullName}: openapi ${n}`);
+  await step("lines");
   // Nemotron tracing wrapped model IDs during the scan: recorded like any other model call.
   for (const r of api.receipts)
     if (!r.cached)

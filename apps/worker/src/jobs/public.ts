@@ -79,7 +79,7 @@ export async function publicScan(ctx: WorkerContext, publicScanId: string) {
       .where(eq(publicScans.id, publicScanId));
   await db
     .update(publicScans)
-    .set({ status: "running", error: null })
+    .set({ status: "running", step: "repo", error: null })
     .where(eq(publicScans.id, publicScanId));
 
   const token = await requesterToken(db, request.requestedBy);
@@ -135,6 +135,8 @@ export async function publicScan(ctx: WorkerContext, publicScanId: string) {
       sha: head.sha,
       ...(token ? { token } : {}),
       blocked,
+      // The report's live flow follows the scan (V5–V6 review).
+      onStep: (step) => db.update(publicScans).set({ step }).where(eq(publicScans.id, publicScanId)),
     });
     // The whole scan's coverage, as an installed scan stores it: an advisory source that was down
     // shows on the report as "unavailable", never as an empty list (D96).

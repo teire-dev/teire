@@ -3,6 +3,7 @@ import { ChevronDown, FlaskConical, GitPullRequest } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { BrandLogo } from "@/components/brand-logo";
@@ -12,11 +13,13 @@ import { StaticFlow } from "@/components/flow/static-flow";
 import { TileSquare } from "@/components/flow/tile";
 import { GithubMark } from "@/components/icons";
 import { ShareLink } from "@/components/run/share-run";
+import { SignInButton } from "@/components/sign-in-button";
 import { BrokenFlow } from "@/components/state-page";
 import { Mark } from "@/components/teire/mark";
 import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
 import { bucketGroups, type FindingGroup, groupFindings } from "@/lib/findings";
+import type { FlowState } from "@/lib/flow/model";
 import { subjectMark } from "@/lib/marks";
 import { proofOfRun } from "@/lib/proof";
 import { dryRunsFor, publicReport, usageToday } from "@/lib/reports";
@@ -52,6 +55,8 @@ export default function ReportPage({ params }: PageProps<"/scan/[id]">) {
 }
 
 async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] }) {
+  // Per request: the report follows the worker and says how long it has been.
+  await connection();
   const { id } = await params;
   const report = await publicReport(id);
   if (!report) notFound();
@@ -68,6 +73,17 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
       { id: "providers", entity: "change", label: "Providers", meta: "hosts and models" },
       { id: "lines", entity: "code", label: "Your lines", meta: "what each reaches" },
     ] as const;
+    // The worker's step (V5–V6 review): the tiles it covers pulse, the ones before are done. Reading
+    // packages and diffing their APIs is one pass, so those two tiles work together.
+    const SPAN: Record<string, [number, number]> = {
+      repo: [0, 0],
+      deps: [1, 2],
+      providers: [3, 3],
+      lines: [4, 4],
+    };
+    const [from, to] = running ? (SPAN[request.step ?? "repo"] ?? [0, 0]) : [-1, -1];
+    const tileState = (i: number) => (i < from ? "done" : i <= to ? "live" : "pending") as FlowState;
+    const quietMin = Math.floor((Date.now() - request.createdAt.getTime()) / 60_000);
     return (
       <>
         <RepoHeader name={name} />
@@ -75,16 +91,18 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
           <StaticFlow
             label="What the scan is doing"
             graph={{
-              tiles: steps.map((t, i) => ({ ...t, state: running && i === 0 ? "live" : "pending" })),
+              tiles: steps.map((t, i) => ({ ...t, state: tileState(i) })),
               links: steps.slice(1).map((t, i) => ({
                 from: steps[i]?.id as string,
                 to: t.id,
-                state: running && i === 0 ? "live" : "pending",
+                state:
+                  tileState(i + 1) === "pending" ? "pending" : tileState(i + 1) === "live" ? "live" : "done",
               })),
             }}
           />
           <p className="flex items-center gap-2 font-mono text-xs text-ink-3">
-            {running ? "scanning" : "waiting for the worker"} · usually 1–5 min ·{" "}
+            {running ? "scanning" : "waiting for the worker"} ·{" "}
+            {quietMin >= 15 ? `${quietMin} min so far: the worker may be busy or down` : "usually 1–5 min"} ·{" "}
             <AutoRefresh since={request.createdAt.toISOString()} />
           </p>
         </section>
@@ -412,24 +430,39 @@ async function DryRun({
   const spent = session
     ? (await usageToday(session.user.id)).dryRuns >= PUBLIC_LIMITS.dryRunsPerUserPerDay
     : false;
+  // The limit is said where the action is (C2), never only in a tooltip (V5–V6 review).
+  const limit = (
+    <span className="rounded-full bg-sunken px-2 py-0.5 font-mono text-[11px] text-ink-2">
+      {PUBLIC_LIMITS.dryRunsPerUserPerDay} dry run a day
+    </span>
+  );
+  if (!session)
+    return (
+      <span className="flex items-center gap-2">
+        {limit}
+        <SignInButton size="sm" next={`/scan/${publicScanId}`} label="Sign in to dry-run" />
+      </span>
+    );
+  if (spent)
+    return (
+      <span className="flex items-center gap-2">
+        <span className="font-mono text-[11px] text-ink-2">
+          Today&apos;s dry run is used · installed, Teire opens PRs
+        </span>
+        <Button size="sm" disabled>
+          <FlaskConical data-icon="inline-start" />
+          Used today
+        </Button>
+      </span>
+    );
   return (
-    <form action={startDryRun}>
+    <form action={startDryRun} className="flex items-center gap-2">
       <input type="hidden" name="publicScanId" value={publicScanId} />
       <input type="hidden" name="groupKey" value={group.key} />
-      <Button
-        type="submit"
-        size="sm"
-        disabled={!session || spent}
-        title={
-          !session
-            ? `Sign in with GitHub to dry-run a fix (${PUBLIC_LIMITS.dryRunsPerUserPerDay} a day)`
-            : spent
-              ? `Today's ${PUBLIC_LIMITS.dryRunsPerUserPerDay} dry run is used; installed, Teire opens these as PRs`
-              : "Fix and verify it in a sandbox; no PR is opened"
-        }
-      >
+      {limit}
+      <Button type="submit" size="sm" title="Fix and verify it in a sandbox; no PR is opened">
         <FlaskConical data-icon="inline-start" />
-        {!session ? "Sign in to dry-run" : spent ? "Used today" : "Dry-run a fix"}
+        Dry-run a fix
       </Button>
     </form>
   );

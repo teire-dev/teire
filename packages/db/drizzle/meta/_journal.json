@@ -155,6 +155,13 @@
       "when": 1793270000000,
       "tag": "0021_u5_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793300000000,
+      "tag": "0022_v5_scan_step",
+      "breakpoints": true
     }
   ]
 }

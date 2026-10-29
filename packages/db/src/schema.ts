@@ -569,6 +569,8 @@ export const publicScans = pgTable(
     requestedBy: text("requested_by").notNull(),
     /** The worker's progress (C9): a private or missing repo fails before any scan row exists. */
     status: text("status").$type<JobStatus>().notNull().default("queued"),
+    /** Where a running scan is (V5–V6 review): the report's flow lights this tile, the ones before done. */
+    step: text("step").$type<"repo" | "deps" | "providers" | "lines">(),
     error: text("error"),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     createdAt: createdAt(),
