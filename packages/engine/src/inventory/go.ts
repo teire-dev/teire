@@ -29,6 +29,8 @@ export interface GoProject {
   vendored: boolean;
   /** `replace` directives: old path → new path (and version when a module, not a directory). */
   replaces: { old: string; new: string; version: string | null }[];
+  /** `exclude` directives: versions this module refuses (main module only, go.dev/ref/mod). */
+  excludes: { path: string; version: string }[];
   notes: string[];
 }
 
@@ -38,6 +40,7 @@ interface ModEditJson {
   Toolchain?: string;
   Require?: { Path: string; Version: string; Indirect?: boolean }[];
   Replace?: { Old: { Path: string; Version?: string }; New: { Path: string; Version?: string } }[];
+  Exclude?: { Path: string; Version: string }[];
 }
 
 interface ListModule {
@@ -155,6 +158,7 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
         instances,
         vendored: tree.read(join(root, "vendor", "modules.txt")) !== null,
         replaces,
+        excludes: (edit.Exclude ?? []).map((e) => ({ path: e.Path, version: e.Version })),
         notes,
       });
     }

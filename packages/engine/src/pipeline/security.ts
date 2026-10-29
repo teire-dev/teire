@@ -22,7 +22,7 @@ export async function securityAssessments<P extends AssessedProject>(
     onProgress?: (line: string) => void;
     coverage?: ScanCoverage;
   },
-  policyFor: (instance: DependencyInstance) => TargetPolicy,
+  policyFor: (instance: DependencyInstance) => TargetPolicy | Promise<TargetPolicy>,
 ): Promise<Assessment<P>[]> {
   // One per locked version and workspace. A root project's direct dependency and its lockfile entry
   // share a key: the direct one is kept, so the advisory says "a direct dependency" where it is.
@@ -55,7 +55,7 @@ export async function securityAssessments<P extends AssessedProject>(
       return null;
     });
     if (!info) continue;
-    const policy = policyFor(instance);
+    const policy = await policyFor(instance);
     // Each advisory's smallest fix on the installed line; the highest of those clears them all.
     const fixes = records
       .map((r) => chooseFixedTarget(info, instance.version ?? "", r.applicability.fixedIn, policy, scheme))

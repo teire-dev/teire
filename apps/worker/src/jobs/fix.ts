@@ -62,7 +62,7 @@ import {
   movedPackageNotes,
   repoInstances,
 } from "@teire/engine/pipeline";
-import { cratesIndexLines } from "@teire/engine/registry";
+import { cratesIndexLines, GO_PSEUDO } from "@teire/engine/registry";
 import {
   GRADLE_WRAPPER_FILE,
   isDependencyFile,
@@ -640,6 +640,20 @@ async function resolverTransactionFor(
       });
       return null;
     }
+  }
+  // D-42, D104: dependabot-core's Go finder lists tagged releases only, so a fix that exists only as
+  // a commit (a pseudo-version) comes back as a stop; Teire's own `go get module@<pseudo>` moves it.
+  if (
+    r.kind === "stop" &&
+    ecosystem === "go" &&
+    assessment.purpose === "security" &&
+    GO_PSEUDO.test(target)
+  ) {
+    common.onEvent?.({
+      step: "transaction",
+      detail: `dependabot-core's updater can't reach the fix commit ${target} (${forGitHub(r.message.split("\n")[0] ?? "", 200)}); Teire moves ${packageName} there with go get`,
+    });
+    return null;
   }
   if (r.kind === "stop")
     throw new ResolverStopError(

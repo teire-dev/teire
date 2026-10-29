@@ -26,9 +26,16 @@ Versions come from the toolchain itself, run in a safe mode:
 
 The next version may be a new major. Teire merges the versions of the module you have with those of `/v2`, `/v3`… (or `gopkg.in` `.vN`), checking up to 6 majors on the proxy. Pseudo-versions are skipped.
 
+A version is never a target when Go itself steers away from it:
+
+- **Retracted by its authors.** Each module path's retractions are read the way Go reads them: from the `go.mod` of the proxy's `@latest`, parsed by `go mod edit -json`. If the version you have is retracted, the report says so with the authors' reason.
+- **Excluded by your `go.mod`.** An `exclude` line keeps that version out.
+
 ## How breaks are found
 
 apidiff compares the two versions' exported API and ignores the noise of the `/vN` path. A trailing `...Option` parameter added to a function is an annotation, not a break. Teire's helper then loads your packages with go/types and records every use of a changed object, resolved by type.
+
+A fix that exists only as a commit (the advisory's fix is a pseudo-version, with no tagged release after it) is still a target, if the proxy serves that commit. dependabot-core's updater is asked first. Its Go finder lists tagged releases only, so when it can't reach the commit, Teire moves the module there with `go get module@<pseudo-version>`. Only if both refuse does a person get an issue.
 
 For advisories, govulncheck decides. If your code **calls** the vulnerable function, the finding is **affected**, with the call site. If the module is only imported or required, it is **not affected**, and the report says how far govulncheck could see.
 

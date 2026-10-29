@@ -1,4 +1,5 @@
 import { type ChangeV2, changeV2 } from "../contract";
+import type { Retraction, Retractions } from "./go";
 import type { PackageInfo } from "./types";
 
 /** deps.dev folds PyPI and Cargo yanks into `isDeprecated` (cross-cutting.md §3). */
@@ -37,6 +38,47 @@ export function deprecationChange(info: PackageInfo, version: string): ChangeV2 
         ...(message ? { quote: message } : {}),
         contentHash: info.source.contentHash,
         checkedAt: info.source.checkedAt,
+      },
+    ],
+    provenance: { method: "feed", confidence: { overall: 1 } },
+    visibility: "public",
+    status: "confirmed",
+  });
+}
+
+/**
+ * A change record for a Go version its own authors retracted (go.dev/ref/mod#go-mod-file-retract):
+ * the module's go.mod says so, with their reason quoted. Go still builds it but `go get` and
+ * `go list -m -u` steer away from it; a reason naming a vulnerability makes it security.
+ */
+export function retractedChange(
+  name: string,
+  version: string,
+  r: Retraction,
+  source: NonNullable<Retractions["source"]>,
+): ChangeV2 {
+  const message = r.rationale ?? "";
+  return changeV2.parse({
+    schemaVersion: 2,
+    id: `go/${name}/retracted/${version}`,
+    subject: { kind: "package", ecosystem: "go", name },
+    kind: "package-yanked",
+    title: `${name}@${version} is retracted`,
+    summary: message
+      ? `The module's authors retracted ${version}: ${message}`
+      : `The module's authors retracted ${version} without saying why.`,
+    applicability: {
+      class: SECURITY_WORDS.test(message) ? "security" : "notice",
+      affectedRange: r.low === r.high ? r.low : `>=${r.low}, <=${r.high}`,
+    },
+    sources: [
+      {
+        url: source.url,
+        kind: "registry",
+        trustBasis: "registry",
+        ...(message ? { quote: message } : {}),
+        contentHash: source.contentHash,
+        checkedAt: source.checkedAt,
       },
     ],
     provenance: { method: "feed", confidence: { overall: 1 } },

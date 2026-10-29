@@ -14,8 +14,16 @@ import { locateGo } from "../locate/go";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { gatherGoNotes } from "../notes/sources";
 import type { RegistryOptions } from "../registry/clients";
-import { deprecationChange } from "../registry/deprecation";
-import { escapeModulePath, goModuleFamily } from "../registry/go";
+import { deprecationChange, retractedChange } from "../registry/deprecation";
+import {
+  escapeModulePath,
+  GO_PSEUDO,
+  goModuleFamily,
+  goRetractions,
+  goVersionExists,
+  type Retractions,
+  retractionOf,
+} from "../registry/go";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { goScheme } from "../registry/versions";
 import { goSurfaceDiff } from "../surface/go";
@@ -50,7 +58,11 @@ export interface GoAssessOptions extends RegistryOptions {
   coverage?: ScanCoverage;
 }
 
-function goPolicy(instance: DependencyInstance, options: GoAssessOptions): TargetPolicy {
+function goPolicy(
+  instance: DependencyInstance,
+  options: GoAssessOptions,
+  exclude?: (version: string) => string | null,
+): TargetPolicy {
   const minutes = (options.cooldownDays ?? REGISTRY.cooldownDays) * 1440;
   return {
     now: options.now ?? new Date(),
@@ -58,8 +70,31 @@ function goPolicy(instance: DependencyInstance, options: GoAssessOptions): Targe
     pins: [],
     allowPrerelease: instance.version ? goScheme.isPrerelease(instance.version) : false,
     fallbackMajors: options.fallbackMajors ?? 0,
+    ...(exclude ? { exclude } : {}),
   };
 }
+
+/**
+ * The versions Go itself steers away from (D-40): those the module's authors retracted, on the
+ * major path that publishes them, and those this module's go.mod excludes. Null when usable.
+ */
+function goUnusable(
+  project: GoProject,
+  pathOf: (version: string) => string,
+  retractions: ReadonlyMap<string, Retractions | null>,
+) {
+  return (version: string) => {
+    const path = pathOf(version);
+    const r = retractionOf(version, retractions.get(path)?.ranges ?? []);
+    if (r) return `retracted by its authors${r.rationale ? `: ${r.rationale}` : ""}`;
+    if (project.excludes.some((e) => e.path === path && e.version === version))
+      return "excluded by this module's go.mod";
+    return null;
+  };
+}
+
+const retractionsOf = async (paths: readonly string[]) =>
+  new Map(await Promise.all(paths.map(async (p) => [p, await goRetractions(p).catch(() => null)] as const)));
 
 export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoAssessOptions) {
   const projects = await readGoInventory(repoDir, tree);
@@ -97,17 +132,29 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
         assessments.push(base);
         continue;
       }
+      const retractions = await retractionsOf(family.majors);
       const decision = chooseTarget(
         family.info,
         instance.version,
-        withTargetMax(goPolicy(instance, options), instance.name, options),
+        withTargetMax(
+          goPolicy(instance, options, goUnusable(project, family.pathOf, retractions)),
+          instance.name,
+          options,
+        ),
         goScheme,
       );
+      // The installed version itself retracted is a finding with its authors' reason (D-40).
+      const own = retractions.get(instance.name);
+      const ownRetraction = own?.source ? retractionOf(instance.version, own.ranges) : null;
       const a: GoAssessment = {
         ...base,
         info: family.info,
         decision,
-        deprecation: deprecationChange(family.info, instance.version),
+        deprecation:
+          deprecationChange(family.info, instance.version) ??
+          (ownRetraction && own?.source
+            ? retractedChange(instance.name, instance.version, ownRetraction, own.source)
+            : null),
       };
       if (decision.kind === "upgrade") {
         const targetPath = family.pathOf(decision.to);
@@ -146,14 +193,56 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
       assessments.push(a);
     }
     if (options.advisories !== false) {
-      const security = await securityAssessments(project, "go", goScheme, options, (instance) =>
-        goPolicy(instance, options),
+      const security = await securityAssessments(project, "go", goScheme, options, async (instance) =>
+        goPolicy(
+          instance,
+          options,
+          goUnusable(project, () => instance.name, await retractionsOf([instance.name])),
+        ),
       );
+      for (const s of security) await withPseudoFix(s);
       if (security.length) await withReachability(repoDir, project, security, options);
       assessments.push(...security.map((s) => ({ ...s, targetPath: s.instance.name })));
     }
   }
   return { projects, assessments };
+}
+
+/**
+ * A Go fix that exists only as a commit (D-42): the advisory's fixed boundary is a pseudo-version and
+ * no tagged release is at or above it, so the target is that commit, if the proxy serves it. The run
+ * asks dependabot-core's updater first; its Go finder lists tagged releases only, so Teire's own
+ * `go get module@<pseudo>` moves it when the updater can't (D104). Only then a person.
+ */
+async function withPseudoFix(s: Assessment<GoProject>) {
+  const current = s.instance.version;
+  if (s.decision?.kind !== "blocked" || !current) return;
+  const withV = (v: string) => (v.startsWith("v") ? v : `v${v}`);
+  // Each advisory's smallest fix above the installed version; the highest of those clears them all.
+  const fixes = s.records
+    .map(
+      (r) =>
+        r.applicability.fixedIn
+          .map(withV)
+          .filter((f) => goScheme.valid(f) && goScheme.compare(f, current) > 0)
+          .sort((x, y) => goScheme.compare(x, y))[0],
+    )
+    .filter((f): f is string => !!f);
+  const target = fixes.sort((x, y) => goScheme.compare(y, x))[0];
+  if (!target || !GO_PSEUDO.test(target) || !(await goVersionExists(s.instance.name, target))) return;
+  s.decision = {
+    kind: "upgrade",
+    from: current,
+    to: target,
+    isMajor: false,
+    publishedAt: null,
+    fallbackMajors: 0,
+    cooldownWaived: true,
+    skipped: [],
+  };
+  s.findings = assess({ instance: s.instance, target, isMajor: false, records: s.records, locate: null });
+  s.summary = summariseFindings(s.findings);
+  s.priority = Math.min(...s.findings.map((f) => f.priority ?? 4));
 }
 
 function lineOf(repoDir: string, file: string, line: number) {

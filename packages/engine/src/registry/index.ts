@@ -7,8 +7,9 @@ export {
   type RegistryOptions,
   supplyChainSignals,
 } from "./clients";
-export { deprecationChange } from "./deprecation";
+export { deprecationChange, retractedChange } from "./deprecation";
 export * from "./eol";
+export { GO_PSEUDO, goRetractions, goVersionExists, type Retraction, retractionOf } from "./go";
 export * from "./pypi";
 export {
   chooseFixedTarget,
