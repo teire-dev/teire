@@ -109,7 +109,8 @@ export function ChangeFan({
         </span>
         {action ? <div className="mt-auto flex items-center gap-2 pt-1">{action}</div> : null}
       </div>
-      <div className="flex items-center" aria-label={`Reaches ${repos} of your repositories`}>
+      <figure className="flex items-center">
+        <figcaption className="sr-only">Reaches {repos} of your repositories</figcaption>
         <TileSquare
           tile={{
             entity: "change",
@@ -192,7 +193,7 @@ export function ChangeFan({
             </li>
           ) : null}
         </ul>
-      </div>
+      </figure>
     </article>
   );
 }
