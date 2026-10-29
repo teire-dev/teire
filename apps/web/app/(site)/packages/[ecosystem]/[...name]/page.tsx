@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BrandLogo } from "@/components/brand-logo";
+import { YourPackageReach } from "@/components/catalog/your-reach";
 import { Badge } from "@/components/ui/badge";
 import { ECOSYSTEMS } from "@/lib/brands";
 import { listChanges } from "@/lib/catalog";
@@ -65,6 +66,23 @@ async function Package({ params }: { params: Params }) {
   if (!versions && !rows.length) notFound();
   const registry = registryUrl(ecosystem, name);
   const listed = [...(versions?.info.versions ?? [])].reverse().slice(0, 30);
+  // Advisories, and what the release notes, changelogs and migration guides said, in their words (U5).
+  const advisories = rows.filter((r) => r.kind === "security-advisory");
+  const notes = rows
+    .flatMap((r) =>
+      r.record.sources
+        .filter((src) => src.quote && ["release-notes", "changelog", "migration-guide"].includes(src.kind))
+        .map((src) => ({
+          changeId: r.id,
+          quote: src.quote as string,
+          url: src.url,
+          host: new URL(src.url).host,
+          checkedAt: src.checkedAt,
+          version: r.record.applicability.toVersion ?? null,
+        })),
+    )
+    .filter((n, i, all) => all.findIndex((m) => m.quote === n.quote) === i)
+    .slice(0, 6);
   // Changes per target version, newest target first.
   const byTarget = new Map<string, typeof rows>();
   for (const r of rows) {
@@ -90,6 +108,66 @@ async function Package({ params }: { params: Params }) {
           </a>
         ) : null}
       </header>
+
+      <YourPackageReach pkg={`${ecosystem}/${name}`} />
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-medium">
+          Security advisories <span className="text-muted-foreground">({advisories.length})</span>
+        </h2>
+        {advisories.length ? (
+          <ul className="divide-y overflow-hidden rounded-lg bg-card shadow-card">
+            {advisories.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/changes/${r.id}`}
+                  className="row-link flex flex-col gap-1 px-4 py-3 pr-10 hover:bg-accent"
+                >
+                  <span className="text-sm">{r.title}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {r.record.applicability.affectedRange
+                      ? `affects ${r.record.applicability.affectedRange}`
+                      : null}
+                    {r.record.applicability.fixedIn.length
+                      ? ` · fixed in ${r.record.applicability.fixedIn.join(", ")}`
+                      : " · no fixed version yet"}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            None in Teire's catalog for the versions it has read; advisories are read when a scanned
+            repository uses this package.
+          </p>
+        )}
+      </section>
+
+      {notes.length ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-medium">From the release notes</h2>
+          <ul className="flex flex-col gap-2">
+            {notes.map((n) => (
+              <li
+                key={`${n.changeId}-${n.url}`}
+                className="flex flex-col gap-1.5 rounded-lg bg-card p-4 shadow-card"
+              >
+                <blockquote className="border-l-2 pl-3 text-sm break-words text-subtle">
+                  “{n.quote.length > 320 ? `${n.quote.slice(0, 320)}…` : n.quote}”
+                </blockquote>
+                <span className="text-xs text-muted-foreground">
+                  {n.version ? <span className="font-mono">{n.version} · </span> : null}
+                  {n.host} · checked {n.checkedAt.slice(0, 10)} ·{" "}
+                  <Link href={`/changes/${n.changeId}`} className="entity-link">
+                    the change
+                  </Link>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium">

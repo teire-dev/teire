@@ -13,35 +13,39 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * Share a run (plan revision 3.3, U2, Factory's share dialog): its link with copy, and who can open
- * it: anyone for a public repository, people with access to the installation for a private one.
+ * Share a page (plan revision 3.3, U2 and U5, Factory's share dialog): its link with copy, and who can
+ * open it. Runs and public scan reports both use it.
  */
-export function ShareRun({
-  runId,
+export function ShareLink({
+  path,
+  title,
+  description,
   isPrivate,
-  rerun,
+  label = "Share",
+  secondary,
 }: {
-  runId: string;
+  path: string;
+  title: string;
+  description: string;
   isPrivate: boolean;
-  /** The secondary action: run it again in the way this run allows (Factory's share dialog). */
-  rerun?: ReactNode;
+  label?: string;
+  /** The secondary action (Factory's share dialog): run it again, install. */
+  secondary?: ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
-  const url = typeof window === "undefined" ? `/runs/${runId}` : `${window.location.origin}/runs/${runId}`;
+  const url = typeof window === "undefined" ? path : `${window.location.origin}${path}`;
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Share2 data-icon="inline-start" aria-hidden />
-          Share
+          {label}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Share this run</DialogTitle>
-          <DialogDescription>
-            Its proof sheet: what changed, what was fixed and what proves it.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2 rounded-lg bg-sunken p-1.5 pl-3 ring-1 ring-rule ring-inset">
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">{url}</span>
@@ -69,8 +73,29 @@ export function ShareRun({
             ? "People with access to this installation can open it."
             : "Anyone with the link can open it: the repository is public."}
         </p>
-        {rerun ? <div className="flex justify-end border-t border-rule pt-3">{rerun}</div> : null}
+        {secondary ? <div className="flex justify-end border-t border-rule pt-3">{secondary}</div> : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Share a run: its proof sheet, with Re-run as the secondary action. */
+export function ShareRun({
+  runId,
+  isPrivate,
+  rerun,
+}: {
+  runId: string;
+  isPrivate: boolean;
+  rerun?: ReactNode;
+}) {
+  return (
+    <ShareLink
+      path={`/runs/${runId}`}
+      title="Share this run"
+      description="Its proof sheet: what changed, what was fixed and what proves it."
+      isPrivate={isPrivate}
+      secondary={rerun}
+    />
   );
 }

@@ -209,3 +209,19 @@ export function proofOfRun(run: RunForProof): Proof {
     pr,
   };
 }
+
+/** A finding with no run yet: the change is recorded and reaches the code; nothing else has happened. */
+export function proofOfFinding(input: { sites: number; advisory?: boolean }): Proof {
+  return {
+    changed: { state: "done", detail: "recorded upstream" },
+    reaches:
+      input.advisory && !input.sites
+        ? { state: "done", detail: "the vulnerable version is installed" }
+        : input.sites
+          ? { state: "done", detail: `${input.sites} call site${input.sites === 1 ? "" : "s"}` }
+          : { state: "not_applicable", detail: "no call site reaches this change" },
+    fixed: { state: "pending", detail: "a dry run or the installed App fixes it" },
+    proven: { state: "pending" },
+    pr: { state: "pending" },
+  };
+}

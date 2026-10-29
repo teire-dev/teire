@@ -19,6 +19,7 @@ import { directoryTree, fetchRepoTarball, scopedTree } from "@teire/engine/inven
 import { advisoryStatus, coverageLines } from "@teire/engine/pipeline";
 import { modelWorkBlocked } from "../reliability";
 import { claimRun, finishScan, setRepo, startScan } from "../store";
+import { revalidateWeb } from "../web";
 import { assessCheckout, languagesOf, type WorkerContext } from "./scan";
 
 /**
@@ -150,6 +151,9 @@ export async function publicScan(ctx: WorkerContext, publicScanId: string) {
       languages: languagesOf(result),
     });
     await settle("done");
+    // What the scan added to the catalog (package diffs, advisories, deadlines) shows on /changes and
+    // the landing's deadline strip now, not after the cache's hour (R-P34, R-M15).
+    await revalidateWeb(["catalog"]).catch(() => undefined);
     return { scanned: meta.full_name, findings: result.assessments.length };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

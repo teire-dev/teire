@@ -107,7 +107,13 @@ export async function usageToday(userId: string) {
 /** Dry runs already started from this report, so its page can link them. */
 export async function dryRunsFor(repoId: number, sinceSha: string | null) {
   return database()
-    .select({ id: runs.id, groupKey: runs.groupKey, status: runs.status, evidenceKind: runs.evidenceKind })
+    .select({
+      id: runs.id,
+      groupKey: runs.groupKey,
+      status: runs.status,
+      step: runs.step,
+      evidenceKind: runs.evidenceKind,
+    })
     .from(runs)
     .where(
       and(

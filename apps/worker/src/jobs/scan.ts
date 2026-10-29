@@ -542,6 +542,8 @@ export async function scanRepo(
       ...(nothingReadable ? { nothingReadable: true, searched: SEARCHED } : {}),
     };
     await finishScan(db, scan.id, { status: "done", sha, coverage });
+    // Records this scan stored (package diffs, advisories) reach the public catalog now (R-M15).
+    await revalidateWeb(["catalog"]).catch(() => undefined);
     await setRepo(db, repoId, {
       lastScannedSha: sha,
       lastScannedAt: new Date(),

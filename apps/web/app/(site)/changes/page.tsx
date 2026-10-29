@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { BrandLogo } from "@/components/brand-logo";
+import { YourReach } from "@/components/catalog/your-reach";
 import { Input } from "@/components/ui/input";
 import { ECOSYSTEMS } from "@/lib/brands";
 import {
@@ -169,6 +170,7 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
                       {r.deadline ? (
                         <span className="font-mono text-human">{r.deadline.slice(0, 10)}</span>
                       ) : null}
+                      <YourReach changeId={r.id} />
                     </div>
                     <Link href={`/changes/${r.id}`} className="w-fit font-medium entity-link">
                       {r.title}

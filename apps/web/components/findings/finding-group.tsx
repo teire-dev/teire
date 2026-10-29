@@ -2,8 +2,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CallSites } from "@/components/findings/call-sites";
 import { VerdictBadge } from "@/components/findings/verdict-badge";
+import { ProofGlyphs } from "@/components/teire/proof-glyphs";
 import type { FindingGroup } from "@/lib/findings";
 import { groupHref } from "@/lib/links";
+import type { Proof } from "@/lib/proof";
 
 /** One PR's worth of findings: what changed, where it reaches this repo, and why Teire says so. */
 export function FindingGroupCard({
@@ -11,11 +13,14 @@ export function FindingGroupCard({
   repo,
   sha,
   action,
+  proof,
 }: {
   group: FindingGroup;
   repo: string | null;
   sha: string | null;
   action?: ReactNode;
+  /** The proof chain for this group: its run's, or the finding's own when nothing ran yet. */
+  proof?: Proof;
 }) {
   const changeHref = group.changeIds[0] ? `/changes/${group.changeIds[0]}` : null;
   const subjectHref = groupHref(group.key);
@@ -47,6 +52,7 @@ export function FindingGroupCard({
           ) : null}
           <VerdictBadge verdict={group.verdict} />
         </div>
+        {proof ? <ProofGlyphs proof={proof} className="basis-full" /> : null}
       </header>
       <CallSites sites={group.sites} repo={repo} sha={sha} />
       {group.reason && group.verdict !== "affected" ? (

@@ -8,9 +8,11 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { BrandLogo } from "@/components/brand-logo";
 import { FindingGroupCard } from "@/components/findings/finding-group";
 import { GithubMark } from "@/components/icons";
+import { ShareLink } from "@/components/run/share-run";
 import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
 import { bucketGroups, type FindingGroup, groupFindings } from "@/lib/findings";
+import { proofOfFinding, proofOfRun } from "@/lib/proof";
 import { dryRunsFor, publicReport, usageToday } from "@/lib/reports";
 import { getSession } from "@/lib/session";
 import { INSTALL_URL } from "@/lib/site";
@@ -89,10 +91,28 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
   } | null;
   const runs = repo ? await dryRunsFor(repo.id, sha) : [];
   const runFor = new Map(runs.map((r) => [r.groupKey, r]));
+  // Each group's chain: its dry run's when there is one (a dry run opens no PR), else the finding's own.
+  const chainOf = (g: FindingGroup) => {
+    const run = runFor.get(g.key);
+    const advisory = g.key.startsWith("advisory/") || g.changeIds.some((c) => c.includes("advisor"));
+    return run
+      ? proofOfRun({
+          kind: "dry_run",
+          status: run.status,
+          step: run.step,
+          evidenceKind: run.evidenceKind,
+          prMode: null,
+          sites: g.sites.length,
+          advisory,
+          artifact: null,
+          runHref: `/runs/${run.id}`,
+        })
+      : proofOfFinding({ sites: g.sites.length, advisory });
+  };
 
   return (
     <>
-      <RepoHeader name={name} sha={sha} finishedAt={request.finishedAt} />
+      <RepoHeader name={name} sha={sha} finishedAt={request.finishedAt} reportId={request.id} />
 
       <section className="grid gap-px overflow-hidden rounded-lg bg-border shadow-card sm:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3 bg-card p-5">
@@ -193,6 +213,7 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
             group={g}
             repo={name}
             sha={sha}
+            proof={chainOf(g)}
             action={<DryRun publicScanId={request.id} group={g} existing={runFor.get(g.key)} />}
           />
         ))}
@@ -210,6 +231,7 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
               group={g}
               repo={name}
               sha={sha}
+              proof={chainOf(g)}
               action={<DryRun publicScanId={request.id} group={g} existing={runFor.get(g.key)} />}
             />
           ))}
@@ -267,17 +289,34 @@ function RepoHeader({
   name,
   sha,
   finishedAt,
+  reportId,
 }: {
   name: string;
   sha?: string | null;
   finishedAt?: Date | null;
+  /** A finished report can be shared (plan revision 3.3, U5). */
+  reportId?: string;
 }) {
   return (
     <header className="flex flex-col gap-2">
-      <p className="text-xs text-muted-foreground">
+      <p className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <Link href="/scan" className="entity-link hover:text-foreground">
           Public scan
         </Link>
+        {reportId ? (
+          <ShareLink
+            path={`/scan/${reportId}`}
+            title="Share this report"
+            description="What changed upstream, where it reaches this repository's code, and a dry run per change."
+            isPrivate={false}
+            label="Share report"
+            secondary={
+              <Button asChild size="sm">
+                <a href={INSTALL_URL}>Install Teire on it</a>
+              </Button>
+            }
+          />
+        ) : null}
       </p>
       <h1 className="flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">
         <a href={`https://github.com/${name}`} className="font-mono entity-link">
