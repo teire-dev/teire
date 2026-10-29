@@ -297,6 +297,62 @@ export function isDependencyFile(path: string, change?: { ecosystem?: string; mo
 }
 
 /**
+ * Vendored files the change's own dependency graph doesn't back (R21, Codex: a move event alone is
+ * no proof). Go: a file under `vendor/` must belong to a module the returned `vendor/modules.txt`
+ * lists at the version the move reports, and that the returned go.sum (or go.mod) names at that
+ * version. Bundler: a cached gem must be a moved gem at its new version, locked in the returned
+ * Gemfile.lock. Returns the paths that fail; empty when every vendored file is accounted for.
+ */
+export function vendoredOutsideGraph(
+  ecosystem: string,
+  files: readonly ResolvedFile[],
+  moved: readonly MovedDependency[],
+): string[] {
+  const text = (re: RegExp) => files.find((f) => re.test(f.path))?.content ?? "";
+  const movedTo = new Map(moved.filter((m) => !m.removed && m.to).map((m) => [m.name, m.to as string]));
+  const vendored = files.filter((f) => /(?:^|\/)vendor\//.test(f.path));
+  if (ecosystem === "go") {
+    const listed = new Map<string, string>();
+    for (const line of text(/(?:^|\/)vendor\/modules\.txt$/).split("\n")) {
+      const m = /^# (\S+) (v\S+)/.exec(line);
+      if (m?.[1] && m[2]) listed.set(m[1], m[2]);
+    }
+    const graph = `${text(/(?:^|\/)go\.sum$/)}\n${text(/(?:^|\/)go\.mod$/)}`;
+    return vendored
+      .filter((f) => !/(?:^|\/)vendor\/modules\.txt$/.test(f.path))
+      .filter((f) => {
+        const rel = /(?:^|\/)vendor\/(.+)$/.exec(f.path)?.[1] ?? "";
+        const module = [...listed.keys()]
+          .filter((m) => rel.startsWith(`${m}/`))
+          .sort((a, b) => b.length - a.length)[0];
+        const version = module ? listed.get(module) : undefined;
+        return !(
+          module &&
+          version &&
+          movedTo.get(module)?.replace(/^v?/, "v") === version &&
+          graph.includes(`${module} ${version}`)
+        );
+      })
+      .map((f) => f.path);
+  }
+  if (ecosystem === "rubygems") {
+    const lock = text(/(?:^|\/)(?:Gemfile|gems)\.lock(?:ed)?$/);
+    return vendored
+      .filter((f) => {
+        const gem = /(?:^|\/)vendor\/cache\/(.+)-([^-/]+)\.gem$/.exec(f.path);
+        return !(
+          gem?.[1] &&
+          gem[2] &&
+          movedTo.get(gem[1]) === gem[2] &&
+          lock.includes(`    ${gem[1]} (${gem[2]})`)
+        );
+      })
+      .map((f) => f.path);
+  }
+  return vendored.map((f) => f.path);
+}
+
+/**
  * Whether a wrapper change is only a Gradle version raise (review round 2: an event naming Gradle
  * as moved is no proof): the properties file changes, and only its distribution URL and checksum.
  */

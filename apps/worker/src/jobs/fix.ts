@@ -62,7 +62,7 @@ import {
   movedPackageNotes,
   repoInstances,
 } from "@teire/engine/pipeline";
-import { cratesIndexLines, GO_PSEUDO } from "@teire/engine/registry";
+import { cratesIndexLines, GO_PSEUDO, versionScheme } from "@teire/engine/registry";
 import {
   GRADLE_WRAPPER_FILE,
   isDependencyFile,
@@ -75,6 +75,7 @@ import {
   resolverTransaction,
   type TeireManager,
   updateFor,
+  vendoredOutsideGraph,
   wrapperRaiseOnly,
 } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
@@ -471,6 +472,10 @@ function notDependencyFiles(
   const unexpected = r.files.filter((f) => !isDependencyFile(f.path, scope)).map((f) => f.path);
   if (unexpected.length)
     return `the updater's change includes files that aren't dependency files (${unexpected.slice(0, 5).join(", ")}); Teire doesn't commit them`;
+  // A move event alone is no proof: vendored files must be in the change's own dependency graph.
+  const vendored = vendoredOutsideGraph(ecosystem, r.files, r.moved);
+  if (vendored.length)
+    return `the updater's change vendors files its own dependency graph doesn't list (${vendored.slice(0, 5).join(", ")}); Teire doesn't commit them`;
   if (r.files.some((f) => GRADLE_WRAPPER_FILE.test(f.path))) {
     const props = r.files.find((f) => f.path.endsWith("gradle/wrapper/gradle-wrapper.properties"));
     if (!props || !wrapperRaiseOnly(tree.read(props.path) ?? null, props.content))
@@ -490,6 +495,7 @@ async function cargoChained(
   repo: { id: number; installationId: number | null; isPrivate: boolean | null },
   base: Omit<JobInput, "shape">,
   overlay: { path: string; content: string }[],
+  first: Extract<ResolverResult, { kind: "change" }>,
   lead: string,
   target: string,
   assessment: Assessment<AssessedProject>,
@@ -498,6 +504,14 @@ async function cargoChained(
 ): Promise<Extract<ResolverResult, { kind: "change" }> | null> {
   const line = (await cratesIndexLines(lead).catch(() => [])).find((l) => l.vers === target);
   if (!line) return null;
+  // Each job starts from the one before (S15.2): an overlay carries files, not deletions or bytes.
+  if (first.files.some((f) => f.content === null || f.encoding)) {
+    common.onEvent?.({
+      step: "transaction",
+      detail: "the first job's change deletes or writes binary files, which a chained job can't start from",
+    });
+    return null;
+  }
   const declared = (assessment.project as RustProject).instances.filter((i) => i.direct);
   const wanted = [...new Set(line.deps.map((d) => d.package ?? d.name))].filter((n) =>
     declared.some((d) => d.name === n),
@@ -507,8 +521,16 @@ async function cargoChained(
   );
   const blockers = cargoBlockers(line, declared, (c) => index.get(c) ?? []).slice(0, FIX.maxUpgradeRequests);
   if (!blockers.length) return null;
+  type Moved = Extract<ResolverResult, { kind: "change" }>["moved"][number];
   const files = new Map(overlay.map((f) => [f.path, f.content]));
-  const moved = new Map<string, Extract<ResolverResult, { kind: "change" }>["moved"][number]>();
+  const moved = new Map<string, Moved>();
+  // A package moved twice keeps where it started and where it ended.
+  const remember = (m: Moved) => {
+    const before = moved.get(m.name);
+    moved.set(m.name, before ? { ...m, from: before.from } : m);
+  };
+  for (const f of first.files) files.set(f.path, f.content as string);
+  for (const m of first.moved) remember(m);
   const step = async (dependency: string, version: string) => {
     if (files.size > FIX.maxOverlayFiles || [...files.values()].some((c) => c.length > FIX.maxOverlayChars)) {
       common.onEvent?.({
@@ -539,7 +561,7 @@ async function cargoChained(
     const unexpected = notDependencyFiles(r, "cargo", dependency, tree);
     if (unexpected) throw new ResolverStopError("unexpected_file", unexpected);
     for (const f of r.files) if (f.content !== null && !f.encoding) files.set(f.path, f.content);
-    for (const m of r.moved) moved.set(m.name, m);
+    for (const m of r.moved) remember(m);
     return r;
   };
   for (const b of blockers) {
@@ -684,6 +706,7 @@ async function resolverTransactionFor(
       repo,
       base,
       overlay,
+      r,
       packageName,
       target,
       assessment,
@@ -782,8 +805,12 @@ function upgradeRequests(
 ): RequestUpgrade {
   const ecosystem = assessment.instance.ecosystem;
   const roots = new Set(matching.map((m) => m.project.root));
-  return async ({ name, version, why, files }) => {
+  const scheme = versionScheme(ecosystem);
+  return async ({ name, version, why, files, current }) => {
     if (name === lead) return { ok: false, reason: `${name} is the package this run upgrades` };
+    // Never below where this run already moved it (the after-tree), whatever the base tree has.
+    if (current && scheme.valid(version) && scheme.valid(current) && scheme.compare(version, current) <= 0)
+      return { ok: false, reason: `this run already has ${name} at ${current}; ${version} isn't newer` };
     const job = resolverJobBase(repo, ecosystem, assessment, matching, config, tree, common);
     if (!job) return { ok: false, reason: `dependabot-core's updater doesn't decide ${ecosystem} here` };
     let here: Assessment<AssessedProject>[];
@@ -807,6 +834,12 @@ function upgradeRequests(
         reason: `${name} can't move to ${version} here (${other?.kind === "blocked" ? other.reason : (other?.skipped[0]?.detail ?? "not newer than what it has")})`,
       };
     }
+    // Exactly what was asked for: the registry pass may only pick lower under a cap, and that is no answer.
+    if (bareVersion(decision.to) !== bareVersion(version))
+      return {
+        ok: false,
+        reason: `the registry check takes ${name} to ${decision.to}, not ${version}${decision.skipped[0] ? ` (${decision.skipped[0].detail})` : ""}; ask for ${decision.to} if that works`,
+      };
     const overlay = Object.entries(files).map(([path, content]) => ({ path, content }));
     if (overlay.length > FIX.maxOverlayFiles || overlay.some((f) => f.content.length > FIX.maxOverlayChars))
       return {
@@ -839,6 +872,11 @@ function upgradeRequests(
       return {
         ok: false,
         reason: `the updater changed files without saying which version of ${name} it chose`,
+      };
+    if (bareVersion(r.leadVersion) !== bareVersion(decision.to))
+      return {
+        ok: false,
+        reason: `the updater can resolve ${name} only to ${r.leadVersion} here, not ${decision.to}`,
       };
     return {
       ok: true,
@@ -1025,7 +1063,7 @@ async function packageOutcome(
       : {}),
     ...(transaction ? { transaction } : {}),
     ...(co?.findings.length ? { extraFindings: co.findings, extraRecords: co.records } : {}),
-    ...(co?.notes.length ? { extraNotes: [...(common.extraNotes ?? []), ...co.notes] } : {}),
+    ...(co?.notes.length ? { movedNotes: co.notes } : {}),
     ...(transaction && resolved
       ? {
           requestUpgrade: upgradeRequests(
@@ -1191,28 +1229,26 @@ async function coMovedAssessed(
     const pinned = { name: m.name, from: m.from ?? found.instance.version ?? "?", to: m.to as string };
     const breaking = coMovedFindings(pinned, lead, found.summary?.breaking ?? []);
     findings.push(...breaking, ...coMovedFindings(pinned, lead, found.summary?.annotations ?? []));
-    if (breaking.length) {
-      records.push(...found.records);
-      // Its own release notes too (D-10), read like the lead's; a source that can't be read is said.
-      notes.push(
-        ...(await movedPackageNotes({
-          tf: common.tf,
-          ...(common.prices ? { prices: common.prices } : {}),
-          ecosystem: found.instance.ecosystem,
-          name: m.name,
-          from: pinned.from,
-          to: pinned.to,
-          removedApis: breaking.flatMap((f) => f.callSites.map((c) => c.snippet.trim().slice(0, 80))),
-          options: common.options,
-        }).catch((error) => {
-          common.onEvent?.({
-            step: "transaction",
-            detail: `${m.name}'s release notes couldn't be read: ${forGitHub(String(error), 160)}`,
-          });
-          return [];
-        })),
-      );
-    }
+    if (breaking.length) records.push(...found.records);
+    // Its own release notes too (D-10), read like the lead's; a source that can't be read is said.
+    notes.push(
+      ...(await movedPackageNotes({
+        tf: common.tf,
+        ...(common.prices ? { prices: common.prices } : {}),
+        ecosystem: found.instance.ecosystem,
+        name: m.name,
+        from: pinned.from,
+        to: pinned.to,
+        removedApis: breaking.flatMap((f) => f.callSites.map((c) => c.snippet.trim().slice(0, 80))),
+        options: common.options,
+      }).catch((error) => {
+        common.onEvent?.({
+          step: "transaction",
+          detail: `${m.name}'s release notes couldn't be read: ${forGitHub(String(error), 160)}`,
+        });
+        return [];
+      })),
+    );
     usage.set(m.name, usageOf(breaking));
   }
   for (const m of capped)

@@ -60,6 +60,11 @@ export async function lookupDocs(input: {
   target: string;
   query: string;
   apiKey?: string;
+  /**
+   * Pin only to an indexed version written exactly as the target (PyPI: PEP 440 versions such as
+   * `2.0.0rc1` or `1.4.post1` don't survive semver coercion, so a "nearest" one could be wrong).
+   */
+  exactOnly?: boolean;
 }): Promise<DocsLookup> {
   const search = await context7(
     `/v2/libs/search?libraryName=${encodeURIComponent(input.sourceRepo?.split("/")[1] ?? input.packageName)}&query=${encodeURIComponent(input.query)}`,
@@ -73,7 +78,11 @@ export async function lookupDocs(input: {
   let libraryId = owned?.id ?? repoId ?? libraries[0]?.id ?? null;
   if (!libraryId)
     return { libraryId: null, version: null, note: "Context7 has no library for this package", text: "" };
-  let version = owned?.versions?.length ? nearestVersion(owned.versions, input.target) : null;
+  let version = owned?.versions?.length
+    ? input.exactOnly
+      ? (owned.versions.find((v) => v.replace(/^v/, "") === input.target) ?? null)
+      : nearestVersion(owned.versions, input.target)
+    : null;
   let result = await context(version ? `${libraryId}/${version}` : libraryId, input.query, input.apiKey);
   if (result.error?.error === "library_redirected" && result.error.redirectUrl) {
     // Context7 moved the repo's docs elsewhere (openai-node → developers.openai.com, unversioned).

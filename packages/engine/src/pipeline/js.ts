@@ -204,6 +204,8 @@ export interface FixDependencyInput {
   extraFindings?: FindingDraft[];
   /** Those packages' change records, so the agent sees their before and after signatures. */
   extraRecords?: ChangeV2[];
+  /** Those packages' own release notes (D-10): read by the agent and quoted in the PR. */
+  movedNotes?: MigrationNote[];
   /** Other upgrades the agent may ask dependabot-core's updater for (S15.2). */
   requestUpgrade?: RequestUpgrade;
   /** teire.yml `verify` commands, which replace the detected ones per workspace (C8). */
@@ -291,7 +293,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
       ...(input.extraFindings ?? []),
     ],
     records: [...a.records, ...(input.extraRecords ?? [])],
-    notes: [...notes, ...(input.extraNotes ?? [])],
+    notes: [...notes, ...(input.extraNotes ?? []), ...(input.movedNotes ?? [])],
     ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
     targetDir: targetLayout.link.dir,
     targetPaths: new Set([
@@ -325,7 +327,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     backendNote: input.backendNote,
     summary: a.summary ?? { verdict: "not_affected", breaking: [], annotations: [], coverage: null },
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.movedNotes ?? [])],
     behaviour,
     ...(extraction ? { notesReceipt: extraction.receipt } : {}),
   });

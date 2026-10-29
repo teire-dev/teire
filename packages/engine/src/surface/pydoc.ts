@@ -30,6 +30,7 @@ export function pythonDocsLookup(input: {
         ...(input.sourceRepo ? { sourceRepo: input.sourceRepo } : {}),
         target: input.target,
         query,
+        exactOnly: true,
         ...(input.context7Key ? { apiKey: input.context7Key } : {}),
       }).catch((error: unknown) => ({
         note: `Context7 is unreachable (${String(error).slice(0, 120)})`,

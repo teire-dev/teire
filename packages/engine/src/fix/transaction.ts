@@ -16,6 +16,8 @@ export type RequestUpgrade = (request: {
   why: string;
   /** The dependency files as this run has them now (the after-tree the job starts from). */
   files: Record<string, string>;
+  /** The version this run already moved the dependency to, when it did: a request must go above it. */
+  current?: string;
 }) => Promise<
   | {
       ok: true;

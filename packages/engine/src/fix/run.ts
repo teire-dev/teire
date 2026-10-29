@@ -22,7 +22,7 @@ import type { RepoTree } from "../inventory/tree";
 import type { ModelPrice, TokenFactory } from "../llm";
 import type { VerifyBackend } from "../verify/backend";
 import type { CheckPlan } from "../verify/commands";
-import { decideEvidence, type Evidence, type SideResult } from "../verify/evidence";
+import { type CheckResult, decideEvidence, type Evidence, type SideResult } from "../verify/evidence";
 import {
   type CheckableProject,
   checkableProjects,
@@ -244,6 +244,19 @@ function checkText(checks: SideResult["checks"]) {
       return `## ${c.name} (${c.argv.join(" ")}): exit ${c.exitCode}${counts}\n${c.exitCode === 0 ? "" : errorLines || c.output.slice(-3000)}`;
     })
     .join("\n\n");
+}
+
+/** Each check on both sides, as the bump review reads them: what ran, how it ended, the test counts. */
+export function checkLines(before: readonly CheckResult[], after: readonly CheckResult[]): string[] {
+  const said = (c: CheckResult | undefined) =>
+    !c
+      ? "not run"
+      : `${c.timedOut ? "timed out" : `exit ${c.exitCode}`}${c.counts ? `, ${c.counts.passed} passed, ${c.counts.failed} failed, ${c.counts.skipped} skipped` : ""}`;
+  const names = [...new Set([...before, ...after].map((c) => c.name))];
+  return names.map(
+    (n) =>
+      `${n}: before ${said(before.find((c) => c.name === n))}; after ${said(after.find((c) => c.name === n))}`,
+  );
 }
 
 function describeFindings(input: FixInput) {
@@ -802,24 +815,34 @@ async function runLead(input: FixInput): Promise<FixRun> {
 
     if (!prepared.install.ok) {
       const evidence = decideEvidence(baseline, prepared);
-      // The upgrade broke an install that worked before: Nemotron names the cause (S15.5).
-      if (baseline.install.ok) {
-        triage = await triageInstall({
-          tf: input.tf,
-          prices: input.prices,
-          brief,
-          output: prepared.install.output,
-        }).catch(() => undefined);
-        if (triage?.cause) evidence.reasons.push(`the install failed: ${triage.cause}`);
-        if (triage)
-          emit({
-            step: "review",
-            model: triage.model,
-            detail: triage.error ?? `install (${triage.kind}): ${triage.cause}`,
-            ms: triage.ms,
-            costUsd: triage.costUsd,
-          });
-      }
+      // Every failed install gets Nemotron's reading of why (S15.5): a cause for the reasons when the
+      // upgrade broke an install that worked before; on the receipt either way, or why it couldn't run.
+      const started = Date.now();
+      triage = await triageInstall({
+        tf: input.tf,
+        prices: input.prices,
+        brief,
+        output: prepared.install.output,
+      }).catch(
+        (error: unknown): InstallTriage => ({
+          model: input.tf.modelId("reader"),
+          cause: "",
+          kind: "other",
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          ms: Date.now() - started,
+          error: `the triage couldn't run: ${forGitHub(String(error), 160)}`,
+        }),
+      );
+      if (triage.cause && baseline.install.ok) evidence.reasons.push(`the install failed: ${triage.cause}`);
+      emit({
+        step: "review",
+        model: triage.model,
+        detail: triage.error ?? `install (${triage.kind}): ${triage.cause}`,
+        ms: triage.ms,
+        costUsd: triage.costUsd,
+      });
       emit({ step: "verify", detail: `${evidence.kind}: ${evidence.reasons.join("; ")}` });
       return finish(evidence, prepared, [], [], [], "", true);
     }
@@ -869,11 +892,15 @@ async function runLead(input: FixInput): Promise<FixRun> {
               .map((p) => [p, read(p)]),
           );
           emit({ step: "transaction", detail: `the agent asks for ${name} ${version}: ${clip(why)}` });
+          const already = [...(input.transaction.moved ?? []), ...extraMoved].findLast(
+            (m) => m.name === name,
+          )?.to;
           const answer = await (input.requestUpgrade as RequestUpgrade)({
             name,
             version,
             why,
             files: current,
+            ...(already ? { current: already } : {}),
           });
           if (!answer.ok) {
             emit({ step: "transaction", detail: `${name} ${version} not moved: ${answer.reason}` });
@@ -980,9 +1007,24 @@ async function runLead(input: FixInput): Promise<FixRun> {
         ]
           .filter(Boolean)
           .join("\n"),
-        checks: `${evidence.kind.replace(/_/g, " ")}: ${evidence.reasons.join("; ")}`,
+        checks: [
+          `${evidence.kind.replace(/_/g, " ")}: ${evidence.reasons.join("; ")}`,
+          ...checkLines(baseline.checks, lastAfter.checks),
+        ].join("\n"),
         file: manifest[0]?.path ?? lockfile?.path ?? "the dependency files",
-      }).catch(() => null);
+      }).catch(
+        // A review that couldn't run is on the receipt as such, never silently absent.
+        (error: unknown): Review => ({
+          model: input.tf.modelId("reader"),
+          scope: "change",
+          problems: [],
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          ms: 0,
+          error: `the review couldn't run: ${forGitHub(String(error), 160)}`,
+        }),
+      );
       if (review)
         emit({
           step: "review",

@@ -250,7 +250,7 @@ export async function fixPyDependency(
       ...(input.extraFindings ?? []),
     ],
     records: [...a.records, ...(input.extraRecords ?? [])],
-    notes: [...notes, ...(input.extraNotes ?? [])],
+    notes: [...notes, ...(input.extraNotes ?? []), ...(input.movedNotes ?? [])],
     ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
     targetDir: targetWheel.dir,
     targetPaths: new Set(),
@@ -280,7 +280,7 @@ export async function fixPyDependency(
     backendNote: input.backendNote,
     summary: a.summary ?? { verdict: "not_affected", breaking: [], annotations: [], coverage: null },
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.movedNotes ?? [])],
     behaviour,
     ...(extraction ? { notesReceipt: extraction.receipt } : {}),
   });

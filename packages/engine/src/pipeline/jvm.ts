@@ -283,7 +283,7 @@ export async function fixJvmDependency(
       ...(input.extraFindings ?? []),
     ],
     records: [...a.records, ...(input.extraRecords ?? [])],
-    notes: [...notes, ...(input.extraNotes ?? [])],
+    notes: [...notes, ...(input.extraNotes ?? []), ...(input.movedNotes ?? [])],
     ...(input.requestUpgrade ? { requestUpgrade: input.requestUpgrade } : {}),
     targetDir: "",
     targetPaths: new Set(),
@@ -334,7 +334,7 @@ export async function fixJvmDependency(
     backendNote: input.backendNote,
     summary,
     records: a.records,
-    notes,
+    notes: [...notes, ...(input.movedNotes ?? [])],
     behaviour,
     ...(extraction ? { notesReceipt: extraction.receipt } : {}),
   });
