@@ -4,47 +4,45 @@ description: When a package, API or model changes, Teire fixes your code.
 icon: House
 ---
 
-Teire finds the lines that break, and a Nemotron coding agent on Nebius Token Factory fixes what a plain swap can't. Your own tests run before and after, and a pull request shows the proof.
-
-Teire watches every dependency and API your repository uses. That covers six package ecosystems, the AI and payment APIs your code calls, and the runtimes it is pinned to. When one of them changes in a way that reaches your code, Teire finds the exact lines. NVIDIA Nemotron 3 Ultra on Nebius Token Factory edits what a plain swap cannot. Your own checks run in a sandbox before and after the change, and Teire opens a pull request that shows the evidence.
-
 <Diagram
   name="model-retirement"
   alt="Sequence: Teire scans teire-dev/examples/wrapped-models, finds Groq's deprecations page, has Nemotron read it with verbatim quotes, traces the wrapped model IDs to the request, swaps the one with a single named replacement and has Nemotron choose between two for the other, verifies 0/4 → 4/4 tests in the sandbox, and composes the ready PR it would open."
   caption="A real evaluation run: the repository keeps both IDs in a tier registry, not in a model: argument. Installed, the last step opens the PR."
 />
 
+Teire watches every dependency and API your repository uses: six package ecosystems, the AI and payment APIs your code calls, and the runtimes it is pinned to. When a change reaches your code, Teire finds the exact lines, NVIDIA Nemotron 3 Ultra on Nebius Token Factory edits what a plain swap cannot, your own checks run before and after in a sandbox, and the pull request shows the evidence.
+
 ## One change, end to end
 
-The run above is from Teire's evaluation, on [teire-dev/examples/wrapped-models](https://github.com/teire-dev/examples/tree/main/wrapped-models).
+The flow above, step by step, from Teire's evaluation on [teire-dev/examples/wrapped-models](https://github.com/teire-dev/examples/tree/main/wrapped-models).
 
-<Steps>
-<Step>
+<Accordions type="multiple">
+<Accordion title="Notice">
 
-**Notice.** `groq-sdk` is installed and Teire has no hand-written reader for Groq. The SDK's own published code names `api.groq.com`. Groq's `llms.txt` and a Tavily search led to `console.groq.com/docs/deprecations`. Nemotron read that page into change records, and each record was kept only because its quote appears word for word in the fetched page.
+`groq-sdk` is installed and Teire has no hand-written reader for Groq. The SDK's own published code names `api.groq.com`. Groq's `llms.txt` and a Tavily search led to `console.groq.com/docs/deprecations`. Nemotron read that page into change records, and each record was kept only because its quote appears word for word in the fetched page.
 
-</Step>
-<Step>
+</Accordion>
+<Accordion title="Impact">
 
-**Impact.** `llama-3.1-8b-instant` sits in `src/models.ts:7` as `TIERS.quick.id`, not as a `model:` argument, so plain text search can't tell whether it reaches a request. Nemotron traced it: *"src/llm.ts:12 `model: t.id,`"*. Code then checked that the cited line exists in a file the model was shown and names a model. Only then did the finding become **affected**.
+`llama-3.1-8b-instant` sits in `src/models.ts:7` as `TIERS.quick.id`, not as a `model:` argument, so plain text search can't tell whether it reaches a request. Nemotron traced it: *"src/llm.ts:12 `model: t.id,`"*. Code then checked that the cited line exists in a file the model was shown and names a model. Only then did the finding become **affected**.
 
-</Step>
-<Step>
+</Accordion>
+<Accordion title="Fix">
 
-**Fix.** Teire swapped `llama-3.1-8b-instant` for the one replacement Groq names. For `llama-3.3-70b-versatile` Groq names two, so Nemotron 3 Ultra chose `openai/gpt-oss-120b`. It also raised the quick tier's token limit so the new model has room to answer: 1 attempt, 12 steps, $0.095.
+Teire swapped `llama-3.1-8b-instant` for the one replacement Groq names. For `llama-3.3-70b-versatile` Groq names two, so Nemotron 3 Ultra chose `openai/gpt-oss-120b`. It also raised the quick tier's token limit so the new model has room to answer: 1 attempt, 12 steps, $0.095.
 
-</Step>
-<Step>
+</Accordion>
+<Accordion title="Verify">
 
-**Verify.** Both sides ran in their own sandbox with the network off. The baseline's tests passed 0/4, because the retired models are gone. After the change, 4/4 passed.
+Both sides ran in their own sandbox with the network off. The baseline's tests passed 0/4, because the retired models are gone. After the change, 4/4 passed.
 
-</Step>
-<Step>
+</Accordion>
+<Accordion title="Pull request">
 
-**Pull request.** The evidence was `verified`, so the PR Teire composed is a ready one that opens with **Verified.** It carries the quotes, the call sites, the before/after table and the receipt.
+The evidence was `verified`, so the PR Teire composed is a ready one that opens with **Verified.** It carries the quotes, the call sites, the before/after table and the receipt.
 
-</Step>
-</Steps>
+</Accordion>
+</Accordions>
 
 <Shot
   name="report-wrapped-models"

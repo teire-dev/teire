@@ -469,12 +469,12 @@ function Station({
 /** A before → after figure, huge: the proof in two numbers. */
 function Figure({ label, before, after }: { label: string; before: string; after: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-card bg-sheet p-4 shadow-card">
+    <div className="flex min-w-0 flex-col gap-1 rounded-card bg-sheet p-4 shadow-card">
       <dt className="font-mono text-[11px] text-ink-3">{label}</dt>
-      <dd className="flex items-baseline gap-2 font-mono">
-        <span className="text-xl text-ink-2">{before}</span>
+      <dd className="flex flex-wrap items-baseline gap-x-2 font-mono">
+        <span className="text-lg text-ink-2 sm:text-xl">{before}</span>
         <ArrowRight className="size-4 self-center text-ink-3" />
-        <span className="text-3xl font-medium text-proven">{after}</span>
+        <span className="text-2xl font-medium text-proven sm:text-3xl">{after}</span>
       </dd>
     </div>
   );

@@ -108,7 +108,7 @@ function Card({
       <header className="flex items-center justify-between gap-2">
         <span className={cn("eyebrow", tone === "signal" && "text-signal")}>{eyebrow}</span>
         {asOf ? (
-          <time dateTime={asOf} title={asOf} className="font-mono text-[10px] text-ink-3">
+          <time dateTime={asOf} title={asOf} className="font-mono text-[11px] text-ink-3">
             as of {ago(asOf)}
           </time>
         ) : null}
@@ -197,7 +197,7 @@ function Figures({
           </span>
           <span className="flex min-w-0 flex-col">
             <dd className="font-mono text-base leading-none text-ink tabular-nums">{value}</dd>
-            <dt className="mt-0.5 truncate text-[10px] text-ink-3">{label}</dt>
+            <dt className="mt-0.5 truncate text-[11px] text-ink-3">{label}</dt>
           </span>
         </div>
       ))}
@@ -256,7 +256,7 @@ export function OverviewCard({ o }: { o: Out<"get_overview"> }) {
               </SafeLink>
               <span
                 className={cn(
-                  "ml-auto shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px]",
+                  "ml-auto shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[11px]",
                   // Past: the model is gone and the code still names it.
                   d.deadline && Date.parse(d.deadline) < Date.now()
                     ? "bg-broke-soft text-broke"
@@ -361,7 +361,7 @@ export function RepoCard({ o }: { o: Out<"get_repo"> }) {
           </StatusChip>
         ) : null}
         <ModeChip mode={o.fixMode.mode} />
-        <span className="font-mono text-[10px] text-ink-3">{o.fixMode.file ?? o.fixMode.origin}</span>
+        <span className="font-mono text-[11px] text-ink-3">{o.fixMode.file ?? o.fixMode.origin}</span>
       </div>
       {o.lastScan?.status === "failed" ? (
         <p className="text-xs text-broke">Last scan failed: {o.lastScan.error}</p>
@@ -419,7 +419,7 @@ function CountPills({ items }: { items: [number, string, FigureTone][] }) {
       {items.map(([n, label, tone]) => (
         <span
           key={label}
-          className={cn("rounded-full px-2 py-0.5 font-mono text-[10px]", FIGURE_TONE[n ? tone : "neutral"])}
+          className={cn("rounded-full px-2 py-0.5 font-mono text-[11px]", FIGURE_TONE[n ? tone : "neutral"])}
         >
           {n} {label}
         </span>
@@ -448,7 +448,7 @@ function GroupRow({
         {g.verdict !== "affected" ? (
           <VerdictChip verdict={g.verdict} />
         ) : g.sites ? (
-          <span className="shrink-0 font-mono text-[10px] text-ink-3">
+          <span className="shrink-0 font-mono text-[11px] text-ink-3">
             {g.sites} line{g.sites === 1 ? "" : "s"}
           </span>
         ) : null}
@@ -547,7 +547,7 @@ export function FindingCard({ o }: { o: Out<"get_finding"> }) {
                 key={`${x.file}:${x.line}`}
                 className="rounded-md bg-sunken px-2 py-1 ring-1 ring-rule ring-inset"
               >
-                <span className="font-mono text-[10px] text-ink-3">
+                <span className="font-mono text-[11px] text-ink-3">
                   {x.file}:{x.line} · {x.resolution}
                 </span>
                 <pre className="overflow-x-auto font-mono text-[11px] text-ink">{x.code}</pre>
@@ -596,7 +596,7 @@ export function RunCard({ o }: { o: Out<"get_run"> | Out<"explain_run"> }) {
         <MiniFlow proof={proofOf(o.proof)} />
       ) : null}
       {explained?.meaning ? <p className="text-xs text-ink-2">{explained.meaning}</p> : null}
-      <p className="flex flex-wrap gap-1.5 font-mono text-[10px] text-ink-2">
+      <p className="flex flex-wrap gap-1.5 font-mono text-[11px] text-ink-2">
         {[
           o.status,
           o.durationMs !== null ? ms(o.durationMs) : null,
@@ -696,7 +696,7 @@ export function ChangesCard({ o }: { o: Out<"list_changes"> }) {
                 {brand ? <Mark brand={brand} size="sm" /> : null}
                 <span className="min-w-0 flex-1 truncate text-ink">{c.title}</span>
                 {c.deadline ? (
-                  <span className="shrink-0 rounded-full bg-attention-soft px-1.5 py-0.5 font-mono text-[10px] text-attention">
+                  <span className="shrink-0 rounded-full bg-attention-soft px-1.5 py-0.5 font-mono text-[11px] text-attention">
                     {until(c.deadline)}
                   </span>
                 ) : null}
@@ -735,7 +735,7 @@ function OwnWords({ quote, link, basis }: { quote: string; link?: string | null;
       </summary>
       <blockquote className="mt-1.5 border-l-2 border-rule-strong pl-2 break-words text-ink-2">
         {quote}
-        <span className="mt-1 block font-mono text-[10px] text-ink-3">
+        <span className="mt-1 block font-mono text-[11px] text-ink-3">
           {basis ? basis.replace(/[_-]/g, " ") : null}
           {basis && link ? " · " : null}
           {link ? <SafeLink href={link}>change record</SafeLink> : null}
@@ -806,7 +806,7 @@ const show = (v: unknown) =>
 export function ConfigCard({ o }: { o: Out<"get_config"> }) {
   return (
     <Card eyebrow={`teire.yml · ${o.repo}`} asOf={o.asOf} link={o.link}>
-      <p className="font-mono text-[10px] text-ink-3">from {o.source}</p>
+      <p className="font-mono text-[11px] text-ink-3">from {o.source}</p>
       {/* Cells as the Config tab's board draws them: what is set reads dark, what is off or empty grey. */}
       <dl className="grid grid-cols-2 gap-1.5">
         {Object.entries(o.values).map(([k, v]) => {
@@ -817,7 +817,7 @@ export function ConfigCard({ o }: { o: Out<"get_config"> }) {
               key={k}
               className="flex min-w-0 flex-col rounded-md bg-sunken/60 px-2 py-1 ring-1 ring-rule ring-inset"
             >
-              <dt className="truncate text-[10px] text-ink-3">{k}</dt>
+              <dt className="truncate text-[11px] text-ink-3">{k}</dt>
               <dd className={cn("truncate font-mono text-[11px]", quiet ? "text-ink-3" : "text-ink")}>
                 {said}
               </dd>
@@ -896,7 +896,7 @@ export function UsageCard({ o }: { o: Out<"get_usage"> }) {
               />
             ))}
           </span>
-          <figcaption className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] text-ink-3">
+          <figcaption className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-ink-3">
             {parts.map((p, i) => (
               <span key={p.purpose} className="flex items-center gap-1">
                 <span aria-hidden className="size-2 rounded-full" style={{ background: PURPOSE_COLOR[i] }} />
@@ -1243,7 +1243,7 @@ export function ActionCard({ o }: { o: Proposed }) {
             <p className="text-xs text-ink-2">{proposal.why}</p>
           ) : null}
           {"note" in proposal && proposal.note ? (
-            <p className="font-mono text-[10px] text-ink-3">{proposal.note}</p>
+            <p className="font-mono text-[11px] text-ink-3">{proposal.note}</p>
           ) : null}
           {action ? (
             <div className="flex flex-col gap-1">

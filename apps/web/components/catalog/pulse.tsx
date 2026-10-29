@@ -136,7 +136,7 @@ export function WatchBand({
                 </span>
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate text-[13px] font-medium">{w.label}</span>
-                  <span className="truncate font-mono text-[10px] text-hero-ink-2">
+                  <span className="truncate font-mono text-[11px] text-hero-ink-2">
                     {w.checked ? ago(w.checked) : "not yet"} · {w.changes}
                   </span>
                 </span>
@@ -171,7 +171,7 @@ export function WhatsNew({ rows, names }: { rows: CatalogRow[]; names: Record<st
                     <BrandLogo light={logo.light} dark={logo.dark} alt="" className="h-4 max-w-6 w-auto" />
                     <span className="truncate">{sourceLabel(key, names)}</span>
                   </span>
-                  <span className="shrink-0 font-mono text-[10px] text-ink-3">{ago(r.createdAt)}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-ink-3">{ago(r.createdAt)}</span>
                 </span>
                 <span className="line-clamp-2 text-sm font-medium text-ink">{r.title}</span>
                 <span className="mt-auto">
@@ -275,7 +275,7 @@ export function ActivityLanes({ rows, watched }: { rows: CatalogRow[]; watched: 
             );
           })}
         </ul>
-        <div className="mt-2 grid grid-cols-1 gap-3 px-2 font-mono text-[10px] text-ink-3 sm:min-w-[540px] sm:grid-cols-[9rem_1fr_2.5rem]">
+        <div className="mt-2 grid grid-cols-1 gap-3 px-2 font-mono text-[11px] text-ink-3 sm:min-w-[540px] sm:grid-cols-[9rem_1fr_2.5rem]">
           <span className="hidden sm:block" />
           <span className="flex justify-between">
             <span>{(days[0] ?? "").slice(5)}</span>

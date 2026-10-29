@@ -500,7 +500,7 @@ function Permissions() {
                 {p.name}
                 <span
                   className={cn(
-                    "rounded-full px-1.5 py-px font-mono text-[10px]",
+                    "rounded-full px-1.5 py-px font-mono text-[11px]",
                     p.level === "write" ? "bg-attention-soft text-attention" : "bg-sunken text-ink-3",
                   )}
                 >

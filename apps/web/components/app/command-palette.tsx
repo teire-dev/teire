@@ -120,7 +120,7 @@ export function CommandPalette({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   repos: { fullName: string; fixMode: string; status?: string; languages?: unknown; live?: boolean }[];
-  runs?: { id: string; repo: string; groupKey: string | null; status: string; proof: Proof }[];
+  runs?: { id: string; repo: string; groupKey: string | null; status: string }[];
   changes?: { id: string; title: string; repos: number; provider: string | null; ecosystem: string | null }[];
 }) {
   const router = useRouter();
@@ -136,6 +136,25 @@ export function CommandPalette({
   const repo = here ? repos.find((r) => r.fullName === here) : undefined;
 
   const docs = useDocsSearch(query, { enabled: open });
+  // The proof chains load when the palette first opens, never on every page (V5–V6 review).
+  const [chains, setChains] = useState<
+    { id: string; repo: string; groupKey: string | null; proof: Proof }[] | null
+  >(null);
+  useEffect(() => {
+    if (!open || chains) return;
+    let alive = true;
+    fetch("/api/app/palette", { cache: "no-store" })
+      .then(async (r) => (r.ok ? ((await r.json()) as { runs: NonNullable<typeof chains> }).runs : []))
+      .then((list) => alive && setChains(list))
+      .catch(() => alive && setChains([]));
+    return () => {
+      alive = false;
+    };
+  }, [open, chains]);
+  const proofOf = new Map((chains ?? []).map((c) => [c.id, c.proof]));
+  // Each repository's newest run (the list is newest first).
+  const latestOf = new Map<string, { proof: Proof; groupKey: string | null }>();
+  for (const c of chains ?? []) if (!latestOf.has(c.repo)) latestOf.set(c.repo, c);
 
   useEffect(() => {
     if (!open) {
@@ -263,6 +282,14 @@ export function CommandPalette({
                   <RepoMark languages={r.languages} />
                   <span className="truncate">{r.fullName}</span>
                   {r.live ? <LiveDot className="ml-1" /> : null}
+                  {latestOf.get(r.fullName) ? (
+                    <MiniFlow
+                      proof={latestOf.get(r.fullName)?.proof as Proof}
+                      subject={subjectMark(latestOf.get(r.fullName)?.groupKey ?? null)}
+                      size="xs"
+                      className="ml-auto hidden shrink-0 sm:inline-flex"
+                    />
+                  ) : null}
                   <CommandShortcut>
                     <span className={cn(r.fixMode === "auto" ? "text-proven" : "text-ink-3")}>
                       {FIX_MODE_LABEL[r.fixMode as keyof typeof FIX_MODE_LABEL] ?? r.fixMode}
@@ -297,12 +324,18 @@ export function CommandPalette({
                   value={`run ${r.repo} ${r.groupKey ?? ""}`}
                   onSelect={() => go(`/runs/${r.id}`)}
                 >
-                  <MiniFlow
-                    proof={r.proof}
-                    subject={subjectMark(r.groupKey)}
-                    size="xs"
-                    className="shrink-0"
-                  />
+                  {proofOf.get(r.id) ? (
+                    <MiniFlow
+                      proof={proofOf.get(r.id) as Proof}
+                      subject={subjectMark(r.groupKey)}
+                      size="xs"
+                      className="shrink-0"
+                    />
+                  ) : (
+                    <Square>
+                      <Activity />
+                    </Square>
+                  )}
                   <span className="truncate font-mono text-xs">{r.groupKey ?? r.repo}</span>
                   <CommandShortcut>{r.repo.split("/")[1]}</CommandShortcut>
                 </CommandItem>
@@ -323,7 +356,7 @@ export function CommandPalette({
                     <BookOpen />
                   </Square>
                   <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="font-mono text-[10px] text-ink-3">
+                    <span className="font-mono text-[11px] text-ink-3">
                       {(h.breadcrumbs ?? []).join(" › ")}
                     </span>
                     <span className="line-clamp-2 text-sm text-ink-2">
@@ -360,7 +393,7 @@ export function CommandPalette({
           </CommandGroup>
         </CommandList>
       </Command>
-      <div className="flex items-center justify-end gap-1.5 border-t border-rule px-3 py-2 font-mono text-[10px] text-ink-3">
+      <div className="flex items-center justify-end gap-1.5 border-t border-rule px-3 py-2 font-mono text-[11px] text-ink-3">
         <kbd className="rounded bg-sunken px-1.5 ring-1 ring-rule">Esc</kbd> to close
       </div>
     </CommandDialog>

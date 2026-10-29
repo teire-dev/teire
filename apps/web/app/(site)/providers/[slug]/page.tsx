@@ -131,7 +131,7 @@ async function Provider({ params }: { params: PageProps<"/providers/[slug]">["pa
             const health = sources.find((x) => x.url === src.url);
             const status = health?.status ?? "stale";
             return (
-              <li key={src.url}>
+              <li key={src.url} className="min-w-0">
                 <a
                   href={src.url}
                   className="flex items-center gap-3 rounded-xl bg-sheet p-3 shadow-card hover:shadow-card-hover"

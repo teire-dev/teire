@@ -1,10 +1,10 @@
-import { and, asc, eq, inArray, installations, repos, runs, sql, systemState } from "@teire/db";
+import { and, asc, eq, inArray, installations, repos, sql, systemState } from "@teire/db";
 import { cookies } from "next/headers";
 import { freshAccess } from "./auth";
 import { myInstallations } from "./dashboard";
 import { database } from "./db";
 import { repoFixMode } from "./fix-mode";
-import { runsOf, type Scope } from "./workspace";
+import type { Scope } from "./workspace";
 
 /** The installation the person last chose in the switcher (U1); the first they can see otherwise. */
 export const INSTALLATION_COOKIE = "teire-installation";
@@ -91,13 +91,11 @@ export async function appShell(userId: string) {
   const [live, system, recent, prs, reaching] = await Promise.all([
     liveRepos(current.id, userId),
     systemLine(),
-    // For ⌘K: the installation's latest runs, each with its proof chain as every run row draws it,
-    // and the changes that reach its code.
-    runsOf(
-      { installationId: current.id, account: null, publicOnly: false, userId },
-      eq(runs.kind, "fix"),
-      12,
-    ),
+    // For ⌘K and Ask Teire's @-mentions: the installation's latest runs (their proof chains load when
+    // the palette opens, /api/app/palette) and the changes that reach its code.
+    database().execute<{ id: string; full_name: string; group_key: string | null; status: string }>(sql`
+      select x.id, r.full_name, x.group_key, x.status from runs x join repos r on r.id = x.repo_id
+      where r.installation_id = ${current.id} and ${readable(userId)} and x.kind = 'fix' order by x.created_at desc limit 12`),
     // For Ask Teire's @-mentions: the installation's open Teire PRs.
     database().execute<{ number: number; full_name: string; change_key: string }>(sql`
       select a.number, r.full_name, a.change_key from artifacts a join repos r on r.id = a.repo_id
@@ -128,13 +126,7 @@ export async function appShell(userId: string) {
       fixMode: repoFixMode(r, inst ?? null).mode,
     })),
     system,
-    runs: recent.map((r) => ({
-      id: r.id,
-      repo: r.repo,
-      groupKey: r.groupKey,
-      status: r.status,
-      proof: r.proof,
-    })),
+    runs: recent.rows.map((r) => ({ id: r.id, repo: r.full_name, groupKey: r.group_key, status: r.status })),
     changes: reaching.rows.map((c) => ({
       id: c.change_id,
       title: c.title ?? c.change_id,
