@@ -13,6 +13,7 @@ import { gatherPypiNotes, githubRepoOf } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
+import { pypiSignals } from "../registry/supply-chain";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { pypiScheme } from "../registry/versions";
 import { pythonDocsLookup } from "../surface/pydoc";
@@ -263,7 +264,10 @@ export async function fixPyDependency(
     onEvent: input.onEvent,
   });
   const groupKey = `pypi/${a.instance.name}/${target}`;
+  // Who published the target and what runs when it installs, against the installed version (D-14).
+  const supplyChain = await pypiSignals(a.instance.name, from, target, options).catch(() => [] as string[]);
   const pr = composeFixPullRequest({
+    ...(supplyChain.length ? { supplyChain } : {}),
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),

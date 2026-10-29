@@ -24,6 +24,7 @@ import {
   type Retractions,
   retractionOf,
 } from "../registry/go";
+import { GO_SUPPLY_CHAIN_NOTE } from "../registry/supply-chain";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { goScheme } from "../registry/versions";
 import { goSurfaceDiff } from "../surface/go";
@@ -392,6 +393,7 @@ export async function fixGoDependency(
   });
   const groupKey = `go/${a.instance.name}/${target}`;
   const pr = composeFixPullRequest({
+    supplyChain: [GO_SUPPLY_CHAIN_NOTE],
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),

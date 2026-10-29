@@ -84,7 +84,23 @@ Up to 12 sites per change. Lines whose types merely changed are listed as "Also 
 | Review of the passing diff: no problems found | NVIDIA Nemotron 3 Ultra | 1.4k / 1.1k | $0.0046 |
 | Sandboxes: install + checks, both sides | Cloudflare Containers | — | 27 s |
 
-An upgrade's first run also has a "Read the release notes" row. This run reused an earlier reading of the same notes, so it paid nothing for them.
+An upgrade's first run also has a "Read the release notes" row. A run with no code edits has a "Review of the dependency change" row instead of the diff's review, and a run whose install failed has a "Why the install failed" row. This run reused an earlier reading of the same notes, so it paid nothing for them.
+
+</Step>
+<Step>
+
+**Supply chain** says what changed about who published the target and what runs when it installs, compared with the version you have. Each registry is read only for what it publishes:
+
+| Registry | Signals |
+|---|---|
+| npm | a new install script; a different publishing account (unless the target is published with provenance); provenance the installed version had and the target lacks |
+| crates.io | a new build script (`build.rs`); a different publishing account |
+| PyPI | a PEP 740 attestation the installed version had and the target lacks, or one from a different repository or workflow; a target with only a source distribution, whose install runs its build backend |
+| RubyGems | a new native extension that compiles at install |
+| Maven Central | a different signing key (Central requires a signature on every file, so a missing one can't happen) |
+| Go | none: the module proxy publishes no publisher or signing data, and the PR says so; `go.sum` checks content against the checksum database |
+
+PyPI and RubyGems name only today's owners, so owner changes aren't compared.
 
 </Step>
 <Step>

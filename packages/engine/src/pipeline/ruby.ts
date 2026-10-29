@@ -12,6 +12,7 @@ import { gatherRubyNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
+import { gemSignals } from "../registry/supply-chain";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { rubygemsScheme } from "../registry/versions";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
@@ -256,7 +257,10 @@ export async function fixRubyDependency(
     onEvent: input.onEvent,
   });
   const groupKey = `rubygems/${a.instance.name}/${target}`;
+  // Who published the target and what runs when it installs, against the installed version (D-14).
+  const supplyChain = await gemSignals(a.instance.name, from, target).catch(() => [] as string[]);
   const pr = composeFixPullRequest({
+    ...(supplyChain.length ? { supplyChain } : {}),
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),

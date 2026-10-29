@@ -13,6 +13,7 @@ import { gatherJvmNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { mavenFlavor } from "../registry/maven-version";
+import { mavenSignals } from "../registry/supply-chain";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { mavenScheme } from "../registry/versions";
 import { javaRequirement, jvmSurfaceDiff } from "../surface/jvm";
@@ -317,7 +318,10 @@ export async function fixJvmDependency(
     );
   }
   const groupKey = `maven/${a.instance.name}/${target}`;
+  // Who published the target and what runs when it installs, against the installed version (D-14).
+  const supplyChain = await mavenSignals(a.instance.name, from, target).catch(() => [] as string[]);
   const pr = composeFixPullRequest({
+    ...(supplyChain.length ? { supplyChain } : {}),
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),

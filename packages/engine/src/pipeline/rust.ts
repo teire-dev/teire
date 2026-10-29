@@ -11,6 +11,7 @@ import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "
 import { gatherCargoNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
+import { crateSignals } from "../registry/supply-chain";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { cargoScheme } from "../registry/versions";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
@@ -209,7 +210,10 @@ export async function fixRustDependency(
     onEvent: input.onEvent,
   });
   const groupKey = `cargo/${a.instance.name}/${target}`;
+  // Who published the target and what runs when it installs, against the installed version (D-14).
+  const supplyChain = await crateSignals(a.instance.name, from, target).catch(() => [] as string[]);
   const pr = composeFixPullRequest({
+    ...(supplyChain.length ? { supplyChain } : {}),
     repo: input.repo,
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
