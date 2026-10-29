@@ -24,8 +24,9 @@ export const NEMOTRON = {
  * agent  — writes and repairs code (Ultra: 3/3 correct fixes vs Super 2/3);
  * reader — extraction and triage, reasoning on (Ultra: 29/29 records on every run);
  * failover — used only while the other model is unavailable (Super).
- * assistant — Ask Teire's chat (plan revision 3.3, D120): Super for speed, thinking off; it fails
- *   over to Ultra (assistantFailover), not to itself (per-role failover).
+ * assistant — Ask Teire's chat (plan revision 3.3, D120), thinking off, chosen for speed. Measured on
+ *   Token Factory on 2026-10-29: Ultra answered in 0.4–0.7 s per call and Super in 6–10 s, so chat
+ *   runs on Ultra (about $0.01 a reply) and fails over to Super (assistantFailover), per role.
  */
 export const MODEL_ENV = {
   agent: "TEIRE_MODEL_AGENT",
@@ -40,8 +41,8 @@ export const MODEL_DEFAULTS: Record<keyof typeof MODEL_ENV, string> = {
   agent: "nvidia/Nemotron-3-Ultra-550b-a55b",
   reader: "nvidia/Nemotron-3-Ultra-550b-a55b",
   failover: "nvidia/nemotron-3-super-120b-a12b",
-  assistant: "nvidia/nemotron-3-super-120b-a12b",
-  assistantFailover: "nvidia/Nemotron-3-Ultra-550b-a55b",
+  assistant: "nvidia/Nemotron-3-Ultra-550b-a55b",
+  assistantFailover: "nvidia/nemotron-3-super-120b-a12b",
 };
 
 /** Ask Teire's limits (plan revision 3.3, U4, D127): per reply, per person per day, all of it per day. */

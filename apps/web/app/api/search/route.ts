@@ -1,5 +1,4 @@
-import { createFromSource } from "fumadocs-core/search/server";
-import { source } from "@/lib/source";
+import { docsSearch } from "@/lib/docs-search";
 
 /** The docs' search index (Orama), built from every page. */
-export const { GET } = createFromSource(source);
+export const GET = (request: Request) => docsSearch.GET(request);
