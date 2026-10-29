@@ -1,5 +1,5 @@
 import { verify } from "@octokit/webhooks-methods";
-import { sql, webhookDeliveries } from "@teire/db";
+import { eq, repos, sql, webhookDeliveries } from "@teire/db";
 import { database } from "@/lib/db";
 
 /**
@@ -21,6 +21,16 @@ export async function POST(request: Request) {
   const payload = JSON.parse(body) as { action?: string; installation?: { id?: number } };
 
   const db = database();
+  // Visibility at once, in the request (V7 final review): a repository that turns private leaves the
+  // public pages before the worker has even read this delivery; a deleted one too.
+  const repoEvent = payload as { action?: string; repository?: { id?: number } };
+  if (event === "repository" && repoEvent.repository?.id) {
+    const id = repoEvent.repository.id;
+    if (repoEvent.action === "privatized" || repoEvent.action === "deleted")
+      await db.update(repos).set({ isPrivate: true }).where(eq(repos.id, id));
+    else if (repoEvent.action === "publicized")
+      await db.update(repos).set({ isPrivate: false }).where(eq(repos.id, id));
+  }
   await db
     .insert(webhookDeliveries)
     .values({

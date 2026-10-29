@@ -64,10 +64,12 @@ function TileNode({ id, data }: NodeProps<TileNodeT>) {
 // Module-level, so React Flow never sees a new type map and remounts the nodes (plan 3.4, A4).
 const nodeTypes = { tile: TileNode };
 
-const storeKey = (runId: string) => `teire:run-canvas:${runId}`;
-function savedPositions(runId: string): Record<string, { x: number; y: number }> {
+// Kept per run and per column count: a layout dragged at one width never lands outside another's
+// rows (V7 final review).
+const storeKey = (runId: string, cols: number) => `teire:run-canvas:${runId}:${cols}`;
+function savedPositions(runId: string, cols: number): Record<string, { x: number; y: number }> {
   try {
-    return JSON.parse(localStorage.getItem(storeKey(runId)) ?? "{}");
+    return JSON.parse(localStorage.getItem(storeKey(runId, cols)) ?? "{}");
   } catch {
     return {};
   }
@@ -119,25 +121,21 @@ export function RunCanvas({
       data: { tile: t, selected: t.id === selected, onSelect },
     })),
   );
-  // A new column count re-lays the tiles nobody dragged.
+  // A new column count lays the tiles out for it, with whatever this person dragged at that count.
   useEffect(() => {
     if (cols === null) return;
-    const saved = savedPositions(runId);
-    setNodes((ns) => ns.map((n, i) => (saved[n.id] ? n : { ...n, position: place(i) })));
+    const saved = savedPositions(runId, cols);
+    setNodes((ns) =>
+      ns.map((n, i) => ({
+        ...n,
+        position: (saved[n.id] as { x: number; y: number } | undefined) ?? place(i),
+      })),
+    );
   }, [cols, place, runId, setNodes]);
   const rows = Math.ceil(count / (cols ?? count));
   // React Flow puts its own `light`/`dark` class on the canvas; it must match the app's theme or the
   // `.light` token pin would keep light ink on a dark page.
   const canvasMode = useCanvasMode();
-
-  // Positions this person dragged to, kept for this run in this browser.
-  useEffect(() => {
-    const saved = savedPositions(runId);
-    if (Object.keys(saved).length)
-      setNodes((ns) =>
-        ns.map((n) => (saved[n.id] ? { ...n, position: saved[n.id] as { x: number; y: number } } : n)),
-      );
-  }, [runId, setNodes]);
 
   // The poll: merge each tile's new data by id, keep where it sits.
   useEffect(() => {
@@ -164,17 +162,18 @@ export function RunCanvas({
 
   const keep = useCallback(
     (_: unknown, node: TileNodeT) => {
-      const saved = savedPositions(runId);
+      if (cols === null) return;
+      const saved = savedPositions(runId, cols);
       saved[node.id] = node.position;
       try {
-        localStorage.setItem(storeKey(runId), JSON.stringify(saved));
+        localStorage.setItem(storeKey(runId, cols), JSON.stringify(saved));
       } catch {}
     },
-    [runId],
+    [runId, cols],
   );
   const reset = () => {
     try {
-      localStorage.removeItem(storeKey(runId));
+      if (cols !== null) localStorage.removeItem(storeKey(runId, cols));
     } catch {}
     setNodes((ns) => ns.map((n, i) => ({ ...n, position: place(i) })));
   };

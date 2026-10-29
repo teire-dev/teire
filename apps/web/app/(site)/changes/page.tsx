@@ -122,10 +122,8 @@ async function ChangeList({ searchParams }: { searchParams: PageProps<"/changes"
         watched={watched}
         total={all.length}
         week={all.filter((r) => r.createdAt >= weekAgo).length}
-        rereadToday={
-          all.filter((r) =>
-            r.record.sources.some((x) => x.checkedAt >= new Date(Date.now() - 86_400_000).toISOString()),
-          ).length
+        checkedToday={
+          pages.filter((x) => x.checked && x.checked >= new Date(Date.now() - 86_400_000).toISOString()).length
         }
         ahead={all.filter((r) => r.deadline && r.deadline >= today).length}
       />

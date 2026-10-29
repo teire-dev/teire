@@ -19,8 +19,8 @@ export interface Watched {
   label: string;
   logo: { light: string; dark: string };
   checked: string | null;
-  /** ok, or the reason a dot is amber or red. */
-  status: "ok" | "stale" | "failing";
+  /** ok, or the reason a dot is amber or red; "demand" for registries Teire reads only when a scan needs them. */
+  status: "ok" | "stale" | "failing" | "demand";
   /** What Teire reads there: deprecation pages, changelogs, the registry. */
   what: string;
   changes: number;
@@ -55,8 +55,9 @@ export function watchedOf(
       key: k,
       label: sourceLabel(k, names).replace(/ packages$/, ""),
       logo: sourceLogo(k),
+      // Registries have no scheduled check to report on: they are read when a scan needs them (V7 review).
       checked: lastRead.get(k) ?? null,
-      status: "ok" as const,
+      status: "demand" as const,
       what: k.startsWith("pkg:")
         ? "registry · release notes"
         : k === "runtime"
@@ -72,17 +73,17 @@ export function WatchBand({
   watched,
   total,
   week,
-  rereadToday,
+  checkedToday,
   ahead,
 }: {
   watched: Watched[];
   total: number;
   week: number;
-  /** Changes whose source Teire read again in the last day: the figure when everything is new. */
-  rereadToday: number;
+  /** Watched sources whose pages Teire checked in the last day (their own last-check time): the figure when everything is new. */
+  checkedToday: number;
   ahead: number;
 }) {
-  const latest = watched.find((w) => w.checked)?.checked ?? null;
+  const latest = watched.find((w) => w.checked && w.status !== "demand")?.checked ?? null;
   return (
     <section className="relative overflow-hidden rounded-feature bg-hero p-6 text-hero-ink sm:p-8">
       <div
@@ -104,8 +105,8 @@ export function WatchBand({
           <dl className="flex gap-6">
             {[
               ["in the catalog", total],
-              // A catalog built this week makes "new this week" the total; then the day's re-reads say more.
-              week < total ? ["new this week", week] : ["re-read today", rereadToday],
+              // A catalog built this week makes "new this week" the total; then the day's source checks say more.
+              week < total ? ["new this week", week] : ["sources checked today", checkedToday],
               ["dated ahead", ahead],
             ].map(([k, v]) => (
               <div key={k as string} className="flex flex-col">
@@ -121,7 +122,7 @@ export function WatchBand({
               <Link
                 href={`/changes?source=${encodeURIComponent(w.key)}#browse`}
                 className="flex items-center gap-2.5 rounded-xl bg-white/[0.06] p-2.5 ring-1 ring-white/10 transition-colors hover:bg-white/[0.11]"
-                title={`${w.label}: ${w.what}${w.checked ? `, checked ${ago(w.checked)}` : ""}`}
+                title={`${w.label}: ${w.what}${w.status === "demand" ? ", read when a scan needs it" : w.checked ? `, checked ${ago(w.checked)}` : ""}`}
               >
                 <span className="relative flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-white">
                   <BrandLogo light={w.logo.light} dark={w.logo.light} alt="" className="h-5 max-w-7 w-auto" />
@@ -133,7 +134,9 @@ export function WatchBand({
                         ? "bg-broke"
                         : w.status === "stale"
                           ? "bg-attention"
-                          : "bg-hero-proven",
+                          : w.status === "demand"
+                            ? "bg-hero-ink-2"
+                            : "bg-hero-proven",
                       i === 0 && w.status === "ok" && "animate-live",
                     )}
                   />
@@ -141,7 +144,8 @@ export function WatchBand({
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate text-[13px] font-medium">{w.label}</span>
                   <span className="truncate font-mono text-[11px] text-hero-ink-2">
-                    {w.checked ? ago(w.checked) : "not yet"} · {w.changes}
+                    {w.status === "demand" ? "on demand" : w.checked ? ago(w.checked) : "not yet"} ·{" "}
+                    {w.changes}
                   </span>
                 </span>
               </Link>
@@ -155,12 +159,13 @@ export function WatchBand({
 
 /** The newest changes Teire picked up, as a row of cards you scroll sideways. */
 export function WhatsNew({ rows, names }: { rows: CatalogRow[]; names: Record<string, string> }) {
-  // The newest change per package or provider, so a big release is one card, not a row of its own.
+  // The newest change per provider or package, so a big release is one card, not a row of its own.
   const seen = new Set<string>();
   const latest = [...rows]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .filter((r) => {
-      const who = `${sourceOf(r)}:${r.record.subject.name}`;
+      // A provider is one card however many of its models changed; a package is one card per package.
+      const who = r.provider ? sourceOf(r) : `${sourceOf(r)}:${r.record.subject.name}`;
       if (seen.has(who)) return false;
       seen.add(who);
       return true;

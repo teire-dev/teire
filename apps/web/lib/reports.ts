@@ -14,6 +14,7 @@ import {
 } from "@teire/db";
 import { database } from "./db";
 import type { FindingRow } from "./findings";
+import { stillPublic } from "./visibility";
 
 /** A public scan report (C9): the request, its scan, findings and inventory. Public repos only. */
 export async function publicReport(id: string) {
@@ -27,7 +28,7 @@ export async function publicReport(id: string) {
     db.select().from(scans).where(eq(scans.id, request.scanId)).limit(1),
     db.select().from(repos).where(eq(repos.id, request.repoId)).limit(1),
   ]);
-  if (repo?.isPrivate) return null;
+  if (repo && !(await stillPublic(repo))) return null;
   const [rows, inventory] = await Promise.all([
     scanFindings(request.repoId, request.scanId),
     inventoryOf(request.scanId),
@@ -72,28 +73,36 @@ export async function inventoryOf(scanId: string) {
 
 /** Finished public reports, newest first, for /scan. */
 export async function recentReports(limit = 8) {
-  return (
-    database()
-      .select({
-        id: publicScans.id,
-        repo: publicScans.repoFullName,
-        finishedAt: publicScans.finishedAt,
-        // The outer row by its table name: an unqualified column would bind to `findings` itself.
-        affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f
+  const rows = await database()
+    .select({
+      id: publicScans.id,
+      repo: publicScans.repoFullName,
+      finishedAt: publicScans.finishedAt,
+      repoRow: {
+        id: repos.id,
+        fullName: repos.fullName,
+        isPrivate: repos.isPrivate,
+        installationId: repos.installationId,
+      },
+      // The outer row by its table name: an unqualified column would bind to `findings` itself.
+      affected: sql<number>`(select count(distinct coalesce(f.group_key, f.change_id))::int from findings f
         where f.scan_id = "public_scans"."scan_id" and f.verdict = 'affected')`,
-      })
-      .from(publicScans)
-      // A repository that is private now never shows here, even if it was public when scanned: its
-      // report already answers 404, so its name must not appear in the list either.
-      .where(
-        and(
-          eq(publicScans.status, "done"),
-          sql`not exists (select 1 from repos r where r.id = "public_scans"."repo_id" and r.is_private)`,
-        ),
-      )
-      .orderBy(desc(publicScans.finishedAt))
-      .limit(limit)
-  );
+    })
+    .from(publicScans)
+    .innerJoin(repos, eq(repos.id, publicScans.repoId))
+    // A repository that is private now never shows here, even if it was public when scanned: its
+    // report already answers 404, so its name must not appear in the list either.
+    .where(and(eq(publicScans.status, "done"), eq(repos.isPrivate, false)))
+    .orderBy(desc(publicScans.finishedAt))
+    .limit(limit * 2);
+  // And GitHub still says public (V7 final review), checked at most every few minutes per repository.
+  const shown = [];
+  for (const r of rows) {
+    if (shown.length >= limit) break;
+    if (await stillPublic(r.repoRow))
+      shown.push({ id: r.id, repo: r.repo, finishedAt: r.finishedAt, affected: r.affected });
+  }
+  return shown;
 }
 
 /** How many public scans and dry runs this person started in the last 24 hours. */

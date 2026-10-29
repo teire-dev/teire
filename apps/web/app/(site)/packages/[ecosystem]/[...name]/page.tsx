@@ -129,7 +129,9 @@ async function Package({ params }: { params: Params }) {
   // the rail stands on Teire's own data when the registry list is missing (V5–V6 review).
   const BREAKING = new Set(["breaks-on-upgrade", "already-broken", "breaks-on-date"]);
   // Releases only: a canary, beta or rc stays off the rail unless Teire computed changes for it.
-  const PRE = /-(alpha|beta|canary|rc|next|dev|pre|insiders|experimental)/i;
+  // npm/Cargo/Go "-beta.1", Maven "-SNAPSHOT"/"-M2"/"-RC1", PyPI "2.0.0a1"/"rc1"/".dev3", RubyGems ".pre".
+  const PRE =
+    /[-.](alpha|beta|canary|rc|next|dev|pre|preview|insiders|experimental|snapshot|nightly|m\d+|cr\d*)|\d(a|b|rc)\d+$|\.dev\d*$/i;
   const registryRail = [...(versions?.info.versions ?? [])]
     .filter((v) => !PRE.test(v.version) || byTarget.has(v.version))
     .slice(-16);
