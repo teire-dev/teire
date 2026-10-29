@@ -88,6 +88,11 @@ export const ASSISTANT = {
 } as const;
 
 export const FIX = {
+  /**
+   * Co-upgrades whose API is diffed and located like the lead's (D-10): the largest version jumps
+   * first, the rest listed with why they weren't.
+   */
+  maxCoMovedDiffed: 8,
   /** Lines kept after an error line, up to the next blank line (a rustc diagnostic with its `help:`). */
   errorContextLines: 30,
   maxErrorLines: 220,

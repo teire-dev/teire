@@ -200,6 +200,10 @@ export interface FixDependencyInput {
   onEvent?: Parameters<typeof runFix>[0]["onEvent"];
   /** Extra context for the agent (a CI failure on the PR it is repairing, C6). */
   extraNotes?: MigrationNote[];
+  /** Breaking changes located in packages the upgrade moved with it (D-10), each naming its package. */
+  extraFindings?: FindingDraft[];
+  /** Those packages' change records, so the agent sees their before and after signatures. */
+  extraRecords?: ChangeV2[];
   /** teire.yml `verify` commands, which replace the detected ones per workspace (C8). */
   verify?: { workspace: string; install?: string; typecheck?: string; test?: string }[];
   /**
@@ -279,8 +283,12 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     transaction: input.transaction ?? jsTransaction(input.tree, a.project, a.instance, target),
     instance: a.instance,
     target,
-    findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
-    records: a.records,
+    findings: [
+      ...(a.summary?.breaking ?? []),
+      ...(a.summary?.annotations ?? []),
+      ...(input.extraFindings ?? []),
+    ],
+    records: [...a.records, ...(input.extraRecords ?? [])],
     notes: [...notes, ...(input.extraNotes ?? [])],
     targetDir: targetLayout.link.dir,
     targetPaths: new Set([

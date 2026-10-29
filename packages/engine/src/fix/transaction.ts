@@ -6,6 +6,14 @@ import { prepareSide, type SideRun } from "../verify/run";
 import { gradleFloorFrom, WRAPPER_PROPERTIES, wrapperRaise } from "./gradle-wrapper";
 import type { ManifestEdit } from "./upgrade-js";
 
+/** A co-upgrade's effect on the repository's code: its located breaking changes, or why it wasn't diffed. */
+export interface CoMovedUsage {
+  diffed: boolean;
+  breaking: number;
+  sites: number;
+  note?: string;
+}
+
 /**
  * The upgrade transaction for any ecosystem (card C4 steps 2–3): manifest edits Teire writes as
  * text, then the repo's own tool regenerating the lock in the after sandbox (install phase), then
@@ -23,7 +31,14 @@ export interface Transaction {
   lockfilePath?: string;
   check?: (files: Record<string, string>) => string | null;
   /** Every package the change moved, the lead included (dependabot-core's updater reports them). */
-  moved?: { name: string; from: string | null; to: string | null; removed?: boolean }[];
+  moved?: {
+    name: string;
+    from: string | null;
+    to: string | null;
+    removed?: boolean;
+    /** What the move means for the repository's own code, once diffed and located (D-10). */
+    yourCode?: CoMovedUsage;
+  }[];
   /** Symlinks the change makes (the updater's `symlink_target`), created in the sandbox by `commands`. */
   links?: { path: string; target: string }[];
   /** The commits between the versions, as dependabot-core's updater listed them (D-13). */

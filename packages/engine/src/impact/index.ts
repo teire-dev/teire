@@ -32,6 +32,8 @@ export interface FindingDraft {
   coverage: Coverage | null;
   groupKey: string | null;
   reason: string;
+  /** Not the run's own package: one the upgrade moved with it (D-10), as the agent reads it. */
+  via?: string;
 }
 
 export interface ImpactInput {

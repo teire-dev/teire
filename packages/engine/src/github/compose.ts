@@ -1,5 +1,6 @@
 import { PR_MODE_BY_EVIDENCE, PULL_REQUESTS } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
+import { usageCell } from "../fix/co-moved";
 import type { MigrationNote } from "../fix/codemods";
 import type { FixRun } from "../fix/run";
 import type { DependencyVerdict, FindingDraft } from "../impact";
@@ -517,12 +518,18 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
         out.push(`| \`${path}\` | updated by ${plan.manager} |`);
     // Co-upgrades (D-10): what else the updater had to move for this version to resolve.
     if (run.moved.length) {
-      out.push("", "Moved with it, so the new version resolves:", "", "| Package | Version |", "|---|---|");
+      out.push(
+        "",
+        "Moved with it, so the new version resolves:",
+        "",
+        "| Package | Version | Your code |",
+        "|---|---|---|",
+      );
       for (const m of run.moved.slice(0, 30))
         out.push(
-          `| \`${m.name}\` | ${m.removed ? `\`${m.from ?? "?"}\` removed` : `\`${m.from ?? "new"}\` → \`${m.to ?? "?"}\``} |`,
+          `| \`${m.name}\` | ${m.removed ? `\`${m.from ?? "?"}\` removed` : `\`${m.from ?? "new"}\` → \`${m.to ?? "?"}\``} | ${m.removed ? "" : usageCell(m.yourCode)} |`,
         );
-      if (run.moved.length > 30) out.push(`| and ${run.moved.length - 30} more | |`);
+      if (run.moved.length > 30) out.push(`| and ${run.moved.length - 30} more | | |`);
     }
 
     for (const f of codeFiles) {

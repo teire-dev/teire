@@ -4,14 +4,20 @@ import { join } from "node:path";
 import { AFFECTED_RANGES_SEPARATOR, stillAffected } from "@teire/engine/advisories";
 import { RunCancelledError, withCancel } from "@teire/engine/cancel";
 import { matchesTarget, readTeireConfig, type TeireConfig, updateIgnores } from "@teire/engine/config";
-import { RUNS, SCAN } from "@teire/engine/constants";
+import { FIX, RUNS, SCAN } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
 import {
+  type CoMovedUsage,
   cargoFeatureOverlay,
+  coMovedFindings,
+  coMovedToDiff,
   type FixRun,
   type Transaction,
+  usageCell,
+  usageOf,
   withGradleLocks,
   withToolchainFloors,
+  withUsage,
 } from "@teire/engine/fix";
 import {
   branchFor,
@@ -23,6 +29,7 @@ import {
   openOrUpdatePullRequest,
   publishCheckRun,
 } from "@teire/engine/github";
+import type { FindingDraft } from "@teire/engine/impact";
 import type { JvmProject, PyProject, RepoTree, RubyProject, RustProject } from "@teire/engine/inventory";
 import { directoryTree, fetchRepoTarball, scopedTree } from "@teire/engine/inventory";
 import {
@@ -636,6 +643,7 @@ async function packageOutcome(
   };
   const assess = async (
     extra: {
+      onlyPackage?: string;
       fallbackMajors?: number;
       targetMax?: { name: string; version: string; reason: string };
       targetFloor?: { name: string; version: string };
@@ -749,7 +757,12 @@ async function packageOutcome(
     );
     return outcome ? { ...outcome, groupKey: capped, targetVersion: resolved.cap.version } : null;
   }
-  const transaction = resolved;
+  // D-10: what else the updater moved, diffed and located like the lead, so the agent meets those
+  // sites too and the PR says what each move means for this code.
+  const co = resolved?.moved?.length
+    ? await coMovedAssessed(assess, resolved, packageName, roots, common.onEvent)
+    : null;
+  const transaction = resolved && co ? { ...resolved, moved: co.moved } : resolved;
   if (roots.length > 1 && !transaction)
     common.onEvent?.({
       step: "transaction",
@@ -767,6 +780,7 @@ async function packageOutcome(
         }
       : {}),
     ...(transaction ? { transaction } : {}),
+    ...(co?.findings.length ? { extraFindings: co.findings, extraRecords: co.records } : {}),
     ...(run.fallbackFrom ? { fallbackFrom: run.fallbackFrom } : {}),
   };
   const result =
@@ -831,13 +845,101 @@ async function packageOutcome(
           : "upgrade",
     ],
     checkTitle: `${packageName} ${run.fromVersion ? `${run.fromVersion} → ` : "→ "}${run.targetVersion}`,
-    sites: (assessment.summary?.breaking ?? []).flatMap((f) =>
-      f.callSites.map((s) => ({
-        ...s,
-        message: `${f.changeKind.replace(/-/g, " ")} in ${packageName} ${run.targetVersion}: ${s.snippet.trim().slice(0, 200)}`,
-      })),
-    ),
+    sites: [
+      ...(assessment.summary?.breaking ?? []).flatMap((f) =>
+        f.callSites.map((s) => ({
+          ...s,
+          message: `${f.changeKind.replace(/-/g, " ")} in ${packageName} ${run.targetVersion}: ${s.snippet.trim().slice(0, 200)}`,
+        })),
+      ),
+      ...(co?.findings ?? [])
+        .filter((f) => f.verdict === "affected")
+        .flatMap((f) =>
+          f.callSites.map((s) => ({
+            ...s,
+            message: `${f.reason.split(":")[0]}: ${s.snippet.trim().slice(0, 200)}`,
+          })),
+        ),
+    ],
   };
+}
+
+/**
+ * The co-upgrades (D-10), each re-assessed at the version the updater moved it to: the same surface
+ * diff and locate as the lead, pinned to that version. A package no root declares is listed, not
+ * diffed (a package the code never names can't break it directly).
+ */
+async function coMovedAssessed(
+  assess: (extra: {
+    onlyPackage?: string;
+    targetMax?: { name: string; version: string; reason: string };
+    targetFloor?: { name: string; version: string };
+  }) => Promise<Assessment<AssessedProject>[]>,
+  transaction: Transaction,
+  lead: string,
+  roots: string[],
+  onEvent: Common["onEvent"],
+): Promise<{ moved: NonNullable<Transaction["moved"]>; findings: FindingDraft[]; records: ChangeV2[] }> {
+  const moved = transaction.moved ?? [];
+  const { diff, capped } = coMovedToDiff(moved, lead);
+  const usage = new Map<string, CoMovedUsage>();
+  const findings: FindingDraft[] = [];
+  const records: ChangeV2[] = [];
+  for (const m of diff) {
+    const pin = { name: m.name, version: m.to as string };
+    let found: Assessment<AssessedProject> | undefined;
+    try {
+      const here = (
+        await assess({
+          onlyPackage: m.name,
+          targetMax: { ...pin, reason: `the version the updater moved it to with ${lead}` },
+          targetFloor: pin,
+        })
+      ).filter((a) => roots.includes(a.project.root));
+      found = here.find((a) => a.decision?.kind === "upgrade");
+      const other = here[0]?.decision;
+      if (!found && other) {
+        // Declared, but the registry check didn't take it to that version (a cooldown, a pin).
+        usage.set(m.name, {
+          diffed: false,
+          breaking: 0,
+          sites: 0,
+          note: `not diffed (${other.kind === "blocked" ? other.reason : (other.skipped[0]?.detail ?? "no newer version offered")})`,
+        });
+        continue;
+      }
+    } catch (error) {
+      usage.set(m.name, {
+        diffed: false,
+        breaking: 0,
+        sites: 0,
+        note: `couldn't be diffed (${forGitHub(String(error), 120)})`,
+      });
+      continue;
+    }
+    if (!found) {
+      usage.set(m.name, { diffed: false, breaking: 0, sites: 0, note: "not declared by this repository" });
+      continue;
+    }
+    const pinned = { name: m.name, from: m.from as string, to: m.to as string };
+    const breaking = coMovedFindings(pinned, lead, found.summary?.breaking ?? []);
+    findings.push(...breaking, ...coMovedFindings(pinned, lead, found.summary?.annotations ?? []));
+    if (breaking.length) records.push(...found.records);
+    usage.set(m.name, usageOf(breaking));
+  }
+  for (const m of capped)
+    usage.set(m.name, {
+      diffed: false,
+      breaking: 0,
+      sites: 0,
+      note: `not diffed (only the ${FIX.maxCoMovedDiffed} largest moves are)`,
+    });
+  if (diff.length)
+    onEvent?.({
+      step: "transaction",
+      detail: `moved with ${lead}: ${diff.map((m) => `${m.name} ${m.from} → ${m.to} (${usageCell(usage.get(m.name))})`).join("; ")}`,
+    });
+  return { moved: withUsage(moved, usage), findings, records };
 }
 
 /** A provider group (`models/nebius-token-factory`): re-scan against the stored catalog, then swap and fix. */

@@ -254,7 +254,7 @@ function describeFindings(input: FixInput) {
     .flatMap((f) =>
       f.callSites.map(
         (site) =>
-          `- ${site.file}:${site.line} [${f.changeKind}] ${site.snippet}${site.declKey && sigs.get(site.declKey) ? `\n    ${sigs.get(site.declKey)}` : ""}`,
+          `- ${site.file}:${site.line} [${f.changeKind}]${f.via ? ` (in ${f.via})` : ""} ${site.snippet}${site.declKey && sigs.get(site.declKey) ? `\n    ${sigs.get(site.declKey)}` : ""}`,
       ),
     )
     .join("\n");
