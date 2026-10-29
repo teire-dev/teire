@@ -279,15 +279,26 @@ export function FindCard({ o }: { o: Out<"find"> }) {
     <Card eyebrow={`Found · ${o.query}`} asOf={o.asOf}>
       {empty ? <p className="text-sm text-ink-3">Nothing in Teire matches.</p> : null}
       {o.findings.length ? (
-        <ul className="flex flex-col gap-1">
+        // Each finding by its change's mark, where it is, and its verdict (V7 final review).
+        <ul className="flex flex-col">
           {o.findings.slice(0, 4).map((f) => (
-            <li key={`${f.repo}:${f.key}`} className="flex items-center gap-2 text-xs">
-              <SafeLink href={f.link} className="min-w-0 truncate text-ink">
-                {f.key}
-              </SafeLink>
-              <span className="ml-auto shrink-0">
+            <li key={`${f.repo}:${f.key}`}>
+              <SafeLink
+                href={f.link}
+                className="row-link flex items-center gap-2 rounded-md py-1 pr-9 pl-1.5 text-xs hover:bg-hover"
+              >
+                <Mark brand={subjectMark(f.key)} size="sm" />
+                <span className="min-w-0 flex-1 truncate text-ink">
+                  {subjectOfKey(f.key).name}
+                  {subjectOfKey(f.key).meta ? (
+                    <span className="ml-1.5 font-mono text-[11px] text-ink-3">
+                      {subjectOfKey(f.key).meta}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="shrink-0 font-mono text-[11px] text-ink-3">{f.repo.split("/")[1]}</span>
                 <VerdictChip verdict={f.verdict} />
-              </span>
+              </SafeLink>
             </li>
           ))}
         </ul>
@@ -300,12 +311,23 @@ export function FindCard({ o }: { o: Out<"find"> }) {
         </div>
       ) : null}
       {o.prs.length ? (
-        <ul className="flex flex-wrap gap-x-3 gap-y-1">
+        <ul className="flex flex-wrap gap-1.5">
           {o.prs.map((p) => (
-            <li key={`${p.repo}:${p.number}`} className="text-xs">
-              <SafeLink href={p.url}>
-                {p.kind === "issue" ? "Issue" : "PR"} #{p.number} · {p.state}
-                {p.draft ? " · draft" : ""}
+            <li key={`${p.repo}:${p.number}`}>
+              <SafeLink
+                href={p.url}
+                className={cn(
+                  "flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] ring-1 ring-inset",
+                  p.kind === "issue"
+                    ? "bg-broke-soft text-broke ring-broke/20"
+                    : p.draft
+                      ? "bg-attention-soft text-attention ring-attention/20"
+                      : "bg-proven-soft text-proven ring-proven/20",
+                )}
+              >
+                <GitPullRequest className="size-3" aria-hidden />
+                {p.repo.split("/")[1]} #{p.number}
+                {p.state !== "open" ? ` · ${p.state}` : ""}
               </SafeLink>
             </li>
           ))}
