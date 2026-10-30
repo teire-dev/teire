@@ -453,7 +453,8 @@ export async function scanRepo(
 ) {
   const { db, gh } = ctx;
   const repo = await getRepo(db, repoId);
-  if (!repo?.installationId) throw new Error(`repo ${repoId} has no installation`);
+  // A repository that left its installation (uninstalled, removed) while this scan waited.
+  if (!repo?.installationId) return { skipped: "no installation" };
   if (repo.status === "paused" || repo.status === "disabled") return { skipped: repo.status };
   const [owner = "", name = ""] = repo.fullName.split("/");
   const installation = await gh.installation(repo.installationId);

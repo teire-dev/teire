@@ -1,3 +1,4 @@
+import { eq, repos } from "@teire/db";
 import { STALE_EVIDENCE_LABEL } from "@teire/engine/github";
 import { forgetDependencyCaches } from "../caches";
 import type { Delivery } from "../outbox";
@@ -97,6 +98,8 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       if (delivery.action === "created")
         for (const r of (p.repositories ?? []) as RepoPayload[]) {
           const repo = await upsertRepo(db, r, installation.id);
+          // Installed again after an uninstall: the uninstall left the repository marked removed.
+          if (repo.status === "disabled") await setRepo(db, repo.id, { status: "detected" });
           await ctx.enqueueScan(repo.id, "install");
         }
       return;
@@ -365,3 +368,41 @@ export async function failingChecks(
   }
   return out;
 }
+
+/**
+ * An installation's repositories as GitHub lists them now (`GET /installation/repositories`): each is
+ * linked to it and turned back on if it was marked removed (a reinstall, a missed webhook), and one
+ * still linked that GitHub no longer lists is marked removed. The worker runs it for every
+ * installation at start, so no repository stays stuck on a webhook that never came.
+ */
+export async function reconcileInstallation(ctx: EventContext, installationId: number) {
+  const { db } = ctx;
+  const { octokit } = await ctx.gh.installation(installationId);
+  const listed = await octokit.paginate(octokit.rest.apps.listReposAccessibleToInstallation, {
+    per_page: 100,
+  });
+  const ids = new Set<number>();
+  let enabled = 0;
+  let removed = 0;
+  for (const r of listed as RepoPayload[]) {
+    ids.add(r.id);
+    const repo = await upsertRepo(db, r, installationId);
+    if (repo.status === "disabled") {
+      await setRepo(db, repo.id, { status: "detected" });
+      await ctx.enqueueScan(repo.id, "install");
+      enabled++;
+    }
+  }
+  const linked = await db
+    .select({ id: repos.id, status: repos.status })
+    .from(repos)
+    .where(eq(repos.installationId, installationId));
+  for (const r of linked)
+    if (!ids.has(r.id) && r.status !== "disabled") {
+      await setRepo(db, r.id, { status: "disabled" });
+      await forgetDependencyCaches(db, [r.id]);
+      removed++;
+    }
+  return { listed: ids.size, enabled, removed };
+}
+

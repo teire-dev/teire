@@ -5,7 +5,7 @@ import { RUNS } from "@teire/engine/constants";
 import { createGitHubApp, githubAppConfigFromEnv } from "@teire/engine/github";
 import { CreditsExhaustedError } from "@teire/engine/llm";
 import { PgBoss } from "pg-boss";
-import { handleDelivery } from "./jobs/events";
+import { handleDelivery, reconcileInstallation } from "./jobs/events";
 import { fixRun } from "./jobs/fix";
 import { publicScan } from "./jobs/public";
 import { reverifyRun } from "./jobs/reverify";
@@ -204,6 +204,19 @@ async function main() {
       ctx.enqueueScan(repoId, "manual"),
     );
     console.log(`[worker] GitHub App ${gh.slug} ready`);
+    // Every installation against GitHub's own list of its repositories, in the background: a webhook
+    // that never came, or a reinstall that found its repositories marked removed, is put right.
+    void (async () => {
+      const live = await db.execute<{ id: number }>(
+        sql`select id from installations where deleted_at is null and suspended_at is null`,
+      );
+      for (const { id } of live.rows) {
+        const result = await reconcileInstallation(ctx, Number(id)).catch((error: unknown) => ({
+          error: error instanceof Error ? error.message : String(error),
+        }));
+        console.log("[reconcile]", id, JSON.stringify(result));
+      }
+    })();
   } catch (error) {
     console.warn("[worker] GitHub App not configured:", error instanceof Error ? error.message : error);
   }

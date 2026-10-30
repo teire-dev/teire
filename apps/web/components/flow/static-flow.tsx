@@ -90,7 +90,7 @@ export function Connector({
       {link.label ? (
         <span
           data-flow
-          className="absolute top-1/2 left-[calc(var(--tile)+12px)] -translate-y-1/2 rounded-full bg-sheet px-2 py-0.5 font-mono text-[10.5px] whitespace-nowrap text-ink-2 shadow-card md:top-[calc(50%-24px)] md:left-1/2 md:-translate-x-1/2 md:translate-y-0"
+          className="absolute top-1/2 left-[calc(var(--tile)+12px)] -translate-y-1/2 rounded-full bg-sheet px-2 py-0.5 font-mono text-[10.5px] whitespace-nowrap text-ink-2 shadow-card md:top-auto md:bottom-[calc(50%+4px)] md:left-1/2 md:w-max md:max-w-[calc(100%-0.75rem)] md:-translate-x-1/2 md:translate-y-0 md:text-center md:leading-tight md:whitespace-normal"
         >
           {link.label}
         </span>
@@ -104,11 +104,14 @@ export function Station({
   tile,
   size = "md",
   at = "middle",
+  fit = false,
 }: {
   tile: FlowTile;
   size?: TileSize;
   /** The first and last labels align to the flow's edges so they never hang off it. */
   at?: "start" | "middle" | "end";
+  /** In a `StaticFlow`: centred, as wide as the flow leaves room for (`--label`), wrapping. */
+  fit?: boolean;
 }) {
   return (
     <span className="relative flex items-center gap-3 md:block">
@@ -117,12 +120,14 @@ export function Station({
         tile={tile}
         size={size}
         className={cn(
-          "items-start text-left md:absolute md:top-[calc(100%+10px)] md:w-40",
-          at === "start"
-            ? "md:left-0 md:items-start md:text-left"
-            : at === "end"
-              ? "md:right-0 md:items-end md:text-right"
-              : "md:left-1/2 md:-translate-x-1/2 md:items-center md:text-center",
+          "items-start text-left md:absolute md:top-[calc(100%+10px)]",
+          fit
+            ? "md:left-1/2 md:w-[var(--label)] md:-translate-x-1/2 md:items-center md:text-center md:text-balance"
+            : at === "start"
+              ? "md:left-0 md:w-40 md:items-start md:text-left"
+              : at === "end"
+                ? "md:right-0 md:w-40 md:items-end md:text-right"
+                : "md:left-1/2 md:w-40 md:-translate-x-1/2 md:items-center md:text-center",
         )}
       />
     </span>
@@ -143,31 +148,41 @@ export function StaticFlow({
 }) {
   const linkTo = new Map(graph.links.map((l) => [l.to, l]));
   const hasMeta = graph.tiles.some((t) => t.meta || t.caption);
+  const n = graph.tiles.length;
+  // Every label centred under its square and as wide as the flow leaves room for: with labels of
+  // width L, a gap g between them and squares centred one label + gap apart, n labels fill the width
+  // exactly when L = (width − (n − 1)·g) / n. Between 7rem and 10rem; below 7rem the flow scrolls
+  // sideways instead of letting labels run into each other (B1, the commands diagram).
+  const fit = {
+    ["--tile" as string]: `${TILE_SIZE[size]}px`,
+    ["--label" as string]: `clamp(7rem, calc((100cqw - ${n - 1} * 0.75rem) / ${n}), 10rem)`,
+    ["--min" as string]: `calc(${n} * 7rem + ${n - 1} * 0.75rem)`,
+  };
   return (
     <figure
-      className={cn("w-full", hasMeta ? "md:pb-[4.5rem]" : "md:pb-10", className)}
-      style={{ ["--tile" as string]: `${TILE_SIZE[size]}px` }}
+      className={cn(
+        "@container w-full md:overflow-x-auto md:pt-3 md:[scrollbar-width:thin]",
+        hasMeta ? "md:pb-[4.5rem]" : "md:pb-10",
+        className,
+      )}
+      style={fit}
     >
       <figcaption className="sr-only">{label}</figcaption>
-      <ol className="flex flex-col md:flex-row md:items-center">
+      <ol className="flex flex-col md:min-w-[var(--min)] md:flex-row md:items-center md:px-[calc((var(--label)-var(--tile))/2)]">
         {graph.tiles.map((t, i) => {
           const link = linkTo.get(t.id);
           return (
             <Fragment key={t.id}>
               {i > 0 && link ? (
                 <li aria-hidden className="contents">
-                  <Connector link={link} />
+                  <Connector link={link} className="md:min-w-0" />
                 </li>
               ) : null}
               <li
                 className="shrink-0"
                 aria-label={`${t.label}, ${FLOW_STATE_LABEL[t.state]}${t.meta ? `, ${t.meta}` : ""}`}
               >
-                <Station
-                  tile={t}
-                  size={size}
-                  at={i === 0 ? "start" : i === graph.tiles.length - 1 ? "end" : "middle"}
-                />
+                <Station tile={t} size={size} fit />
               </li>
             </Fragment>
           );
