@@ -405,4 +405,3 @@ export async function reconcileInstallation(ctx: EventContext, installationId: n
     }
   return { listed: ids.size, enabled, removed };
 }
-
