@@ -143,6 +143,91 @@ export async function reviewBump(input: {
   }
 }
 
+/**
+ * What makes code accept or hide more than before, per language: a token an added line brings in that
+ * the lines it replaced didn't have. The model review can call such a change necessary (zod 4 needs
+ * `z.record`'s value schema) and miss that the value it chose is `unknown`; this check can't.
+ */
+const WIDENINGS: { files: RegExp; token: RegExp; says: string }[] = [
+  { files: /\.[cm]?[jt]sx?$/, token: /\bz\.(?:unknown|any)\(\)/, says: "accepts any value" },
+  { files: /\.[cm]?tsx?$/, token: /:\s*any\b|\bas\s+any\b|<any>|\bany\[\]/, says: "turns off type checking" },
+  { files: /\.[cm]?tsx?$/, token: /\bas\s+unknown\s+as\b/, says: "forces a type the checker can't confirm" },
+  {
+    files: /\.[cm]?[jt]sx?$/,
+    token: /@ts-(?:ignore|expect-error|nocheck)|eslint-disable/,
+    says: "silences a check",
+  },
+  { files: /\.[cm]?[jt]sx?$/, token: /\.(?:passthrough|catchall)\(/, says: "lets unknown fields through" },
+  {
+    files: /\.[cm]?[jt]sx?$/,
+    token: /\b(?:it|test|describe)\.skip\(|\bx(?:it|describe)\(/,
+    says: "skips a test",
+  },
+  {
+    files: /\.py$/,
+    token: /#\s*type:\s*ignore|#\s*noqa|\bAny\b|\bcast\(/,
+    says: "loosens or silences a type check",
+  },
+  { files: /\.py$/, token: /pytest\.mark\.skip|unittest\.skip|\.skipTest\(/, says: "skips a test" },
+  {
+    files: /\.go$/,
+    token: /\binterface\{\}|\bany\b|\/\/\s*nolint/,
+    says: "loosens a type or silences a check",
+  },
+  { files: /\.go$/, token: /\bt\.Skip(?:f|Now)?\(/, says: "skips a test" },
+  {
+    files: /\.(?:java|kt|kts)$/,
+    token: /@SuppressWarnings|@Disabled\b|@Ignore\b/,
+    says: "silences a check or skips a test",
+  },
+  { files: /\.rs$/, token: /#\[allow\(|#\[ignore\]/, says: "silences a lint or skips a test" },
+  { files: /\.rb$/, token: /\bskip\b|\bpending\b|rubocop:disable/, says: "skips a test or silences a check" },
+];
+const WIDENINGS_KEPT = 6;
+
+/** Each hunk's file, removed lines and added lines, from a unified diff. */
+function hunksOfPatch(patch: string) {
+  const out: { file: string; removed: string[]; added: string[] }[] = [];
+  let file = "";
+  let current: (typeof out)[number] | null = null;
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      file = line.slice(4).trim().replace(/^b\//, "");
+      current = null;
+    } else if (line.startsWith("@@")) {
+      current = { file, removed: [], added: [] };
+      out.push(current);
+    } else if (current && line.startsWith("-") && !line.startsWith("---"))
+      current.removed.push(line.slice(1));
+    else if (current && line.startsWith("+") && !line.startsWith("+++")) current.added.push(line.slice(1));
+  }
+  return out;
+}
+
+/**
+ * Teire's own check of a fix's diff: an added line that brings in a widening the lines its hunk
+ * replaced didn't have. Deterministic, so it holds whatever the model review concludes; its problems
+ * are PR risks like the review's.
+ */
+export function wideningsOf(patch: string): ReviewProblem[] {
+  const problems: ReviewProblem[] = [];
+  for (const h of hunksOfPatch(patch)) {
+    for (const w of WIDENINGS) {
+      if (!w.files.test(h.file)) continue;
+      const before = h.removed.filter((l) => w.token.test(l)).length;
+      const added = h.added.filter((l) => w.token.test(l));
+      for (const line of added.slice(before)) {
+        const token = w.token.exec(line)?.[0] ?? "";
+        problems.push({
+          file: h.file,
+          problem: `Teire's own check: \`${line.trim().slice(0, 120)}\` adds \`${token}\`, which ${w.says}; the code it replaced didn't. Confirm this is intended, or narrow it.`,
+        });
+      }
+    }
+  }
+  return problems.slice(0, WIDENINGS_KEPT);
+}
+
 export async function reviewFix(input: {
   tf: TokenFactory;
   prices?: Map<string, ModelPrice>;
@@ -191,7 +276,12 @@ export async function reviewFix(input: {
       providerOptions: nemotronOptions({ thinking: true }),
     });
     const receipt = receiptFor(result.usage, input.prices?.get(model));
-    return { model, problems: result.output.problems, ...receipt, ms: Date.now() - started };
+    return {
+      model,
+      problems: [...result.output.problems, ...wideningsOf(input.patch)],
+      ...receipt,
+      ms: Date.now() - started,
+    };
   } catch (error) {
     if (!NoObjectGeneratedError.isInstance(error)) throw error;
     const receipt = receiptFor(
@@ -200,7 +290,8 @@ export async function reviewFix(input: {
     );
     return {
       model,
-      problems: [],
+      // The model's answer didn't parse, but Teire's own check still stands.
+      problems: wideningsOf(input.patch),
       ...receipt,
       ms: Date.now() - started,
       error: "the review's answer did not match the schema",
