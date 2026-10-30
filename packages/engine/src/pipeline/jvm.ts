@@ -1,4 +1,5 @@
-import { PRIORITY, REGISTRY } from "../constants";
+import { createHash } from "node:crypto";
+import { PRIORITY, REGISTRY, VERIFY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { wrapperTransaction } from "../fix/gradle-wrapper";
 import { plannedRenames } from "../fix/renames";
@@ -31,8 +32,10 @@ import { javaRequirement, jvmSurfaceDiff } from "../surface/jvm";
 import { jvmDocsLookup } from "../surface/jvmdoc";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
+import type { VerifyBackend } from "../verify/backend";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectJvmChecks } from "../verify/jvm-commands";
+import { scanProbe } from "../verify/scan-probe";
 import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -53,6 +56,11 @@ export interface JvmAssessOptions extends RegistryOptions {
   onProgress?: (line: string) => void;
   /** The scan's record of what it could not check (D96). */
   coverage?: ScanCoverage;
+  /**
+   * The sandbox and the commit's tarball, for the repo's own compiled classes at scan time (S19):
+   * a compile, then the exact references; without them JVM sites stay syntactic.
+   */
+  bytecode?: { backend: VerifyBackend; tarball: { url: string; token?: string }; id: string };
 }
 
 function jvmPolicy(instance: DependencyInstance, options: JvmAssessOptions): TargetPolicy {
@@ -272,7 +280,77 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
         )),
       );
   }
+  if (options.bytecode)
+    for (const project of projects) await scanTimeBytecode(tree, project, assessments, options);
   return { projects, assessments };
+}
+
+/**
+ * The project's majors located from its compiled classes at scan time (S19): one sandbox compile per
+ * project (the warm-up with the network, then the typecheck offline), then `teire-jvm refs` over
+ * every major's packages. Lexical sites the bytecode can't show (inlined constants, Kotlin inline
+ * bodies) stay; a compile that fails leaves the sites syntactic.
+ */
+async function scanTimeBytecode(
+  tree: RepoTree,
+  project: JvmProject,
+  assessments: Assessment<JvmProject>[],
+  options: JvmAssessOptions,
+) {
+  const probe = options.bytecode;
+  const majors = assessments.filter(
+    (a) => a.project === project && a.located && a.diff && !a.instance.role && a.decision?.kind === "upgrade",
+  );
+  if (!probe || !majors.length) return;
+  const keysOf = (a: Assessment<JvmProject>) => locateTargets(a.records).declKeys;
+  const prefixes = [
+    ...new Set(majors.flatMap((a) => packagesOf(keysOf(a)).map((p) => p.replace(/\./g, "/")))),
+  ];
+  const plan = detectJvmChecks(tree, project);
+  const typecheck = plan.checks.find((c) => c.name === "typecheck")?.argv;
+  if (!prefixes.length || !typecheck) return;
+  options.onProgress?.(`${project.root}: compiling for exact references`);
+  const out = "/tmp/teire-refs.tsv";
+  const probed = await scanProbe(probe.backend, {
+    id: `${probe.id}-refs-${createHash("sha256").update(project.root).digest("hex").slice(0, 8)}`,
+    tarball: probe.tarball,
+    plan,
+    probe: ["sh", "-c", `${typecheck.join(" ")} && teire-jvm refs ${prefixes.join(",")} > ${out}`],
+    output: out,
+    timeoutSec: VERIFY.jvmInstallTimeoutSec,
+  }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }));
+  if ("error" in probed) {
+    const note = `${project.root === "." ? "JVM" : project.root}: the scan-time compile failed (${probed.error.slice(0, 200)}); JVM sites stay syntactic`;
+    options.onProgress?.(note);
+    options.coverage?.notes.push(note);
+    return;
+  }
+  const text = new TextDecoder().decode(probed.bytes);
+  for (const a of majors) {
+    if (!a.diff || a.decision?.kind !== "upgrade") continue;
+    const declKeys = keysOf(a);
+    const exact = locateBytecode({
+      probe: text,
+      tree,
+      declKeys,
+      overloads: removedOverloads(a.diff.changes),
+      packages: packagesOf(declKeys),
+      projectRoot: project.root,
+    });
+    const seen = new Set(exact.hits.map((h) => h.declKey));
+    const kept = (a.located?.hits ?? []).filter((h) => !seen.has(h.declKey));
+    a.located = { ...exact, hits: [...exact.hits, ...kept] };
+    a.findings = assess({
+      instance: a.instance,
+      target: a.decision.to,
+      isMajor: a.decision.isMajor,
+      records: a.records,
+      locate: a.located,
+    });
+    a.summary = summariseFindings(a.findings);
+    const breaking = a.summary.breaking.map((f) => f.priority ?? 4);
+    a.priority = breaking.length ? Math.min(...breaking) : 4;
+  }
 }
 
 export async function fixJvmDependency(
@@ -412,6 +490,8 @@ export async function fixJvmDependency(
       tree: input.tree,
       declKeys,
       overloads: removedOverloads(a.diff.changes),
+      packages: packagesOf(declKeys),
+      projectRoot: a.project.root,
     });
     // A key the classes never reference may still be used where bytecode cannot show it (an inlined
     // constant, a Kotlin inline function's body): its lexical sites stay.

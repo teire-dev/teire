@@ -3,7 +3,8 @@
 // of the given packages, with the source file and line, exactly as javac/kotlinc resolved them
 // (imports, overloads, aliases, inheritance). Reads class files with the JDK's ClassFile API; runs
 // nothing. Usage: java TeireRefs.java com/google/common,okhttp3 DIR...
-// Output, tab-separated: class, source file, line, kind, owner, member, descriptor.
+// Output, tab-separated: class, source file, line, kind, owner, member, descriptor. Every scanned
+// class also prints one row of kind "class" (no owner), so the files that compiled are known.
 import java.lang.classfile.Attributes;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.ClassModel;
@@ -52,6 +53,7 @@ public class TeireRefs {
   static void scan(ClassModel cm) {
     String cls = cm.thisClass().asInternalName();
     String src = cm.findAttribute(Attributes.sourceFile()).map(a -> a.sourceFile().stringValue()).orElse("");
+    System.out.println(String.join("\t", cls, src, "0", "class", "", "", ""));
     cm.superclass().ifPresent(s -> emit(cls, src, 0, "extends", s.asInternalName(), "", ""));
     cm.interfaces().forEach(i -> emit(cls, src, 0, "extends", i.asInternalName(), "", ""));
     for (MethodModel m : cm.methods()) {

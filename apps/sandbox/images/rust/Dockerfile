@@ -10,9 +10,12 @@ RUN apt-get update \
 COPY --from=shim /usr/local/bin/sandbox-shim /usr/local/bin/sandbox-shim
 # exec() does not inherit the image's ENV, only a fixed PATH: link the toolchain's own binaries (not
 # rustup's proxies), so a repo's rust-toolchain.toml can never make rustup install another toolchain.
-RUN for b in cargo rustc rustdoc rustfmt cargo-clippy clippy-driver; do \
+# rust-analyzer and the standard library's source for type-resolved locating at scan time (S19,
+# `rust-analyzer scip`): without rust-src most std references don't resolve.
+RUN rustup component add rust-src rust-analyzer
+RUN for b in cargo rustc rustdoc rustfmt cargo-clippy clippy-driver rust-analyzer; do \
       p="$(ls -d /usr/local/rustup/toolchains/*/bin)/$b"; [ -x "$p" ] && ln -sf "$p" "/usr/local/bin/$b"; \
-    done; rustc --version
+    done; rustc --version && rust-analyzer --version
 # rustup itself, so a repo's rust-toolchain pin is installed explicitly by the install step (D-47);
 # the proxies stay unlinked, so nothing else ever switches toolchains on its own.
 RUN ln -sf /usr/local/cargo/bin/rustup /usr/local/bin/rustup && rustup --version

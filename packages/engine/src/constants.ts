@@ -365,6 +365,8 @@ export const RUST = {
   /** crates.io asks every client to identify itself (403 without a User-Agent). */
   userAgent: "TeireBot/0.1 (+https://teire.vercel.app; dependency upgrades)",
   semverChecksVersion: "0.51.0",
+  /** rust-analyzer's SCIP index of one project at scan time (fetch, metadata guard, index). */
+  scipTimeoutSec: 900,
   /** rustdoc JSON format versions cargo-semver-checks 0.51.0 reads ("supported formats are v57, v60, v61"). */
   rustdocFormats: [57, 60, 61] as number[],
   maxRustdocBytes: 256 * 1024 * 1024,

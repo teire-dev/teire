@@ -48,7 +48,12 @@ import {
 import { versionScheme } from "@teire/engine/registry";
 import { readDependabotConfig } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
-import { discoverRegistries, goPrivatePatterns, selectBackend } from "@teire/engine/verify";
+import {
+  discoverRegistries,
+  goPrivatePatterns,
+  selectBackend,
+  type VerifyBackend,
+} from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import { authorizedRegistries } from "../credentials";
 import { modelWorkBlocked } from "../reliability";
@@ -240,6 +245,8 @@ export async function assessCheckout(
     token?: string;
     /** The installation, whose saved private-registry credentials apply (none for a public scan). */
     installationId?: number;
+    /** Whether the repository is private: its sandbox work runs only where private code may. */
+    isPrivate?: boolean;
     /** Why model work is paused, when it is (S10): page reading and triage are skipped. */
     blocked: string | null;
     /** Providers whose pages just yielded new records: other repos using them rescan (D95). */
@@ -263,6 +270,22 @@ export async function assessCheckout(
     ? await authorizedRegistries(db, input.installationId, discoverRegistries(tree), coverage.notes)
     : [];
   const goPrivate = goPrivatePatterns(tree);
+  // The sandbox for scan-time type resolution (S19: rust-analyzer's index, the JVM's compiled
+  // classes), where the repository's privacy allows; chosen once, when a pipeline first needs it.
+  let probe: Promise<{
+    backend: VerifyBackend;
+    tarball: { url: string; token?: string };
+    id: string;
+  }> | null = null;
+  const sandboxProbe = () =>
+    (probe ??= selectBackend(process.env, { isPrivate: input.isPrivate ?? true }).then((s) => ({
+      backend: s.backend,
+      tarball: {
+        url: `https://api.github.com/repos/${fullName}/tarball/${input.sha}`,
+        ...(input.token ? { token: input.token } : {}),
+      },
+      id: `scan-${input.scanId}`,
+    })));
   const on = config.ecosystems;
   const none = { projects: [], assessments: [] };
   const cache = postgresRegistryCache(db);
@@ -309,6 +332,7 @@ export async function assessCheckout(
           cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
             cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
           ),
+        scip: await sandboxProbe(),
       });
   const ruby = !on.rubygems
     ? none
@@ -329,6 +353,7 @@ export async function assessCheckout(
         goPrivate,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
+        bytecode: await sandboxProbe(),
       });
   const projects: AssessedProject[] = [
     ...js.projects,
@@ -549,6 +574,7 @@ export async function scanRepo(
       sha,
       token,
       installationId: repo.installationId,
+      isPrivate: meta.private,
       blocked,
       onProviderChanges: (slugs) => fanOutProviderChanges(ctx, repoId, slugs),
     });

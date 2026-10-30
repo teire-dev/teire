@@ -66,6 +66,13 @@ export function locateBytecode(input: {
   tree: RepoTree;
   declKeys: ReadonlySet<string>;
   overloads?: ReadonlyMap<string, string[][]>;
+  /**
+   * The library's packages (`com.google.common`) and the project folder: a source file there that
+   * uses them but compiled to no class (another source set, an Android variant, a failed build) is
+   * an unresolved site (S19).
+   */
+  packages?: string[];
+  projectRoot?: string;
 }): LocateResult {
   const started = Date.now();
   const files = input.tree.files();
@@ -83,8 +90,17 @@ export function locateBytecode(input: {
   const lineText = (file: string, line: number) => (input.tree.read(file) ?? "").split("\n")[line - 1] ?? "";
   const hits: Hit[] = [];
   let unresolved = 0;
+  // The source files that compiled, from TeireRefs' one "class" row per scanned class.
+  const compiled = new Set<string>();
+  let classRows = 0;
   for (const row of input.probe.split("\n")) {
     const [cls, src, lineText0, kind, ownerInternal, member, desc] = row.split("\t");
+    if (cls && src && kind === "class") {
+      classRows++;
+      const file = resolve(cls, src);
+      if (file) compiled.add(file);
+      continue;
+    }
     if (!cls || !src || !kind || !ownerInternal) continue;
     const owner = ownerInternal.replace(/\//g, ".");
     const kotlin = src.endsWith(".kt");
@@ -135,18 +151,43 @@ export function locateBytecode(input: {
       declKey,
     });
   }
+  // Sources that use the library but compiled to no class: their uses weren't read.
+  const prefix = !input.projectRoot || input.projectRoot === "." ? "" : `${input.projectRoot}/`;
+  const uses = (text: string) =>
+    (input.packages ?? []).some((p) => new RegExp(`\\b${p.replace(/\./g, "\\.")}\\.`).test(text));
+  const uncompiled = classRows
+    ? files.filter(
+        (f) =>
+          f.startsWith(prefix) &&
+          /\.(?:java|kt)$/.test(f) &&
+          !/(?:^|\/)(?:build|target)\//.test(f) &&
+          !compiled.has(f) &&
+          uses(input.tree.read(f) ?? ""),
+      )
+    : [];
   return {
     hits,
     imports: [],
     ms: Date.now() - started,
     coverage: {
-      filesScanned: new Set(hits.map((h) => h.file)).size,
-      filesSkipped: unresolved
-        ? [{ reason: "class files whose source was not found in the repo", count: unresolved }]
-        : [],
+      // Every source file that compiled (older images printed no class rows: the files with hits).
+      filesScanned: classRows ? compiled.size : new Set(hits.map((h) => h.file)).size,
+      filesSkipped: [
+        ...(unresolved
+          ? [{ reason: "class files whose source was not found in the repo", count: unresolved }]
+          : []),
+        ...(uncompiled.length
+          ? [
+              {
+                reason: "sources that use the library but did not compile to a class",
+                count: uncompiled.length,
+              },
+            ]
+          : []),
+      ],
       languages: ["java", "kotlin"],
       resolutionLevel: "type",
-      unresolvedSites: unresolved,
+      unresolvedSites: unresolved + uncompiled.length,
       transitiveAnalysed: false,
     },
   };

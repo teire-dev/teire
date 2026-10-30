@@ -1,4 +1,5 @@
-import { PRIORITY, REGISTRY } from "../constants";
+import { createHash } from "node:crypto";
+import { PRIORITY, REGISTRY, RUST } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
@@ -8,6 +9,7 @@ import { assess, locateTargets, summariseFindings } from "../impact";
 import { type RustProject, readRustInventory } from "../inventory/rust";
 import type { RepoTree } from "../inventory/tree";
 import { locateRust } from "../locate/rust";
+import { mergeScip, readScipIndex } from "../locate/rust-scip";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherCargoNotes } from "../notes/sources";
 import { cratesIndexLines } from "../registry/cargo";
@@ -27,8 +29,10 @@ import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import { cargoSurfaceDiff } from "../surface/rust";
 import { rustDocsLookup } from "../surface/rustdoc";
 import type { SurfaceDiff } from "../surface/types";
+import type { VerifyBackend } from "../verify/backend";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectRustChecks } from "../verify/rust-commands";
+import { scanProbe } from "../verify/scan-probe";
 import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -48,6 +52,11 @@ export interface RustAssessOptions extends RegistryOptions {
   onProgress?: (line: string) => void;
   /** The scan's record of what it could not check (D96). */
   coverage?: ScanCoverage;
+  /**
+   * The sandbox and the commit's tarball, for rust-analyzer's type-resolved index at scan time
+   * (S19); without them Rust sites stay syntactic, never "not affected".
+   */
+  scip?: { backend: VerifyBackend; tarball: { url: string; token?: string }; id: string };
 }
 
 /**
@@ -197,7 +206,81 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
         )),
       );
   }
+  if (options.scip) for (const project of projects) await typeResolved(tree, project, assessments, options);
   return { projects, assessments };
+}
+
+/**
+ * The project's syntactic sites replaced by rust-analyzer's (S19): one SCIP index per project, made
+ * in the sandbox, only when a major or an advisory naming functions needs its sites; each such
+ * assessment is judged again on the merged result. A probe that fails leaves them syntactic.
+ */
+async function typeResolved(
+  tree: RepoTree,
+  project: RustProject,
+  assessments: Assessment<RustProject>[],
+  options: RustAssessOptions,
+) {
+  const scip = options.scip;
+  const needs = assessments.filter((a) => a.project === project && a.located && a.records.length);
+  if (!scip || !needs.length) return;
+  options.onProgress?.(`${project.root}: rust-analyzer index for type-resolved sites`);
+  const plan = detectRustChecks(tree, project);
+  const out = "/tmp/teire-index.scip";
+  const probed = await scanProbe(scip.backend, {
+    id: `${scip.id}-scip-${createHash("sha256").update(project.root).digest("hex").slice(0, 8)}`,
+    tarball: scip.tarball,
+    plan,
+    // rust-analyzer drops every dependency when `cargo metadata` fails: fail closed instead.
+    probe: [
+      "sh",
+      "-c",
+      `CARGO_NET_OFFLINE=true cargo metadata --offline --locked --format-version 1 >/dev/null && rust-analyzer scip . --output ${out}`,
+    ],
+    output: out,
+    timeoutSec: RUST.scipTimeoutSec,
+  }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }));
+  if ("error" in probed) {
+    const note = `${project.root === "." ? "Rust" : project.root}: rust-analyzer's index failed (${probed.error.slice(0, 200)}); Rust sites stay syntactic`;
+    options.onProgress?.(note);
+    options.coverage?.notes.push(note);
+    return;
+  }
+  const prefix = project.root === "." ? "" : `${project.root}/`;
+  for (const a of needs) {
+    if (!a.located || !a.instance.version) continue;
+    const ident = (a.instance.aliasName ?? a.instance.name).replace(/-/g, "_");
+    const declKeys = new Set(
+      a.records.flatMap((r) => r.signatures.flatMap((s) => (s.kind === "symbol" ? [s.declKey] : []))),
+    );
+    a.located = mergeScip(a.located, readScipIndex(probed.bytes, a.instance.name), {
+      projectRoot: project.root,
+      version: a.instance.version,
+      declKeys,
+      sourceFiles: tree
+        .files()
+        .filter((f) => f.startsWith(prefix) && f.endsWith(".rs") && (tree.read(f) ?? "").includes(ident)),
+      lineOf: (file, line) => (tree.read(file) ?? "").split("\n")[line - 1] ?? "",
+    });
+    const target = a.decision?.kind === "upgrade" ? a.decision.to : null;
+    a.findings = assess({
+      instance: a.instance,
+      target,
+      isMajor: a.decision?.kind === "upgrade" && a.decision.isMajor,
+      records: a.records,
+      locate: a.located,
+    });
+    a.summary = summariseFindings(a.findings);
+    const open = a.findings.filter((f) => f.verdict === "affected").map((f) => f.priority ?? 4);
+    a.priority =
+      a.purpose === "security"
+        ? open.length && a.decision?.kind === "upgrade"
+          ? Math.min(...open)
+          : null
+        : open.length
+          ? Math.min(...open)
+          : 4;
+  }
 }
 
 export async function fixRustDependency(
