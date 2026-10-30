@@ -1,4 +1,4 @@
-import { eq, inArray, repos } from "@teire/db";
+import { eq, inArray, repos, scans } from "@teire/db";
 import { STALE_EVIDENCE_LABEL } from "@teire/engine/github";
 import { forgetDependencyCaches } from "../caches";
 import type { Delivery } from "../outbox";
@@ -423,13 +423,24 @@ export async function reconcileInstallation(ctx: EventContext, installationId: n
         ).map((r) => r.id)
       : [],
   );
+  const scanned = new Set(
+    known.size
+      ? (
+          await db
+            .selectDistinct({ id: scans.repoId })
+            .from(scans)
+            .where(inArray(scans.repoId, [...known]))
+        ).map((r) => r.id)
+      : [],
+  );
   for (const r of listed as RepoPayload[]) {
     ids.add(r.id);
     const repo = await upsertRepo(db, r, installationId);
     // New to Teire (a fork or a repository created with no webhook), or back after a removal: scanned
     // as an installed one is, which opens its onboarding PR.
-    // Also one saved but never scanned (an earlier reconcile saved it without a scan).
-    if (!known.has(r.id) || (repo.status === "detected" && !repo.lastScannedAt)) {
+    // Also one saved but never scanned at all (an earlier reconcile saved it without a scan); one
+    // whose scans failed is left to its own retries, not queued again every half hour.
+    if (!known.has(r.id) || (repo.status === "detected" && !scanned.has(r.id))) {
       await ctx.enqueueScan(repo.id, "install");
       added++;
     } else if (repo.status === "disabled") {
