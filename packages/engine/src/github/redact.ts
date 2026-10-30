@@ -33,9 +33,13 @@ export function forGitHub(message: string, max = MAX_CHARS): string {
  * user part, credentials in a query string or written as `name=value` / `name: value`, provider
  * keys, cloud access keys, private key blocks and the Token Factory project id.
  */
-/** A source file's name right before `:` (`token.go:`, `auth_test.py:`), and a line or range after it. */
+/**
+ * A source file's name right before `:` (`token.go:`, `auth_test.py:`), and a line or range after it.
+ * Tight on purpose (review 2026-10-30): a code file only, never a config file, and no space around
+ * the colon, as compilers and Teire print a place; `auth.ts: 654321` or `token.json:123456` stay masked.
+ */
 const FILE_LINE =
-  /\.(?:go|ts|tsx|mts|cts|js|jsx|mjs|cjs|py|pyi|rb|rs|java|kt|kts|scala|groovy|gradle|php|cs|swift|c|h|cc|cpp|hpp|ex|exs|dart|lua|sh|vue|svelte|json|ya?ml|toml|md|mdx|xml)[ \t]*:[ \t]*$/i;
+  /\.(?:go|ts|tsx|mts|cts|js|jsx|mjs|cjs|py|pyi|rb|rs|java|kt|kts|scala|groovy|php|cs|swift|c|h|cc|cpp|hpp|ex|exs|dart|lua|vue|svelte):$/i;
 // The line (or range) may run into markdown around it: `token.go:22`](https://…).
 const LINE = /^\d+(?:[:-]\d+)*(?![\w])/;
 

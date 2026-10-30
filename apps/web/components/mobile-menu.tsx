@@ -56,7 +56,7 @@ export function MobileMenu({ links }: { links: readonly { href: string; label: s
         <Dialog.Overlay className="fixed inset-x-0 top-16 bottom-0 z-50 bg-[rgb(13_15_19/0.45)] backdrop-blur-[2px] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 md:hidden" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed inset-x-3 top-[4.25rem] z-50 origin-top overflow-hidden rounded-[22px] bg-sheet shadow-float ring-1 ring-rule duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2 md:hidden"
+          className="fixed inset-x-3 top-[4.25rem] z-50 max-h-[calc(100dvh-5.5rem)] origin-top overflow-y-auto overscroll-contain rounded-[22px] bg-sheet shadow-float ring-1 ring-rule duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2 md:hidden"
         >
           <Dialog.Title className="sr-only">Teire menu</Dialog.Title>
           <nav aria-label="Main" className="flex flex-col p-2">

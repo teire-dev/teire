@@ -1,3 +1,4 @@
+import { sql } from "@teire/db";
 import { ChevronRight, ExternalLink, Quote as QuoteIcon, ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -8,11 +9,15 @@ import { YourPackageUse } from "@/components/catalog/your-reach";
 import { GhostFlow } from "@/components/flow/ghost-flow";
 import { TileSquare } from "@/components/flow/tile";
 import { Mark } from "@/components/teire/mark";
+import { myScope } from "@/lib/app-shell";
 import { ECOSYSTEMS } from "@/lib/brands";
 import { listChanges } from "@/lib/catalog";
+import { database } from "@/lib/db";
 import { packageFacts } from "@/lib/entities";
 import { changeHref } from "@/lib/links";
+import { getSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { scopeRaw } from "@/lib/workspace";
 import { ClassChip } from "../../../changes/class-chip";
 
 type Params = PageProps<"/packages/[ecosystem]/[...name]">["params"];
@@ -53,19 +58,49 @@ function compareVersions(a: string, b: string) {
   return 0;
 }
 
+/** Whether a dependency instance of this package is in one of the signed-in reader's own repositories. */
+async function installedByReader(ecosystem: string, name: string) {
+  const session = await getSession();
+  const mine = session ? await myScope(session.user.id) : null;
+  if (!mine) return false;
+  const { rows } = await database().execute(sql`
+    select 1 from dependency_instances di
+    join repos r on r.id = di.repo_id join installations i on i.id = r.installation_id
+    where ${scopeRaw(mine.scope, "r", "i")} and di.ecosystem = ${ecosystem} and di.name = ${name}
+    limit 1`);
+  return rows.length > 0;
+}
+
+/** A package no public index lists, for a reader who installs it: where they stand, and why there is no more. */
+function PrivatePackage({ ecosystem, name }: { ecosystem: string; name: string }) {
+  const eco = ECOSYSTEMS[ecosystem];
+  return (
+    <>
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {eco ? <Mark brand={eco} size="lg" /> : null}
+          <h1 className="heading font-mono text-3xl break-all text-ink">{name}</h1>
+          <span className="rounded-full bg-sunken px-2.5 py-0.5 text-xs text-ink-2">
+            {eco?.label ?? ecosystem}
+          </span>
+        </div>
+        <p className="text-sm text-ink-2">
+          No public index lists this package, so its versions and advisories aren&apos;t shown here. It may
+          come from a private registry.
+        </p>
+      </header>
+      <YourPackageUse pkg={`${ecosystem}/${name}`} versions={[]} latest={null} />
+    </>
+  );
+}
+
 /** How many releases the reader's "Where you stand" counts back through, newest last. */
 const USE_VERSIONS = 600;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  // A missing package is a real 404 from `proxy.ts`, before the page streams.
   const { ecosystem, name } = await params;
-  // The existence check here too (revamp S3): metadata blocks the response for crawlers, so a missing
-  // package is a real 404, not a 200 that streams "not found" (the page's own check is in its boundary).
-  if (!ECOSYSTEMS[ecosystem]) notFound();
-  const pkg = decode(name);
-  const [facts, all] = await Promise.all([packageFacts(ecosystem, pkg), listChanges()]);
-  if (!facts && !all.some((r) => r.record.subject.ecosystem === ecosystem && r.record.subject.name === pkg))
-    notFound();
-  return { title: `${pkg} (${ECOSYSTEMS[ecosystem]?.label ?? ecosystem})` };
+  return { title: `${decode(name)} (${ECOSYSTEMS[ecosystem]?.label ?? ecosystem})` };
 }
 
 /** Where each ecosystem's registry shows a package. */
@@ -123,7 +158,12 @@ async function Package({ params }: { params: Params }) {
   const name = decode(parts);
   const [versions, all] = await Promise.all([packageFacts(ecosystem, name), listChanges()]);
   const rows = all.filter((r) => r.record.subject.ecosystem === ecosystem && r.record.subject.name === name);
-  if (!versions && !rows.length) notFound();
+  if (!versions && !rows.length) {
+    // No public facts: a page only for a signed-in reader who installs it (a private registry's
+    // package), showing where they stand; anyone else gets the 404 (review 2026-10-30).
+    if (!(await installedByReader(ecosystem, name))) notFound();
+    return <PrivatePackage ecosystem={ecosystem} name={name} />;
+  }
   const registry = registryUrl(ecosystem, name);
   const releases = versions?.info.versions ?? [];
   const latest = releases.find((v) => v.isDefault) ?? null;

@@ -85,6 +85,13 @@ export async function proxy(request: NextRequest) {
     seen.set(key, hit);
   }
   if (hit.ok) return NextResponse.next();
+  // A signed-in reader may install a package no public index knows (a private registry's): its page
+  // shows them where they stand, so their request goes on to the page, which checks their own repos.
+  if (
+    kind === "packages" &&
+    request.cookies.getAll().some((c) => c.name.endsWith("better-auth.session_token"))
+  )
+    return NextResponse.next();
   // An unmatched path renders the app's not-found page with a real 404.
   return NextResponse.rewrite(new URL("/_missing", request.url), { status: 404 });
 }

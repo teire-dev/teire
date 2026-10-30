@@ -17,16 +17,13 @@ import {
   scans,
   sql,
   userInstallations,
-  userRepos,
   webhookDeliveries,
 } from "@teire/db";
 import { maskSecrets } from "@teire/engine/redact";
-import { headers } from "next/headers";
 import { visibleRun } from "./access";
-import { auth } from "./auth";
 import { database } from "./db";
 import { reachKey, reachOf } from "./reach";
-import { postOf, type RunChange, type RunCode, type RunSite } from "./run-evidence";
+import { codeOf, postOf, type RunChange, type RunCode, type RunSite } from "./run-evidence";
 import { getSession } from "./session";
 
 /**
@@ -189,7 +186,7 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
       : Promise.resolve([]),
     getSession(),
   ]);
-  const evidence = await evidenceOf(repo.id, run.groupKey, run.changeId, events);
+  const evidence = await evidenceOf(repo.id, run.groupKey, run.changeId, events, repo.isPrivate);
   const post = postOf(events, artifact ?? null);
   const member =
     !dry && session && repo.installationId
@@ -299,6 +296,8 @@ async function evidenceOf(
   groupKey: string | null,
   changeId: string | null,
   events: { step: string; type: string; payload: unknown }[],
+  /** A private repository's run is read only by people with access to it, so its private changes show. */
+  repoPrivate: boolean,
 ): Promise<{ code: RunCode; changes: RunChange[] }> {
   const db = database();
   const snapshot = events.findLast((e) => e.step === "assess" && e.type === "sites")?.payload as
@@ -310,38 +309,37 @@ async function evidenceOf(
           callSites: findings.callSites,
           changeId: findings.changeId,
           verdict: findings.verdict,
+          state: findings.state,
           sha: scans.sha,
+          scannedAt: scans.createdAt,
         })
         .from(findings)
         .leftJoin(scans, eq(scans.id, findings.scanId))
         .where(and(eq(findings.repoId, repoId), eq(findings.groupKey, groupKey)))
     : [];
-  const affected = found.filter((f) => f.verdict === "affected");
-  let code: RunCode;
-  if (snapshot?.sites) {
-    code = {
-      at: "run",
-      sha: snapshot.sha ?? null,
-      sites: snapshot.sites.slice(0, SITES_SHOWN),
-      total: snapshot.total ?? snapshot.sites.length,
-    };
-  } else {
-    const seen = new Set<string>();
-    const sites: RunSite[] = [];
-    for (const f of affected)
-      for (const s of (Array.isArray(f.callSites) ? f.callSites : []) as Partial<RunSite>[]) {
-        if (!s.file || !s.line || seen.has(`${s.file}:${s.line}`)) continue;
-        seen.add(`${s.file}:${s.line}`);
-        sites.push({ file: s.file, line: s.line, snippet: s.snippet ?? "", kind: s.kind ?? null });
-      }
-    sites.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
-    code = {
-      at: sites.length ? "scan" : null,
-      sha: affected.find((f) => f.sha)?.sha ?? null,
-      sites: sites.slice(0, SITES_SHOWN),
-      total: sites.length,
-    };
-  }
+  // Findings that still stand (not retired as gone), and for the lines one scan only, the latest, so
+  // every line links at the commit it was found on (review 2026-10-30, P2).
+  const affected = found.filter((f) => f.verdict === "affected" && f.state !== "gone");
+  const latest = affected.reduce<(typeof affected)[number] | null>(
+    (best, f) => (f.scannedAt && (!best?.scannedAt || f.scannedAt > best.scannedAt) ? f : best),
+    null,
+  );
+  const seen = new Set<string>();
+  const sites: RunSite[] = [];
+  for (const f of affected.filter((x) => x.sha === latest?.sha))
+    for (const site of (Array.isArray(f.callSites) ? f.callSites : []) as Partial<RunSite>[]) {
+      if (!site.file || !site.line || seen.has(`${site.file}:${site.line}`)) continue;
+      seen.add(`${site.file}:${site.line}`);
+      sites.push({ file: site.file, line: site.line, snippet: site.snippet ?? "", kind: site.kind ?? null });
+    }
+  sites.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+  // The run's own snapshot, when it recorded one, wins over the scan's lines.
+  const code = codeOf(events, {
+    at: sites.length ? "scan" : null,
+    sha: latest?.sha ?? null,
+    sites: sites.slice(0, SITES_SHOWN),
+    total: sites.length,
+  });
   const ids = [
     ...new Set(
       [changeId, ...(snapshot?.changes ?? []), ...affected.map((f) => f.changeId)].filter(
@@ -353,7 +351,9 @@ async function evidenceOf(
     ? await db
         .select({ id: changes.id, title: changes.title, kind: changes.kind, record: changes.record })
         .from(changes)
-        .where(inArray(changes.id, ids))
+        // A change a repository declared in its teire.yml is private (review 2026-10-30, P1): a
+        // public run never shows its sources.
+        .where(and(inArray(changes.id, ids), repoPrivate ? undefined : eq(changes.visibility, "public")))
     : [];
   const order = new Map(ids.map((id, i) => [id, i]));
   return {
@@ -444,24 +444,10 @@ export async function runSheetTick(
   `);
   const sheet = rows[0]?.sheet;
   if (!sheet) return null;
-  // A private repository's run is for the members of its installation, read now.
-  if (sheet.is_private) {
-    const session = await auth().api.getSession({ headers: await headers() });
-    if (!session || !sheet.installation_id) return null;
-    // The person's own access to this private repository (U3 review), as on the first read.
-    const [member] = await db
-      .select({ id: userRepos.repoId })
-      .from(userRepos)
-      .where(
-        and(
-          eq(userRepos.userId, session.user.id),
-          eq(userRepos.repoId, Number(sheet.repo_id)),
-          eq(userRepos.installationId, Number(sheet.installation_id)),
-        ),
-      )
-      .limit(1);
-    if (!member) return null;
-  }
+  // Every tick passes the first read's own check (review 2026-10-30, P0): a repository that went
+  // private since, or a person whose access was revoked, stops receiving the run, not just one whose
+  // stored flag already says private. Visibility is cached for minutes, so this stays cheap.
+  if (!(await visibleRun(id))) return null;
   const r = sheet.run as Row;
   const a = sheet.artifact as Row | null;
   const iso = (v: unknown) => (v ? new Date(String(v)).toISOString() : null);

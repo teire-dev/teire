@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { Markdown } from "@/components/markdown";
 import { TITLES } from "@/lib/activity";
 import { changeHref, groupHref } from "@/lib/links";
-import { blobUrl, branchUrl, commitUrl, type Hunk, hunksOf, type RunPost } from "@/lib/run-evidence";
+import { blobUrl, branchUrl, codeOf, commitUrl, type Hunk, hunksOf, type RunPost } from "@/lib/run-evidence";
 import type { RunSheetData } from "@/lib/run-sheet";
 import { TRUST_BASIS } from "@/lib/trust";
 import { cn } from "@/lib/utils";
@@ -176,7 +176,8 @@ function Section({
  * located, and the lines the fix had to change, each linked at the commit the run read.
  */
 export function YourCode({ sheet }: { sheet: RunSheetData }) {
-  const { run, repo, code } = sheet;
+  const { run, repo } = sheet;
+  const code = codeOf(sheet.events, sheet.code);
   const hunks = useMemo(() => hunksOf(run.diff), [run.diff]);
   const manifests = hunks.filter((h) => h.role === "manifest");
   const edits = hunks.filter((h) => h.role === "code");

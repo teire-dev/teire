@@ -23,6 +23,26 @@ export interface RunCode {
   total: number;
 }
 
+/**
+ * The run's own snapshot of its lines (`assess`/`sites`) when its events have it, else what the first
+ * load found: the poll streams events, so a run opened before it read the code shows the lines the
+ * moment it does (review 2026-10-30).
+ */
+export function codeOf(events: { step: string; type: string; payload: unknown }[], loaded: RunCode): RunCode {
+  const snapshot = events.findLast((e) => e.step === "assess" && e.type === "sites")?.payload as
+    | { sha?: string; sites?: RunSite[]; total?: number }
+    | undefined;
+  if (!snapshot?.sites) return loaded;
+  return {
+    at: "run",
+    sha: snapshot.sha ?? null,
+    sites: snapshot.sites.slice(0, SITES_SHOWN),
+    total: snapshot.total ?? snapshot.sites.length,
+  };
+}
+
+const SITES_SHOWN = 40;
+
 /** An upstream change the run answers, with every source it was read from. */
 export interface RunChange {
   id: string;
@@ -76,32 +96,46 @@ export function hunksOf(patch: string | null): Hunk[] {
   let file = "";
   let created = false;
   let old = 0;
+  // Lines left in the current hunk, from its header's counts: inside a hunk, `--- x` is a removed
+  // line that starts with "--" (a SQL comment), not a file header (review 2026-10-30).
+  let oldLeft = 0;
+  let newLeft = 0;
   let current: Hunk | null = null;
   const close = () => {
     if (current && (current.removed.length || current.added.length)) out.push(current);
     current = null;
   };
   for (const line of patch.split("\n")) {
-    if (line.startsWith("diff --git ")) {
+    const inHunk = oldLeft > 0 || newLeft > 0;
+    if (!inHunk && line.startsWith("diff --git ")) {
       close();
       continue;
     }
-    if (line.startsWith("--- ")) {
+    if (!inHunk && line.startsWith("--- ")) {
       close();
       created = line.slice(4).trim() === "/dev/null";
       if (!created) file = line.slice(4).trim().replace(/^a\//, "");
       continue;
     }
-    if (line.startsWith("+++ ")) {
+    if (!inHunk && line.startsWith("+++ ")) {
       const to = line.slice(4).trim();
       if (created && to !== "/dev/null") file = to.replace(/^b\//, "");
       continue;
     }
-    const head = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/.exec(line);
+    const head = !inHunk && /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
     if (head) {
       close();
       old = Number(head[1]);
+      oldLeft = head[2] === undefined ? 1 : Number(head[2]);
+      newLeft = head[3] === undefined ? 1 : Number(head[3]);
       continue;
+    }
+    if (inHunk) {
+      if (line.startsWith(" ")) {
+        oldLeft -= 1;
+        newLeft -= 1;
+      } else if (line.startsWith("-")) oldLeft -= 1;
+      else if (line.startsWith("+")) newLeft -= 1;
     }
     if (!file || (!line.startsWith("-") && !line.startsWith("+") && !line.startsWith(" "))) continue;
     if (line.startsWith(" ")) {

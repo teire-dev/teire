@@ -87,6 +87,10 @@ describe("maskSecrets (run page output)", () => {
     expect(maskSecrets("**go-major/auth/token.go:** two edits")).toBe(
       "**go-major/auth/token.go:** two edits",
     );
+    // A number after a spaced colon, or after a config file's name, is a value, not a line.
+    expect(maskSecrets("auth.ts: 654321")).toBe("auth.ts: ***");
+    expect(maskSecrets("token.json:123456")).toBe("token.json:***");
+    expect(maskSecrets("session_token.ts = 99887766")).toBe("session_token.ts = ***");
     expect(out).toContain("src/auth.ts:40-42");
     expect(out).toContain("lib/session_id.rb:7:3");
     expect(out).toContain("AUTH_TOKEN: ***");
