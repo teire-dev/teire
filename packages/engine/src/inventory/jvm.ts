@@ -191,12 +191,44 @@ function readMaven(tree: RepoTree): JvmProject[] {
   return projects;
 }
 
-/** `include(":app", ":lib")`, `include ':app'`, `include("app")` → Gradle project paths. */
+/**
+ * `include(":app", ":lib")`, `include ':app'`, `include("app")` → Gradle project paths, including an
+ * `include` whose list spans several lines (D-27): inside parentheses to the closing one, or a Groovy
+ * list continued by trailing commas.
+ */
 export function gradleIncludes(settings: string) {
   const out: string[] = [];
-  for (const m of settings.matchAll(/^\s*include\s*\(?([^\n)]*)\)?/gm))
-    for (const p of (m[1] ?? "").matchAll(/["']([^"']+)["']/g))
+  const text = settings.replace(/\/\/[^\n]*/g, "");
+  for (const m of text.matchAll(/^\s*include\b\s*(\()?/gm)) {
+    const start = (m.index ?? 0) + m[0].length;
+    let body: string;
+    if (m[1]) {
+      const close = text.indexOf(")", start);
+      body = text.slice(start, close < 0 ? undefined : close);
+    } else {
+      // Without parentheses: this line, and the next ones while a line ends with a comma.
+      const lines: string[] = [];
+      for (const line of text.slice(start).split("\n")) {
+        lines.push(line);
+        if (!/,\s*$/.test(line)) break;
+      }
+      body = lines.join("\n");
+    }
+    for (const p of body.matchAll(/["']([^"']+)["']/g))
       out.push(p[1]?.startsWith(":") ? (p[1] as string) : `:${p[1]}`);
+  }
+  return [...new Set(out)];
+}
+
+/** `project(":app").projectDir = file("apps/android")` (Groovy or Kotlin) → project path → folder (D-27). */
+export function gradleProjectDirs(settings: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const m of settings.matchAll(
+    /project\(\s*["'](:?[^"']+)["']\s*\)\.projectDir\s*=\s*(?:new\s+File\s*\(\s*settingsDir\s*,\s*|file\s*\(\s*)["']([^"']+)["']/g,
+  )) {
+    const path = (m[1] ?? "").startsWith(":") ? (m[1] as string) : `:${m[1]}`;
+    out.set(path, (m[2] ?? "").replace(/^\.\//, "").replace(/\/$/, ""));
+  }
   return out;
 }
 
@@ -273,8 +305,29 @@ export function readCatalog(text: string): Catalog {
   return { versions, libraries, plugins };
 }
 
+/**
+ * Any configuration call that names a coordinate (D-26): the built-in ones, Android's variant ones
+ * (`debugImplementation`), `testFixtures*`, `classpath`, custom configurations and BOM imports
+ * (`platform(…)`, `enforcedPlatform(…)`, `mavenBom(…)`). A coordinate is `group:artifact[:version]`
+ * or a catalog accessor; calls that take other strings are left out by name.
+ */
 const GRADLE_CONFIG =
-  /\b(api|implementation|compileOnly|runtimeOnly|testImplementation|testCompileOnly|testRuntimeOnly|androidTestImplementation|kapt|ksp|annotationProcessor)\b\s*\(?\s*(?:platform\s*\(\s*)?(?:"([^"$]+)"|'([^'$]+)'|(libs\.[\w.]+))/g;
+  /\b([a-zA-Z]\w*)\b\s*\(?\s*(?:(?:platform|enforcedPlatform)\s*\(\s*)?(?:"([\w.-]+:[\w.-]+(?::[^"$:]*)?)"|'([\w.-]+:[\w.-]+(?::[^'$:]*)?)'|(libs\.[\w.]+))/g;
+const NOT_A_CONFIGURATION = new Set([
+  "id",
+  "alias",
+  "plugin",
+  "project",
+  "files",
+  "exclude",
+  "group",
+  "module",
+  "include",
+  "url",
+  "uri",
+  "file",
+  "version",
+]);
 
 /** A plugins-block line with a version: Groovy `id 'x' version 'y'` and Kotlin `id("x") version "y"`. */
 const GRADLE_PLUGIN = /\bid\s*\(?\s*["']([\w.-]+)["']\s*\)?\s+version\s*\(?\s*["']([^"'$]+)["']/g;
@@ -319,6 +372,7 @@ function readGradle(tree: RepoTree): JvmProject[] {
     const at = (p: string) => (root === "." ? p : join(root, p));
     const settingsText = tree.read(settings) ?? "";
     const projectPaths = [":", ...gradleIncludes(settingsText)];
+    const projectDirs = gradleProjectDirs(settingsText);
     const catalogPath = at("gradle/libs.versions.toml");
     const catalogText = tree.read(catalogPath);
     let catalog: Catalog | null = null;
@@ -331,7 +385,8 @@ function readGradle(tree: RepoTree): JvmProject[] {
     const modules: JvmModule[] = [];
     const instances: DependencyInstance[] = [];
     for (const p of projectPaths) {
-      const dir = p === ":" ? root : at(p.slice(1).replace(/:/g, "/"));
+      const moved = projectDirs.get(p);
+      const dir = p === ":" ? root : moved ? at(moved) : at(p.slice(1).replace(/:/g, "/"));
       const manifest = [join(dir, "build.gradle.kts"), join(dir, "build.gradle")].find(
         (f) => tree.read(f) !== null,
       );
@@ -363,6 +418,7 @@ function readGradle(tree: RepoTree): JvmProject[] {
       }
       for (const m of text.matchAll(GRADLE_CONFIG)) {
         const config = m[1] as string;
+        if (NOT_A_CONFIGURATION.has(config)) continue;
         const notation = m[2] ?? m[3];
         if (notation) {
           const [g, a, v] = notation.split(":");
@@ -381,7 +437,7 @@ function readGradle(tree: RepoTree): JvmProject[] {
             ),
           )?.version ?? null;
       for (const [name, d] of declared) {
-        const test = /^test|androidTest/.test(d.config);
+        const test = /^(test|androidTest)/.test(d.config);
         const fromLock = locked ? (lockedVersion(name, test) ?? lockedVersion(name, !test)) : null;
         const literal = d.version && VERSION.test(d.version) ? d.version : null;
         const version = fromLock ?? literal;

@@ -35,12 +35,33 @@ export function bumpRange(range: string, target: string): string {
   return `^${target}`;
 }
 
+/**
+ * A peer range is widened, never replaced (D-22): `^17.0.0 || ^18.0.0` → `… || ^19.1.0`, so the
+ * consumers on the versions it already supports keep them. One that already allows the target stays.
+ */
+export function widenRange(range: string, target: string): string {
+  const trimmed = range.trim();
+  if (semver.validRange(trimmed) && semver.satisfies(target, trimmed)) return trimmed;
+  return trimmed ? `${trimmed} || ^${target}` : `^${target}`;
+}
+
+interface PackageJsonEdit {
+  section: (typeof SECTIONS)[number];
+  text: string;
+  from: string;
+  to: string;
+}
+
+/**
+ * Every section the package is in: installed ranges are bumped, a peer range widened (D-22), so a
+ * library that tests on `devDependencies` and declares `peerDependencies` moves both together.
+ */
 function editPackageJson(
   text: string,
   name: string,
   target: string,
   alias?: string,
-): { text: string; from: string; to: string } | null {
+): PackageJsonEdit[] | null {
   let doc: Record<string, Record<string, string> | undefined>;
   try {
     doc = JSON.parse(text);
@@ -48,21 +69,25 @@ function editPackageJson(
     return null;
   }
   const key = alias ?? name;
+  const out: PackageJsonEdit[] = [];
+  let current = text;
   for (const section of SECTIONS) {
-    const current = doc[section]?.[key];
-    if (typeof current !== "string") continue;
+    const declared = doc[section]?.[key];
+    if (typeof declared !== "string") continue;
     // `npm:real-name@^1` aliases keep their prefix.
-    const aliasPrefix = /^npm:((?:@[^/]+\/)?[^@]+)@/.exec(current)?.[0] ?? "";
-    const range = current.slice(aliasPrefix.length);
-    if (/^(workspace:|catalog:|file:|link:|git|https?:)/.test(range)) return null;
-    const next = `${aliasPrefix}${bumpRange(range, target)}`;
-    if (next === current) return { text, from: current, to: current };
-    const edits = modify(text, [section, key], next, {
+    const aliasPrefix = /^npm:((?:@[^/]+\/)?[^@]+)@/.exec(declared)?.[0] ?? "";
+    const range = declared.slice(aliasPrefix.length);
+    // A patched (`patch:`) or JSR (`jsr:`) dependency is never rewritten as a plain range (D-23).
+    if (/^(workspace:|catalog:|file:|link:|git|https?:|patch:|jsr:)/.test(range)) return null;
+    const next = `${aliasPrefix}${section === "peerDependencies" ? widenRange(range, target) : bumpRange(range, target)}`;
+    if (next === declared) continue;
+    const edits = modify(current, [section, key], next, {
       formattingOptions: { insertSpaces: true, tabSize: 2 },
     });
-    return { text: applyEdits(text, edits), from: current, to: next };
+    current = applyEdits(current, edits);
+    out.push({ section, text: current, from: declared, to: next });
   }
-  return null;
+  return out;
 }
 
 /** The manifest edits for upgrading one direct dependency to `target`. */
@@ -95,9 +120,16 @@ export function planManifestEdits(
     doc.setIn(keyPath, next);
     return [{ path: workspacePath, before: workspaceText, after: doc.toString(), from: current, to: next }];
   }
-  const edited = editPackageJson(text, instance.name, target, instance.aliasName);
-  if (!edited || edited.from === edited.to) return [];
-  return [{ path, before: text, after: edited.text, from: edited.from, to: edited.to }];
+  const edited = editPackageJson(text, instance.name, target, instance.aliasName) ?? [];
+  // Chained: each edit starts from the one before, so the last carries the whole file.
+  return edited.map((e, i) => ({
+    path,
+    before: i === 0 ? text : (edited[i - 1]?.text ?? text),
+    after: e.text,
+    from: e.from,
+    to: e.to,
+    ...(e.section === "peerDependencies" ? { note: "peer range widened" } : {}),
+  }));
 }
 
 /** Lockfile regeneration with the repo's own tool, lockfile only, no lifecycle scripts. */

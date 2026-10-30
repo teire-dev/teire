@@ -3,7 +3,7 @@ import { parseSyml } from "@yarnpkg/parsers";
 import { parse as parseJsonc } from "jsonc-parser";
 import YAML from "yaml";
 import type { DependencyInstance } from "../contract";
-import type { RepoTree } from "./tree";
+import { allFiles, type RepoTree } from "./tree";
 
 /**
  * JavaScript/TypeScript inventory: exact versions per importer (workspace) from the repo's own
@@ -103,6 +103,8 @@ function packageManagerOf(manifest: PackageJson | null) {
 
 function sourceOf(range: string): DependencyInstance["source"] {
   if (/^(workspace:|link:)/.test(range)) return "workspace";
+  // JSR packages are versioned on jsr.io, not the npm registry Teire reads (D-23).
+  if (range.startsWith("jsr:")) return "unknown";
   if (/^(file:|\.\.?\/|portal:)/.test(range)) return "path";
   if (
     /^(git\+|git:|github:|gitlab:|bitbucket:|https?:\/\/.*\.git)/.test(range) ||
@@ -110,6 +112,77 @@ function sourceOf(range: string): DependencyInstance["source"] {
   )
     return "git";
   return "registry";
+}
+
+/**
+ * Yarn's patch protocol (D-23): `patch:lodash@npm%3A4.17.21#./.yarn/patches/lodash.patch::locator=…`
+ * → the package, the range it patches (`4.17.21`) and the patch file.
+ */
+export function yarnPatch(range: string) {
+  const match = /^patch:((?:@[^/]+\/)?[^@]+)@([^#]+)#(.+)$/.exec(range);
+  if (!match) return null;
+  const inner = decodeURIComponent(match[2] as string).replace(/^npm:/, "");
+  return { name: match[1] as string, range: inner, file: (match[3] as string).split("::")[0] as string };
+}
+
+/**
+ * Patches outside the range (D-23): pnpm's `patchedDependencies` (`name@version` or `name` → file,
+ * in package.json or pnpm-workspace.yaml), Yarn `resolutions` set to a `patch:` range, and
+ * patch-package's `patches/name+version.patch` (`@scope+name+…`; `parent++child+…` patches child).
+ */
+export function patchesOf(tree: RepoTree, root: string, manifest: PackageJson | null) {
+  const out: { name: string; version: string | null; file: string }[] = [];
+  const byKey = (key: string, file: string) => {
+    const at = key.lastIndexOf("@");
+    const scoped = key.startsWith("@");
+    if (at > (scoped ? 0 : -1) && at !== 0)
+      out.push({ name: key.slice(0, at), version: key.slice(at + 1), file });
+    else out.push({ name: key, version: null, file });
+  };
+  const pnpm = (manifest?.pnpm as { patchedDependencies?: Record<string, string> } | undefined)
+    ?.patchedDependencies;
+  for (const [key, file] of Object.entries(pnpm ?? {})) byKey(key, join(root, file));
+  const workspaceYaml = tree.read(join(root, "pnpm-workspace.yaml"));
+  if (workspaceYaml) {
+    try {
+      const doc = YAML.parse(workspaceYaml) as { patchedDependencies?: Record<string, string> } | null;
+      for (const [key, file] of Object.entries(doc?.patchedDependencies ?? {})) byKey(key, join(root, file));
+    } catch {
+      // An unreadable workspace file is reported where the workspaces are read.
+    }
+  }
+  for (const value of Object.values((manifest?.resolutions as Record<string, unknown> | undefined) ?? {})) {
+    const patch = typeof value === "string" ? yarnPatch(value) : null;
+    if (patch)
+      out.push({
+        name: patch.name,
+        version: semverExact(patch.range),
+        file: patchPath(root, root, patch.file),
+      });
+  }
+  const dir = join(root, "patches");
+  for (const file of tree.files()) {
+    if (!file.startsWith(dir === "patches" ? "patches/" : `${dir}/`) || !file.endsWith(".patch")) continue;
+    const base =
+      file
+        .slice(file.lastIndexOf("/") + 1, -".patch".length)
+        .split("++")
+        .at(-1) ?? "";
+    const parts = base.split("+");
+    const name = base.startsWith("@") ? `${parts[0]}/${parts[1]}` : parts[0];
+    const version = base.startsWith("@") ? parts[2] : parts[1];
+    if (name && version && /^\d/.test(version)) out.push({ name, version, file });
+  }
+  return out;
+}
+
+/** Yarn resolves `~/` from the project root and anything else from the manifest's folder. */
+function patchPath(root: string, base: string, file: string) {
+  return file.startsWith("~/") ? join(root, file.slice(2)) : posix.normalize(join(base, file));
+}
+
+function semverExact(range: string) {
+  return /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(range) ? range : null;
 }
 
 /** `npm:strip-ansi@^6.0.1` → `strip-ansi`. */
@@ -144,8 +217,7 @@ function workspaceDirs(tree: RepoTree, root: string, manifest: PackageJson | nul
   const prefix = root === "." ? "" : `${root}/`;
   const include = globs.filter((g) => !g.startsWith("!")).map(globToRegExp);
   const exclude = globs.filter((g) => g.startsWith("!")).map((g) => globToRegExp(g.slice(1)));
-  return tree
-    .files()
+  return allFiles(tree)
     .filter((f) => f.endsWith("/package.json") && f.startsWith(prefix) && !f.includes("node_modules/"))
     .map((f) => f.slice(prefix.length, -"/package.json".length))
     .filter((dir) => include.some((r) => r.test(dir)) && !exclude.some((r) => r.test(dir)))
@@ -438,11 +510,11 @@ export function readJsProject(tree: RepoTree, root: string): JsProject {
       const dir = importer === "." ? root : join(root, importer);
       for (const dep of declaredDeps(readJson<PackageJson>(tree, join(dir, "package.json")))) {
         project.instances.push(
-          instance(dep, { version: null }, importer, join(dir, "package.json"), undefined, reason),
+          instance(dep, { version: null }, importer, join(dir, "package.json"), undefined, reason, root),
         );
       }
     }
-    return project;
+    return markPatched(project, patchesOf(tree, root, manifest));
   };
 
   if (!lock || !lockfile) {
@@ -514,7 +586,7 @@ export function readJsProject(tree: RepoTree, root: string): JsProject {
       if (resolved.version === null && resolved.workspace === undefined && ws)
         resolved = { version: null, workspace: ws };
       const reason = resolved.version === null && !resolved.workspace ? `not in ${lock[0]}` : undefined;
-      project.instances.push(instance(dep, resolved, importer, manifestPath, lockfile, reason));
+      project.instances.push(instance(dep, resolved, importer, manifestPath, lockfile, reason, root));
     }
   }
   for (const t of resolver.transitive) {
@@ -531,6 +603,15 @@ export function readJsProject(tree: RepoTree, root: string): JsProject {
       resolvedBy: "lockfile",
     });
   }
+  return markPatched(project, patchesOf(tree, root, manifest));
+}
+
+/** Marks each patched instance with its patch file, unless its own `patch:` range already did. */
+function markPatched(project: JsProject, patches: ReturnType<typeof patchesOf>) {
+  for (const i of project.instances) {
+    const patch = patches.find((p) => p.name === i.name && (p.version === null || p.version === i.version));
+    if (patch && !i.sourceRef?.startsWith("patch:")) i.sourceRef = `patch:${patch.file}`;
+  }
   return project;
 }
 
@@ -541,14 +622,22 @@ function instance(
   manifestPath: string,
   lockfile: string | undefined,
   unresolvedReason: string | undefined,
+  root: string,
 ): DependencyInstance {
-  const registryName = resolved.registryName ?? aliasTarget(dep.range);
-  const source = resolved.workspace !== undefined ? "workspace" : sourceOf(dep.range);
+  const patch = yarnPatch(dep.range);
+  const range = patch?.range ?? dep.range;
+  // A JSR package keeps its JSR name; the lockfile's `@jsr/scope__name` is jsr.io's npm mirror.
+  const registryName = range.startsWith("jsr:")
+    ? undefined
+    : (resolved.registryName ??
+      aliasTarget(range) ??
+      (patch && patch.name !== dep.name ? patch.name : undefined));
+  const source = resolved.workspace !== undefined ? "workspace" : sourceOf(range);
   const out: DependencyInstance = {
     ecosystem: "npm",
     name: registryName ?? dep.name,
     version: resolved.version,
-    declaredRange: dep.range,
+    declaredRange: range,
     direct: true,
     scope: dep.scope,
     workspace: importer,
@@ -559,6 +648,7 @@ function instance(
   if (registryName && registryName !== dep.name) out.aliasName = dep.name;
   if (lockfile) out.lockfilePath = lockfile;
   if (resolved.workspace !== undefined) out.sourceRef = resolved.workspace;
+  if (patch) out.sourceRef = `patch:${patchPath(root, posix.dirname(manifestPath), patch.file)}`;
   if (unresolvedReason && out.resolvedBy === "unresolved") out.unresolvedReason = unresolvedReason;
   return out;
 }

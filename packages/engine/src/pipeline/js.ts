@@ -27,6 +27,7 @@ import {
   beyondRange,
   chooseTarget,
   comparedInstance,
+  patchedHold,
   type TargetDecision,
   withTargetMax,
 } from "../registry/target";
@@ -93,6 +94,16 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
     for (const declared of project.instances) {
       if (!declared.direct || declared.source !== "registry") continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
+      // A peer that is also installed (devDependencies) is assessed once, from the installed one;
+      // its fix widens the peer range with it (D-22).
+      if (
+        declared.scope === "peer" &&
+        project.instances.some(
+          (i) =>
+            i.direct && i.scope !== "peer" && i.name === declared.name && i.workspace === declared.workspace,
+        )
+      )
+        continue;
       const base: Assessment = {
         purpose: "upgrade",
         project,
@@ -139,7 +150,10 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
         ),
         npmScheme,
       );
-      const decision = floor ? beyondRange(chosen, declared.declaredRange as string, npmScheme) : chosen;
+      const decision = patchedHold(
+        floor ? beyondRange(chosen, declared.declaredRange as string, npmScheme) : chosen,
+        instance,
+      );
       const a: Assessment = {
         ...base,
         instance,

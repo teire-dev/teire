@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { type ChangeV2, changeV2 } from "../contract";
 import type { Retraction, Retractions } from "./go";
 import type { PackageInfo } from "./types";
@@ -38,6 +39,39 @@ export function deprecationChange(info: PackageInfo, version: string): ChangeV2 
         ...(message ? { quote: message } : {}),
         contentHash: info.source.contentHash,
         checkedAt: info.source.checkedAt,
+      },
+    ],
+    provenance: { method: "feed", confidence: { overall: 1 } },
+    visibility: "public",
+    status: "confirmed",
+  });
+}
+
+/**
+ * A yanked gem (D76): RubyGems.org publishes no yank flag, it drops the version from the gem's
+ * version list, so a locked version missing from a list that did load was yanked and a fresh
+ * `bundle install` can't get it. An empty list (the lookup failed) claims nothing.
+ */
+export function rubygemsYankChange(name: string, version: string, listed: string[]): ChangeV2 | null {
+  if (!listed.length || listed.includes(version)) return null;
+  return changeV2.parse({
+    schemaVersion: 2,
+    id: `rubygems/${name}/yanked/${version}`,
+    subject: { kind: "package", ecosystem: "rubygems", name },
+    kind: "package-yanked",
+    title: `${name}@${version} is yanked`,
+    summary: `RubyGems.org no longer lists ${name} ${version}: it was yanked, so a fresh bundle install can't get it.`,
+    applicability: { class: "already-broken", affectedRange: version },
+    sources: [
+      {
+        url: `https://rubygems.org/gems/${encodeURIComponent(name)}/versions`,
+        kind: "registry",
+        trustBasis: "registry",
+        // The version list as read, so the claim can be checked against what was seen.
+        contentHash: createHash("sha256")
+          .update([...new Set(listed)].sort().join("\n"))
+          .digest("hex"),
+        checkedAt: new Date().toISOString(),
       },
     ],
     provenance: { method: "feed", confidence: { overall: 1 } },

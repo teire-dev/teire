@@ -320,3 +320,22 @@ export function comparedInstance<T extends DependencyInstance>(
   const floor = rangeFloor(info, instance.declaredRange, scheme);
   return floor ? { ...instance, version: floor, resolvedBy: "range-floor" } : null;
 }
+
+/**
+ * A patched package (D-23: Yarn's `patch:`, pnpm's `patchedDependencies`, patch-package) keeps its
+ * patch only on the version it was made for, so an upgrade is reported but held: the patch has to
+ * be remade against the target first, and Teire never drops it.
+ */
+export function patchedHold(
+  decision: TargetDecision,
+  instance: Pick<DependencyInstance, "name" | "sourceRef">,
+) {
+  const file = instance.sourceRef?.startsWith("patch:") ? instance.sourceRef.slice("patch:".length) : null;
+  if (!file || decision.kind !== "upgrade") return decision;
+  return {
+    kind: "blocked",
+    from: decision.from,
+    reason: `${instance.name} is patched by ${file}, made for ${decision.from}: remake the patch for ${decision.to}, then upgrade`,
+    skipped: decision.skipped,
+  } satisfies TargetDecision;
+}

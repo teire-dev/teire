@@ -95,6 +95,12 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
         version: r.New.Version ?? null,
       }));
       const local = replaces.filter((r) => r.version === null);
+      // A module path with no dot in its first element can't come from a proxy (D-33): it is a local
+      // or private module, so it is left out of `go list` and marked as such, and the rest still
+      // gets the toolchain's versions.
+      const undotted = (edit.Require ?? [])
+        .map((r) => r.Path)
+        .filter((path) => !(path.split("/")[0] ?? "").includes(".") && !local.some((r) => r.old === path));
       const sum = tree.read(join(root, "go.sum")) !== null ? join(root, "go.sum") : null;
 
       // Selected versions from the toolchain, on a scratch copy of go.mod and go.sum.
@@ -104,6 +110,12 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
         try {
           await copyFile(join(dir, "go.mod"), join(scratch, "go.mod"));
           if (sum) await copyFile(join(repoDir, sum), join(scratch, "go.sum"));
+          if (undotted.length)
+            await runGo(
+              ["mod", "edit", ...undotted.map((path) => `-droprequire=${path}`), join(scratch, "go.mod")],
+              dir,
+              home,
+            );
           const { stdout } = await runGo(
             ["list", "-m", "-json", `-modfile=${join(scratch, "go.mod")}`, "all"],
             dir,
@@ -119,12 +131,19 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
         }
       } else
         notes.push(`local replace of ${local.map((r) => r.old).join(", ")}: versions as written in go.mod`);
+      if (undotted.length)
+        notes.push(`${undotted.join(", ")}: no dot in the module path, so local or private, not compared`);
 
       const instances: DependencyInstance[] = [];
       for (const req of edit.Require ?? []) {
         const replaced = replaces.find((r) => r.old === req.Path);
         const chosen = selected.get(req.Path);
-        const version = replaced ? (replaced.version ?? null) : (chosen?.Version ?? req.Version);
+        const isUndotted = undotted.includes(req.Path);
+        const version = isUndotted
+          ? null
+          : replaced
+            ? (replaced.version ?? null)
+            : (chosen?.Version ?? req.Version);
         const parsed = dependencyInstance.safeParse({
           ecosystem: "go",
           name: replaced?.version ? replaced.new : req.Path,
@@ -137,11 +156,15 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
           workspace: root,
           manifestPath: manifest,
           ...(sum ? { lockfilePath: sum } : {}),
-          source: replaced && !replaced.version ? "path" : "registry",
+          source: isUndotted ? "unknown" : replaced && !replaced.version ? "path" : "registry",
           ...(replaced && !replaced.version ? { sourceRef: replaced.new } : {}),
           resolvedBy: version === null ? "unresolved" : chosen || replaced ? "toolchain" : "lockfile",
           ...(version === null
-            ? { unresolvedReason: `replaced by the local directory ${replaced?.new}` }
+            ? {
+                unresolvedReason: isUndotted
+                  ? "a module path with no dot in its first element: a local or private module, not on a proxy"
+                  : `replaced by the local directory ${replaced?.new}`,
+              }
             : {}),
         });
         if (parsed.success) instances.push(parsed.data);

@@ -428,9 +428,13 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
   const unfixed = input.records.filter(
     (r) => r.kind === "security-advisory" && r.applicability.fixedIn.length === 0,
   );
-  const title = advisories.length
-    ? `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
-    : `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
+  // A peer-only dependency isn't installed here: its range is widened, not moved (D-22).
+  const peerOnly = instance.scope === "peer";
+  const title = peerOnly
+    ? `Allow ${instance.name} ${run.target} in the peer range${codeFiles.length ? " and adapt the code" : ""}`
+    : advisories.length
+      ? `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
+      : `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
   const sections = (withDiff: boolean, siteCap: number, noteCap: number) => {
     const image = runFlowImage(input.runUrl);
     const out: string[] = [
@@ -444,8 +448,13 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       );
     if (input.targetMax?.name === instance.name)
       out.push(`**Why ${run.target}.** ${sanitizeUpstream(forGitHub(input.targetMax.reason, 400), null)}.`);
+    const widened = run.manifest.find((m) => m.note === "peer range widened");
+    if (widened)
+      out.push(
+        `**Peer range widened.** \`${forGitHub(widened.from, 80)}\` → \`${forGitHub(widened.to, 100)}\`: projects on the versions it already supports keep them.`,
+      );
     // D-37: no lockfile pins it, so the comparison started at its range's floor; said, never hidden.
-    if (instance.resolvedBy === "range-floor" && instance.declaredRange)
+    if (!peerOnly && instance.resolvedBy === "range-floor" && instance.declaredRange)
       out.push(
         `**No lockfile pins ${instance.name}.** Teire compared it from ${instance.version}, the lowest version \`${forGitHub(instance.declaredRange, 80)}\` allows: a fresh install could still get it.`,
       );

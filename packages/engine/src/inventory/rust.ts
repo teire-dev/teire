@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { type DependencyInstance, dependencyInstance } from "../contract";
-import type { RepoTree } from "./tree";
+import { allFiles, type RepoTree } from "./tree";
 
 /**
  * Cargo inventory (plan S06, research rust.md Job 1): parsed as TOML in the worker, never by
@@ -54,12 +54,16 @@ function readToml(tree: RepoTree, path: string): Table | null {
 /** Expands `crates/*` style member globs against the repo's files. */
 function expandMembers(tree: RepoTree, root: string, patterns: string[], exclude: string[]) {
   const prefix = root === "." ? "" : `${root}/`;
-  const manifests = tree.files().filter((f) => f.endsWith("/Cargo.toml") || f === "Cargo.toml");
+  // Member globs see build-output folders too (D-21): a member may live in `build/` or `vendor/`.
+  const manifests = allFiles(tree).filter((f) => f.endsWith("/Cargo.toml") || f === "Cargo.toml");
   const out = new Set<string>();
   for (const pattern of patterns) {
-    const re = new RegExp(
-      `^${(prefix + pattern.replace(/\/$/, "")).replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]+")}/Cargo\\.toml$`,
-    );
+    // `*` is one folder, `**` any depth (D-24).
+    const body = (prefix + pattern.replace(/\/$/, ""))
+      .split("**")
+      .map((part) => part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]+"))
+      .join(".+");
+    const re = new RegExp(`^${body}/Cargo\\.toml$`);
     for (const m of manifests) if (re.test(m)) out.add(m);
   }
   return [...out].filter((m) => !exclude.some((e) => dirname(m) === join(root, e)));
@@ -94,6 +98,37 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
       ? expandMembers(tree, root, (ws.members as string[]) ?? [], (ws.exclude as string[]) ?? [])
       : [];
     const manifests = [...new Set([...(top.doc.package ? [top.path] : []), ...memberPaths])];
+    // Cargo makes every path dependency inside the workspace a member too, transitively (D-24).
+    if (top.doc.workspace) {
+      const excluded = ((ws.exclude as string[]) ?? []).map((e) => join(root, e));
+      const inside = (dir: string) => root === "." || dir === root || dir.startsWith(`${root}/`);
+      const queue = [top.path, ...manifests];
+      for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+        const doc = next === top.path ? top.doc : readToml(tree, next);
+        if (!doc) continue;
+        const tables = [
+          doc.dependencies,
+          doc["dev-dependencies"],
+          doc["build-dependencies"],
+          ...(next === top.path ? [ws.dependencies] : []),
+          ...Object.values((doc.target ?? {}) as Table).flatMap((t) => {
+            const target = t as Table;
+            return [target.dependencies, target["dev-dependencies"], target["build-dependencies"]];
+          }),
+        ];
+        for (const table of tables)
+          for (const spec of Object.values((table ?? {}) as Table)) {
+            const path = (spec as Table | null)?.path;
+            if (typeof path !== "string") continue;
+            const dir = join(dirname(next), path);
+            const manifest = join(dir, "Cargo.toml");
+            if (!inside(dir) || excluded.includes(dir) || manifests.includes(manifest)) continue;
+            if (tree.read(manifest) === null) continue;
+            manifests.push(manifest);
+            queue.push(manifest);
+          }
+      }
+    }
     for (const m of manifests) claimed.add(m);
     const inherited = (ws.dependencies ?? {}) as Table;
     const lockPath = join(root, "Cargo.lock");

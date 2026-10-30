@@ -41,6 +41,8 @@ Versions whose every file needs a newer Python than 3.12 are skipped.
 
 Hash-pinned requirements get every target file's sha256; without them, the edit is refused. Teire never re-locks everything.
 
+Version updates are for direct dependencies only. A sub-dependency moves only to fix a security advisory: the same lock command with its name, and with uv an `override-dependencies` entry when a parent's range forbids the fix.
+
 Before the agent, Teire makes the edits the target's own surface backs, at calls jedi resolved: `from a.b import X` becomes `from a.c import X` where X moved (other names in the import stay), and a keyword argument the function no longer takes comes out of each call that passes it, over several lines if the call spans them. A keyword a release note renames is renamed instead.
 
 The PR's supply-chain section compares the target with the installed version: a lost or changed PEP 740 publisher, a target with only a source distribution, and owners added or removed since the scan that first saw the installed version.

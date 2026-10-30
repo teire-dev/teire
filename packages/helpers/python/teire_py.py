@@ -175,13 +175,47 @@ def pep621(doc: dict, manifest: str) -> list[Declared]:
             d = parse_requirement(line, "optional", manifest)
             if d:
                 deps.append(d)
-    for lines in (doc.get("dependency-groups") or {}).values():
-        for line in lines:
-            if isinstance(line, str):
-                d = parse_requirement(line, "dev", manifest)
-                if d:
-                    deps.append(d)
+    groups = doc.get("dependency-groups") or {}
+
+    def group_lines(name: str, seen: set[str]) -> list[str]:
+        """A PEP 735 group's requirement strings, its `{include-group = "…"}` entries followed (once)."""
+        if name in seen:
+            return []
+        seen.add(name)
+        out: list[str] = []
+        for entry in groups.get(name) or []:
+            if isinstance(entry, str):
+                out.append(entry)
+            elif isinstance(entry, dict) and isinstance(entry.get("include-group"), str):
+                out += group_lines(entry["include-group"], seen)
+        return out
+
+    for group in groups:
+        for line in group_lines(group, set()):
+            d = parse_requirement(line, "dev", manifest)
+            if d:
+                deps.append(d)
     return deps
+
+
+def poetry_python_marker(constraint: str) -> str | None:
+    """A Poetry `python` constraint as a PEP 508 marker (`^3.8` → >=3.8,<4.0; `~3.8` → >=3.8,<3.9;
+    comparisons and comma lists kept). None for what it can't read (`||`), which then always applies."""
+    parts: list[str] = []
+    for raw in constraint.split(","):
+        c = raw.strip()
+        m = re.fullmatch(r"\^(\d+)\.(\d+)(?:\.\d+)?", c)
+        t = re.fullmatch(r"~=?(\d+)\.(\d+)(?:\.\d+)?", c)
+        if m:
+            parts += [f'python_version >= "{m[1]}.{m[2]}"', f'python_version < "{int(m[1]) + 1}.0"']
+        elif t:
+            parts += [f'python_version >= "{t[1]}.{t[2]}"', f'python_version < "{t[1]}.{int(t[2]) + 1}"']
+        elif re.fullmatch(r"(>=|<=|>|<|==|!=)\s*\d+(\.\d+)*", c):
+            op, ver = re.match(r"(>=|<=|>|<|==|!=)\s*(.+)", c).groups()
+            parts.append(f'python_version {op} "{ver}"')
+        else:
+            return None
+    return " and ".join(parts) or None
 
 
 def poetry_deps(doc: dict, manifest: str) -> list[Declared]:
@@ -192,16 +226,79 @@ def poetry_deps(doc: dict, manifest: str) -> list[Declared]:
         for name, spec in (table or {}).items():
             if name.lower() == "python":
                 continue
-            if isinstance(spec, dict):
-                source = "git" if "git" in spec else "path" if "path" in spec else "url" if "url" in spec else "registry"
-                deps.append(Declared(name, str(spec.get("version", "")), scope, manifest, source, spec.get("markers")))
-            else:
-                deps.append(Declared(name, str(spec), scope, manifest))
+            # A list of constraints, one per Python range: each applies only where its range does.
+            for entry in spec if isinstance(spec, list) else [spec]:
+                if isinstance(entry, dict):
+                    source = "git" if "git" in entry else "path" if "path" in entry else "url" if "url" in entry else "registry"
+                    marker = entry.get("markers") or (poetry_python_marker(str(entry["python"])) if entry.get("python") else None)
+                    deps.append(Declared(name, str(entry.get("version", "")), scope, manifest, source, marker))
+                else:
+                    deps.append(Declared(name, str(entry), scope, manifest))
 
     add(poetry.get("dependencies"), "prod")
     add(poetry.get("dev-dependencies"), "dev")
     for group, table in (poetry.get("group") or {}).items():
         add((table or {}).get("dependencies"), "prod" if group == "main" else "dev")
+    return deps
+
+
+def setup_cfg_deps(path: Path, manifest: str) -> list[Declared]:
+    """`[options] install_requires` and `[options.extras_require]` of a setup.cfg."""
+    import configparser
+
+    cfg = configparser.ConfigParser(interpolation=None)
+    try:
+        cfg.read_string(read_text(path) or "")
+    except configparser.Error:
+        return []
+    deps: list[Declared] = []
+
+    def lines(value: str) -> list[str]:
+        return [ln.strip() for ln in value.replace(";", "\n;").splitlines() if ln.strip() and not ln.strip().startswith(("#", ";"))]
+
+    if cfg.has_option("options", "install_requires"):
+        for ln in lines(cfg.get("options", "install_requires")):
+            d = parse_requirement(ln, "prod", manifest)
+            if d:
+                deps.append(d)
+    if cfg.has_section("options.extras_require"):
+        for _, value in cfg.items("options.extras_require"):
+            for ln in lines(value):
+                d = parse_requirement(ln, "optional", manifest)
+                if d:
+                    deps.append(d)
+    return deps
+
+
+def setup_py_deps(path: Path, manifest: str) -> list[Declared]:
+    """`install_requires` and `extras_require` of a setup.py, read statically (never run): only the
+    literal lists of strings passed to `setup(...)` count; anything computed is left out."""
+    try:
+        tree = ast.parse(read_text(path) or "")
+    except SyntaxError:
+        return []
+    deps: list[Declared] = []
+
+    def strings(node: ast.AST) -> list[str]:
+        if isinstance(node, (ast.List, ast.Tuple)):
+            return [e.value for e in node.elts if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+        return []
+
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", None)) == "setup"):
+            continue
+        for kw in node.keywords:
+            if kw.arg == "install_requires":
+                for ln in strings(kw.value):
+                    d = parse_requirement(ln, "prod", manifest)
+                    if d:
+                        deps.append(d)
+            elif kw.arg == "extras_require" and isinstance(kw.value, ast.Dict):
+                for value in kw.value.values:
+                    for ln in strings(value):
+                        d = parse_requirement(ln, "optional", manifest)
+                        if d:
+                            deps.append(d)
     return deps
 
 
@@ -291,6 +388,20 @@ def pinned(spec: str) -> str | None:
     return m.group(1) if m else None
 
 
+# Build output only when it is no project itself (D-21): `packages/build/pyproject.toml` is a
+# project; setuptools' `build/lib/` and a `dist/` of wheels are not.
+OUTPUT_DIRS = {"build", "dist"}
+PROJECT_FILES = ("pyproject.toml", "setup.py", "setup.cfg")
+
+
+def keep_dir(parent: Path, name: str) -> bool:
+    if name.startswith(".") or (name in SKIP_DIRS and name not in OUTPUT_DIRS):
+        return False
+    if name in OUTPUT_DIRS:
+        return any((parent / name / f).is_file() for f in PROJECT_FILES)
+    return True
+
+
 def cmd_inventory(root_arg: str, pythons_json: str = "{}") -> None:
     root = Path(root_arg).resolve()
     # {"<project root>": "3.11"}: the Python each project runs on in the sandbox.
@@ -298,9 +409,14 @@ def cmd_inventory(root_arg: str, pythons_json: str = "{}") -> None:
     projects: list[dict] = []
     roots: set[Path] = set()
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+        dirnames[:] = [d for d in dirnames if keep_dir(Path(dirpath), d)]
         names = set(filenames)
-        if names & {"pyproject.toml", "Pipfile"} or any(re.fullmatch(r"requirements.*\.(txt|in)", f) for f in names):
+        reqs_dir = Path(dirpath) / "requirements"
+        if (
+            names & {"pyproject.toml", "Pipfile", "setup.cfg", "setup.py"}
+            or any(re.fullmatch(r"requirements.*\.(txt|in)", f) for f in names)
+            or (reqs_dir.is_dir() and any(p.suffix in (".txt", ".in") for p in reqs_dir.iterdir()))
+        ):
             roots.add(Path(dirpath))
     for project_dir in sorted(roots):
         rel = str(project_dir.relative_to(root)) or "."
@@ -314,12 +430,27 @@ def cmd_inventory(root_arg: str, pythons_json: str = "{}") -> None:
         if doc is not None:
             declared += pep621(doc, manifest)
             declared += poetry_deps(doc, manifest)
+        # setup.cfg / setup.py, when pyproject declares nothing itself (D-20).
+        if not declared:
+            for name, reader in (("setup.cfg", setup_cfg_deps), ("setup.py", setup_py_deps)):
+                setup = project_dir / name
+                if setup.is_file():
+                    found = reader(setup, str(setup.relative_to(root)))
+                    if found:
+                        declared += found
+                        manifest = manifest or str(setup.relative_to(root))
+                        break
         pipfile = project_dir / "Pipfile"
         if pipfile.is_file():
             pdoc = read_toml(pipfile) or {}
             declared += pipfile_deps(pdoc, str(pipfile.relative_to(root)))
             manifest = manifest or str(pipfile.relative_to(root))
-        req_files = sorted(p for p in project_dir.iterdir() if re.fullmatch(r"requirements.*\.(txt|in)", p.name))
+        # `requirements*.txt|.in` beside the project, and every `.txt|.in` in a `requirements/` folder (D-20).
+        reqs_dir = project_dir / "requirements"
+        req_files = sorted(
+            [p for p in project_dir.iterdir() if re.fullmatch(r"requirements.*\.(txt|in)", p.name)]
+            + ([p for p in reqs_dir.iterdir() if p.suffix in (".txt", ".in") and p.is_file()] if reqs_dir.is_dir() else [])
+        )
         compiled = {p.with_suffix(".txt") for p in req_files if p.suffix == ".in"}
         seen: set[Path] = set()
         for req in req_files:
@@ -337,11 +468,18 @@ def cmd_inventory(root_arg: str, pythons_json: str = "{}") -> None:
             declared += target
             manifest = manifest or str(req.relative_to(root))
         manager, lockfile, lock_version, versions, dev_only = locked_versions(root, project_dir)
+        # pip-tools: each `x.in` is pinned by its own compiled `x.txt` (D-19), not the first one found.
+        pairs: dict[str, tuple[str, dict[str, str]]] = {}
         if not manager and compiled:
-            manager, lockfile = "pip-tools", str(sorted(compiled)[0].relative_to(root))
-            lock_doc: list[Declared] = []
-            requirements_file(sorted(compiled)[0], root, "prod", set(), lock_doc, [])
-            versions = {d.name: pinned(d.spec) or "" for d in lock_doc if pinned(d.spec)}
+            manager = "pip-tools"
+            for txt in sorted(p for p in compiled if p.is_file()):
+                lock_doc: list[Declared] = []
+                requirements_file(txt, root, "prod", set(), lock_doc, [])
+                pins = {d.name: pinned(d.spec) or "" for d in lock_doc if pinned(d.spec)}
+                pairs[str(txt.with_suffix(".in").relative_to(root))] = (str(txt.relative_to(root)), pins)
+                for name, version in pins.items():
+                    versions.setdefault(name, version)
+            lockfile = next(iter(pairs.values()))[0] if pairs else None
         if not manager and req_files:
             manager = hint or "pip"
         if not declared and not versions:
@@ -350,7 +488,9 @@ def cmd_inventory(root_arg: str, pythons_json: str = "{}") -> None:
         direct_names: set[str] = set()
         for d in declared:
             direct_names.add(d.name)
-            version = versions.get(d.name) or (pinned(d.spec) if not lockfile else None)
+            pair = pairs.get(d.manifest)
+            own = pair[1] if pair else versions
+            version = own.get(d.name) or (pinned(d.spec) if not lockfile else None)
             if d.source != "registry":
                 version = None
             entry = {
@@ -363,11 +503,13 @@ def cmd_inventory(root_arg: str, pythons_json: str = "{}") -> None:
                 "workspace": rel,
                 "manifestPath": d.manifest,
                 "source": d.source,
-                "resolvedBy": "lockfile" if versions.get(d.name) else "unresolved",
+                "resolvedBy": "lockfile" if own.get(d.name) else "unresolved",
             }
-            if lockfile:
+            if pair:
+                entry["lockfilePath"] = pair[0]
+            elif lockfile:
                 entry["lockfilePath"] = lockfile
-            if version and not versions.get(d.name):
+            if version and not own.get(d.name):
                 entry["resolvedBy"] = "lockfile"  # an exact == pin in a requirements file is the lock
             if version is None:
                 entry["unresolvedReason"] = "not a registry dependency" if d.source != "registry" else ("not in the lockfile" if lockfile else "no lockfile")

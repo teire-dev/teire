@@ -11,7 +11,7 @@ import { locateRuby } from "../locate/ruby";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherRubyNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
-import { deprecationChange } from "../registry/deprecation";
+import { deprecationChange, rubygemsYankChange } from "../registry/deprecation";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
 import { gemSignals, snapshotOwners } from "../registry/supply-chain";
 import {
@@ -141,7 +141,14 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
         decision,
         instance,
         // The floor isn't what installs get (the newest the range allows is): no deprecation from it.
-        deprecation: floor ? null : deprecationChange(info, instance.version),
+        deprecation: floor
+          ? null
+          : (deprecationChange(info, instance.version) ??
+            rubygemsYankChange(
+              instance.name,
+              instance.version,
+              versions.map((v) => v.number),
+            )),
       };
       // Who owns the gem now, kept for the upgrade's owner comparison (D-14, R21.6).
       if (decision.kind === "upgrade")

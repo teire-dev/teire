@@ -119,27 +119,79 @@ export function parseGemfileLock(text: string) {
   return out;
 }
 
-/** Gems declared inside `group :development, :test do … end` blocks of a Gemfile (read as text). */
-export function gemfileGroups(text: string) {
-  const groups = new Map<string, string[]>();
-  const stack: string[][] = [];
-  for (const line of text.split("\n")) {
-    const open = /^\s*group\s+(.+?)\s+do\b/.exec(line);
-    if (open?.[1]) {
-      stack.push([...open[1].matchAll(/:(\w+)|["'](\w+)["']/g)].map((m) => m[1] ?? m[2] ?? ""));
+/** One `gem` line of a Gemfile: its groups, its own requirements, and where it comes from. */
+export interface GemfileGem {
+  groups: string[];
+  /** The version requirements written on the line (`"~> 7.0", ">= 7.0.4"`), joined; none for any. */
+  requirement?: string;
+  /** `git:`/`github:`/`path:`, or a `source "…" do` block that isn't rubygems.org. */
+  source?: "git" | "path" | "private-index";
+}
+
+/**
+ * The gems a Gemfile declares, read as text (D-18, D-25): every block is tracked, so an `if`,
+ * `platforms … do` or `source … do` inside a group ends at its own `end`, not the group's; both
+ * `group :a, :b do` and `group(:a) do` open a group; and each gem keeps its own requirement strings,
+ * the range a lockless Gemfile is compared from (D-37).
+ */
+export function gemfileGems(text: string): Map<string, GemfileGem> {
+  const gems = new Map<string, GemfileGem>();
+  // Each open block: the groups it adds, or a source it sets, or nothing.
+  const stack: { groups: string[]; source?: GemfileGem["source"] }[] = [];
+  const names = (args: string) => [...args.matchAll(/:(\w+)|["'](\w+)["']/g)].map((m) => m[1] ?? m[2] ?? "");
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/(^|\s)#.*$/, "");
+    const group = /^\s*group\s*\(?\s*(.+?)\s*\)?\s+do\b/.exec(line);
+    if (group?.[1]) {
+      stack.push({ groups: names(group[1]) });
       continue;
     }
-    if (/^\s*end\b/.test(line) && stack.length) {
+    const sourceBlock = /^\s*source\s*\(?\s*["']([^"']+)["']\s*\)?\s+do\b/.exec(line);
+    if (sourceBlock?.[1]) {
+      stack.push({
+        groups: [],
+        ...(/rubygems\.org/.test(sourceBlock[1]) ? {} : { source: "private-index" as const }),
+      });
+      continue;
+    }
+    if (/^\s*end\b/.test(line)) {
       stack.pop();
       continue;
     }
-    const gem = /^\s*gem\s+["']([^"']+)["'](.*)$/.exec(line);
-    if (!gem?.[1]) continue;
-    const inline = /\bgroups?:\s*(\[[^\]]*\]|:\w+)/.exec(gem[2] ?? "")?.[1];
-    const named = inline ? [...inline.matchAll(/:(\w+)|["'](\w+)["']/g)].map((m) => m[1] ?? m[2] ?? "") : [];
-    groups.set(gem[1], [...stack.flat(), ...named]);
+    const gem = /^\s*gem\s*\(?\s*["']([^"']+)["'](.*)$/.exec(line);
+    if (gem?.[1]) {
+      const rest = gem[2] ?? "";
+      // Positional strings before the first keyword argument are requirements.
+      const positional = rest.split(/,\s*\w+:/)[0] ?? "";
+      const requirements = [...positional.matchAll(/["']([^"']+)["']/g)]
+        .map((m) => (m[1] ?? "").trim())
+        .filter((r) => /^(?:[~><=!]+\s*)?\d/.test(r));
+      const inline = /\bgroups?:\s*(\[[^\]]*\]|:\w+)/.exec(rest)?.[1];
+      const own: GemfileGem["source"] = /\b(?:git|github|gist|bitbucket):/.test(rest)
+        ? "git"
+        : /\bpath:/.test(rest)
+          ? "path"
+          : /\bsource:\s*["'](?![^"']*rubygems\.org)/.test(rest)
+            ? "private-index"
+            : undefined;
+      const source = own ?? stack.findLast((b) => b.source)?.source;
+      gems.set(gem[1], {
+        groups: [...stack.flatMap((b) => b.groups), ...(inline ? names(inline) : [])],
+        ...(requirements.length ? { requirement: requirements.join(", ") } : {}),
+        ...(source ? { source } : {}),
+      });
+    }
+    // Any other block opener (`do`, or `if`/`unless`/`case`/`begin`/`while`/`until` starting a line)
+    // is closed by its own `end`; a trailing `if` modifier opens nothing.
+    if (/\bdo(\s*\|[^|]*\|)?\s*$/.test(line) || /^\s*(?:if|unless|case|begin|while|until)\b/.test(line))
+      stack.push({ groups: [] });
   }
-  return groups;
+  return gems;
+}
+
+/** Gems declared inside `group … do … end` blocks of a Gemfile, by name. */
+export function gemfileGroups(text: string) {
+  return new Map([...gemfileGems(text)].map(([name, g]) => [name, g.groups]));
 }
 
 function scopeOf(groups: string[] | undefined): DependencyInstance["scope"] {
@@ -160,7 +212,8 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
     const root = dirname(manifest);
     const lockPath = manifest.endsWith("gems.rb") ? join(root, "gems.locked") : `${manifest}.lock`;
     const lockText = tree.read(lockPath);
-    const groups = gemfileGroups(tree.read(manifest) ?? "");
+    const declared = gemfileGems(tree.read(manifest) ?? "");
+    const groups = new Map([...declared].map(([name, g]) => [name, g.groups]));
     const notes: string[] = [];
     const instances: DependencyInstance[] = [];
     const lock = lockText !== null ? parseGemfileLock(lockText) : null;
@@ -173,6 +226,8 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
       const dep = lock?.dependencies.find((d) => d.name === name);
       const spec = specOf(name);
       const type = spec?.source.type;
+      // Without a lock, where the gem comes from and its range are the Gemfile's own (D-18).
+      const own = declared.get(name);
       const source =
         type === "GIT"
           ? "git"
@@ -180,12 +235,15 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
             ? "path"
             : spec?.source.remote && !/rubygems\.org/.test(spec.source.remote)
               ? "private-index"
-              : "registry";
+              : !lock && own?.source
+                ? own.source
+                : "registry";
+      const requirement = dep?.requirement ?? (!lock ? own?.requirement : undefined);
       const parsed = dependencyInstance.safeParse({
         ecosystem: "rubygems",
         name,
         version: spec && source === "registry" ? spec.version : null,
-        ...(dep?.requirement && dep.requirement !== ">= 0" ? { declaredRange: dep.requirement } : {}),
+        ...(requirement && requirement !== ">= 0" ? { declaredRange: requirement } : {}),
         direct: true,
         scope: scopeOf(groups.get(name)),
         workspace: root,

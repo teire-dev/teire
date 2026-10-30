@@ -6,30 +6,36 @@ import { safeJoin } from "./archive";
 export interface RepoTree {
   files(): string[];
   read(path: string): string | null;
+  /**
+   * Also the files under build-output folders (`build/`, `dist/`, `vendor/`, `target/`), for
+   * workspace globs only (D-21): `packages/build` is a workspace when a glob names it, and otherwise
+   * build output that no reader looks at.
+   */
+  all?(): string[];
 }
 
-const SKIP_DIRS = new Set([
-  ".git",
-  "node_modules",
-  ".venv",
-  "venv",
-  "target",
-  "vendor",
-  "dist",
-  "build",
-  ".next",
-]);
+/** Never anyone's source. */
+const NEVER_DIRS = new Set([".git", "node_modules", ".venv", "venv", ".next"]);
+/** Usually build output: walked only for `all()`. */
+const OUTPUT_DIRS = new Set(["target", "vendor", "dist", "build"]);
+
+/** A tree's files including build-output folders, when it can list them. */
+export function allFiles(tree: RepoTree) {
+  return tree.all?.() ?? tree.files();
+}
 /** Files larger than this are never read as manifests or lockfiles. */
 const MAX_READ_BYTES = 20 * 1024 * 1024;
 
 export function directoryTree(root: string): RepoTree {
   let cache: string[] | null = null;
-  const walk = (dir: string, prefix: string, out: string[]) => {
+  let everything: string[] | null = null;
+  const walk = (dir: string, prefix: string, out: string[], output: boolean) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.isSymbolicLink()) continue;
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) walk(join(dir, entry.name), rel, out);
+        if (!NEVER_DIRS.has(entry.name) && (output || !OUTPUT_DIRS.has(entry.name)))
+          walk(join(dir, entry.name), rel, out, output);
       } else if (entry.isFile()) out.push(rel);
     }
   };
@@ -37,10 +43,18 @@ export function directoryTree(root: string): RepoTree {
     files() {
       if (!cache) {
         cache = [];
-        walk(root, "", cache);
+        walk(root, "", cache, false);
         cache.sort();
       }
       return cache;
+    },
+    all() {
+      if (!everything) {
+        everything = [];
+        walk(root, "", everything, true);
+        everything.sort();
+      }
+      return everything;
     },
     read(path) {
       const full = safeJoin(root, path);
@@ -90,6 +104,7 @@ export function scopedTree(tree: RepoTree, scope: { paths: string[]; ignorePaths
   const keep = (p: string) => include(p) && !exclude(p);
   return {
     files: () => tree.files().filter(keep),
+    all: () => allFiles(tree).filter(keep),
     read: (path: string) => (keep(path) ? tree.read(path) : null),
   };
 }
