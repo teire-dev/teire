@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "slug": "anthropic",
+  "name": "Anthropic",
+  "homepage": "https://platform.claude.com/docs",
+  "logo": {
+    "light": "/logos/anthropic-light.svg",
+    "dark": "/logos/anthropic-dark.svg"
+  },
+  "officialDomains": ["platform.claude.com", "docs.anthropic.com", "anthropic.com"],
+  "sources": [
+    {
+      "kind": "deprecations",
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "adapter": "anthropic-deprecations"
+    }
+  ],
+  "sdks": [
+    {
+      "ecosystem": "npm",
+      "name": "@anthropic-ai/sdk"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@ai-sdk/anthropic"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@langchain/anthropic"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "anthropic"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "langchain-anthropic"
+    },
+    {
+      "ecosystem": "go",
+      "name": "github.com/anthropics/anthropic-sdk-go"
+    },
+    {
+      "ecosystem": "maven",
+      "name": "com.anthropic:anthropic-java"
+    },
+    {
+      "ecosystem": "rubygems",
+      "name": "anthropic"
+    }
+  ],
+  "detection": {
+    "imports": [
+      "@anthropic-ai/sdk",
+      "@ai-sdk/anthropic",
+      "@langchain/anthropic",
+      "anthropic",
+      "langchain_anthropic"
+    ],
+    "envVars": ["ANTHROPIC_API_KEY"],
+    "baseUrls": ["api.anthropic.com"],
+    "calls": [
+      "messages.create",
+      "messages.stream",
+      "messages.parse",
+      "messages.count_tokens",
+      "messages.countTokens",
+      "beta.messages.create",
+      "beta.messages.stream",
+      "completions.create"
+    ]
+  },
+  "apiVersionHeader": "anthropic-version"
+}

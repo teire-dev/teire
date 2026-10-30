@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "slug": "openai",
+  "name": "OpenAI",
+  "homepage": "https://developers.openai.com/api/docs",
+  "logo": {
+    "light": "/logos/openai-light.svg",
+    "dark": "/logos/openai-dark.svg"
+  },
+  "officialDomains": ["developers.openai.com", "platform.openai.com", "openai.com"],
+  "sources": [
+    {
+      "kind": "deprecations",
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "adapter": "deprecation-table",
+      "table": {
+        "sectionLevel": 3
+      }
+    }
+  ],
+  "sdks": [
+    {
+      "ecosystem": "npm",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@ai-sdk/openai"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@langchain/openai"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "langchain-openai"
+    },
+    {
+      "ecosystem": "go",
+      "name": "github.com/openai/openai-go"
+    },
+    {
+      "ecosystem": "maven",
+      "name": "com.openai:openai-java"
+    },
+    {
+      "ecosystem": "rubygems",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "rubygems",
+      "name": "ruby-openai"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "async-openai"
+    }
+  ],
+  "detection": {
+    "imports": ["openai", "@ai-sdk/openai", "@langchain/openai", "langchain_openai"],
+    "envVars": ["OPENAI_API_KEY"],
+    "baseUrls": ["api.openai.com"],
+    "calls": [
+      "chat.completions.create",
+      "chat.completions.parse",
+      "chat.completions.stream",
+      "beta.chat.completions.parse",
+      "beta.chat.completions.stream",
+      "responses.create",
+      "responses.parse",
+      "responses.stream",
+      "completions.create",
+      "embeddings.create"
+    ]
+  }
+}

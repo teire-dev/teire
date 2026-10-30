@@ -514,6 +514,20 @@
             }
           },
           "required": ["overall"]
+        },
+        "contributor": {
+          "type": "object",
+          "properties": {
+            "login": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,39}$"
+            },
+            "pullRequest": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "required": ["login"]
         }
       },
       "required": ["method", "confidence"]

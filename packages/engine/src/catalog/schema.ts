@@ -110,8 +110,23 @@ export const providerRecord = z.object({
       z.object({
         kind: z.enum(providerSourceKinds),
         url: z.url(),
-        /** Adapter that reads this source. */
+        /** Adapter that reads this source (`deprecation-table` reads by `table` below). */
         adapter: z.string().min(1),
+        /**
+         * How the generic table reader reads this page (C13): the heading level that starts each
+         * dated announcement or family (0: the whole page is one section), and the column headers
+         * (case-insensitive patterns) for what goes away, when, and what replaces it.
+         */
+        table: z
+          .object({
+            sectionLevel: z.number().int().min(0).max(6),
+            subjectColumn: z.string().min(1).optional(),
+            dateColumn: z.string().min(1).optional(),
+            replacementColumn: z.string().min(1).optional(),
+            skipSection: z.string().min(1).optional(),
+          })
+          .strict()
+          .optional(),
       }),
     )
     .min(1),

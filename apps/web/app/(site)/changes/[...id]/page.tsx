@@ -112,6 +112,18 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
             <StatusChip tone="broke">quote failed · never applied</StatusChip>
           ) : null}
           <YourReach changeId={record.id} />
+          {record.provenance.contributor ? (
+            // Contributed to the catalog through a pull request (C13): who added it, linked.
+            <a
+              href={
+                record.provenance.contributor.pullRequest ??
+                `https://github.com/${record.provenance.contributor.login}`
+              }
+              className="font-mono text-[11px] text-ink-3 hover:text-ink"
+            >
+              added by @{record.provenance.contributor.login}
+            </a>
+          ) : null}
         </div>
         <h1 className="heading text-3xl text-ink">{record.title}</h1>
         <p className="text-ink-2">{record.summary}</p>

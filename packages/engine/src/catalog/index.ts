@@ -1,4 +1,5 @@
 export { type PageReader, type ReaderReceipt, readVendorPage } from "./adapters/vendor-page";
+export { CONTRIBUTED } from "./contributed";
 export * from "./ingest";
 export * from "./providers";
 export * from "./schema";

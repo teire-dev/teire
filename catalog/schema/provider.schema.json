@@ -65,6 +65,34 @@
           "adapter": {
             "type": "string",
             "minLength": 1
+          },
+          "table": {
+            "type": "object",
+            "properties": {
+              "sectionLevel": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              "subjectColumn": {
+                "type": "string",
+                "minLength": 1
+              },
+              "dateColumn": {
+                "type": "string",
+                "minLength": 1
+              },
+              "replacementColumn": {
+                "type": "string",
+                "minLength": 1
+              },
+              "skipSection": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["sectionLevel"],
+            "additionalProperties": false
           }
         },
         "required": ["kind", "url", "adapter"]

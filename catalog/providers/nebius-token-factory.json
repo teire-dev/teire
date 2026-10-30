@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "slug": "nebius-token-factory",
+  "name": "Nebius Token Factory",
+  "homepage": "https://docs.tokenfactory.nebius.com",
+  "logo": {
+    "light": "/logos/nebius-light.svg",
+    "dark": "/logos/nebius-dark.svg"
+  },
+  "officialDomains": ["docs.tokenfactory.nebius.com", "tokenfactory.nebius.com"],
+  "sources": [
+    {
+      "kind": "notices-index",
+      "url": "https://docs.tokenfactory.nebius.com/llms.txt",
+      "adapter": "tokenfactory-notices"
+    }
+  ],
+  "sdks": [
+    {
+      "ecosystem": "npm",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "go",
+      "name": "github.com/openai/openai-go"
+    },
+    {
+      "ecosystem": "maven",
+      "name": "com.openai:openai-java"
+    },
+    {
+      "ecosystem": "rubygems",
+      "name": "openai"
+    },
+    {
+      "ecosystem": "rubygems",
+      "name": "ruby-openai"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "async-openai"
+    }
+  ],
+  "detection": {
+    "imports": [],
+    "envVars": ["NEBIUS_API_KEY"],
+    "baseUrls": ["api.tokenfactory.nebius.com", "api.tokenfactory.us-central1.nebius.com"],
+    "calls": [
+      "chat.completions.create",
+      "chat.completions.parse",
+      "chat.completions.stream",
+      "beta.chat.completions.parse",
+      "beta.chat.completions.stream",
+      "responses.create",
+      "responses.parse",
+      "responses.stream",
+      "completions.create",
+      "embeddings.create"
+    ]
+  }
+}

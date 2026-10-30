@@ -31,9 +31,11 @@ import {
   composeHumanIssue,
   forGitHub,
   HumanCommitsError,
+  inferredCommitPrefix,
   modelName,
   openOrUpdatePullRequest,
   publishCheckRun,
+  updatedDependenciesTrailer,
 } from "@teire/engine/github";
 import type { FindingDraft } from "@teire/engine/impact";
 import type { JvmProject, PyProject, RepoTree, RubyProject, RustProject } from "@teire/engine/inventory";
@@ -281,7 +283,74 @@ interface Outcome {
   labels: string[];
   checkTitle: string;
   sites: (CallSite & { message: string })[];
+  /** A package upgrade's commit metadata (S20.2): Dependabot's trailer, and whether it is a dev dependency. */
+  commit?: { trailer: string; development: boolean; ecosystem: string };
 }
+
+/** `dependencies` and the language, or the labels the repo's dependabot.yml sets for this ecosystem. */
+function dependencyLabels(tree: RepoTree, ecosystem: string) {
+  const dependabot = readDependabotConfig(tree);
+  const update = dependabot.updates.find((u) => DEPENDABOT_ECOSYSTEMS_OF[ecosystem]?.includes(u.ecosystem));
+  return update?.labels ?? ["dependencies", LANGUAGE_LABEL[ecosystem] ?? ecosystem];
+}
+
+const DEPENDABOT_ECOSYSTEMS_OF: Record<string, string[]> = {
+  npm: ["npm", "bun"],
+  pypi: ["pip", "uv"],
+  go: ["gomod"],
+  cargo: ["cargo"],
+  rubygems: ["bundler"],
+  maven: ["maven", "gradle"],
+};
+
+/**
+ * The commit headline's prefix (S20.2, D-16): teire.yml's, else dependabot.yml's for this ecosystem,
+ * else the Conventional Commits style the repository's recent commits use (`chore(deps): `).
+ */
+async function commitPrefix(
+  octokit: {
+    rest: {
+      repos: {
+        listCommits: (p: {
+          owner: string;
+          repo: string;
+          sha: string;
+          per_page: number;
+        }) => Promise<{ data: { commit: { message: string } }[] }>;
+      };
+    };
+  },
+  owner: string,
+  repo: string,
+  sha: string,
+  config: TeireConfig | null | undefined,
+  tree: RepoTree,
+  commit: Outcome["commit"],
+) {
+  const own = config?.pullRequests?.commitMessage?.prefix;
+  if (own) return own;
+  if (!commit) return "";
+  const dependabot = readDependabotConfig(tree).updates.find((u) =>
+    DEPENDABOT_ECOSYSTEMS_OF[commit.ecosystem]?.includes(u.ecosystem),
+  )?.commitMessage;
+  const set = commit.development ? (dependabot?.prefixDevelopment ?? dependabot?.prefix) : dependabot?.prefix;
+  if (set) return /[:\s]$/.test(set) ? set : `${set}: `;
+  const subjects = await octokit.rest.repos
+    .listCommits({ owner, repo, sha, per_page: 30 })
+    .then((r) => r.data.map((c) => c.commit.message.split("\n")[0] ?? ""))
+    .catch(() => [] as string[]);
+  return inferredCommitPrefix(subjects, commit.development);
+}
+
+/** Dependabot's language label per package ecosystem (S20.2): stable across Teire's PRs. */
+const LANGUAGE_LABEL: Record<string, string> = {
+  npm: "javascript",
+  pypi: "python",
+  go: "go",
+  cargo: "rust",
+  rubygems: "ruby",
+  maven: "java",
+};
 
 type Common = Omit<Parameters<typeof fixJsDependency>[0], "assessment">;
 
@@ -1287,6 +1356,11 @@ async function packageOutcome(
   }
   return {
     ...(fallback ? { fallback } : {}),
+    commit: {
+      trailer: updatedDependenciesTrailer(assessment.instance, result.run.target, result.run.moved ?? []),
+      development: assessment.instance.scope === "dev" || assessment.instance.scope === "test",
+      ecosystem,
+    },
     fix: result.run,
     pr: {
       ...result.pr,
@@ -2267,8 +2341,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       branch,
       baseSha: run.baseSha,
       botLogin: gh.botLogin,
-      headline: `${config?.pullRequests?.commitMessage?.prefix ?? ""}${composed.title}`,
-      body: `${fix.evidence.kind === "verified" ? "Verified" : "Draft"}: ${saidOnGitHub(fix.evidence.reasons)}`,
+      // teire.yml's prefix, else dependabot.yml's, else the style the repository's own commits use.
+      headline: `${await commitPrefix(installation.octokit, owner, name, run.baseSha, config, tree, outcome.commit)}${composed.title}`,
+      body: [
+        `${fix.evidence.kind === "verified" ? "Verified" : "Draft"}: ${saidOnGitHub(fix.evidence.reasons)}`,
+        ...(outcome.commit ? [outcome.commit.trailer] : []),
+      ].join("\n\n"),
       files,
     });
     await beforePublish();
@@ -2283,6 +2361,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       draft: prMode === "draft",
       labels: [
         "teire",
+        // Dependabot's stable labels, or the ones the repo's dependabot.yml sets for them (S20.2).
+        ...(outcome.commit ? dependencyLabels(tree, outcome.commit.ecosystem) : []),
         ...outcome.labels,
         // A draft says why in its label too: needs-live-access, typecheck-only, …
         ...(prMode === "draft" ? [fix.evidence.kind.replace(/_/g, "-")] : []),

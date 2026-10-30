@@ -12,6 +12,8 @@ COPY packages/engine/package.json packages/engine/
 RUN pnpm install --frozen-lockfile --filter @teire/worker...
 COPY tsconfig.base.json ./
 COPY packages packages
+# Curated providers and contributed change records (C13), imported by the engine.
+COPY catalog catalog
 COPY apps/worker apps/worker
 RUN pnpm --filter @teire/worker build
 RUN pnpm --filter @teire/worker deploy --prod --legacy --config.node-linker=hoisted /out \

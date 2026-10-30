@@ -196,6 +196,13 @@ export const provenance = z.object({
     overall: z.number().min(0).max(1),
     perField: z.record(z.string(), z.number().min(0).max(1)).optional(),
   }),
+  /**
+   * Who added a contributed record to the catalog (C13): their GitHub login and the pull request
+   * that merged it. The change page says "added by".
+   */
+  contributor: z
+    .object({ login: z.string().regex(/^[A-Za-z0-9-]{1,39}$/), pullRequest: z.url().optional() })
+    .optional(),
 });
 
 export const changeV2 = z.object({

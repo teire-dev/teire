@@ -23,6 +23,8 @@ export interface DeprecationTableOptions {
   documentDateQuote?: string;
   /** Section headings to skip entirely. */
   skipSection?: RegExp;
+  /** Column headers a provider's own table uses, when they differ from the usual ones (C13). */
+  columns?: { subject?: RegExp; date?: RegExp; replacement?: RegExp };
 }
 
 const DATE_COLUMN = [/shutdown/i, /retirement/i, /removal/i];
@@ -48,11 +50,17 @@ export function readDeprecationTables(
     const sectionTitle = section.heading.replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/`/g, "");
 
     for (const table of tables(section.body)) {
-      const subjectCol = column(table.header, ...SUBJECT_COLUMN);
-      const replacementCol = column(table.header, ...REPLACEMENT_COLUMN);
+      const subjectCol = column(
+        table.header,
+        ...(options.columns?.subject ? [options.columns.subject] : SUBJECT_COLUMN),
+      );
+      const replacementCol = column(
+        table.header,
+        ...(options.columns?.replacement ? [options.columns.replacement] : REPLACEMENT_COLUMN),
+      );
       // A table qualifies when it names what is going away and either when or what replaces it.
       if (subjectCol < 0) continue;
-      const dateCol = column(table.header, ...DATE_COLUMN);
+      const dateCol = column(table.header, ...(options.columns?.date ? [options.columns.date] : DATE_COLUMN));
       if (replacementCol < 0 && dateCol < 0 && !options.documentDate) continue;
 
       for (const row of table.rows) {

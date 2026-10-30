@@ -4,6 +4,7 @@ import { usageCell } from "../fix/co-moved";
 import type { MigrationNote } from "../fix/codemods";
 import type { FixRun } from "../fix/run";
 import type { DependencyVerdict, FindingDraft } from "../impact";
+import { versionScheme } from "../registry/versions";
 import type { CheckPlan } from "../verify/commands";
 
 /** Evidence reasons as GitHub shows them: redacted and bounded (review R18); the run page keeps them whole. */
@@ -416,6 +417,63 @@ function verdictLine(input: FixPullRequestInput) {
   }
 }
 
+/**
+ * Dependabot's `updated-dependencies` trailer (S20.2): the YAML block after `---` that merge bots
+ * and `dependabot/fetch-metadata` parse, one entry per package the change moves.
+ */
+export function updatedDependenciesTrailer(
+  instance: Pick<DependencyInstance, "name" | "direct" | "scope" | "version" | "ecosystem">,
+  target: string,
+  moved: { name: string; from: string | null; to: string | null; removed?: boolean }[] = [],
+) {
+  const scheme = versionScheme(instance.ecosystem);
+  const updateType = (from: string | null, to: string) => {
+    if (!from || !scheme.valid(from) || !scheme.valid(to)) return null;
+    if (scheme.breaking(from, to)) return "version-update:semver-major";
+    const minor = (v: string) => v.replace(/^v/, "").split(/[.+-]/).slice(0, 2).join(".");
+    return minor(from) === minor(to) ? "version-update:semver-patch" : "version-update:semver-minor";
+  };
+  const type = instance.direct
+    ? `direct:${instance.scope === "dev" || instance.scope === "test" ? "development" : "production"}`
+    : "indirect";
+  const entries = [
+    { name: instance.name, to: target, type, update: updateType(instance.version, target) },
+    ...moved
+      .filter((m) => !m.removed && m.to && m.name !== instance.name)
+      .map((m) => ({
+        name: m.name,
+        to: m.to as string,
+        type: "indirect",
+        update: updateType(m.from, m.to as string),
+      })),
+  ];
+  return [
+    "---",
+    "updated-dependencies:",
+    ...entries.flatMap((e) => [
+      `- dependency-name: ${e.name}`,
+      `  dependency-version: ${e.to}`,
+      `  dependency-type: ${e.type}`,
+      ...(e.update ? [`  update-type: ${e.update}`] : []),
+    ]),
+    "...",
+  ].join("\n");
+}
+
+/**
+ * The commit prefix a repository's own history uses (S20.2, D-16): Conventional Commits in most of its
+ * recent subjects → `chore(deps): ` (`chore(deps-dev): ` for a development dependency), or the
+ * type the repo itself uses for dependency commits (`build(deps): `); otherwise none.
+ */
+export function inferredCommitPrefix(subjects: string[], development: boolean) {
+  const conventional = subjects.filter((s) => /^[a-z]+(?:\([^)]*\))?!?: /.test(s));
+  if (subjects.length < 5 || conventional.length < subjects.length / 2) return "";
+  const depsType = subjects
+    .map((s) => /^([a-z]+)\(deps(?:-dev)?\)!?: /.exec(s)?.[1])
+    .find((t): t is string => Boolean(t));
+  return `${depsType ?? "chore"}(deps${development ? "-dev" : ""}): `;
+}
+
 /** The version a PR moves from: the locked one, or the declared range when none is locked (D-37). */
 const fromOf = (i: { version: string | null; declaredRange?: string; resolvedBy?: string }) =>
   i.resolvedBy === "range-floor" && i.declaredRange ? i.declaredRange : (i.version ?? "?");
@@ -432,11 +490,21 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
   );
   // A peer-only dependency isn't installed here: its range is widened, not moved (D-22).
   const peerOnly = instance.scope === "peer";
-  const title = peerOnly
-    ? `Allow ${instance.name} ${run.target} in the peer range${codeFiles.length ? " and adapt the code" : ""}`
-    : advisories.length
-      ? `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
-      : `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
+  // A library's range admits the new version beside the old (S18.5); a project in a subfolder says
+  // where, as Dependabot's titles do (D-16).
+  const widened = run.manifest.some((m) => m.note === "library range widened");
+  const dir = instance.manifestPath.includes("/")
+    ? ` in /${instance.manifestPath.slice(0, instance.manifestPath.lastIndexOf("/"))}`
+    : "";
+  const title = `${
+    peerOnly
+      ? `Allow ${instance.name} ${run.target} in the peer range${codeFiles.length ? " and adapt the code" : ""}`
+      : widened
+        ? `Widen the ${instance.name} range to admit ${run.target}${codeFiles.length ? " and adapt the code" : ""}`
+        : advisories.length
+          ? `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
+          : `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`
+  }${dir}`;
   const sections = (withDiff: boolean, siteCap: number, noteCap: number) => {
     const image = runFlowImage(input.runUrl);
     const out: string[] = [

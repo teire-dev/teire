@@ -123,7 +123,7 @@ export async function ingestProvider(
     const result = await fetchTracked(source.url, true);
     if (result.status !== "changed") continue;
     changed = true;
-    records.push(...(await readSource(source.adapter, result.source, fetchLinked)));
+    records.push(...(await readSource(source, provider.slug, result.source, fetchLinked)));
   }
 
   const converted: ChangeV2[] = [];
@@ -148,11 +148,29 @@ export async function ingestProvider(
 }
 
 async function readSource(
-  adapter: string,
+  config: ProviderRecord["sources"][number],
+  provider: string,
   source: FetchedSource,
   fetchLinked: (url: string) => Promise<FetchResult>,
 ): Promise<ChangeRecord[]> {
-  switch (adapter) {
+  const pattern = (p: string | undefined) => (p ? new RegExp(p, "i") : undefined);
+  switch (config.adapter) {
+    // The generic table reader, configured in the provider's catalog record (C13).
+    case "deprecation-table": {
+      const t = config.table;
+      if (!t) throw new Error(`${config.url}: the deprecation-table adapter needs a table config`);
+      const columns = {
+        ...(t.subjectColumn ? { subject: pattern(t.subjectColumn) as RegExp } : {}),
+        ...(t.dateColumn ? { date: pattern(t.dateColumn) as RegExp } : {}),
+        ...(t.replacementColumn ? { replacement: pattern(t.replacementColumn) as RegExp } : {}),
+      };
+      return readDeprecationTables(source, {
+        provider,
+        sectionLevel: t.sectionLevel,
+        ...(t.skipSection ? { skipSection: pattern(t.skipSection) as RegExp } : {}),
+        ...(Object.keys(columns).length ? { columns } : {}),
+      });
+    }
     case "openai-deprecations":
       return readDeprecationTables(source, { provider: "openai", sectionLevel: 3 });
     case "anthropic-deprecations":
@@ -164,7 +182,7 @@ async function readSource(
     case "stripe-changelog":
       return readStripe(source, { fetchDetail: fetchLinked, since: CATALOG.stripeSince });
     default:
-      throw new Error(`No adapter named ${adapter}`);
+      throw new Error(`No adapter named ${config.adapter}`);
   }
 }
 

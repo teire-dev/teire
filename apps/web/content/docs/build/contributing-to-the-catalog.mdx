@@ -1,0 +1,70 @@
+---
+title: Contributing to the catalog
+description: Add a provider Teire can read, or a change it missed, through a pull request. CI checks it against the same schema Teire uses, and a merged record is live on the next deploy.
+icon: GitPullRequestArrow
+---
+
+Most of Teire's catalog is generated: diffs of package versions, advisories, and the pages of the providers your code talks to, read with their quotes checked. Two kinds of record live in the repository instead, under `catalog/`, so anyone can add or correct them, a provider's own team included.
+
+<Files>
+  <Folder name="catalog" defaultOpen>
+    <Folder name="providers" defaultOpen>
+      <File name="openai.json" />
+    </Folder>
+    <Folder name="changes" defaultOpen>
+      <Folder name="openai" defaultOpen>
+        <File name="your-change.json" />
+      </Folder>
+    </Folder>
+    <Folder name="schema">
+      <File name="change-v2.schema.json" />
+      <File name="provider.schema.json" />
+    </Folder>
+  </Folder>
+</Files>
+
+## A provider Teire can read
+
+`catalog/providers/<slug>.json` describes a provider: its name, its official domains (quotes count only from those), its SDKs, how a repository shows it uses it, and the pages Teire reads. A deprecation page that publishes one table row per retired model or endpoint needs no code: the generic table reader takes its layout from the record.
+
+```json title="catalog/providers/openai.json (the source)"
+{
+  "kind": "deprecations",
+  "url": "https://developers.openai.com/api/docs/deprecations.md",
+  "adapter": "deprecation-table",
+  "table": { "sectionLevel": 3 }
+}
+```
+
+| Key | What it says |
+|---|---|
+| `sectionLevel` | The heading level that starts each dated announcement (`###` is 3); 0 when the page is one table |
+| `subjectColumn` | The header of what goes away (a pattern; default: a "model", "snapshot" or "system" column) |
+| `dateColumn` | The header of when (default: "shutdown", "retirement" or "removal") |
+| `replacementColumn` | The header of what replaces it (default: "replacement" or "substitute") |
+| `skipSection` | Section headings to leave out |
+
+## A change Teire missed
+
+`catalog/changes/<subject>/<id>.json` is one change record in Teire's contract (`catalog/schema/change-v2.schema.json`). A contributed record says it was contributed and who added it:
+
+```json title="provenance"
+{
+  "method": "catalog",
+  "contributor": { "login": "your-github-login" },
+  "confidence": { "overall": 1 }
+}
+```
+
+Every source keeps its quote and the page it came from, as Teire's own records do, and the record is public.
+
+## What CI checks
+
+`pnpm --filter @teire/engine catalog:validate` runs on every pull request:
+
+- each provider and change file against the schema;
+- a provider file named after its slug;
+- a contributed change marked `"method": "catalog"`, with a contributor, public, and an id no other record uses;
+- `catalog/contributed.json`, the bundle the worker reads, up to date (`catalog:validate --write` rebuilds it).
+
+A record that fails any of these fails the pull request. Once merged, the worker merges every contributed record when it next starts, and its change page shows **added by @login**, linked to the pull request when the record names it.

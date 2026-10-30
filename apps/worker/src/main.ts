@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { createDb, createLocalDb, runMigrations, sql, tlsOptions } from "@teire/db";
+import { CONTRIBUTED } from "@teire/engine/catalog";
 import { RUNS } from "@teire/engine/constants";
 import { createGitHubApp, githubAppConfigFromEnv } from "@teire/engine/github";
 import { CreditsExhaustedError } from "@teire/engine/llm";
@@ -13,7 +14,7 @@ import { scanRepo } from "./jobs/scan";
 import { startOutbox } from "./outbox";
 import { ensureQueues, QUEUES } from "./queues";
 import { markCreditsExhausted, startTicker } from "./reliability";
-import { getRun } from "./store";
+import { getRun, upsertChange } from "./store";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const databaseUrl = process.env.DATABASE_URL;
@@ -74,6 +75,9 @@ const migrationsDir = process.env.MIGRATIONS_DIR ?? resolve(process.cwd(), "../.
 async function main() {
   await runMigrations(db, migrationsDir);
   console.log("[worker] migrations applied");
+  // Contributed catalog records (C13) are merged on every deploy; an unchanged one writes nothing.
+  for (const record of CONTRIBUTED) await upsertChange(db, record);
+  if (CONTRIBUTED.length) console.log(`[worker] ${CONTRIBUTED.length} contributed catalog record(s) merged`);
   const booted = new Date();
   await boss.start();
   await ensureQueues(boss);
