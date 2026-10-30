@@ -5,6 +5,7 @@ import type { LocateResult } from "../locate/ts";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { chooseFixedTarget, patchedHold, type TargetDecision, type TargetPolicy } from "../registry/target";
 import type { VersionScheme } from "../registry/versions";
+import { withDependabot } from "../resolver/scan-policy";
 import type { ScanCoverage } from "./coverage";
 import type { AssessedProject, Assessment } from "./js";
 
@@ -33,6 +34,15 @@ export async function securityAssessments<P extends AssessedProject>(
   // One per locked version and workspace. A root project's direct dependency and its lockfile entry
   // share a key: the direct one is kept, so the advisory says "a direct dependency" where it is.
   const byKey = new Map<string, DependencyInstance>();
+  // Advisory databases cover public packages: a private one's advisories can't be looked up, and a
+  // public namesake's would be someone else's. Said, never silent (S18 review, Codex 8).
+  const privates = new Set(
+    project.instances.filter((i) => i.version && i.source === "private-index").map((i) => i.name),
+  );
+  if (privates.size)
+    options.coverage?.notes.push(
+      `${privates.size} package${privates.size === 1 ? "" : "s"} from a private registry (${[...privates].slice(0, 5).join(", ")}${privates.size > 5 ? "…" : ""}): advisory databases cover public packages, so their advisories aren't checked`,
+    );
   for (const i of project.instances) {
     if (!i.version || i.source !== "registry" || (options.onlyPackage && i.name !== options.onlyPackage))
       continue;
@@ -61,7 +71,28 @@ export async function securityAssessments<P extends AssessedProject>(
       return null;
     });
     if (!info) continue;
-    const policy = await policyFor(instance);
+    // dependabot.yml's ignore conditions hold a security fix too, as they do Dependabot's (S18 review C9).
+    const own = await policyFor(instance);
+    const { policy } = options.dependabot
+      ? withDependabot(own, options.dependabot, ecosystem, project, instance, "security")
+      : { policy: own };
+    if (policy.ignored) {
+      out.push({
+        purpose: "security",
+        project,
+        instance,
+        info,
+        decision: { kind: "blocked", from: instance.version, reason: policy.ignored, skipped: [] },
+        diff: null,
+        records,
+        deprecation: null,
+        located: null,
+        findings: assess({ instance, target: null, isMajor: false, records, locate: null }),
+        summary: null,
+        priority: null,
+      });
+      continue;
+    }
     // Each advisory's smallest fix on the installed line; the highest of those clears them all.
     const fixes = records
       .map((r) => chooseFixedTarget(info, instance.version ?? "", r.applicability.fixedIn, policy, scheme))

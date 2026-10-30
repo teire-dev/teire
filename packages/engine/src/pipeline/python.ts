@@ -79,15 +79,24 @@ function requiresNewerPython(index: PypiIndex | null, version: string, python: s
     : null;
 }
 
-/** `[project].name`, or Poetry's `[tool.poetry].name`, of a pyproject. */
-function pyprojectName(text: string | null) {
-  if (!text) return null;
+/**
+ * A pyproject's own identity, from `[project]` or Poetry's `[tool.poetry]`: its name, its
+ * description, and whether it carries the `Private :: Do Not Upload` classifier PyPI refuses.
+ */
+function pyprojectIdentity(path: string, text: string | null) {
+  type Table = { name?: unknown; description?: unknown; classifiers?: unknown };
   try {
-    const doc = parseToml(text) as { project?: { name?: unknown }; tool?: { poetry?: { name?: unknown } } };
-    const name = doc.project?.name ?? doc.tool?.poetry?.name;
-    return typeof name === "string" ? name : null;
+    const doc = parseToml(text ?? "") as { project?: Table; tool?: { poetry?: Table } };
+    const table = doc.project?.name !== undefined ? doc.project : doc.tool?.poetry;
+    const classifiers = Array.isArray(table?.classifiers) ? table.classifiers : [];
+    return {
+      path,
+      name: typeof table?.name === "string" ? table.name : null,
+      description: typeof table?.description === "string" ? table.description : null,
+      private: classifiers.some((c) => typeof c === "string" && c.trim().startsWith("Private ::")),
+    };
   } catch {
-    return null;
+    return { path, name: null };
   }
 }
 
@@ -118,14 +127,10 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
     const python = pythonFor(tree, project.root)?.version ?? DEFAULT_PYTHON;
     // A published library's pyproject ranges widen; an app's bump (S18.5).
     const pyproject = project.root === "." ? "pyproject.toml" : `${project.root}/pyproject.toml`;
-    project.widen = await widenedManifests(
-      "pypi",
-      [{ path: pyproject, name: pyprojectName(tree.read(pyproject)) }],
-      {
-        ...options,
-        versioning: dependabotVersioning(options.dependabot, "pypi", project) ?? options.versioning,
-      },
-    );
+    project.widen = await widenedManifests("pypi", [pyprojectIdentity(pyproject, tree.read(pyproject))], {
+      ...options,
+      versioning: dependabotVersioning(options.dependabot, "pypi", project) ?? options.versioning,
+    });
     for (const declared of project.instances) {
       if (!declared.direct || !comparable("pypi", declared, options)) continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;

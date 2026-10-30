@@ -102,7 +102,7 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
       project.importers.map((importer) => {
         const path = [project.root, importer].filter((p) => p !== ".").join("/");
         const manifest = path ? `${path}/package.json` : "package.json";
-        let doc: { name?: string; private?: boolean } = {};
+        let doc: { name?: string; description?: string; private?: boolean } = {};
         try {
           doc = JSON.parse(tree.read(manifest) ?? "{}");
         } catch {
@@ -111,6 +111,7 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
         return {
           path: manifest,
           name: typeof doc.name === "string" ? doc.name : null,
+          description: typeof doc.description === "string" ? doc.description : null,
           private: doc.private === true,
         };
       }),

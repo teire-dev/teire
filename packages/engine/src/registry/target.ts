@@ -223,7 +223,7 @@ export function chooseTarget(
       kind && policy.ignoreUpdates?.includes(kind)
         ? {
             reason: "pinned" as const,
-            detail: `${kind} updates are ignored for this package (\`@teire ignore … ${kind}\`)`,
+            detail: `${kind} updates are ignored for this package (\`@teire ignore … ${kind}\` or dependabot.yml)`,
           }
         : reasonFor(v, scheme, policy, defaultVersion, true);
     if (!why) {

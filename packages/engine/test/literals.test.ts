@@ -118,8 +118,8 @@ describe("which providers a repo talks to (D82: nothing else is read)", () => {
   it("an OpenAI-compatible provider reached through the OpenAI SDK counts only once its host is in the code", () => {
     expect(names(providersUsed([pkg("pypi", "openai")], new Set()))).toEqual(["openai:pypi:openai"]);
     expect(names(providersUsed([pkg("pypi", "openai")], new Set(["api.tokenfactory.nebius.com"])))).toEqual([
-      "openai:pypi:openai",
       "nebius-token-factory:api.tokenfactory.nebius.com",
+      "openai:pypi:openai",
     ]);
   });
 });

@@ -34,7 +34,9 @@ const parse = (file: string) => {
   }
 };
 
-// Curated providers (C13): each file is one provider record, named after its slug.
+// Curated providers (C13): each file is one provider record, named after its slug, bundled into
+// catalog/providers.json, which the engine loads (a new provider needs no code).
+const providers: unknown[] = [];
 for (const file of walk(join(root, "providers"))) {
   const doc = parse(file);
   if (doc === undefined) continue;
@@ -43,7 +45,19 @@ for (const file of walk(join(root, "providers"))) {
     problem(file, result.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; "));
   else if (!file.endsWith(`/${result.data.slug}.json`))
     problem(file, `the file must be named ${result.data.slug}.json`);
+  else providers.push(doc);
 }
+const bundled = (path: string, docs: unknown[]) => {
+  const sorted = [...docs].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  let current: unknown = null;
+  try {
+    current = JSON.parse(readFileSync(path, "utf8"));
+  } catch {}
+  if (JSON.stringify(current) === JSON.stringify(sorted)) return;
+  if (write) writeFileSync(path, `${JSON.stringify(sorted, null, 2)}\n`);
+  else problem(path, "is out of date: run catalog:validate --write");
+};
+bundled(join(root, "providers.json"), providers);
 
 // Contributed changes (C13): the contract, contributed provenance with who added it, and an id
 // that is unique. Valid ones are bundled into catalog/contributed.json, which the worker merges

@@ -94,6 +94,8 @@ export function withDependabot(
   ecosystem: string,
   project: { manager: string; root: string },
   instance: DependencyInstance,
+  /** A security fix honours ignore conditions only, as Dependabot's security updates do (S18 review C9). */
+  purpose: "version" | "security" = "version",
 ): { policy: TargetPolicy; conflicts: string[] } {
   const update = dependabotUpdate(scan, ecosystem, project);
   if (!update || !scan) return { policy, conflicts: [] };
@@ -103,11 +105,16 @@ export function withDependabot(
   const next: TargetPolicy = { ...policy };
 
   // `open-pull-requests-limit: 0` is Dependabot's way to turn version updates off (security stays).
-  if (update.openPullRequestsLimit === 0 && !scan.explicit.includes("pullRequests.limit"))
+  if (
+    purpose === "version" &&
+    update.openPullRequestsLimit === 0 &&
+    !scan.explicit.includes("pullRequests.limit")
+  )
     next.ignored = `version updates are off in ${from} (open-pull-requests-limit: 0)`;
 
   // allow: only listed names or dependency types get version updates.
   if (
+    purpose === "version" &&
     update.allow.length &&
     !update.allow.some(
       (a) =>
@@ -145,7 +152,7 @@ export function withDependabot(
   }
 
   // cooldown: dependabot.yml's, unless teire.yml sets its own.
-  if (update.cooldown) {
+  if (purpose === "version" && update.cooldown) {
     if (scan.explicit.includes("upgrades.cooldownDays"))
       conflicts.push(`cooldown: teire.yml's upgrades.cooldownDays is used, not ${from}'s cooldown`);
     else if (instance.version) {
@@ -159,7 +166,7 @@ export function withDependabot(
   }
 
   // versioning-strategy: lockfile-only keeps every target inside the declared range.
-  if (update.versioningStrategy === "lockfile-only" && instance.declaredRange) {
+  if (purpose === "version" && update.versioningStrategy === "lockfile-only" && instance.declaredRange) {
     if (scan.explicit.includes("upgrades.versioning"))
       conflicts.push(`versioning: teire.yml's upgrades.versioning is used, not ${from}'s lockfile-only`);
     else

@@ -284,14 +284,31 @@ interface Outcome {
   checkTitle: string;
   sites: (CallSite & { message: string })[];
   /** A package upgrade's commit metadata (S20.2): Dependabot's trailer, and whether it is a dev dependency. */
-  commit?: { trailer: string; development: boolean; ecosystem: string };
+  commit?: { trailer: string; development: boolean; ecosystem: string; manager: string; root: string };
 }
 
 /** `dependencies` and the language, or the labels the repo's dependabot.yml sets for this ecosystem. */
-function dependencyLabels(tree: RepoTree, ecosystem: string) {
-  const dependabot = readDependabotConfig(tree);
-  const update = dependabot.updates.find((u) => DEPENDABOT_ECOSYSTEMS_OF[ecosystem]?.includes(u.ecosystem));
-  return update?.labels ?? ["dependencies", LANGUAGE_LABEL[ecosystem] ?? ecosystem];
+function dependencyLabels(tree: RepoTree, commit: NonNullable<Outcome["commit"]>) {
+  return (
+    dependabotEntry(tree, commit)?.labels ?? [
+      "dependencies",
+      LANGUAGE_LABEL[commit.ecosystem] ?? commit.ecosystem,
+    ]
+  );
+}
+
+/**
+ * The dependabot.yml entry for this project: its manager and folder, as Dependabot reads it (a
+ * monorepo's entries differ per directory), else the first for the ecosystem.
+ */
+function dependabotEntry(tree: RepoTree, commit: NonNullable<Outcome["commit"]>) {
+  const config = readDependabotConfig(tree);
+  const manager = resolverManager(commit.manager);
+  return (
+    (manager ? updateFor(config, manager, commit.root) : null) ??
+    config.updates.find((u) => DEPENDABOT_ECOSYSTEMS_OF[commit.ecosystem]?.includes(u.ecosystem)) ??
+    null
+  );
 }
 
 const DEPENDABOT_ECOSYSTEMS_OF: Record<string, string[]> = {
@@ -330,9 +347,7 @@ async function commitPrefix(
   const own = config?.pullRequests?.commitMessage?.prefix;
   if (own) return own;
   if (!commit) return "";
-  const dependabot = readDependabotConfig(tree).updates.find((u) =>
-    DEPENDABOT_ECOSYSTEMS_OF[commit.ecosystem]?.includes(u.ecosystem),
-  )?.commitMessage;
+  const dependabot = dependabotEntry(tree, commit)?.commitMessage;
   const set = commit.development ? (dependabot?.prefixDevelopment ?? dependabot?.prefix) : dependabot?.prefix;
   if (set) return /[:\s]$/.test(set) ? set : `${set}: `;
   const subjects = await octokit.rest.repos
@@ -1361,6 +1376,8 @@ async function packageOutcome(
       trailer: updatedDependenciesTrailer(assessment.instance, result.run.target, result.run.moved ?? []),
       development: assessment.instance.scope === "dev" || assessment.instance.scope === "test",
       ecosystem,
+      manager: assessment.project.manager,
+      root: assessment.project.root,
     },
     fix: result.run,
     pr: {
@@ -2364,7 +2381,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       labels: [
         "teire",
         // Dependabot's stable labels, or the ones the repo's dependabot.yml sets for them (S20.2).
-        ...(outcome.commit ? dependencyLabels(tree, outcome.commit.ecosystem) : []),
+        ...(outcome.commit ? dependencyLabels(tree, outcome.commit) : []),
         ...outcome.labels,
         // A draft says why in its label too: needs-live-access, typecheck-only, …
         ...(prMode === "draft" ? [fix.evidence.kind.replace(/_/g, "-")] : []),
