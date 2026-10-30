@@ -18,6 +18,8 @@ export interface StartOptions {
   instance?: InstanceType;
   tarball?: { url: string; token?: string };
   snapshotId?: string;
+  /** Private registries: install-phase requests to each host get its header at egress (S18.7). */
+  registries?: { host: string; authorization: string }[];
 }
 
 export interface ExecResult {

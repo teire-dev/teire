@@ -16,6 +16,7 @@ import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { remoteManaged } from "../registry/maven-pom";
 import { mavenFlavor } from "../registry/maven-version";
+import { comparable, lookupPackage } from "../registry/private";
 import { mavenSignals } from "../registry/supply-chain";
 import {
   beyondRange,
@@ -163,7 +164,7 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
   for (const project of projects) {
     const seen = new Set<string>();
     for (const declared of project.instances) {
-      if (!declared.direct || declared.source !== "registry") continue;
+      if (!declared.direct || !comparable("maven", declared, options)) continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       // One assessment per artifact and version, however many modules declare it.
       const id = `${declared.name}@${declared.version ?? declared.declaredRange}`;
@@ -188,7 +189,7 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("maven", declared.name, options).catch(() => {
+      const info = await lookupPackage("maven", declared, options).catch(() => {
         options.coverage?.lookupsFailed.push({ ecosystem: "maven", name: declared.name });
         return null;
       });

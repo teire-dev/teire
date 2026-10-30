@@ -89,10 +89,14 @@ def clean_daemon() -> None:
         raise RuntimeError("containers remain on the resolver daemon after cleanup")
 
 
-def redact(text: str, token: str | None) -> str:
-    """Events and logs leave the service without credentials (threat 11)."""
-    if token:
-        text = text.replace(token, "[redacted]")
+def redact(text: str, token: str | None, credentials: list | None = None) -> str:
+    """Events and logs leave the service without credentials (threat 11), registry ones included."""
+    secrets = [token] if token else []
+    for c in credentials or []:
+        secrets += [str(c[k]) for k in ("token", "password") if c.get(k)]
+    for secret in sorted(secrets, key=len, reverse=True):
+        if len(secret) >= 4:
+            text = text.replace(secret, "[redacted]")
     return CREDENTIAL.sub("[redacted]", text)
 
 
@@ -208,7 +212,13 @@ def run(job_id: str) -> None:
                 raise ValueError(f"overlay {item['path']} is a link in the checkout")
             target.write_text(item["content"])
         job_file = folder / "job.yaml"
-        job_file.write_text(json.dumps(spec["job"]))  # JSON is YAML
+        # Private-registry credentials sit beside the job in the CLI's input: the CLI hands them to
+        # the proxy, never to the updater (S18.7). The file is the job's own, removed with its folder.
+        document = dict(spec["job"])
+        if spec.get("credentials"):
+            document["credentials"] = spec["credentials"]
+        job_file.write_text(json.dumps(document))  # JSON is YAML
+        job_file.chmod(0o600)
         manager = spec["job"]["job"]["package-manager"]
         timeout = min(int(spec.get("timeoutSec") or CLI_TIMEOUT), CLI_TIMEOUT)
         env = {
@@ -245,14 +255,18 @@ def run(job_id: str) -> None:
             updater, proxy = local_image(mirror_of(updater) or updater), local_image(mirror_of(proxy) or proxy)
             state, result["exitCode"] = cli(job_id, folder, job_file, repo_dir, timeout, env, updater, proxy)
             result["mirror"] = True
-        token = spec.get("token")
-        result["events"] = redact((folder / "stdout").read_bytes()[:MAX_EVENTS].decode("utf-8", "replace"), token)
-        result["stderrTail"] = redact((folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace"), token)
+        token, credentials = spec.get("token"), spec.get("credentials")
+        result["events"] = redact(
+            (folder / "stdout").read_bytes()[:MAX_EVENTS].decode("utf-8", "replace"), token, credentials
+        )
+        result["stderrTail"] = redact(
+            (folder / "stderr").read_bytes()[-20000:].decode("utf-8", "replace"), token, credentials
+        )
     except JobCancelled:
         state = "cancelled"
     except Exception as error:  # noqa: BLE001 - every failure becomes the job's named state
         state = "cancelled" if job_id in cancelled else "failed"
-        result["error"] = redact(f"{type(error).__name__}: {error}", spec.get("token"))[:2000]
+        result["error"] = redact(f"{type(error).__name__}: {error}", spec.get("token"), spec.get("credentials"))[:2000]
     finally:
         try:
             clean_daemon()
@@ -264,6 +278,7 @@ def run(job_id: str) -> None:
     result["ms"] = int((time.monotonic() - started) * 1000)
     with lock:
         spec.pop("token", None)
+        spec.pop("credentials", None)
         spec.pop("job", None)
         spec.pop("overlay", None)
         if active.get(spec.get("key", "")) == job_id:
@@ -314,6 +329,16 @@ def worker() -> None:
             cancelled.intersection_update(jobs.keys())
 
 
+CREDENTIAL_TYPES = {
+    "npm_registry",
+    "python_index",
+    "maven_repository",
+    "cargo_registry",
+    "rubygems_server",
+    "goproxy_server",
+}
+
+
 def validate(body: dict) -> str | None:
     repo, commit, job = body.get("repo"), body.get("commit"), body.get("job")
     if not isinstance(repo, str) or not REPO.match(repo):
@@ -345,6 +370,19 @@ def validate(body: dict) -> str | None:
                 or len(item["content"]) > 1_000_000
             ):
                 return "overlay paths must be relative, inside the checkout and outside .git"
+    credentials = body.get("credentials")
+    # Private-registry credentials for the proxy (S18.7): a short list of flat records of known types.
+    if credentials is not None and (
+        not isinstance(credentials, list)
+        or len(credentials) > 20
+        or any(
+            not isinstance(c, dict)
+            or c.get("type") not in CREDENTIAL_TYPES
+            or any(not isinstance(v, (str, bool)) or (isinstance(v, str) and len(v) > 8192) for v in c.values())
+            for c in credentials
+        )
+    ):
+        return "credentials must be at most 20 registry credentials of known types"
     token = body.get("token")
     # Only installation tokens (ghs_), which the worker mints for one repository with contents:read
     # (D106); since 2026 they run to a few hundred of [A-Za-z0-9_.-] (390 characters seen).
@@ -436,6 +474,7 @@ class Handler(BaseHTTPRequestHandler):
                 "job": body["job"],
                 "overlay": body.get("overlay"),
                 "token": body.get("token"),
+                "credentials": body.get("credentials"),
                 "timeoutSec": body.get("timeoutSec"),
                 "queuedAt": time.time(),
             }

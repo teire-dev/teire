@@ -1,3 +1,5 @@
+import YAML from "yaml";
+import type { DiscoveredRegistry } from "../credentials";
 import type { RepoTree } from "../inventory/tree";
 
 /**
@@ -206,4 +208,138 @@ function pipConf(text: string) {
 function cargoConfig(text: string) {
   if (/^\s*\[(?:registries\.|registry\]|source\.)/m.test(text)) return [CREDENTIALS];
   return [];
+}
+
+export type { DiscoveredRegistry } from "../credentials";
+
+/**
+ * The public registries, as registries (git hosts are not one: `npm.pkg.github.com` is GitHub
+ * Packages, a private registry, though github.com serves public git dependencies).
+ */
+const PUBLIC: Record<DiscoveredRegistry["ecosystem"], readonly string[]> = {
+  npm: ["registry.npmjs.org", "registry.npmjs.com", "registry.yarnpkg.com"],
+  pypi: PYPI_PUBLIC.filter((h) => !h.endsWith("github.com")),
+  cargo: CARGO_PUBLIC,
+  rubygems: RUBYGEMS_PUBLIC,
+  maven: MAVEN_PUBLIC,
+  go: ["proxy.golang.org", "goproxy.io", "goproxy.cn", "proxy.golang.com.cn"],
+};
+
+/** `https://user:secret@host/path` → `https://host/path`; null when not an http(s) URL. */
+function cleanUrl(raw: string) {
+  try {
+    const u = new URL(raw.replace(/^sparse\+/, "").replace(/^\$\{?[A-Z_]+\}?/, ""));
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    u.username = "";
+    u.password = "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every non-public registry a repo names, with the file and npm scope (D-36): `.npmrc`,
+ * `.yarnrc.yml`, `bunfig.toml`; `pip.conf`, requirements index options, uv/Poetry/Pipenv
+ * sources; `.cargo/config.toml` registries; Gemfile sources; POM, settings.xml and Gradle
+ * repositories; and Go's `GOPROXY` set in CI workflows, `.envrc` or a Makefile. Values Teire never
+ * stores are left out: a URL's userinfo, tokens and passwords.
+ */
+export function discoverRegistries(tree: RepoTree): DiscoveredRegistry[] {
+  const out = new Map<string, DiscoveredRegistry>();
+  const add = (ecosystem: DiscoveredRegistry["ecosystem"], raw: string, file: string, scope?: string) => {
+    const url = cleanUrl(raw.trim());
+    const host = url ? hostOf(url) : null;
+    if (!url || !host || PUBLIC[ecosystem].some((p) => host === p || host.endsWith(`.${p}`))) return;
+    const key = `${ecosystem}|${url}|${scope ?? ""}`;
+    if (!out.has(key)) out.set(key, { ecosystem, url, host, ...(scope ? { scope } : {}), file });
+  };
+  const name = (f: string) => f.slice(f.lastIndexOf("/") + 1);
+  for (const file of tree.files()) {
+    if (/(?:^|\/)(?:node_modules|vendor|\.git)\//.test(file)) continue;
+    const base = name(file);
+    const read = () => tree.read(file) ?? "";
+    if (base === ".npmrc")
+      for (const m of read().matchAll(/^\s*(?:(@[\w.-]+):)?registry\s*=\s*(\S+)/gm))
+        add("npm", m[2] as string, file, m[1]);
+    else if (base === ".yarnrc.yml") {
+      try {
+        const doc = (YAML.parse(read()) ?? {}) as {
+          npmRegistryServer?: unknown;
+          npmScopes?: Record<string, { npmRegistryServer?: unknown }>;
+        };
+        if (typeof doc.npmRegistryServer === "string") add("npm", doc.npmRegistryServer, file);
+        for (const [scope, cfg] of Object.entries(doc.npmScopes ?? {}))
+          if (typeof cfg?.npmRegistryServer === "string")
+            add("npm", cfg.npmRegistryServer, file, `@${scope}`);
+      } catch {
+        // An unreadable .yarnrc.yml names nothing Teire can use.
+      }
+    } else if (base === "bunfig.toml") {
+      const text = read();
+      for (const m of text.matchAll(/^\s*registry\s*=\s*(?:\{[^}]*url\s*=\s*)?["']([^"']+)/gm))
+        add("npm", m[1] as string, file);
+      const scopes = /^\s*\[install\.scopes\]\s*\n([\s\S]*?)(?:^\s*\[|$(?![\s\S]))/m.exec(text)?.[1] ?? "";
+      for (const m of scopes.matchAll(/^\s*"?(@?[\w.-]+)"?\s*=\s*(?:\{[^}]*url\s*=\s*)?["']([^"']+)/gm))
+        add("npm", m[2] as string, file, (m[1] as string).startsWith("@") ? (m[1] as string) : `@${m[1]}`);
+    } else if (/^pip\.(?:conf|ini)$/.test(base)) for (const u of pipConf(read())) add("pypi", u, file);
+    else if (/^requirements.*\.(?:txt|in)$|\.in$/.test(base))
+      for (const m of read().matchAll(/^\s*(?:--index-url|--extra-index-url|-i)[\s=]+(\S+)/gm))
+        add("pypi", m[1] as string, file);
+    else if (base === "pyproject.toml" || base === "Pipfile" || base === "uv.toml")
+      for (const m of read().matchAll(/^\s*url\s*=\s*["'](https?:\/\/[^"']+)/gm))
+        add("pypi", m[1] as string, file);
+    else if (/^\.cargo\/config(?:\.toml)?$/.test(file) || /\/\.cargo\/config(?:\.toml)?$/.test(file))
+      for (const m of read().matchAll(
+        /^\s*\[registries\.([\w-]+)\]\s*\n(?:[^[]*?\n)?\s*index\s*=\s*["']([^"']+)/gm,
+      ))
+        add("cargo", m[2] as string, file, m[1]);
+    else if (base === "Gemfile" || base === "gems.rb")
+      for (const m of read().matchAll(/^\s*source\s*\(?\s*["'](https?:\/\/[^"']+)/gm))
+        add("rubygems", m[1] as string, file);
+    else if (base === "pom.xml" || base === "settings.xml")
+      for (const m of read().matchAll(
+        /<(?:plugin)?[Rr]epository>[\s\S]*?<url>\s*([^<\s]+)\s*<\/url>|<mirror>[\s\S]*?<url>\s*([^<\s]+)\s*<\/url>/g,
+      ))
+        add("maven", (m[1] ?? m[2]) as string, file);
+    else if (/\.gradle(?:\.kts)?$/.test(base)) {
+      const text = read();
+      for (const re of [
+        /\bmaven\s*\{[^}]*?\burl\s*(?:=|\()?\s*(?:uri\s*\(\s*)?["']([^"']+)/g,
+        /\bmaven\s*\(\s*(?:url\s*=\s*)?["']([^"']+)/g,
+      ])
+        for (const m of text.matchAll(re)) add("maven", m[1] as string, file);
+    } else if (
+      /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file) ||
+      base === ".envrc" ||
+      base === "Makefile" ||
+      base === "go.env"
+    )
+      for (const m of read().matchAll(/\bGOPROXY\s*[:=]\s*["']?([^"'\s#]+)/g))
+        for (const part of (m[1] as string).split(/[,|]/))
+          if (/^https?:\/\//.test(part)) add("go", part, file);
+  }
+  return [...out.values()];
+}
+
+/** Go module patterns a repo marks private (`GOPRIVATE`, `GONOSUMDB`, `GONOPROXY`), from the same files. */
+export function goPrivatePatterns(tree: RepoTree): string[] {
+  const out = new Set<string>();
+  for (const file of tree.files()) {
+    const base = file.slice(file.lastIndexOf("/") + 1);
+    if (
+      !(
+        /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file) ||
+        base === ".envrc" ||
+        base === "Makefile" ||
+        base === "go.env"
+      )
+    )
+      continue;
+    for (const m of (tree.read(file) ?? "").matchAll(
+      /\bGO(?:PRIVATE|NOSUMDB|NOPROXY)\s*[:=]\s*["']?([^"'\s#]+)/g,
+    ))
+      for (const p of (m[1] as string).split(",")) if (p && !p.startsWith("$")) out.add(p);
+  }
+  return [...out];
 }

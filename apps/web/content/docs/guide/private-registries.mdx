@@ -1,0 +1,58 @@
+---
+title: Private registries
+description: Teire finds the registries your repositories install from, and reads them with a credential an admin saves once. The secret is sealed for Teire's worker and never reaches your code.
+icon: KeyRound
+---
+
+Some packages don't come from npm, PyPI or Maven Central: they come from GitHub Packages, Artifactory, Azure Artifacts, CodeArtifact, Cloudsmith or a server of your own. Teire finds those registries in your repositories and, once a credential is saved, reads them like the public ones.
+
+## What Teire finds
+
+Every scan reads the files that point a package manager somewhere else:
+
+| Ecosystem | Files |
+|---|---|
+| npm | `.npmrc` (`@scope:registry=`), `.yarnrc.yml` (`npmScopes`), `bunfig.toml` |
+| PyPI | `pip.conf`, `--index-url` in requirements files, uv, Poetry and Pipenv sources |
+| Cargo | `[registries.<name>]` in `.cargo/config.toml` |
+| RubyGems | `source "…"` in the Gemfile |
+| Maven, Gradle | `<repositories>` in POMs, `settings.xml` mirrors, `maven { url … }` |
+| Go | `GOPROXY` and `GOPRIVATE` in CI workflows, `.envrc` or a Makefile |
+
+A URL with a username and password in it is kept without them: Teire never stores a secret it reads from a repository.
+
+## Save a credential
+
+<Steps>
+<Step>
+
+Open **Settings → Private registries**. Each registry is listed with the repositories and files that name it, and **Needs a credential** until one is saved.
+
+</Step>
+<Step>
+
+Press **Add credential**, choose **Token** or **Username and password**, and paste it. A registry no scan found yet can be added with **Add a registry**.
+
+</Step>
+<Step>
+
+Teire's worker checks you're an admin of the account on GitHub, that the host is on the public internet, and that the sealed value opens, then stores it. The row shows when it was saved and last used.
+
+</Step>
+</Steps>
+
+<Callout title="Sealed for the worker">
+The web seals each secret with the worker's public key (AES-256-GCM, its key wrapped with RSA-OAEP), bound to your installation and that host. The database holds only the sealed value; only the worker's private key opens it. Removing the credential, or uninstalling Teire, deletes it.
+</Callout>
+
+## Where it's used
+
+- **Version lookups.** A package a private registry serves (its npm scope, its Cargo registry, its Gem source, a Go module marked private) is read there only, never from the public registry, where a package with the same name would be someone else's.
+- **Dependabot's jobs.** The credential goes to dependabot-core's proxy, which adds it to the updater's requests. The updater sees only which hosts have one.
+- **Installs in the sandbox.** The sandbox's egress adds the header to requests for that host during the install, outside the container, so the repository's code and scripts never see it. Redirects to package downloads are followed without it.
+
+Nothing is sent to a host on a private network: the check runs when the credential is saved and on every request.
+
+## When something is missing
+
+A repository whose registry has no credential is still scanned. Its packages from that registry are listed in the scan's coverage as not compared, with the reason, and its install fails in the sandbox with the registry's own refusal. Go modules marked private need a credential for the module proxy your `GOPROXY` names; Teire doesn't fetch modules from git.

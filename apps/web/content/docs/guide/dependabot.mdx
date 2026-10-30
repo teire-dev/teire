@@ -1,0 +1,37 @@
+---
+title: dependabot.yml
+description: Teire reads your existing dependabot.yml and honours it, so moving from Dependabot changes nothing you already decided. teire.yml wins where both say something, and Teire says so.
+icon: GitMerge
+---
+
+If your repository already has `.github/dependabot.yml`, Teire reads it on every scan and every fix. Each `updates` entry applies to the projects its `package-ecosystem` and `directory` (or `directories`) cover.
+
+## What Teire applies
+
+| Setting | What Teire does |
+|---|---|
+| `ignore` | No upgrade for that package (names with `*` work), those versions, or those update types (`version-update:semver-major`) |
+| `allow` | Version updates only for the names or dependency types listed (`production`, `development`, `direct`, `indirect`) |
+| `cooldown` | Waits that many days per update type (`semver-major-days`, …), with its `include` and `exclude` lists |
+| `versioning-strategy` | `widen` and `increase` as Teire's `upgrades.versioning`; `lockfile-only` keeps every target inside your range |
+| `open-pull-requests-limit: 0` | Version updates off for that ecosystem; security fixes still open |
+| `groups`, `vendor`, `exclude-paths`, `commit-message`, `insecure-external-code-execution` | Passed to dependabot-core's updater, which Teire runs for the dependency-file change |
+| `registries` | Read with the credentials saved in [Private registries](/docs/guide/private-registries) |
+
+## When teire.yml says otherwise
+
+`teire.yml` wins for the same setting, and the scan says which file decided:
+
+```text
+cooldown: teire.yml's upgrades.cooldownDays is used, not .github/dependabot.yml's cooldown
+```
+
+Settings Teire doesn't apply are listed too, in the scan's coverage, never dropped silently: `multi-ecosystem-groups` (Teire opens one pull request per package), `assignees`, `reviewers`, `milestone` and `pull-request-branch-name`.
+
+## Dependabot's own pull requests
+
+When Dependabot already has a pull request open for the same package, Teire's says so: **Supersedes Dependabot's #123**. Teire's is verified against your code; Dependabot closes its own once the dependency is updated.
+
+## Running both
+
+You don't have to remove Dependabot. Many teams keep its security alerts and let Teire open the upgrades. To stop Dependabot's version-update pull requests without losing anything, set `open-pull-requests-limit: 0` in its entries: Teire then reads that as "version updates off" only when `teire.yml` doesn't set its own `pullRequests.limit`.

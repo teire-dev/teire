@@ -26,6 +26,8 @@ export const ACTION_KINDS = [
   "feedback",
   "activate",
   "uninstall",
+  "set-registry-credential",
+  "remove-registry-credential",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
@@ -45,6 +47,8 @@ export const INSTALLATION_ACTIONS: ReadonlySet<ActionKind> = new Set([
   "set-installation-fix-mode",
   "fix-in-all",
   "uninstall",
+  "set-registry-credential",
+  "remove-registry-credential",
 ]);
 
 /**
@@ -118,6 +122,10 @@ export function describeAction(kind: ActionKind, params: Record<string, unknown>
       return params.keep ? "Turn Teire on, keeping the onboarding PR" : "Turn Teire on";
     case "uninstall":
       return `Uninstall Teire from ${String(params.account)}`;
+    case "set-registry-credential":
+      return `Save the credential for ${String(params.host)}`;
+    case "remove-registry-credential":
+      return `Remove the credential for ${String(params.host)}`;
     default:
       if ((kind as string) === "close-pr") return `Closed #${params.number}`;
       return `${kind[0]?.toUpperCase()}${kind.slice(1)}`;

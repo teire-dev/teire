@@ -14,6 +14,7 @@ import { declaredPackageNotes, gatherRubyNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange, rubygemsYankChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
+import { comparable, lookupPackage } from "../registry/private";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
 import { gemSignals, snapshotOwners } from "../registry/supply-chain";
 import {
@@ -110,7 +111,7 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
       },
     );
     for (const declared of project.instances) {
-      if (!declared.direct || declared.source !== "registry") continue;
+      if (!declared.direct || !comparable("rubygems", declared, options)) continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       const base: Assessment<RubyProject> = {
         purpose: "upgrade",
@@ -132,7 +133,7 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
         continue;
       }
       const [info, versions] = await Promise.all([
-        getPackageInfo("rubygems", declared.name, options).catch(() => {
+        lookupPackage("rubygems", declared, options).catch(() => {
           options.coverage?.lookupsFailed.push({ ecosystem: "rubygems", name: declared.name });
           return null;
         }),

@@ -183,6 +183,13 @@
       "when": 1793490000000,
       "tag": "0025_web_connection_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793580000000,
+      "tag": "0026_s18_registry_credentials",
+      "breakpoints": true
     }
   ]
 }

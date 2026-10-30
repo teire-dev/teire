@@ -292,3 +292,6 @@ async function fromRubygems(name: string, now: Date) {
     now,
   });
 }
+
+/** The readers' shared pieces, for a private registry speaking the same protocol (S18.7). */
+export { datedNewest, info as packageInfoOf, newestStable };

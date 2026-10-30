@@ -44,8 +44,27 @@ export interface VerifyBackend {
   readonly name: "cloudflare" | "tokenfactory";
   open(
     id: string,
-    options: { tarball: { url: string; token?: string }; instance?: InstanceType; image?: string },
+    options: {
+      tarball: { url: string; token?: string };
+      instance?: InstanceType;
+      image?: string;
+      /** Private registries' hosts and the header their credential sends, added at egress (S18.7). */
+      registries?: { host: string; authorization: string }[];
+    },
   ): Promise<VerifySession>;
+}
+
+/**
+ * The backend with this repo's private registries on every session it opens (S18.7): the sandbox
+ * adds each credential's header to install-phase requests for its host, outside the container, so
+ * the repository's code and its scripts never see it.
+ */
+export function withRegistries(
+  backend: VerifyBackend,
+  registries: { host: string; authorization: string }[],
+): VerifyBackend {
+  if (!registries.length) return backend;
+  return { ...backend, open: (id, options) => backend.open(id, { ...options, registries }) };
 }
 
 /**
@@ -119,6 +138,7 @@ export function cloudflareBackend(config = sandboxConfigFromEnv()): VerifyBacken
         instance: options.instance ?? "standard-2",
         tarball: options.tarball,
         ...(options.image ? { image: options.image } : {}),
+        ...(options.registries?.length ? { registries: options.registries } : {}),
       });
       return {
         id,

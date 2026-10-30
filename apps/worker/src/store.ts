@@ -744,6 +744,8 @@ export async function removeInstallationData(db: Database, installationId: numbe
       "dependency_caches",
     ])
       await tx.execute(sql`delete from ${sql.identifier(table)} where repo_id in ${ids}`);
+    // Its private-registry credentials go with it (S18.7): nothing sealed outlives the installation.
+    await tx.execute(sql`delete from registry_credentials where installation_id = ${installationId}`);
     await tx.execute(sql`
       update repos set status = 'disabled', installation_id = null, config = null, config_source = null,
         ignores = '[]'::jsonb, last_scanned_sha = null, last_scanned_at = null, paused_from = null,

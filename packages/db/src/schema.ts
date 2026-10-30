@@ -777,3 +777,29 @@ export const assistantCalls = pgTable(
   },
   (t) => [index("assistant_calls_user_idx").on(t.userId, t.createdAt)],
 );
+
+/**
+ * Private-registry credentials (S18.7, S-P20): one per installation, ecosystem and host. `sealed` is
+ * the secret sealed with the worker's public key (`@teire/engine/credentials`); the web writes it
+ * and never reads it back, only the worker opens it.
+ */
+export const registryCredentials = pgTable(
+  "registry_credentials",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    installationId: githubId("installation_id")
+      .notNull()
+      .references(() => installations.id, { onDelete: "cascade" }),
+    ecosystem: text("ecosystem").$type<"npm" | "pypi" | "cargo" | "rubygems" | "maven" | "go">().notNull(),
+    host: text("host").notNull(),
+    url: text("url"),
+    kind: text("kind").$type<"token" | "basic">().notNull(),
+    username: text("username"),
+    sealed: text("sealed").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("registry_credentials_host_idx").on(t.installationId, t.ecosystem, t.host)],
+);

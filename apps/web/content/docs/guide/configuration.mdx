@@ -55,7 +55,7 @@ Read from the same schema the worker validates with:
 
 ## Examples
 
-<Tabs items={["Fewer PRs", "Ask first", "Custom checks", "Your own API", "Monorepo"]}>
+<Tabs items={["Fewer PRs", "Ask first", "Pre-releases", "Custom checks", "Your own API", "Monorepo"]}>
 <Tab value="Fewer PRs">
 
 ```yaml title=".github/teire.yml"
@@ -78,6 +78,19 @@ securityFixes: automatic  # security fixes still start on their own
 ```
 
 The Dashboard issue lists them under **Upgrades available**; tick one, press **Fix now** on the web dashboard, or comment `@teire fix <package>`. See [`fix-mode`](/docs/guide/commands).
+
+</Tab>
+<Tab value="Pre-releases">
+
+```yaml title=".github/teire.yml"
+upgrades:
+  prerelease: [react, "npm:react-dom"] # propose their release candidates too (or "*" for all)
+  distTags:
+    next: canary                       # follow next's canary tag instead of latest
+  versioning: widen                    # admit new majors beside the old (^4 → ^4 || ^5)
+```
+
+`versioning` is `auto` by default: a package published under its own name widens its ranges, an app moves them. A `.github/dependabot.yml` is read too; see [dependabot.yml](/docs/guide/dependabot).
 
 </Tab>
 <Tab value="Custom checks">

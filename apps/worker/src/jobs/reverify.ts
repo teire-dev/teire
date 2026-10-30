@@ -28,10 +28,13 @@ import {
   type CheckableProject,
   cancellableBackend,
   checkableProjects,
+  discoverRegistries,
   fileEcosystem,
   projectOf,
   selectBackend,
+  withRegistries,
 } from "@teire/engine/verify";
+import { authorizedRegistries } from "../credentials";
 import {
   appendEvent,
   cancelRequest,
@@ -390,7 +393,12 @@ export async function reverifyRun(ctx: WorkerContext, runId: string) {
       return reading;
     };
     const selected = await selectBackend(process.env, { isPrivate: now.isPrivate ?? true, stillPublic });
-    const backend = cancellableBackend(selected.backend, abort.signal);
+    // The installs read private registries as the fix's did (S18.7).
+    const registries = await authorizedRegistries(db, repo.installationId, discoverRegistries(tree));
+    const backend = withRegistries(
+      cancellableBackend(selected.backend, abort.signal),
+      registries.map((r) => ({ host: r.host, authorization: r.authorization })),
+    );
     await update({ backend: backend.name });
     await event("verify", "backend", { detail: selected.note });
     const tarball = (sha: string) => ({

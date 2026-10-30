@@ -6,6 +6,7 @@ import { GO } from "../constants";
 import { runGo, scratchHome } from "../golang/toolchain";
 import { guardedFetch } from "../net/fetch";
 import { getPackageInfo, type RegistryOptions } from "./clients";
+import { claimingRegistry, fromPrivateRegistry } from "./private";
 import type { PackageInfo } from "./types";
 import { goScheme } from "./versions";
 
@@ -54,7 +55,16 @@ export interface GoFamily {
 
 export async function goModuleFamily(path: string, options: RegistryOptions): Promise<GoFamily | null> {
   const { base, major, style } = splitMajor(path);
-  const own = await getPackageInfo("go", path, options);
+  // A module the repo marks private is read from its own proxy, with the saved credential (S18.7).
+  const privateProxy = claimingRegistry(
+    "go",
+    { name: path, source: "registry" },
+    options.registries ?? [],
+    options.goPrivate,
+  );
+  const lookup = (p: string) =>
+    privateProxy ? fromPrivateRegistry(privateProxy, p, options.now) : getPackageInfo("go", p, options);
+  const own = await lookup(path);
   if (!own) return null;
   const owners = new Map(own.versions.map((v) => [v.version, path]));
   const versions = [...own.versions];
@@ -62,8 +72,8 @@ export async function goModuleFamily(path: string, options: RegistryOptions): Pr
   // v0 and v1 share the base path; the next major path is /v2.
   for (let next = Math.max(major, 1) + 1; next <= Math.max(major, 1) + GO.maxMajorProbe; next++) {
     const candidate = pathForMajor(base, next, style);
-    if (!(await existsOnProxy(candidate))) break;
-    const info = await getPackageInfo("go", candidate, options).catch(() => null);
+    if (!privateProxy && !(await existsOnProxy(candidate))) break;
+    const info = await lookup(candidate).catch(() => null);
     if (!info) break;
     majors.push(candidate);
     for (const v of info.versions) {

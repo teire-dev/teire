@@ -45,6 +45,13 @@ interface EgressProps {
   phase: Phase;
   /** Exact URL of the repo tarball and the token to fetch it; only present while starting. */
   tarball?: { url: string; token?: string };
+  /**
+   * Private registries (S18.7): the install phase may read from each host, and its credential's
+   * header is added here, outside the container. `follow` are the hosts they redirected to
+   * (package downloads), read without the header.
+   */
+  registries?: { host: string; authorization: string }[];
+  follow?: string[];
 }
 
 export interface EgressEvent {
@@ -70,9 +77,32 @@ export class Egress extends WorkerEntrypoint<Env, EgressProps> {
       return fetch(request.url, { headers, redirect: "follow" });
     }
 
+    const registry = this.ctx.props.registries?.find((r) => r.host === url.hostname);
+    if (phase === "install" && read && url.protocol === "https:" && registry) {
+      const headers = new Headers(request.headers);
+      headers.set("authorization", registry.authorization);
+      // A redirect goes back to the client, so the header never follows it to another host; the
+      // host it names may be read (without it) for the rest of the install.
+      const response = await fetch(request.url, { method: request.method, headers, redirect: "manual" });
+      const location = response.headers.get("location");
+      if (response.status >= 300 && response.status < 400 && location) {
+        const next = new URL(location, request.url);
+        // Allowed before the answer leaves: the client follows the redirect at once.
+        if (next.protocol === "https:") await sandboxStub(this.env, sid).allowRedirect(next.hostname);
+      }
+      return response;
+    }
     if (phase === "install" && read && url.protocol === "https:" && REGISTRY_HOSTS.has(url.hostname)) {
       return fetch(request);
     }
+
+    if (
+      phase === "install" &&
+      read &&
+      url.protocol === "https:" &&
+      this.ctx.props.follow?.includes(url.hostname)
+    )
+      return fetch(request);
 
     const event: EgressEvent = {
       at: Date.now(),
@@ -95,6 +125,8 @@ export interface StartOptions {
   /** Repo tarball fetched into /work during start (skipped when starting from a snapshot). */
   tarball?: { url: string; token?: string };
   snapshotId?: string;
+  /** Private registries and the header each one's credential sends (S18.7). */
+  registries?: { host: string; authorization: string }[];
 }
 
 export interface JobStatus {
@@ -167,6 +199,19 @@ export class VerifySandbox extends DurableObject<Env> {
     }
     await this.#container.setInactivityTimeout(IDLE_MS);
     await this.ctx.storage.put("sid", sid);
+    // This session's private registries, kept only while it runs (deleted with the session). A
+    // registry's own host first: npm's public registry serves private packages with a token too.
+    const registries = (Array.isArray(options.registries) ? options.registries : [])
+      .filter(
+        (r) =>
+          typeof r?.host === "string" &&
+          /^[a-z0-9.-]{1,253}$/.test(r.host) &&
+          typeof r.authorization === "string" &&
+          r.authorization.length <= 8192,
+      )
+      .slice(0, 20);
+    await this.ctx.storage.put("registries", registries);
+    await this.ctx.storage.put("follow", []);
 
     // Backup traffic must be routed before the catch-all intercept (DirectoryBackup docs).
     await this.#backups.intercept();
@@ -193,6 +238,15 @@ export class VerifySandbox extends DurableObject<Env> {
     }
     await this.ctx.storage.put("started", { instance, fetchMs });
     return { sid, instance, startMs: Date.now() - started, fetchMs };
+  }
+
+  /** A host a private registry redirected to (its package downloads): readable in the install phase. */
+  async allowRedirect(host: string) {
+    const follow = (await this.ctx.storage.get<string[]>("follow")) ?? [];
+    if (follow.includes(host) || follow.length >= 20) return;
+    await this.ctx.storage.put("follow", [...follow, host]);
+    const phase = (await this.ctx.storage.get<Phase>("phase")) ?? "install";
+    if (phase === "install") await this.#routeEgress(await this.#sid(), "install");
   }
 
   /** Switches between the install (registries only) and check (nothing) phases without a restart. */
@@ -392,7 +446,11 @@ export class VerifySandbox extends DurableObject<Env> {
   }
 
   async #routeEgress(sid: string, phase: Phase, tarball?: EgressProps["tarball"]) {
-    const egress = this.ctx.exports.Egress({ props: { sid, phase, tarball } });
+    const registries = (await this.ctx.storage.get<EgressProps["registries"]>("registries")) ?? [];
+    const follow = (await this.ctx.storage.get<string[]>("follow")) ?? [];
+    const egress = this.ctx.exports.Egress({
+      props: { sid, phase, tarball, ...(registries.length ? { registries, follow } : {}) },
+    });
     // Registering a target again replaces its handler; open connections move to the new one.
     await this.#container.interceptOutboundHttps("*", egress);
     await this.#container.interceptAllOutboundHttp(egress);

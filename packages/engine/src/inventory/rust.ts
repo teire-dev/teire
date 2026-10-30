@@ -228,7 +228,7 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
             ecosystem: "cargo",
             name: crate,
             ...(crate !== key ? { aliasName: key } : {}),
-            version: source === "registry" ? (locked?.version ?? null) : null,
+            version: source === "registry" || source === "private-index" ? (locked?.version ?? null) : null,
             ...(typeof spec.version === "string" ? { declaredRange: spec.version } : {}),
             direct: true,
             scope: spec.optional === true && scope === "prod" ? "optional" : scope,
@@ -236,9 +236,16 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
             manifestPath: manifest,
             ...(lockText !== null ? { lockfilePath: lockPath } : {}),
             source,
-            ...(typeof spec.git === "string" ? { sourceRef: spec.git } : patch ? { sourceRef: patch } : {}),
-            resolvedBy: locked && source === "registry" ? "lockfile" : "unresolved",
-            ...(!locked || source !== "registry"
+            ...(typeof spec.git === "string"
+              ? { sourceRef: spec.git }
+              : typeof spec.registry === "string"
+                ? { sourceRef: spec.registry }
+                : patch
+                  ? { sourceRef: patch }
+                  : {}),
+            resolvedBy:
+              locked && (source === "registry" || source === "private-index") ? "lockfile" : "unresolved",
+            ...(!locked || (source !== "registry" && source !== "private-index")
               ? {
                   unresolvedReason:
                     patch && source !== "registry"

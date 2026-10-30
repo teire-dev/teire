@@ -16,6 +16,7 @@ import { declaredPackageNotes, gatherPypiNotes, githubRepoOf } from "../notes/so
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
+import { comparable, lookupPackage } from "../registry/private";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
 import { pypiSignals, snapshotOwners } from "../registry/supply-chain";
 import {
@@ -124,7 +125,7 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
       },
     );
     for (const declared of project.instances) {
-      if (!declared.direct || declared.source !== "registry") continue;
+      if (!declared.direct || !comparable("pypi", declared, options)) continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       const base: Assessment<PyProject> = {
         purpose: "upgrade",
@@ -148,7 +149,7 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("pypi", declared.name, options).catch(() => {
+      const info = await lookupPackage("pypi", declared, options).catch(() => {
         options.coverage?.lookupsFailed.push({ ecosystem: "pypi", name: declared.name });
         return null;
       });

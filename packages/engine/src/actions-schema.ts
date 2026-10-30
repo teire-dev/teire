@@ -9,6 +9,13 @@ import { CONFIG_PR_KEYS, type ConfigPrKey } from "./config/keys";
 const target = z.string().trim().min(1).max(300);
 const runId = z.string().uuid();
 const fixMode = z.enum(["auto", "ask", "off"]);
+const registryEcosystem = z.enum(["npm", "pypi", "cargo", "rubygems", "maven", "go"]);
+/** A registry host, lower case, no scheme, port or path (`npm.pkg.github.com`). */
+const registryHost = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/);
 
 export const ACTION_PARAMS: Record<ActionKind, z.ZodObject> = {
   rescan: z.object({}),
@@ -59,6 +66,22 @@ export const ACTION_PARAMS: Record<ActionKind, z.ZodObject> = {
   }),
   /** Teire uninstalled from an account (the person types the account's login to confirm). */
   uninstall: z.object({ account: target }),
+  /**
+   * A private registry's credential (S18.7): the secret arrives sealed for the worker
+   * (`@teire/engine/credentials`), which checks the person is an admin and the host is public.
+   */
+  "set-registry-credential": z.object({
+    ecosystem: registryEcosystem,
+    host: registryHost,
+    url: z.string().url().max(500).nullable(),
+    kind: z.enum(["token", "basic"]),
+    username: z.string().trim().max(200).nullable(),
+    sealed: z
+      .string()
+      .regex(/^v1\.[\w-]+\.[\w-]+\.[\w-]+\.[\w-]*$/)
+      .max(8000),
+  }),
+  "remove-registry-credential": z.object({ ecosystem: registryEcosystem, host: registryHost }),
 } as const;
 
 export type ActionParams<K extends ActionKind> = z.infer<(typeof ACTION_PARAMS)[K]>;

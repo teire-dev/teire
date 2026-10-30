@@ -4,6 +4,7 @@ import type { Ecosystem } from "../contract";
 import { guardedFetch } from "../net/fetch";
 import type { DependabotScan } from "../resolver/scan-policy";
 import { fromNativeRegistry } from "./native";
+import type { AuthorizedRegistry } from "./private";
 import type { CacheEntry, PackageInfo, RegistryCache, VersionInfo } from "./types";
 import { versionScheme } from "./versions";
 
@@ -158,7 +159,17 @@ async function fromNpm(name: string, previous: CacheEntry | null, now: Date) {
   if (res.status === 304 && cached) return { info: cached.data as PackageInfo, res };
   if (res.status === 404) return { info: null, res };
   if (res.status !== 200) throw new Error(`npm ${res.status} for ${name}`);
-  const body = res.text();
+  return { info: parseNpmPackument(name, res.text(), url, now, "npm"), res };
+}
+
+/** An npm registry's package document (the public one or a private one, S18.7) as package info. */
+export function parseNpmPackument(
+  name: string,
+  body: string,
+  url: string,
+  now: Date,
+  source: string,
+): PackageInfo {
   const doc = JSON.parse(body) as NpmPackument;
   const latest = doc["dist-tags"]?.latest ?? null;
   const versions = sortVersions(
@@ -170,14 +181,13 @@ async function fromNpm(name: string, previous: CacheEntry | null, now: Date) {
       isDefault: version === latest,
     })),
   );
-  const info: PackageInfo = {
+  return {
     ecosystem: "npm",
     name,
     versions,
     defaultVersion: latest,
-    source: { name: "npm", url, contentHash: sha256(body), checkedAt: now.toISOString() },
+    source: { name: source, url, contentHash: sha256(body), checkedAt: now.toISOString() },
   };
-  return { info, res };
 }
 
 export interface RegistryOptions {
@@ -202,6 +212,9 @@ export interface RegistryOptions {
   versioning?: "auto" | "increase" | "widen";
   /** The repo's dependabot.yml, honoured at target choice (S18.6). */
   dependabot?: DependabotScan;
+  /** Private registries with their saved credentials (S18.7), and the Go modules marked private. */
+  registries?: AuthorizedRegistry[];
+  goPrivate?: string[];
 }
 
 /** The version an npm dist-tag points at (`next` → `5.0.0-rc.2`), from npm's own tag endpoint. */

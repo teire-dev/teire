@@ -351,7 +351,8 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
       const parsed = dependencyInstance.safeParse({
         ecosystem: "rubygems",
         name,
-        version: spec && source === "registry" ? spec.version : null,
+        // A private Gem server's version is as exact as rubygems.org's (S18.7).
+        version: spec && (source === "registry" || source === "private-index") ? spec.version : null,
         ...(requirement && requirement !== ">= 0" ? { declaredRange: requirement } : {}),
         direct: true,
         scope:
@@ -360,13 +361,17 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
         manifestPath: own?.file ?? (fromSpec && !own ? fromSpec.path : manifest),
         ...(lockText !== null ? { lockfilePath: lockPath } : {}),
         source,
-        ...(type === "GIT" && spec?.source.remote ? { sourceRef: spec.source.remote } : {}),
-        resolvedBy: spec && source === "registry" ? "lockfile" : "unresolved",
+        ...((type === "GIT" || source === "private-index") && spec?.source.remote
+          ? { sourceRef: spec.source.remote }
+          : {}),
+        resolvedBy: spec && (source === "registry" || source === "private-index") ? "lockfile" : "unresolved",
         ...(!spec
           ? { unresolvedReason: lock ? "not in Gemfile.lock" : "no Gemfile.lock" }
-          : source !== "registry"
-            ? { unresolvedReason: `a ${type} source, not rubygems.org` }
-            : {}),
+          : source === "private-index"
+            ? {}
+            : source !== "registry"
+              ? { unresolvedReason: `a ${type} source, not rubygems.org` }
+              : {}),
       });
       if (parsed.success) instances.push(parsed.data);
     }

@@ -10,6 +10,13 @@ export {
 export { deprecationChange, retractedChange } from "./deprecation";
 export * from "./eol";
 export { GO_PSEUDO, goRetractions, goVersionExists, type Retraction, retractionOf } from "./go";
+export {
+  type AuthorizedRegistry,
+  claimingRegistry,
+  comparable,
+  fromPrivateRegistry,
+  lookupPackage,
+} from "./private";
 export * from "./pypi";
 export {
   chooseFixedTarget,

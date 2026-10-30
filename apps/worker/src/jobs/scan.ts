@@ -48,8 +48,9 @@ import {
 import { versionScheme } from "@teire/engine/registry";
 import { readDependabotConfig } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
-import { selectBackend } from "@teire/engine/verify";
+import { discoverRegistries, goPrivatePatterns, selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
+import { authorizedRegistries } from "../credentials";
 import { modelWorkBlocked } from "../reliability";
 import {
   changeHash,
@@ -237,6 +238,8 @@ export async function assessCheckout(
     sha: string;
     /** An installation token, or the requester's own for a public scan; none reads anonymously. */
     token?: string;
+    /** The installation, whose saved private-registry credentials apply (none for a public scan). */
+    installationId?: number;
     /** Why model work is paused, when it is (S10): page reading and triage are skipped. */
     blocked: string | null;
     /** Providers whose pages just yielded new records: other repos using them rescan (D95). */
@@ -255,6 +258,11 @@ export async function assessCheckout(
   // dependabot.yml shapes target choice too (S18.6); what Teire doesn't apply is said.
   const dependabot = readDependabotConfig(tree);
   coverage.notes.push(...dependabot.problems);
+  // Private registries this repo names and its installation saved a credential for (S18.7).
+  const registries = input.installationId
+    ? await authorizedRegistries(db, input.installationId, discoverRegistries(tree), coverage.notes)
+    : [];
+  const goPrivate = goPrivatePatterns(tree);
   const on = config.ecosystems;
   const none = { projects: [], assessments: [] };
   const cache = postgresRegistryCache(db);
@@ -263,6 +271,8 @@ export async function assessCheckout(
     : await assessJsRepo(dir, tree, {
         cache,
         ...upgradeOptions(config, dependabot),
+        registries,
+        goPrivate,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
       });
@@ -271,6 +281,8 @@ export async function assessCheckout(
     : await assessPyRepo(dir, tree, {
         cache,
         ...upgradeOptions(config, dependabot),
+        registries,
+        goPrivate,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
       });
@@ -279,6 +291,8 @@ export async function assessCheckout(
     : await assessGoRepo(dir, tree, {
         cache,
         ...upgradeOptions(config, dependabot),
+        registries,
+        goPrivate,
         ...auth,
         surfaceDiff: (oldPath, f, newPath, t) =>
           cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () => goSurfaceDiff(oldPath, f, newPath, t)),
@@ -288,6 +302,8 @@ export async function assessCheckout(
     : await assessRustRepo(dir, tree, {
         cache,
         ...upgradeOptions(config, dependabot),
+        registries,
+        goPrivate,
         ...auth,
         surfaceDiff: (n, f, t) =>
           cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
@@ -299,6 +315,8 @@ export async function assessCheckout(
     : await assessRubyRepo(dir, tree, {
         cache,
         ...upgradeOptions(config, dependabot),
+        registries,
+        goPrivate,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
       });
@@ -307,6 +325,8 @@ export async function assessCheckout(
     : await assessJvmRepo(dir, tree, {
         cache,
         ...upgradeOptions(config, dependabot),
+        registries,
+        goPrivate,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
       });
@@ -528,6 +548,7 @@ export async function scanRepo(
       config,
       sha,
       token,
+      installationId: repo.installationId,
       blocked,
       onProviderChanges: (slugs) => fanOutProviderChanges(ctx, repoId, slugs),
     });
@@ -546,6 +567,9 @@ export async function scanRepo(
       advisoryStatus: advisoryStatus(gaps),
       gaps: coverageLines(gaps),
       detectOnly: gaps.detectOnly,
+      // Private registries the repo names (D-36), for Settings → Private registries.
+      registries: discoverRegistries(tree),
+      goPrivate: goPrivatePatterns(tree),
       ...(nothingReadable ? { nothingReadable: true, searched: SEARCHED } : {}),
     };
     await finishScan(db, scan.id, { status: "done", sha, coverage });

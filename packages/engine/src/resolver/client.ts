@@ -73,6 +73,7 @@ export async function resolve(
     job: buildJob(input),
     ...(input.overlay?.length ? { overlay: input.overlay } : {}),
     ...(input.token ? { token: input.token } : {}),
+    ...(input.credentials?.length ? { credentials: input.credentials } : {}),
     ...(input.timeoutSec ? { timeoutSec: input.timeoutSec } : {}),
   });
   const deadline = Date.now() + (input.waitMs ?? MAX_WAIT_MS);

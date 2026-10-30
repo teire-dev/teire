@@ -5,6 +5,7 @@ import { requestAction } from "@/lib/actions";
 import { INSTALLATION_COOKIE } from "@/lib/app-shell";
 import { refreshInstallations } from "@/lib/auth";
 import { myInstallations } from "@/lib/dashboard";
+import { sealCredentialParams } from "@/lib/registries";
 import { removeRepository, revokeAccess } from "@/lib/revoke";
 import { getSession } from "@/lib/session";
 
@@ -30,10 +31,17 @@ export async function act(input: {
 }): Promise<ActionState | { error: string }> {
   const session = await getSession();
   if (!session) return { error: "Sign in first" };
+  // A registry credential is sealed here, so its plaintext is never recorded (S18.7).
+  const params =
+    input.kind === "set-registry-credential"
+      ? sealCredentialParams(input.params, input.installationId)
+      : input.params;
+  if ("error" in params && typeof params.error === "string" && input.kind === "set-registry-credential")
+    return { error: params.error };
   const out = await requestAction({
     userId: session.user.id,
     kind: input.kind,
-    params: input.params,
+    params,
     ...(input.repo ? { repo: input.repo } : {}),
     ...(input.installationId ? { installationId: input.installationId } : {}),
     idempotencyKey: input.key,

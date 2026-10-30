@@ -13,6 +13,7 @@ import { declaredPackageNotes, gatherCargoNotes } from "../notes/sources";
 import { cratesIndexLines } from "../registry/cargo";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
+import { comparable, lookupPackage } from "../registry/private";
 import { crateSignals } from "../registry/supply-chain";
 import {
   beyondRange,
@@ -90,7 +91,7 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
   const diffOf = options.surfaceDiff ?? cargoSurfaceDiff;
   for (const project of projects) {
     for (const declared of project.instances) {
-      if (!declared.direct || declared.source !== "registry") continue;
+      if (!declared.direct || !comparable("cargo", declared, options)) continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       const base: Assessment<RustProject> = {
         purpose: "upgrade",
@@ -111,7 +112,7 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("cargo", declared.name, options).catch(() => {
+      const info = await lookupPackage("cargo", declared, options).catch(() => {
         options.coverage?.lookupsFailed.push({ ecosystem: "cargo", name: declared.name });
         return null;
       });

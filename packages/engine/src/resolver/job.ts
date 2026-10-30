@@ -126,6 +126,50 @@ export interface JobInput {
   overlay?: { path: string; content: string }[];
   allowExternalCode?: boolean;
   repoPrivate?: boolean;
+  /**
+   * Private-registry credentials for dependabot-core's proxy (S18.7), sent beside the job, never in
+   * it: the CLI hands them to the proxy, which adds them to the updater's requests; the updater
+   * itself sees only which hosts have one.
+   */
+  credentials?: DependabotCredential[];
+}
+
+/** One entry of the CLI's top-level `credentials` (dependabot-core's credential types). */
+export type DependabotCredential = Record<string, string | boolean>;
+
+/** Saved registry credentials as dependabot-core's proxy takes them (S18.7). */
+export function dependabotCredentials(
+  registries: {
+    ecosystem: string;
+    url: string;
+    host: string;
+    scope?: string;
+    secret?: { kind: "token" | "basic"; username: string | null; value: string };
+  }[],
+): DependabotCredential[] {
+  return registries.flatMap((r): DependabotCredential[] => {
+    const s = r.secret;
+    if (!s) return [];
+    const auth: DependabotCredential =
+      s.kind === "token" ? { token: s.value } : { username: s.username ?? "", password: s.value };
+    const pathOf = r.url.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    switch (r.ecosystem) {
+      case "npm":
+        return [{ type: "npm_registry", registry: pathOf, url: r.url, ...auth }];
+      case "pypi":
+        return [{ type: "python_index", "index-url": r.url, "replaces-base": false, ...auth }];
+      case "maven":
+        return [{ type: "maven_repository", url: r.url, ...auth }];
+      case "cargo":
+        return [{ type: "cargo_registry", registry: r.scope ?? r.host, url: r.url, ...auth }];
+      case "rubygems":
+        return [{ type: "rubygems_server", host: r.host, url: r.url, ...auth }];
+      case "go":
+        return [{ type: "goproxy_server", url: r.url, ...auth }];
+      default:
+        return [];
+    }
+  });
 }
 
 /** The job document the CLI reads with `-f` (`{ job: … }`), as an object. */

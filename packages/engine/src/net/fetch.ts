@@ -62,6 +62,17 @@ export function isPrivateAddress(address: string) {
   return v6 === "::1" || v6 === "::" || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("fe80");
 }
 
+/**
+ * Why a host can't receive a credential (S-P19): it doesn't resolve, or it resolves to a private,
+ * loopback or link-local address. Null for a public host.
+ */
+export async function privateHostReason(host: string): Promise<string | null> {
+  const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true }).catch(() => null);
+  if (!addresses?.length) return `${host} doesn't resolve`;
+  const inside = addresses.find((a) => isPrivateAddress(a.address));
+  return inside ? `${host} resolves to ${inside.address}, a private network address` : null;
+}
+
 async function checkUrl(raw: string, allow?: readonly string[]) {
   const url = new URL(raw);
   if (url.protocol !== "https:") throw new BlockedUrlError(`not https: ${url.origin}`);

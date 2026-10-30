@@ -24,6 +24,7 @@ import { declaredPackageNotes, gatherNpmNotes, githubRepoOf } from "../notes/sou
 import { getNpmVersion, getPackageInfo, npmDistTag, supplyChainSignals } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
+import { comparable, lookupPackage } from "../registry/private";
 import {
   beyondRange,
   chooseTarget,
@@ -117,7 +118,7 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
       },
     );
     for (const declared of project.instances) {
-      if (!declared.direct || declared.source !== "registry") continue;
+      if (!declared.direct || !comparable("npm", declared, options)) continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       // A peer that is also installed (devDependencies) is assessed once, from the installed one;
       // its fix widens the peer range with it (D-22).
@@ -148,7 +149,7 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("npm", declared.name, options).catch(() => {
+      const info = await lookupPackage("npm", declared, options).catch(() => {
         options.coverage?.lookupsFailed.push({ ecosystem: "npm", name: declared.name });
         return null;
       });

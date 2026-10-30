@@ -68,6 +68,7 @@ import {
 } from "@teire/engine/pipeline";
 import { cratesIndexLines, GO_PSEUDO, versionScheme } from "@teire/engine/registry";
 import {
+  dependabotCredentials,
   GRADLE_WRAPPER_FILE,
   isDependencyFile,
   type JobInput,
@@ -83,8 +84,16 @@ import {
   wrapperRaiseOnly,
 } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
-import { cancellableBackend, selectBackend, unsupportedToolchain } from "@teire/engine/verify";
+import {
+  cancellableBackend,
+  discoverRegistries,
+  goPrivatePatterns,
+  selectBackend,
+  unsupportedToolchain,
+  withRegistries,
+} from "@teire/engine/verify";
 import { cachedSurfaceDiff, dependencyCacheFor, postgresRegistryCache } from "../caches";
+import { authorizedRegistries } from "../credentials";
 import { markCreditsExhausted, modelWorkBlocked } from "../reliability";
 import { resolveForRepo } from "../resolver";
 import {
@@ -451,6 +460,16 @@ const NO_TRANSITIVE_RUNG: Partial<Record<Ecosystem, string>> = {
  * roots share npm_and_yarn), and the repository's own settings. Null where Teire's own transaction
  * decides (D104) or the updater is off for this ecosystem.
  */
+/** A private registry's ecosystem as the contract names it (registries carry the contract's names). */
+const DEPENDABOT_ECOSYSTEM_OF: Record<string, Ecosystem> = {
+  npm: "npm",
+  pypi: "pypi",
+  maven: "maven",
+  cargo: "cargo",
+  rubygems: "rubygems",
+  go: "go",
+};
+
 function resolverJobBase(
   repo: { isPrivate: boolean | null },
   ecosystem: Ecosystem,
@@ -491,6 +510,13 @@ function resolverJobBase(
       roots,
       ...options,
       ...(repo.isPrivate ? { repoPrivate: true } : {}),
+      // The repo's private registries, for the updater's proxy only (S18.7).
+      ...(() => {
+        const credentials = dependabotCredentials(
+          (common.options.registries ?? []).filter((r) => DEPENDABOT_ECOSYSTEM_OF[r.ecosystem] === ecosystem),
+        );
+        return credentials.length ? { credentials, privateCredentials: true } : {};
+      })(),
     },
     conflicts,
   };
@@ -967,6 +993,8 @@ async function packageOutcome(
   const assessOptions = {
     cache,
     ...upgradeOptions(config, readDependabotConfig(tree)),
+    ...(common.options.registries ? { registries: common.options.registries } : {}),
+    ...(common.options.goPrivate ? { goPrivate: common.options.goPrivate } : {}),
     onlyPackage: packageName,
     ...(cap ? { targetMax: { name: packageName, version: cap.version, reason: cap.reason } } : {}),
     ...(cap?.floor ? { targetFloor: { name: packageName, version: cap.version } } : {}),
@@ -1843,7 +1871,15 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       stillPublic,
     });
     const { note } = selected;
-    const backend = cancellableBackend(selected.backend, abort.signal);
+    // Private registries this repo names that its installation has a credential for (S18.7): for
+    // version lookups, the updater's proxy, and the sandbox's egress during installs.
+    const registries = repo.installationId
+      ? await authorizedRegistries(db, repo.installationId, discoverRegistries(tree))
+      : [];
+    const backend = withRegistries(
+      cancellableBackend(selected.backend, abort.signal),
+      registries.map((r) => ({ host: r.host, authorization: r.authorization })),
+    );
     // A CI repair starts from what the repo's own CI said about the PR (C6: one repair attempt).
     const ci = run.requestedBy?.startsWith("ci-repair:")
       ? ((await runEventsOf(db, runId, "ci"))[0]?.payload as
@@ -1877,6 +1913,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         cache: postgresRegistryCache(db),
         ...(token ? { githubToken: token } : {}),
         context7Key: process.env.CONTEXT7_API_KEY,
+        ...(registries.length ? { registries } : {}),
+        goPrivate: goPrivatePatterns(tree),
       },
       // Fire-and-forget, so it never throws: a lost lease is noted and the next fenced write stops the run.
       onEvent: (e: { step: string }) => {

@@ -1,4 +1,4 @@
-import { and, eq, installations, repos, userInstallations } from "@teire/db";
+import { actions, and, eq, installations, registryCredentials, repos, userInstallations } from "@teire/db";
 import { type ActionKind, INSTALLATION_ACTIONS } from "@teire/engine/actions";
 import { parseAction } from "@teire/engine/actions-schema";
 import {
@@ -8,7 +8,14 @@ import {
   matchesTarget,
   personMayStart,
 } from "@teire/engine/config";
+import {
+  credentialContext,
+  keyFromEnv,
+  openSecret,
+  type RegistryCredential,
+} from "@teire/engine/credentials";
 import { forGitHub } from "@teire/engine/github";
+import { privateHostReason } from "@teire/engine/net";
 import {
   type ActionRow,
   cancelQueued,
@@ -452,6 +459,59 @@ async function started(
  * an org admin, or the account owner for a user installation. Membership is read from GitHub now; an
  * answer GitHub didn't give is a refusal.
  */
+/**
+ * A private registry's credential saved (S18.7, S-P20): the sealed value must open with the worker's
+ * key for this installation and host, and the host must be public (S-P19); then it is stored
+ * sealed, and taken out of the action's own record.
+ */
+async function saveRegistryCredential(
+  ctx: EventContext,
+  action: ActionRow,
+  installationId: number,
+  params: Record<string, unknown>,
+): Promise<Outcome> {
+  const key = keyFromEnv(process.env.TEIRE_CREDENTIALS_PRIVATE_KEY);
+  if (!key) return refused("Private registries aren't set up on this Teire server yet");
+  const host = String(params.host);
+  const sealed = String(params.sealed);
+  try {
+    openSecret(key, sealed, credentialContext(installationId, host));
+  } catch {
+    return refused(`The credential for ${host} couldn't be read: enter it again`);
+  }
+  const blocked = await privateHostReason(host);
+  if (blocked) return refused(`${blocked}: Teire sends credentials only to public registries`);
+  const values = {
+    url: (params.url as string | null) ?? null,
+    kind: params.kind as "token" | "basic",
+    username: (params.username as string | null) || null,
+    sealed,
+    createdBy: action.requester,
+    updatedAt: new Date(),
+  };
+  await ctx.db
+    .insert(registryCredentials)
+    .values({
+      installationId,
+      ecosystem: params.ecosystem as RegistryCredential["ecosystem"],
+      host,
+      ...values,
+    })
+    .onConflictDoUpdate({
+      target: [registryCredentials.installationId, registryCredentials.ecosystem, registryCredentials.host],
+      set: values,
+    });
+  // The record keeps what was asked, not the sealed value.
+  await ctx.db
+    .update(actions)
+    .set({ params: { ...params, sealed: "(stored)" } })
+    .where(eq(actions.id, action.id));
+  return {
+    status: "done",
+    result: `Saved: Teire sends it to ${host} for installs, version lookups and Dependabot's jobs, never to a repository's code`,
+  };
+}
+
 async function installationAction(
   ctx: EventContext,
   action: ActionRow,
@@ -467,7 +527,12 @@ async function installationAction(
     .where(eq(installations.id, action.installationId))
     .limit(1);
   if (!inst) return refused("Teire is no longer installed there");
-  const what = parsed.kind === "uninstall" ? "uninstall Teire from it" : "change the installation's default";
+  const what =
+    parsed.kind === "uninstall"
+      ? "uninstall Teire from it"
+      : parsed.kind === "set-registry-credential" || parsed.kind === "remove-registry-credential"
+        ? "manage its private-registry credentials"
+        : "change the installation's default";
   if (inst.accountType === "User") {
     if (inst.accountLogin.toLowerCase() !== login.toLowerCase())
       return refused(`Only ${inst.accountLogin} can ${what}`);
@@ -485,6 +550,24 @@ async function installationAction(
         `Teire can't check who administers ${inst.accountLogin}: the Teire app needs the organization permission "Members: read" (an owner of ${inst.accountLogin} grants it in the app's settings on GitHub)`,
       );
     if (role !== "admin") return refused(`Only an admin of ${inst.accountLogin} can ${what}`);
+  }
+  if (parsed.kind === "set-registry-credential")
+    return saveRegistryCredential(ctx, action, inst.id, parsed.params);
+  if (parsed.kind === "remove-registry-credential") {
+    const host = String(parsed.params.host);
+    const removed = await db
+      .delete(registryCredentials)
+      .where(
+        and(
+          eq(registryCredentials.installationId, inst.id),
+          eq(registryCredentials.ecosystem, parsed.params.ecosystem as RegistryCredential["ecosystem"]),
+          eq(registryCredentials.host, host),
+        ),
+      )
+      .returning({ id: registryCredentials.id });
+    return removed.length
+      ? { status: "done", result: `Removed: Teire no longer sends a credential to ${host}` }
+      : refused(`There is no credential for ${host}`);
   }
   if (parsed.kind === "uninstall") {
     if (String(parsed.params.account).toLowerCase() !== inst.accountLogin.toLowerCase())

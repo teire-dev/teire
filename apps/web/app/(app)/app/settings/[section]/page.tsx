@@ -16,6 +16,7 @@ import { ConfigPrForm } from "@/components/app/config-pr-form";
 import { FixModeControl } from "@/components/app/fix-mode-control";
 import { InstallationFixMode } from "@/components/app/installation-fix-mode";
 import { RefreshInstallations } from "@/components/app/refresh-installations";
+import { RegistryCredentials } from "@/components/app/registry-credentials";
 import { TileSquare } from "@/components/flow/tile";
 import { GithubMark } from "@/components/icons";
 import { MarkStack } from "@/components/teire/mark";
@@ -28,12 +29,13 @@ import { githubLogin } from "@/lib/auth";
 import { myInstallations } from "@/lib/dashboard";
 import { configCurrent } from "@/lib/fix-mode";
 import { languageMarks } from "@/lib/marks";
+import { credentialsReady, registriesOf } from "@/lib/registries";
 import { getSession } from "@/lib/session";
 import { APP_SLUG, INSTALL_URL } from "@/lib/site";
 import { reposOf, usageDaily, usageOf } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "../../gate";
 
-const SECTIONS = ["organization", "repositories", "installations", "usage", "account"] as const;
+const SECTIONS = ["organization", "repositories", "installations", "registries", "usage", "account"] as const;
 type Section = (typeof SECTIONS)[number];
 
 export async function generateMetadata({ params }: PageProps<"/app/settings/[section]">) {
@@ -96,6 +98,23 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
   if (!mine) return <InstallCard />;
   const inst = mine.installation;
   switch (section as Section) {
+    case "registries": {
+      if (!credentialsReady())
+        return (
+          <Part title="Private registries">
+            <div className="rounded-xl bg-sheet px-4 py-4 text-[13px] text-ink-2 shadow-card">
+              Private registries aren't set up on this Teire deployment yet: its credential sealing key isn't
+              configured, so no credential can be saved.
+            </div>
+          </Part>
+        );
+      const { rows, goPrivate } = await registriesOf({ ...mine.scope, installationId: inst.id });
+      return (
+        <Part title="Private registries" chip={<Chip>{inst.login} admins only</Chip>}>
+          <RegistryCredentials installationId={inst.id} rows={rows} goPrivate={goPrivate} />
+        </Part>
+      );
+    }
     case "organization": {
       const rows = await reposOf(mine.scope);
       const config = rows.find(

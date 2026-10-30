@@ -1,3 +1,11 @@
+# Teire · 手入れ — When upstream breaks, Teire fixes your code
+
+![Teire: the live zod fix goes from a breaking dependency through Nemotron and the repository's own checks to a pull request](https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/banner-dark.png)
+
+**Found, fixed by Nemotron, proven by your own tests.** [Try Teire](https://teire.vercel.app) · [Scan a public repository](https://teire.vercel.app/scan) · [Docs](https://teire.vercel.app/docs) · [Source code](https://github.com/teire-dev/teire) · [Live status](https://teire.vercel.app/trust)
+
+Built for the **Coding and Agentic Engineering Track** with NVIDIA Nemotron 3 Ultra on Nebius Token Factory. *Teire* (手入れ) means care and upkeep: tending the tools you rely on so they keep working.
+
 ## Inspiration
 
 Every app leans on things other people change: open-source packages, payment APIs, AI models. When one of them changes, someone on the team has to:
@@ -8,7 +16,7 @@ Every app leans on things other people change: open-source packages, payment API
 4. change those lines;
 5. prove the app still works.
 
-Nobody owns this chore, so it waits until something breaks. On 2026-04-22 OpenAI announced that `gpt-3.5-turbo`, `gpt-4` and `o3-mini` would shut down on 2026-10-23. That day, seven of inspect_ai's live tests failed with `404 model_not_found`. The next morning, the commit tool gitted failed on every call, because its default model was still `gpt-3.5-turbo`. The notice existed; nothing connected it to the code.
+Nobody owns this chore, so it waits until something breaks. On 2026-04-22 OpenAI announced that `gpt-3.5-turbo`, `gpt-4` and `o3-mini` would shut down on 2026-10-23. That day, [seven of inspect_ai's live tests failed](https://github.com/meridianlabs-ai/inspect_ai/issues/601) with `404 model_not_found`. The next morning, [the commit tool gitted failed on every call](https://github.com/yegor256/gitted/issues/176), because its default model was still `gpt-3.5-turbo`. The notice existed; nothing connected it to the code.
 
 Today's tools stop short. Dependabot and Renovate open a pull request that bumps the version, and fixing whatever the new version breaks is left to you. A retired model is not a new version, so they open nothing at all. Coding agents can make the edits, but only after a person notices the change, starts them, and checks what they did.
 
@@ -32,13 +40,17 @@ For each change that reaches the code, Teire:
 
 When Teire can't prove a fix, it says so: a draft with the reason, or an issue for a person.
 
-**A real run.** Groq shut down two Llama models on 2026-08-16, and `teire-dev/examples/wrapped-models` keeps both IDs in a tier registry, not in a `model:` argument.
+**A real evaluation run.** Groq shut down two Llama models on 2026-08-16, and `teire-dev/examples/wrapped-models` keeps both IDs in a tier registry, not in a `model:` argument.
 
 1. Teire found Groq through the installed `groq-sdk`. Groq's `llms.txt` and a Tavily search led to its deprecations page.
 2. Nemotron read the page. Code kept each record only because its quote appears word for word on the page.
 3. Nemotron traced the registry entry to the request: `src/llm.ts:12 model: t.id`. Code checked that line exists before calling the finding affected.
 4. Teire swapped the model with one named replacement. Nemotron chose between the two Groq names for the other.
 5. The tests went from 0/4 to 4/4, for $0.095.
+
+![The public scan finds the two retired models in this repository and shows the exact lines that use them](https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/captures/report-wrapped-models-desktop.png)
+
+The example repository reproduces a real retirement. [Open the product walkthrough](https://teire.vercel.app/docs/guide/public-scan) or [inspect the evaluation](https://teire.vercel.app/docs/nemotron/evaluation). On an installed repository, Teire also opens a real PR: [this security fix on `serve-handler`](https://github.com/teire-dev/serve-handler/pull/10) shows the source advisory and 70/70 tests before and after. A [draft PR on `konkyo`](https://github.com/Blockchain-Oracle/konkyo/pull/4) shows Teire withholding a ready label when it has a passing typecheck but no behavioral tests.
 
 You meet Teire in five places:
 
@@ -47,6 +59,24 @@ You meet Teire in five places:
 - **A web dashboard drawn as flows:** your whole estate as one map (changes → repositories → what is open; drag a change onto a repository to fix it), every PR as a breadcrumb trail of its run, and **Ask Teire** beside it, answering with the same flows and acting only when you click Confirm. Plus a public catalog that shows Teire checking its sources.
 - **A public scan with a dry-run fix,** for any public repository, with no install.
 - **A CLI and MCP server,** so terminals, CI and coding agents ask the same questions.
+
+## Inside the working product
+
+The captures below come from Teire's public evaluation repositories, built to reproduce breaking changes. They show real product runs, not customer adoption.
+
+**The coding agent in the loop.** A Go upgrade from `golang-jwt` v4 to v5 broke the repository's checks. The run shows Nemotron 3 Ultra reading the affected files, looking up the new API, editing the code and rerunning checks. This captured run used Cloudflare Containers for verification; the model calls went through Nebius Token Factory.
+
+![Teire's Go fix timeline, including failing checks and Nemotron's first agent steps](https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/captures/dryrun-go-timeline-desktop.png)
+
+**The proof is in the repository's own checks.** The same build, typecheck and four tests ran on the unchanged code and on the fix. The receipt names each Nemotron call, its tokens and its $0.1807 model cost.
+
+![The Go run's before and after verification table: build and typecheck pass, four of four tests pass on both sides](https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/captures/dryrun-go-verification-desktop.png)
+
+![The run receipt lists Nemotron 3 Ultra calls on Token Factory and the sandbox commands](https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/captures/dryrun-go-receipt-desktop.png)
+
+**The rest of the product keeps the work visible.** The dashboard maps changes to repositories and PRs; Ask Teire answers from those flows and requires a click before acting. The public catalog shows each source's last check and new notices.
+
+![Teire's dashboard maps upstream changes to repositories and open work](https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/captures/dashboard-desktop.png)
 
 ## How we built it
 
@@ -68,8 +98,12 @@ You meet Teire in five places:
 
   ast-grep finds model IDs and URLs in seven languages.
 - **Changing the dependency files.** dependabot-core's own updater (MIT) makes the manifest and lockfile change, through GitHub's `dependabot` CLI on a second Docker daemon under gVisor, firewalled and one job at a time. Where Dependabot stops, Teire keeps its own change: Go majors, aliases, a removed Cargo feature, Gradle locks for one coordinate, an override for a transitive fix, and the Java a new version needs.
-- **Proving it.** Two sandboxes start from the same commit. A public repository's, and every dry run's, run on Nebius Token Factory Sandboxes: Teire builds its images inside Token Factory, the install runs with the network on, and each check runs in a microVM with no network interface. A private repository's run on Cloudflare Containers, where installs reach only registries. No secret enters either. Fixed rules, never a model, turn the results into the evidence that decides ready, draft or issue.
+- **Proving it.** Two sandboxes start from the same commit. For public repositories and dry runs, Teire chooses Nebius Token Factory Sandboxes when the project has spawn access and images configured; it falls back to Cloudflare Containers otherwise. Private repositories use Cloudflare Containers because Token Factory images are retained for 180 days with no delete call. Installs need network access; checks run with it off. Fixed rules, never a model, turn the results into the evidence that decides ready, draft or issue.
 - **Running it.** A Next.js web app on Vercel holds the GitHub webhook, a Postgres outbox, the dashboard, the catalog and the docs. A Node worker on Coolify runs the scans and fixes from pg-boss queues. A reliability ticker reaps stuck runs and redelivers missed webhooks.
+
+![System diagram: GitHub, web app, worker, Token Factory and Nemotron, dependency sources, and verification sandboxes](https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/system-light.png)
+
+![Fix loop: deterministic edits, sandbox checks, Nemotron's tool loop, review, and evidence-gated pull request](https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/fix-loop-light.png)
 
 ## Challenges we ran into
 
@@ -87,7 +121,7 @@ You meet Teire in five places:
 - **Evaluation.** 12 package majors across all six ecosystems and 7 model retirements (in TypeScript, Python, Go, Java, Ruby and Rust), each verified end to end: two fixed by Nemotron 3 Ultra as the agent, five by a deterministic swap, four of them with Ultra reviewing the diff. No false positive across 6 clean repositories.
 - **Every PR carries its own evidence:** quotes, call sites, a before/after table, and a receipt down to the cent. A PR opens ready only when that evidence verifies it; otherwise it's a draft or an issue that says why.
 - **Discovery.** Teire finds providers with no hand-written reader from the code itself, and reads their notices with Nemotron under a quote gate.
-- **A complete product, shown rather than told.** GitHub App, dashboard, Ask Teire, public scan, dry run, catalog, CLI, MCP, a live trust page, and docs whose diagrams are live flows; every process is drawn as tiles with real logos.
+- **One product across several entry points.** GitHub App, dashboard, Ask Teire, public scan, dry run, catalog, CLI, MCP, a live trust page, and docs show the same changes and evidence in the place a developer works.
 
 ## What we learned
 
@@ -109,4 +143,5 @@ You meet Teire in five places:
 - Rust, Ruby, and Java/Kotlin at scan time are searched by syntax.
 - Model and API fixes run in all six ecosystems; the evaluation proves them in JavaScript/TypeScript and Python only.
 - Android is not supported.
-- There are no real users yet: the evaluation repositories are Teire's own demos, built to reproduce real breakages.
+- The 12 package and 7 model cases are evaluation on Teire-controlled repositories. One installed fork has a verified PR and an owner-controlled repository has a draft PR; broader external adoption has not been established.
+- An October 30 first-use walk found GitHub onboarding and action-recovery failures. Fixes have been deployed or are deploying, but a clean end-to-end retest of the full automatic queue is still open.
