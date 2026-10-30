@@ -6,7 +6,7 @@ journeys:
   - repo: teire-dev/journey-empty
     contents: nothing, no commit
     expected: a stored scan with outcome "empty"; no onboarding PR (card C1); its first push scans it
-    observed_2026_10_30: 'scan {"skipped":"empty"}, no PR'
+    observed_2026_10_30: 'scan {"skipped":"empty"}, no PR. Its first push (a Go project on github.com/google/uuid v1.3.0, 16:39:36 UTC) got onboarding PR #1 90 s later: 1 direct dependency, v1.6.0 available'
   - repo: teire-dev/journey-archived
     contents: a small npm project (zod 4.6.7, lockfile, two tests), archived right after its first push
     expected: a stored scan with outcome "archived"; no onboarding PR, since an archived repository is read-only (card C1)
