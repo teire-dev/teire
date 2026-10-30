@@ -1,4 +1,5 @@
 ---
+
 name: teire-cli
 description: Scan a repository with Teire for dependency, API, model, and runtime changes that reach its code. Use when investigating an upgrade, deprecation, breaking release, or upcoming shutdown, or when setting a CI gate. Guides the teire-cli npm package and its read-only MCP tools.
 ---

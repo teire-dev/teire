@@ -63,13 +63,13 @@ Affected (2)
 
 ## Commands
 
-| Command                                                                          | What it does                                                                                                                                                                                    |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `teire scan [target] [--json] [--all]`                                           | Scans a folder (default: the current one) or a public GitHub repository (`owner/name` or its URL). `--all` also lists the changes that don't reach your code.                                   |
+| Command                                                                          | What it does                                                                                                                                                                           |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `teire scan [target] [--json] [--all]`                                           | Scans a folder (default: the current one) or a public GitHub repository (`owner/name` or its URL). `--all` also lists the changes that don't reach your code.                          |
 | `teire check [target] [--fail-on affected\|deadline\|any] [--within 90]`         | Exits 1 when the gate fails. `affected`: any change reaches your code. `deadline`: an affected change has a date within `--within` days. `any`: anything affected or left for a human. |
-| `teire explain <change-id> [target] [--json]`                                    | Shows one change record: summary, replacement, migration notes, and the quoted sources it was confirmed against. Use the scanned target for a package-computed ID.                             |
-| `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | Lists Teire's public catalog of confirmed changes, or reads a provider's own pages when the catalog doesn't hold them yet.                                                                      |
-| `teire mcp`                                                                      | Serves `scan_path`, `explain_finding`, `list_changes` and `get_change` to coding agents over stdio.                                                                                             |
+| `teire explain <change-id> [target] [--json]`                                    | Shows one change record: summary, replacement, migration notes, and the quoted sources it was confirmed against. Use the scanned target for a package-computed ID.                     |
+| `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | Lists Teire's public catalog of confirmed changes, or reads a provider's own pages when the catalog doesn't hold them yet.                                                             |
+| `teire mcp`                                                                      | Serves `scan_path`, `explain_finding`, `list_changes` and `get_change` to coding agents over stdio.                                                                                    |
 
 ## In CI
 
