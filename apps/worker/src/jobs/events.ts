@@ -118,7 +118,30 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       return;
     }
     case "repository": {
-      if (p.repository) await upsertRepo(db, p.repository, p.installation?.id ?? null);
+      if (!p.repository) return;
+      const repo = await upsertRepo(db, p.repository, p.installation?.id ?? null);
+      // A repository created (or forked, or moved in) under an installation that covers all of its
+      // account's repositories: GitHub says so only here, so it is scanned like an installed one.
+      if (p.installation && (delivery.action === "created" || delivery.action === "transferred")) {
+        if (repo.status === "disabled") await setRepo(db, repo.id, { status: "detected" });
+        await ctx.enqueueScan(repo.id, "install");
+      }
+      // Deleted on GitHub: nothing left to scan or fix.
+      if (delivery.action === "deleted") {
+        await setRepo(db, repo.id, { status: "disabled" });
+        await forgetDependencyCaches(db, [repo.id]);
+      }
+      // Archived: read-only on GitHub, so paused until it is unarchived.
+      if (delivery.action === "archived" && repo.status !== "paused" && repo.status !== "disabled")
+        await setRepo(db, repo.id, { pausedFrom: repo.status, status: "paused", pausedReason: "archived" });
+      if (delivery.action === "unarchived" && repo.pausedReason === "archived") {
+        await setRepo(db, repo.id, {
+          status: repo.pausedFrom ?? "active",
+          pausedFrom: null,
+          pausedReason: null,
+        });
+        await ctx.enqueueScan(repo.id, "manual");
+      }
       return;
     }
     case "pull_request": {
