@@ -92,8 +92,12 @@ export async function welcomeOf(userId: string, asked: number | null) {
           error: string | null;
           created_at: Date;
           finished_at: Date | null;
+          upgrades: { security?: boolean }[] | null;
         }>(sql`
-          select distinct on (repo_id) repo_id, status, error, created_at, finished_at from scans
+          select distinct on (repo_id) repo_id, status, error, created_at, finished_at,
+            (select s2.upgrades from scans s2 where s2.repo_id = scans.repo_id and s2.status = 'done'
+              order by s2.created_at desc limit 1) as upgrades
+          from scans
           where repo_id in (${idList}) order by repo_id, created_at desc`),
         db
           .select({
@@ -208,6 +212,11 @@ export async function welcomeOf(userId: string, asked: number | null) {
             }
           : null,
         reaching: reaching.find((x) => x.repoId === r.id)?.n ?? 0,
+        // What Automatic would start from the latest scan (the Automatic handoff: volume before it starts).
+        upgrades: {
+          security: (scan?.upgrades ?? []).filter((u) => u.security).length,
+          routine: (scan?.upgrades ?? []).filter((u) => !u.security).length,
+        },
         onboarding: pr?.number ? { number: pr.number, url: pr.url, state: pr.state } : null,
         fixMode: { mode: mode.mode, file: mode.file, origin: mode.origin },
       };

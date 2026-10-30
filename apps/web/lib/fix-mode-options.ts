@@ -20,8 +20,20 @@ export const FIX_MODES: {
     said: "Fixes, verifies and opens PRs itself. You review and merge.",
     tone: "proven",
   },
-  { value: "ask", label: "Ask first", short: "Ask", said: "Waits for your Fix now.", tone: "attention" },
-  { value: "off", label: "Off", short: "Off", said: "Lists changes, opens nothing.", tone: "neutral" },
+  {
+    value: "ask",
+    label: "Ask first",
+    short: "Ask",
+    said: "Waits for your Fix now. Runs already queued finish.",
+    tone: "attention",
+  },
+  {
+    value: "off",
+    label: "Off",
+    short: "Off",
+    said: "Lists changes, opens nothing. Queued runs are cancelled.",
+    tone: "neutral",
+  },
 ];
 
 export const FIX_MODE_LABEL = Object.fromEntries(FIX_MODES.map((m) => [m.value, m.label])) as Record<

@@ -1,5 +1,6 @@
 "use client";
 
+import { PULL_REQUESTS } from "@teire/engine/constants";
 import {
   Activity,
   ArrowLeft,
@@ -671,6 +672,29 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   </button>
                 ))}
               </div>
+              {(() => {
+                // The work this choice starts, from the latest scan, before it starts (the Automatic handoff).
+                const picked = data.repos.filter((r) => chosen.has(r.fullName));
+                const urgent = picked.reduce((n, r) => n + (r.upgrades?.security ?? 0), 0);
+                const routine = picked.reduce((n, r) => n + (r.upgrades?.routine ?? 0), 0);
+                if (!urgent && !routine) return null;
+                const starts =
+                  mode === "auto"
+                    ? `${urgent + routine} fix run(s) start on their own: ${urgent} security, ${routine} upgrades`
+                    : mode === "ask" && urgent && security === "auto"
+                      ? `${urgent} security fix run(s) start on their own; ${routine} upgrades wait for Fix now`
+                      : mode === "off"
+                        ? `${urgent + routine} upgrades are listed; nothing starts`
+                        : `${urgent + routine} upgrades wait for Fix now`;
+                return (
+                  <p className="rounded-card bg-sunken px-3 py-2.5 text-[13px] text-ink-2">
+                    {starts}.{" "}
+                    {mode !== "off"
+                      ? `Security first, then at most ${PULL_REQUESTS.maxOpenPerRepo} open PRs and ${PULL_REQUESTS.maxNewPerHour} new an hour per repository; the rest wait their turn.`
+                      : null}
+                  </p>
+                );
+              })()}
               <div className="flex items-center justify-between gap-3 rounded-card bg-sunken px-3 py-2.5">
                 <span className="text-[13px]">Security fixes</span>
                 {mode === "off" ? (
