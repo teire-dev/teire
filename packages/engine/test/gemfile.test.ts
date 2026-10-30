@@ -64,3 +64,19 @@ describe("a Gemfile read as text (D-18, D-25)", () => {
     expect(of("acme-client")?.source).toBe("private-index");
   });
 });
+
+describe("the Ruby a project runs on (D-39)", () => {
+  it("reads the Gemfile's ruby line, a file it names, and a gemspec's floor", async () => {
+    const { gemfileRuby, gemspecRubyFloor } = await import("../src/inventory/ruby");
+    const none = () => null;
+    expect(gemfileRuby('source "https://rubygems.org"\nruby "3.2.2"\ngem "rails"\n', none)).toBe("3.2.2");
+    expect(gemfileRuby("ruby '~> 3.1.0'\n", none)).toBe("3.1.0");
+    expect(
+      gemfileRuby('ruby file: ".ruby-version"\n', (p) => (p === ".ruby-version" ? "ruby-3.3.4\n" : null)),
+    ).toBe("3.3.4");
+    expect(gemfileRuby('gem "ruby-progressbar"\n', none)).toBeNull();
+    expect(gemspecRubyFloor('  spec.required_ruby_version = ">= 3.0"\n')).toBe("3.0");
+    expect(gemspecRubyFloor('s.required_ruby_version = Gem::Requirement.new(">= 2.7.0")\n')).toBe("2.7.0");
+    expect(gemspecRubyFloor('spec.required_ruby_version = [">= 2.6", "< 4"]\n')).toBe("2.6");
+  });
+});

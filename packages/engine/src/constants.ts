@@ -459,8 +459,37 @@ export const REGISTRY = {
   hosts: {
     depsDev: "api.deps.dev",
     npm: "registry.npmjs.org",
+    pypi: "pypi.org",
     endoflife: "endoflife.date",
   },
+  /** A native registry's version document (PyPI's JSON for boto3 runs to megabytes). */
+  maxNativeBytes: 64 * 1024 * 1024,
+  /** Where a registry dates each version with its own request (Go `.info`, a Maven pom), the newest this many. */
+  nativeDatedVersions: 30,
+  nativeConcurrency: 6,
+  maxPomBytes: 1024 * 1024,
+  /** Maven repositories a JVM package's versions are read from when deps.dev doesn't know it. */
+  maven: {
+    central: { name: "Maven Central", url: "https://repo1.maven.org/maven2", hosts: ["repo1.maven.org"] },
+    google: { name: "Google Maven", url: "https://dl.google.com/android/maven2", hosts: ["dl.google.com"] },
+    pluginPortal: {
+      name: "Gradle Plugin Portal",
+      url: "https://plugins.gradle.org/m2",
+      hosts: ["plugins.gradle.org", "plugins-artifacts.gradle.org"],
+    },
+  },
+  /** Groups Google publishes on its own Maven repository, not Central. */
+  googleMavenGroups: [
+    "androidx",
+    "android.arch",
+    "com.android",
+    "com.google.android",
+    "com.google.firebase",
+    "com.google.gms",
+    "com.google.mlkit",
+    "com.google.ar",
+    "com.google.testing.platform",
+  ],
   /** endoflife.date data changes when a release line is announced or retired; a day is fresh enough. */
   endoflifeTtlMs: 24 * 60 * 60 * 1000,
 } as const;

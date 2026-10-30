@@ -17,7 +17,13 @@ export interface RubyProject {
   lockfileVersion: string | null;
   manifest: string;
   instances: DependencyInstance[];
+  /** The Ruby the project runs on: `.ruby-version`, the Gemfile's `ruby`, then the lockfile's. */
   rubyVersion: string | null;
+  /**
+   * A gem's lowest supported Ruby, from its gemspec's `required_ruby_version` (D-39): its runtime
+   * dependencies must still install there, whatever Ruby its own development uses.
+   */
+  rubyFloor: string | null;
   platforms: string[];
   notes: string[];
 }
@@ -134,6 +140,40 @@ export interface GemfileGem {
  * `group :a, :b do` and `group(:a) do` open a group; and each gem keeps its own requirement strings,
  * the range a lockless Gemfile is compared from (D-37).
  */
+/** The lowest version a Ruby requirement allows: `~> 3.2` and `>= 3.2` → `3.2`; `< 4` alone → null. */
+function requirementFloor(requirement: string) {
+  return /^\s*(?:~>|>=|=|>)?\s*(\d+(?:\.\d+)*)\s*$/.exec(requirement)?.[1] ?? null;
+}
+
+/**
+ * The Gemfile's `ruby` (D-39): `ruby "3.2.2"`, `ruby "~> 3.2"` (its floor), or `ruby file:
+ * ".ruby-version"` read through `read`.
+ */
+export function gemfileRuby(text: string, read: (path: string) => string | null) {
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/#.*$/, "").trim();
+    const file = /^ruby\s*\(?\s*file:\s*["']([^"']+)["']/.exec(line)?.[1];
+    if (file)
+      return (
+        read(file)
+          ?.trim()
+          .replace(/^ruby-/, "") || null
+      );
+    const requirement = /^ruby\s*\(?\s*["']([^"']+)["']/.exec(line)?.[1];
+    if (requirement) return requirementFloor(requirement);
+  }
+  return null;
+}
+
+/** A gemspec's `required_ruby_version` floor: `">= 3.0"`, `Gem::Requirement.new(">= 2.7")`, `[">= 2.7", "< 4"]`. */
+export function gemspecRubyFloor(text: string) {
+  const value = /required_ruby_version\s*=\s*([^\n]+)/.exec(text)?.[1] ?? "";
+  const floors = [...value.matchAll(/["']([^"']+)["']/g)]
+    .map((m) => requirementFloor(m[1] as string))
+    .filter((v): v is string => Boolean(v));
+  return floors[0] ?? null;
+}
+
 export function gemfileGems(text: string): Map<string, GemfileGem> {
   const gems = new Map<string, GemfileGem>();
   // Each open block: the groups it adds, or a source it sets, or nothing.
@@ -283,7 +323,10 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
       tree
         .read(join(root, ".ruby-version"))
         ?.trim()
-        .replace(/^ruby-/, "") ?? null;
+        .replace(/^ruby-/, "") || null;
+    const gemfileRubyVersion = gemfileRuby(tree.read(manifest) ?? "", (p) => tree.read(join(root, p)));
+    const gemspec = tree.files().find((f) => f.endsWith(".gemspec") && dirname(f) === root);
+    const rubyFloor = gemspec ? gemspecRubyFloor(tree.read(gemspec) ?? "") : null;
     projects.push({
       root,
       manager: "bundler",
@@ -291,7 +334,8 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
       lockfileVersion: lock?.bundledWith ?? null,
       manifest,
       instances,
-      rubyVersion: dotRuby ?? lock?.rubyVersion?.replace(/p\d+$/, "") ?? null,
+      rubyVersion: dotRuby ?? gemfileRubyVersion ?? lock?.rubyVersion?.replace(/p\d+$/, "") ?? null,
+      rubyFloor,
       platforms: lock?.platforms ?? [],
       notes,
     });

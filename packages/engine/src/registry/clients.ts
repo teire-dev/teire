@@ -2,6 +2,7 @@ import { sha256 } from "../catalog/source";
 import { REGISTRY } from "../constants";
 import type { Ecosystem } from "../contract";
 import { guardedFetch } from "../net/fetch";
+import { fromNativeRegistry } from "./native";
 import type { CacheEntry, PackageInfo, RegistryCache, VersionInfo } from "./types";
 import { versionScheme } from "./versions";
 
@@ -196,7 +197,8 @@ export interface RegistryOptions {
 
 /**
  * Every published version of a package with publish dates and deprecations, sorted. Uses the cache
- * while fresh; falls back to the ecosystem's own registry, then to a stale cached answer.
+ * while fresh; falls back to the ecosystem's own registry (npm's packument, PyPI, the crates.io
+ * index, the Go proxy, Maven repositories, RubyGems.org), then to a stale cached answer.
  */
 export async function getPackageInfo(
   ecosystem: Ecosystem,
@@ -234,6 +236,13 @@ export async function getPackageInfo(
       if (previous) return previous.data as PackageInfo;
       throw error;
     }
+  }
+  // Every other ecosystem's own registry (S18.2): Google's Maven and Gradle plugins aren't on deps.dev.
+  try {
+    const info = await fromNativeRegistry(ecosystem, name, now);
+    if (info) return store(info);
+  } catch (error) {
+    depsDevError ??= error;
   }
   if (previous) return previous.data as PackageInfo;
   if (depsDevError) throw depsDevError;

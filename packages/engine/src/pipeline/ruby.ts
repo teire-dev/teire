@@ -57,8 +57,10 @@ function rubyPolicy(
   options: RubyAssessOptions,
 ): TargetPolicy {
   const minutes = (options.cooldownDays ?? REGISTRY.cooldownDays) * 1440;
-  // No pin: the sandbox's Ruby is the one the upgrade must run on.
-  const ruby = project.rubyVersion ?? RUBY.sandboxRuby;
+  // A gem's runtime dependencies must still install on its lowest supported Ruby (D-39); its
+  // development ones on the Ruby it's developed with. No pin: the sandbox's Ruby.
+  const ruby =
+    (instance.scope === "prod" ? project.rubyFloor : null) ?? project.rubyVersion ?? RUBY.sandboxRuby;
   return {
     now: options.now ?? new Date(),
     minAgeMinutes: () => minutes,

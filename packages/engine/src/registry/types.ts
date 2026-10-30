@@ -16,7 +16,8 @@ export interface PackageInfo {
   /** Ascending by the ecosystem's version grammar; versions it cannot parse are dropped. */
   versions: VersionInfo[];
   defaultVersion: string | null;
-  source: { name: "deps.dev" | "npm"; url: string; contentHash: string; checkedAt: string };
+  /** deps.dev, or the ecosystem's own registry when deps.dev doesn't know the package (S18.2). */
+  source: { name: string; url: string; contentHash: string; checkedAt: string };
 }
 
 /** One row of `registry_cache` (global, keyed by ecosystem + key). */
