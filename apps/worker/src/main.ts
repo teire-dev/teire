@@ -204,8 +204,12 @@ async function main() {
       }
     });
     stopOutbox = startOutbox({ db, pool, handle: (delivery) => handleDelivery(ctx, delivery) });
-    stopTicker = startTicker(db, gh, process.env.SOURCE_COMMIT ?? "dev", (repoId) =>
-      ctx.enqueueScan(repoId, "manual"),
+    stopTicker = startTicker(
+      db,
+      gh,
+      process.env.SOURCE_COMMIT ?? "dev",
+      (repoId) => ctx.enqueueScan(repoId, "manual"),
+      (runId, repoId) => ctx.enqueueFix(runId, repoId),
     );
     console.log(`[worker] GitHub App ${gh.slug} ready`);
     // Every installation against GitHub's own list of its repositories, at start and every half hour:

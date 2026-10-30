@@ -52,14 +52,19 @@ export async function requesterToken(db: Database, userId: string | null | undef
  * publicly. The web session already proved who they are; an expired user token doesn't change that,
  * so it never refuses an action that GitHub's own permission check then decides.
  */
-export async function requesterLogin(db: Database, userId: string | null | undefined) {
+export async function requesterLogin(
+  db: Database,
+  userId: string | null | undefined,
+  /** An installation's token: the id lookup then counts against its own limit, not the anonymous one. */
+  appToken?: string,
+) {
   if (!userId) return null;
   const [row] = await db
     .select({ id: account.accountId, token: account.accessToken, expires: account.accessTokenExpiresAt })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
     .limit(1);
-  if (!row) return null;
+  if (!row || !/^\d+$/.test(row.id)) return null;
   const read = async (path: string, token?: string | null) => {
     const res = await fetch(`https://api.github.com${path}`, {
       headers: {
@@ -69,12 +74,16 @@ export async function requesterLogin(db: Database, userId: string | null | undef
       },
       signal: AbortSignal.timeout(10_000),
     }).catch(() => null);
-    return res?.ok ? (((await res.json()) as { login?: string }).login ?? null) : null;
+    if (!res?.ok) return null;
+    const user = (await res.json()) as { id?: number; login?: string };
+    // Only the GitHub account this person signed in with (walk-fix review #3).
+    return String(user.id) === row.id ? (user.login ?? null) : null;
   };
   const live = row.token && !(row.expires && row.expires.getTime() < Date.now());
   return (
     (live ? await read("/user", row.token) : null) ??
-    (/^\d+$/.test(row.id) ? await read(`/user/${row.id}`) : null)
+    (appToken ? await read(`/user/${row.id}`, appToken) : null) ??
+    (await read(`/user/${row.id}`))
   );
 }
 

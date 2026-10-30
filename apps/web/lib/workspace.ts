@@ -356,7 +356,7 @@ export async function repoOf(scope: Scope, fullName: string) {
   const repo = row?.repo;
   if (!row || !repo) return null;
   const fixMode = repoFixMode(repo, row);
-  const [rows, recent] = await Promise.all([
+  const [rows, recent, queue] = await Promise.all([
     db
       .select({ finding: findings, change: changes })
       .from(findings)
@@ -364,13 +364,19 @@ export async function repoOf(scope: Scope, fullName: string) {
       .where(eq(findings.repoId, repo.id))
       .orderBy(asc(findings.priority)),
     rowsOf(scope, eq(runs.repoId, repo.id), 12),
+    // The whole queue, however long: the run list is the latest twelve (walk-fix review, B15).
+    db
+      .select({ status: runs.status, step: runs.step, n: sql<number>`count(*)::int` })
+      .from(runs)
+      .where(and(eq(runs.repoId, repo.id), inArray(runs.status, ["queued", "running", "stopping"])))
+      .groupBy(runs.status, runs.step),
   ]);
   const groups = new Map<string, typeof rows>();
   for (const r of rows) {
     const key = r.finding.groupKey ?? r.finding.changeId;
     groups.set(key, [...(groups.get(key) ?? []), r]);
   }
-  return { repo, fixMode, groups: [...groups], runs: recent };
+  return { repo, fixMode, groups: [...groups], runs: recent, queue };
 }
 
 /** Members of the teire-dev installation (or local dev) see the kit; everyone else gets a 404. */

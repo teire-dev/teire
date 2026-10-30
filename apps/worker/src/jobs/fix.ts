@@ -112,7 +112,9 @@ import {
   holdsRun,
   openArtifacts,
   PAUSED_STEP,
+  pendingFixJobs,
   prCounts,
+  queuedSecurityRuns,
   recordLlmCall,
   recordSandboxExec,
   renewLease,
@@ -1856,6 +1858,18 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     });
     await event("queue", "refused", { reason });
     return { refused: "too large" };
+  }
+
+  // Security first (Codex walk B14, walk-fix review #5): a repository's queue is first in, first out,
+  // so a routine run that comes up while a security fix waits behind it goes to the back, once per
+  // turn, until the security fix has run. Only a security run with a job of its own is waited for.
+  if (!dry && !run.lineageKey?.endsWith("#security")) {
+    const waiting = await pendingFixJobs(db, await queuedSecurityRuns(db, repo.id, runId));
+    if (waiting.size) {
+      await update({ status: "queued", step: "waiting: security fixes go first", workerId: null });
+      await ctx.enqueueFix(runId, repo.id);
+      return { deferred: "security first" };
+    }
   }
 
   // Noise controls before any work (D70): per-repo open PRs and new PRs per hour. They limit new

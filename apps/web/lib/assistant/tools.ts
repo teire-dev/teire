@@ -25,6 +25,7 @@ import {
   rowsOf,
   scopeRaw,
   usageOf,
+  waitingReason,
 } from "../workspace";
 import { assistantSpend } from "./budget";
 import { signProposal } from "./proposal";
@@ -118,7 +119,7 @@ const STATUS_MEANS: Record<string, string> = {
   paused:
     "Paused: nothing runs. The reason says why; Resume on the repository's page, or `@teire resume` in a comment, restarts it (an archived repository resumes when it is unarchived on GitHub).",
   disabled:
-    "Needs GitHub access: Teire's GitHub app can no longer reach it (removed from the installation's repository access, deleted, or the installation was uninstalled). It comes back when it is added to the installation again on GitHub (the installation's Configure page, Repository access); there is no switch for it inside Teire.",
+    "Needs GitHub access: Teire's GitHub app can no longer reach it. Removed from the installation's repository access: add it again on GitHub (the installation's Configure page, Repository access) and Teire picks it up. Deleted on GitHub: nothing brings it back here. Installation uninstalled: install Teire again on that account. There is no switch for it inside Teire.",
 };
 const statusMeans = (status: string) => STATUS_MEANS[status] ?? status;
 
@@ -362,6 +363,18 @@ export function assistantTools(viewer: Viewer) {
             })),
             prs: prs.rows.map((p) => ({ number: p.number, url: p.url, group: p.change_key })),
             runs: detail.runs.slice(0, 5).map(runLite),
+            // The whole queue, not only the five latest runs (walk-fix review, B15).
+            queue: (() => {
+              const why = new Map<string, number>();
+              for (const q of detail.queue.filter((x) => x.status === "queued"))
+                why.set(waitingReason(q.step), (why.get(waitingReason(q.step)) ?? 0) + q.n);
+              return {
+                running: detail.queue.filter((x) => x.status !== "queued").reduce((n, x) => n + x.n, 0),
+                waiting: [...why.values()].reduce((a, b) => a + b, 0),
+                reasons: Object.fromEntries(why),
+                link: `/app/runs?repo=${encodeURIComponent(detail.repo.fullName)}&show=active`,
+              };
+            })(),
             languages: got.repo.languages ?? [],
             link: `/app/repos/${got.repo.fullName}`,
           };

@@ -21,6 +21,7 @@ import {
   getRepo,
   latestUpgrades,
   parkQueued,
+  pendingFixJobs,
   recordAction,
   recordFeedback,
   setFindingsState,
@@ -196,7 +197,9 @@ export async function handleComment(ctx: EventContext, p: Payload) {
           pausedReason: null,
         });
       const held = await unparkQueued(db, repo.id);
-      for (const runId of held) await ctx.enqueueFix(runId, repo.id);
+      // A held run whose job is still waiting (the PR limit's hourly retry) keeps that job: one each.
+      const pending = await pendingFixJobs(db, held);
+      for (const runId of held) if (!pending.has(runId)) await ctx.enqueueFix(runId, repo.id);
       await ctx.enqueueScan(repo.id, "command");
       await reply(
         onboarding ??

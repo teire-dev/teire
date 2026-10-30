@@ -158,8 +158,11 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
                 >
                   {q.repo}
                 </Link>
-                <span className="font-mono text-xs text-ink-2">
-                  {q.running} running · {waiting} waiting
+                <span
+                  className="font-mono text-xs text-ink-2"
+                  title="One run at a time per repository; the PR limits come from its teire.yml (5 open, 2 new an hour by default)"
+                >
+                  {q.running} running · {waiting} waiting · one at a time
                 </span>
                 <span className="flex flex-wrap gap-1.5">
                   {[...q.waiting].map(([why, n]) => (

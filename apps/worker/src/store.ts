@@ -542,6 +542,49 @@ export async function parkQueued(db: Database, repoId: number) {
   return rows.length;
 }
 
+/** Which of these runs already have a fix job waiting or running in pg-boss (walk-fix review #2). */
+export async function pendingFixJobs(db: Database, runIds: string[]) {
+  if (!runIds.length) return new Set<string>();
+  const { rows } = await db.execute<{ run_id: string }>(sql`
+    select distinct data->>'runId' as run_id from pgboss.job
+    where name = 'fix' and state in ('created', 'retry', 'active')
+      and data->>'runId' in (${sql.join(
+        runIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})
+  `);
+  return new Set(rows.map((r) => r.run_id));
+}
+
+/** A repository's other queued security runs (their lineage is `…#security`). */
+export async function queuedSecurityRuns(db: Database, repoId: number, exceptRunId: string) {
+  const { rows } = await db.execute<{ id: string }>(sql`
+    select id from runs where repo_id = ${repoId} and status = 'queued' and id <> ${exceptRunId}
+      and lineage_key like '%#security'
+  `);
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Queued runs with no job behind them (an enqueue that failed, a job pg-boss dropped): put back in
+ * the queue, so nothing shows "waiting" with nothing coming (walk-fix review #2). A held run waits
+ * for its repository's resume; a fresh row gets ten minutes for its job to be sent.
+ */
+export async function orphanedQueuedRuns(db: Database) {
+  const { rows } = await db.execute<{ id: string; repo_id: string }>(sql`
+    select r.id, r.repo_id from runs r
+    where r.status = 'queued' and r.kind <> 'dry_run'
+      and coalesce(r.step, '') <> ${PAUSED_STEP}
+      and r.updated_at < now() - interval '10 minutes'
+      and not exists (
+        select 1 from pgboss.job j
+        where j.name = 'fix' and j.state in ('created', 'retry', 'active') and j.data->>'runId' = r.id::text
+      )
+    limit 200
+  `);
+  return rows.map((r) => ({ id: r.id, repoId: Number(r.repo_id) }));
+}
+
 /** The runs a pause held, back in the queue in the order they were made. */
 export async function unparkQueued(db: Database, repoId: number) {
   const rows = await db

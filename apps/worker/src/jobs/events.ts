@@ -151,7 +151,14 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       const branch: string = p.pull_request.head.ref;
       const merged: boolean = p.pull_request.merged === true;
       const artifact = await artifactByBranch(db, repo.id, branch);
-      // The onboarding branch decides the repository's state even without its row (Codex walk B12).
+      // The onboarding branch decides the repository's state even without its row (Codex walk B12),
+      // but only Teire's own PR from this repository: a fork's branch of the same name is someone
+      // else's (walk-fix review #1), and a recorded PR must be that one.
+      const ours =
+        p.pull_request.head?.repo?.id === p.repository.id &&
+        p.pull_request.user?.login === ctx.gh.botLogin &&
+        (!artifact?.number || artifact.number === p.pull_request.number);
+      if (branch === ONBOARDING_BRANCH && !ours) return;
       if (!artifact && branch !== ONBOARDING_BRANCH) return;
       if (artifact) await upsertArtifact(db, { ...artifact, state: merged ? "merged" : "closed" });
       if (branch === ONBOARDING_BRANCH) {

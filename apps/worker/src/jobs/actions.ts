@@ -28,6 +28,7 @@ import {
   latestUpgrades,
   markInstallation,
   parkQueued,
+  pendingFixJobs,
   recordFeedback,
   removeInstallationData,
   setAction,
@@ -75,8 +76,9 @@ export async function handleRepoAction(
     .limit(1);
   if (!visible) return { skipped: "no access" };
   const [owner = "", name = ""] = repo.fullName.split("/");
-  const { octokit } = await ctx.gh.installation(repo.installationId);
-  const login = await requesterLogin(db, userId);
+  const installation = await ctx.gh.installation(repo.installationId);
+  const { octokit } = installation;
+  const login = await requesterLogin(db, userId, await installation.token().catch(() => undefined));
   if (!login || !(await canWrite(octokit, owner, name, login))) return { skipped: "needs write access" };
 
   switch (action as RepoAction) {
@@ -162,10 +164,19 @@ export async function handleAction(ctx: EventContext, payload: { actionId?: stri
   const parsed = parseAction(action.kind, action.params);
   const outcome: Outcome = await (async () => {
     if (!parsed.ok) return refused(parsed.error);
-    await setAction(db, action.id, { status: "accepted" });
-    const login = await requesterLogin(db, action.requester);
+    // Who asked, read before the action is accepted (walk-fix review #3), with an installation's
+    // token when the action names one.
+    const installationId =
+      action.installationId ?? (action.repoId ? (await getRepo(db, action.repoId))?.installationId : null);
+    const appToken = installationId
+      ? await ctx.gh
+          .installation(installationId)
+          .then((i) => i.token())
+          .catch(() => undefined)
+      : undefined;
+    const login = await requesterLogin(db, action.requester, appToken);
     if (!login) return refused("GitHub didn't answer who you are; try again in a minute");
-    await setAction(db, action.id, { actor: login });
+    await setAction(db, action.id, { status: "accepted", actor: login });
     if (parsed.kind === "fix-in-all") return fixInAll(ctx, action, parsed.params, login);
     if (INSTALLATION_ACTIONS.has(parsed.kind)) return installationAction(ctx, action, parsed, login);
     const repo = action.repoId ? await getRepo(db, action.repoId) : null;
@@ -266,7 +277,9 @@ async function repoAction(
           pausedReason: null,
         });
       const held = await unparkQueued(db, repo.id);
-      for (const runId of held) await ctx.enqueueFix(runId, repo.id);
+      // A held run whose job is still waiting (the PR limit's hourly retry) keeps that job: one each.
+      const pending = await pendingFixJobs(db, held);
+      for (const runId of held) if (!pending.has(runId)) await ctx.enqueueFix(runId, repo.id);
       await ctx.enqueueScan(repo.id, "manual");
       return {
         status: "done",

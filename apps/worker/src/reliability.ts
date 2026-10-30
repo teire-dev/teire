@@ -2,6 +2,7 @@ import { and, type Database, eq, gte, llmCalls, lt, runs, scans, sql, systemStat
 import { ASSISTANT, DAILY_COST_CAP_DEFAULT_USD, RUNS } from "@teire/engine/constants";
 import type { GitHubApp } from "@teire/engine/github";
 import { createTokenFactory, modelHealth, ping, tokenFactoryConfigFromEnv } from "@teire/engine/llm";
+import { orphanedQueuedRuns } from "./store";
 
 /**
  * Reliability (plan S10): what keeps runs honest when the worker, the model service or the money
@@ -204,6 +205,7 @@ export function startTicker(
   gh: GitHubApp | null,
   version: string,
   enqueueScan?: (repoId: number) => Promise<void>,
+  enqueueFix?: (runId: string, repoId: number) => Promise<void>,
 ) {
   let lastRedelivery = 0;
   let lastSchedule = 0;
@@ -213,6 +215,12 @@ export function startTicker(
     const reaped = await reap(db);
     if (reaped.runs || reaped.scans)
       console.log(`[reaper] failed ${reaped.runs} run(s), ${reaped.scans} scan(s) without a heartbeat`);
+    if (enqueueFix) {
+      const orphans = await orphanedQueuedRuns(db);
+      for (const o of orphans) await enqueueFix(o.id, o.repoId);
+      if (orphans.length)
+        console.log(`[reaper] sent ${orphans.length} queued run(s) with no job back to the queue`);
+    }
     await setState(db, "models", { at: new Date().toISOString(), unhealthy: modelHealth() });
     const credits = await getState<CreditsState>(db, "credits");
     if (credits?.exhausted && Date.now() - Date.parse(credits.checkedAt) > RELIABILITY.creditsRecheckMs) {

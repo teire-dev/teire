@@ -174,6 +174,8 @@ export async function welcomeOf(userId: string, asked: number | null) {
       suspended: !!installation.suspendedAt,
     },
     needsAccess: needsAccess.map((r) => r.fullName),
+    // Who is signed in, beside whose installation this is (Codex walk B11).
+    signedInAs: await githubLogin(userId).catch(() => null),
     repos: rows.map((r) => {
       // A raw query returns bigint ids as strings.
       const scan = latest.rows.find((s) => Number(s.repo_id) === r.id) ?? null;

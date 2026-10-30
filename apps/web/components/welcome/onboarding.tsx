@@ -19,6 +19,7 @@ import { followAction } from "@/components/app/follow-action";
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { FlowCanvas, type PlacedTile } from "@/components/flow/flow-canvas";
 import { StaticFlow } from "@/components/flow/static-flow";
+import { SignInButton } from "@/components/sign-in-button";
 import { Button } from "@/components/ui/button";
 import NumberTicker from "@/components/ui/number-ticker";
 import { Switch } from "@/components/ui/switch";
@@ -308,6 +309,27 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
       localStorage.setItem(store, String(step));
     } catch {}
   }, [store, step]);
+  // The choices too, so a trip to GitHub (repository access, another account) keeps them (Codex walk
+  // B11). A repository that's gone from the installation since drops out.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`${store}-choices`) ?? "null") as {
+        chosen?: string[];
+        mode?: Mode;
+        security?: "auto" | "ask";
+      } | null;
+      if (!saved) return;
+      const here = new Set(data.repos.map((r) => r.fullName));
+      if (saved.chosen) setChosen(new Set(saved.chosen.filter((n) => here.has(n))));
+      if (saved.mode) setMode(saved.mode);
+      if (saved.security) setSecurity(saved.security);
+    } catch {}
+  }, [store, data.repos]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${store}-choices`, JSON.stringify({ chosen: [...chosen], mode, security }));
+    } catch {}
+  }, [store, chosen, mode, security]);
 
   // While first scans run (for up to ten minutes), the page reads again every four seconds.
   const scanning = data.repos.filter(
@@ -455,7 +477,12 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
     scanning.length ? "Reading your code." : "What reaches your code.",
     "How should Teire fix?",
     "Turn Teire on.",
-    "Teire is on.",
+    // Never on for all while one is refused or pending (walk-fix review: honesty).
+    (() => {
+      const picked = data.repos.filter((r) => chosen.has(r.fullName));
+      const on = picked.filter((r) => r.status === "active" || done(results[r.fullName])).length;
+      return on === picked.length ? "Teire is on." : `Teire is on for ${on} of ${picked.length}.`;
+    })(),
   ];
 
   return (
@@ -513,6 +540,18 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   Change access on GitHub <ExternalLink className="size-3" />
                 </a>
                 {/* Optional: one connection is enough to start (Codex walk B11). */}
+                <SignInButton
+                  chooseAccount
+                  next={`/welcome?installation_id=${data.installation.id}`}
+                  label={
+                    data.signedInAs
+                      ? `Not @${data.signedInAs}? Use another GitHub account`
+                      : "Use another GitHub account"
+                  }
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-[13px] text-ink-2 hover:text-ink"
+                />
                 <a
                   href={ADD_ACCOUNT_URL}
                   className="inline-flex w-fit items-center gap-1 text-[13px] text-ink-2 hover:text-ink hover:underline"
@@ -678,11 +717,13 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                 const urgent = picked.reduce((n, r) => n + (r.upgrades?.security ?? 0), 0);
                 const routine = picked.reduce((n, r) => n + (r.upgrades?.routine ?? 0), 0);
                 if (!urgent && !routine) return null;
+                // Candidates from the latest scan: one with an open PR, just settled or already running,
+                // or a repository whose teire.yml sets its own mode, doesn't start (walk-fix review).
                 const starts =
                   mode === "auto"
-                    ? `${urgent + routine} fix run(s) start on their own: ${urgent} security, ${routine} upgrades`
+                    ? `Up to ${urgent + routine} fix run(s) can start on their own: ${urgent} security, ${routine} upgrades, less any already open or running`
                     : mode === "ask" && urgent && security === "auto"
-                      ? `${urgent} security fix run(s) start on their own; ${routine} upgrades wait for Fix now`
+                      ? `Up to ${urgent} security fix run(s) can start on their own; ${routine} upgrades wait for Fix now`
                       : mode === "off"
                         ? `${urgent + routine} upgrades are listed; nothing starts`
                         : `${urgent + routine} upgrades wait for Fix now`;
@@ -690,7 +731,7 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   <p className="rounded-card bg-sunken px-3 py-2.5 text-[13px] text-ink-2">
                     {starts}.{" "}
                     {mode !== "off"
-                      ? `Security first, then at most ${PULL_REQUESTS.maxOpenPerRepo} open PRs and ${PULL_REQUESTS.maxNewPerHour} new an hour per repository; the rest wait their turn.`
+                      ? `Security first, one run at a time per repository, and by default at most ${PULL_REQUESTS.maxOpenPerRepo} open PRs and ${PULL_REQUESTS.maxNewPerHour} new an hour (a repository's teire.yml can say otherwise); the rest wait their turn.`
                       : null}
                   </p>
                 );
@@ -739,7 +780,9 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                 {[
                   [
                     "repos on",
-                    data.repos.filter((r) => r.status === "active" || done(results[r.fullName])).length,
+                    data.repos.filter(
+                      (r) => chosen.has(r.fullName) && (r.status === "active" || done(results[r.fullName])),
+                    ).length,
                   ],
                   ["packages", packages],
                   ["reaching", reaching],
