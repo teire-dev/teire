@@ -36,7 +36,8 @@ export function forGitHub(message: string, max = MAX_CHARS): string {
 /** A source file's name right before `:` (`token.go:`, `auth_test.py:`), and a line or range after it. */
 const FILE_LINE =
   /\.(?:go|ts|tsx|mts|cts|js|jsx|mjs|cjs|py|pyi|rb|rs|java|kt|kts|scala|groovy|gradle|php|cs|swift|c|h|cc|cpp|hpp|ex|exs|dart|lua|sh|vue|svelte|json|ya?ml|toml|md|mdx|xml)[ \t]*:[ \t]*$/i;
-const LINE = /^\d+(?:[:-]\d+)*[)\]`*.]*$/;
+// The line (or range) may run into markdown around it: `token.go:22`](https://…).
+const LINE = /^\d+(?:[:-]\d+)*(?![\w])/;
 
 export function maskSecrets(text: string): string {
   return (

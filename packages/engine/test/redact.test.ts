@@ -80,6 +80,10 @@ describe("maskSecrets (run page output)", () => {
       "- [`go-major/auth/token.go:12`] jwt.StandardClaims\nsrc/auth.ts:40-42 and lib/session_id.rb:7:3\nAUTH_TOKEN: abc123secretvalue\ntoken.json: 9f8e7d6c5b4a\nsession_id: 123456",
     );
     expect(out).toContain("go-major/auth/token.go:12`");
+    expect(maskSecrets("[`auth/token.go:22`](https://github.com/o/r/blob/abc/auth/token.go#L22)")).toContain(
+      "token.go:22`](https://github.com",
+    );
+    expect(maskSecrets("token: 12345abcdef")).toBe("token: ***");
     expect(out).toContain("src/auth.ts:40-42");
     expect(out).toContain("lib/session_id.rb:7:3");
     expect(out).toContain("AUTH_TOKEN: ***");
