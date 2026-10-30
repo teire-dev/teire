@@ -80,12 +80,24 @@ export async function requesterLogin(
     return String(user.id) === row.id ? (user.login ?? null) : null;
   };
   const live = row.token && !(row.expires && row.expires.getTime() < Date.now());
-  return (
+  const lookup = async () =>
     (live ? await read("/user", row.token) : null) ??
     (appToken ? await read(`/user/${row.id}`, appToken) : null) ??
-    (await read(`/user/${row.id}`))
-  );
+    (await read(`/user/${row.id}`));
+  // One retry before a refusal, then the login this account last resolved to (Codex walk B27: a
+  // signed-in owner was refused "GitHub didn't answer who you are" on a passing GitHub hiccup). The
+  // account id is still checked against GitHub's answer whenever GitHub answers.
+  const login = (await lookup()) ?? (await new Promise((r) => setTimeout(r, LOGIN_RETRY_MS)).then(lookup));
+  const known = knownLogins.get(row.id);
+  if (login) knownLogins.set(row.id, { login, at: Date.now() });
+  else if (known && Date.now() - known.at < LOGIN_CACHE_MS) return known.login;
+  return login;
 }
+
+/** GitHub account id → the login it last resolved to, kept for a day. */
+const knownLogins = new Map<string, { login: string; at: number }>();
+const LOGIN_CACHE_MS = 24 * 60 * 60 * 1000;
+const LOGIN_RETRY_MS = 2_000;
 
 async function githubGet<T>(path: string, token: string | undefined): Promise<T | null> {
   const get = (auth: string | undefined) =>

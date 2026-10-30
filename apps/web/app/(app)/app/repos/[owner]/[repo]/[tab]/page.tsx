@@ -218,7 +218,16 @@ async function Findings({
     data.artifacts.filter((a) => a.kind === "issue" && a.state === "open").map((a) => [a.changeKey, a]),
   );
   const flowOf = (g: (typeof reaching)[number], undecided = false) => {
-    const pr = prFor.get(g.key);
+    // Its own PR, else an open one in the same lineage at a newer version (Codex walk B22).
+    const own = prFor.get(g.key);
+    const pr =
+      own?.state === "open"
+        ? own
+        : (lineagePr.get(lineageKey(g.key, "security")) ?? lineagePr.get(lineageKey(g.key)) ?? own);
+    // A "needs a human" or stop issue Teire opened for it (Codex walk B21).
+    const issue =
+      issueFor.get(g.key) ??
+      [...issueFor.values()].find((a) => a.changeKey.startsWith(`stop/${lineageKey(g.key)}`));
     const opened = pr?.state === "open" ? pr : issueFor.get(g.key);
     // A run going now speaks for the group; otherwise the run behind its open PR, else its newest.
     const newest = latest.get(g.key);
@@ -243,6 +252,10 @@ async function Findings({
             {pr?.url && pr.state === "open" ? (
               <Button asChild size="sm" variant="outline">
                 <a href={pr.url}>PR #{pr.number}</a>
+              </Button>
+            ) : issue?.url ? (
+              <Button asChild size="sm" variant="outline">
+                <a href={issue.url}>Issue #{issue.number}</a>
               </Button>
             ) : run && ["queued", "running", "stopping"].includes(run.status) ? (
               // Already on its way: the button says where, never "Fix now" over a waiting run.

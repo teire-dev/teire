@@ -213,6 +213,11 @@ export const RUNS = {
    * about 1 GB of the worker's 4 GB while it diffs an API; the resolver service queues its own jobs.
    */
   fixConcurrency: 3,
+  /**
+   * Scans the worker runs at once, each a different repository: one long scan (a monorepo) no longer
+   * holds every other repository's first scan (Codex walk B27).
+   */
+  scanConcurrency: 2,
   /** The run page polls this often while a run is active. */
   pollEveryMs: 1000,
   /**

@@ -58,7 +58,10 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
           tone: "neutral" as const,
         }
       : repo.status === "active"
-        ? { label: "Active", tone: "proven" as const }
+        ? repo.lastScannedAt
+          ? { label: "Active", tone: "proven" as const }
+          : // Nothing read yet: its zero counts are not a result (Codex walk B26).
+            { label: "Awaiting first scan", tone: "signal" as const }
         : {
             label: repo.status === "disabled" ? "Needs GitHub access" : "Onboarding",
             tone: "attention" as const,
@@ -77,7 +80,7 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
             <h1 className="heading flex items-center gap-2 text-2xl text-ink">
               <span className="truncate">{name}</span>
               {repo.isPrivate ? <Lock className="size-4 shrink-0 text-ink-3" aria-label="Private" /> : null}
-              {repo.status !== "active" ? (
+              {repo.status !== "active" || !repo.lastScannedAt ? (
                 <span title={"why" in state ? state.why : undefined} className="inline-flex">
                   <StatusChip tone={state.tone}>{state.label}</StatusChip>
                 </span>

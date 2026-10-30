@@ -65,6 +65,8 @@ function stateOf(r: RepoListRow): {
   // Not in the installation's repository access on GitHub (Codex walk B11): the way on is GitHub's.
   if (r.status === "disabled") return { label: "Needs GitHub access", tone: "attention" };
   if (r.status === "detected" || r.status === "onboarding") return { label: "Onboarding", tone: "attention" };
+  // On, but nothing read yet: never "Active" over zero findings it hasn't looked for (Codex walk B26).
+  if (!r.lastScannedAt) return { label: "Awaiting first scan", tone: "signal" };
   return { label: "Active", tone: "proven" };
 }
 

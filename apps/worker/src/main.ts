@@ -150,7 +150,10 @@ async function main() {
         );
       },
       enqueueScan: async (repoId: number, trigger: "install" | "push" | "command" | "manual" | "catalog") => {
-        await boss.send(QUEUES.scan, { repoId, trigger }, { singletonKey: String(repoId) });
+        // A repository's first scan and a person's Rescan go before routine ones (Codex walk B27: a
+        // newly connected repo sat behind a monorepo's scan with nothing to show).
+        const priority = trigger === "install" || trigger === "command" || trigger === "manual" ? 10 : 0;
+        await boss.send(QUEUES.scan, { repoId, trigger }, { singletonKey: String(repoId), priority });
       },
       enqueuePublicScan: async (publicScanId: string) => {
         await boss.send(QUEUES.public, { publicScanId }, { singletonKey: publicScanId });
@@ -180,6 +183,7 @@ async function main() {
     // failures live on the scan and run rows.
     await boss.work<{ repoId: number; trigger: "install" | "push" | "command" | "manual" | "catalog" }>(
       QUEUES.scan,
+      { localConcurrency: RUNS.scanConcurrency },
       async (jobs) => {
         for (const job of jobs) {
           try {
