@@ -52,6 +52,9 @@ Teire runs your real build once online so the dependencies download. Only a reso
 |---|---|---|
 | Maven | `mvn -o test-compile` | `mvn -o verify` |
 | Gradle | `gradle --offline testClasses` | `gradle --offline --continue test` |
+| Android (Gradle) | the debug variants' unit-test compile | the debug variants' unit tests |
+
+An Android build (a module that applies `com.android.application`, `com.android.library` or another Android Gradle Plugin, in its build file or the version catalog) runs in the **Android image**: the JVM image plus the Android SDK, licences accepted, with platforms 35 and 36 and build tools 35 and 36 already there. A platform or build tools version your project names that isn't there is fetched by the Android Gradle Plugin during the online install. A plain JVM module in the same build keeps `testClasses` and `test`. Instrumented tests need a device and don't run.
 
 The JDK follows your CI's `setup-java`, `.java-version`, `.sdkmanrc`, `.tool-versions`, or the Gradle toolchain or Maven release, else 21. Test tasks always run, never "up to date". Test counts come from Surefire or Teire's Gradle init script.
 
@@ -64,5 +67,5 @@ The JDK follows your CI's `setup-java`, `.java-version`, `.sdkmanrc`, `.tool-ver
 | demo-jvm-clean | `guava` 19.0 → 33.7.2-jre | inconclusive at scan time, upgrade verified as a plain bump |
 
 <Callout type="warn" title="Limits">
-  Android projects aren't supported: there is no Android SDK or Android Gradle Plugin in the sandbox. Maven has no lockfile, so transitive dependencies aren't read. Versions computed with `$` interpolation in Gradle scripts are unresolved.
+  Android's instrumented tests (`androidTest`) need a device or emulator and don't run; unit tests do. Maven has no lockfile, so transitive dependencies aren't read. Versions computed with `$` interpolation in Gradle scripts are unresolved.
 </Callout>
