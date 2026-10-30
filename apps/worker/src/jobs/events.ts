@@ -428,7 +428,8 @@ export async function reconcileInstallation(ctx: EventContext, installationId: n
     const repo = await upsertRepo(db, r, installationId);
     // New to Teire (a fork or a repository created with no webhook), or back after a removal: scanned
     // as an installed one is, which opens its onboarding PR.
-    if (!known.has(r.id)) {
+    // Also one saved but never scanned (an earlier reconcile saved it without a scan).
+    if (!known.has(r.id) || (repo.status === "detected" && !repo.lastScannedAt)) {
       await ctx.enqueueScan(repo.id, "install");
       added++;
     } else if (repo.status === "disabled") {
