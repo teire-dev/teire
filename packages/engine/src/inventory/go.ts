@@ -1,6 +1,6 @@
 import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, normalize } from "node:path";
 import { type DependencyInstance, dependencyInstance } from "../contract";
 import { runGo, scratchHome } from "../golang/toolchain";
 import type { RepoTree } from "./tree";
@@ -27,6 +27,11 @@ export interface GoProject {
   manifest: string;
   instances: DependencyInstance[];
   vendored: boolean;
+  /**
+   * The `go.work` workspace this module is used in (S18.4): its file, its folder, and whether
+   * `go work vendor` vendors it there. Versions are then the workspace's selection.
+   */
+  work?: { file: string; root: string; vendored: boolean };
   /** `replace` directives: old path → new path (and version when a module, not a directory). */
   replaces: { old: string; new: string; version: string | null }[];
   /** `exclude` directives: versions this module refuses (main module only, go.dev/ref/mod). */
@@ -77,11 +82,49 @@ function parseStream<T>(text: string): T[] {
   return out;
 }
 
+interface WorkEditJson {
+  Use?: { DiskPath: string }[];
+}
+
+/**
+ * Each `go.work` workspace (S18.4): the modules it uses and the versions it selects for all of
+ * them together (`go list -m all` in workspace mode), keyed by module folder.
+ */
+async function readWorkspaces(repoDir: string, tree: RepoTree, home: string, notes: string[]) {
+  const out = new Map<string, { work: NonNullable<GoProject["work"]>; selected: Map<string, ListModule> }>();
+  for (const file of tree
+    .files()
+    .filter((f) => (f === "go.work" || f.endsWith("/go.work")) && !SKIP.test(f))) {
+    const root = dirname(file);
+    const dir = join(repoDir, root);
+    try {
+      const edit = JSON.parse(
+        (await runGo(["work", "edit", "-json", join(repoDir, file)], dir, home)).stdout,
+      ) as WorkEditJson;
+      const selected = new Map<string, ListModule>();
+      const { stdout } = await runGo(["list", "-m", "-json", "all"], dir, home, undefined, {
+        GOWORK: join(repoDir, file),
+        GOFLAGS: "-modcacherw",
+      });
+      for (const m of parseStream<ListModule>(stdout)) if (!m.Main) selected.set(m.Path, m);
+      const work = { file, root, vendored: tree.read(join(root, "vendor", "modules.txt")) !== null };
+      for (const use of edit.Use ?? []) out.set(normalize(join(root, use.DiskPath)), { work, selected });
+    } catch (error) {
+      notes.push(
+        `${file}: not read (${(error instanceof Error ? error.message : String(error)).slice(0, 200)})`,
+      );
+    }
+  }
+  return out;
+}
+
 export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<GoProject[]> {
   const mods = tree.files().filter((f) => (f === "go.mod" || f.endsWith("/go.mod")) && !SKIP.test(f));
   const projects: GoProject[] = [];
   const home = await scratchHome();
+  const workNotes: string[] = [];
   try {
+    const workspaces = await readWorkspaces(repoDir, tree, home, workNotes);
     for (const manifest of mods) {
       const root = dirname(manifest);
       const dir = join(repoDir, root);
@@ -103,9 +146,13 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
         .filter((path) => !(path.split("/")[0] ?? "").includes(".") && !local.some((r) => r.old === path));
       const sum = tree.read(join(root, "go.sum")) !== null ? join(root, "go.sum") : null;
 
-      // Selected versions from the toolchain, on a scratch copy of go.mod and go.sum.
-      const selected = new Map<string, ListModule>();
-      if (!local.length) {
+      // Selected versions from the toolchain, on a scratch copy of go.mod and go.sum; in a workspace,
+      // the workspace's selection, which is what its builds use.
+      const workspace = workspaces.get(root);
+      const selected = new Map<string, ListModule>(workspace?.selected ?? []);
+      if (workspace)
+        notes.push(`used in ${workspace.work.file}: versions are the workspace's selection`, ...workNotes);
+      else if (!local.length) {
         const scratch = await mkdtemp(join(tmpdir(), "teire-gomod-"));
         try {
           await copyFile(join(dir, "go.mod"), join(scratch, "go.mod"));
@@ -180,6 +227,7 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
         manifest,
         instances,
         vendored: tree.read(join(root, "vendor", "modules.txt")) !== null,
+        ...(workspace ? { work: workspace.work } : {}),
         replaces,
         excludes: (edit.Exclude ?? []).map((e) => ({ path: e.Path, version: e.Version })),
         notes,

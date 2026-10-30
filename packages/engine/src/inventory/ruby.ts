@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { dirname, join, normalize } from "node:path";
 import { type DependencyInstance, dependencyInstance } from "../contract";
 import type { RepoTree } from "./tree";
 
@@ -127,6 +127,8 @@ export function parseGemfileLock(text: string) {
 
 /** One `gem` line of a Gemfile: its groups, its own requirements, and where it comes from. */
 export interface GemfileGem {
+  /** The file that declares it, for a gem from an `eval_gemfile`d file (S18.4). */
+  file?: string;
   groups: string[];
   /** The version requirements written on the line (`"~> 7.0", ">= 7.0.4"`), joined; none for any. */
   requirement?: string;
@@ -172,6 +174,55 @@ export function gemspecRubyFloor(text: string) {
     .map((m) => requirementFloor(m[1] as string))
     .filter((v): v is string => Boolean(v));
   return floors[0] ?? null;
+}
+
+/**
+ * Files a Gemfile evaluates (S18.4): `eval_gemfile "x"`, `eval_gemfile File.expand_path("x", __dir__)`
+ * and `File.join(__dir__, "x")`, relative to the Gemfile. A computed path is left out.
+ */
+export function evalGemfiles(text: string): string[] {
+  const out: string[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/#.*$/, "");
+    const m =
+      /^\s*eval_gemfile\s*\(?\s*["']([^"'#{}]+)["']/.exec(line) ??
+      /^\s*eval_gemfile\s*\(?\s*File\.(?:expand_path|join)\(\s*(?:__dir__\s*,\s*)?["']([^"'#{}]+)["']/.exec(
+        line,
+      );
+    if (m?.[1]) out.push(m[1]);
+  }
+  return out;
+}
+
+/** A Gemfile's gems with the files it evaluates followed inside the repo; the first declaration wins. */
+export function gemfileGemsIn(tree: RepoTree, manifest: string, seen = new Set<string>()) {
+  const out = new Map<string, GemfileGem>();
+  const text = tree.read(manifest);
+  if (text === null || seen.has(manifest) || seen.size > 10) return out;
+  seen.add(manifest);
+  for (const [name, gem] of gemfileGems(text)) out.set(name, { ...gem, file: manifest });
+  for (const rel of evalGemfiles(text)) {
+    const path = normalize(join(dirname(manifest), rel));
+    if (path.startsWith("..")) continue;
+    for (const [name, gem] of gemfileGemsIn(tree, path, seen)) if (!out.has(name)) out.set(name, gem);
+  }
+  return out;
+}
+
+/** A gemspec's `add_dependency`, `add_runtime_dependency` and `add_development_dependency` lines. */
+export function gemspecDependencies(text: string) {
+  const out: { name: string; requirement?: string; development: boolean }[] = [];
+  for (const m of text.matchAll(
+    /\.add_(runtime_|development_)?dependency\s*\(?\s*["']([\w.-]+)["']((?:\s*,\s*["'][^"']+["'])*)/g,
+  )) {
+    const requirements = [...(m[3] ?? "").matchAll(/["']([^"']+)["']/g)].map((r) => r[1] as string);
+    out.push({
+      name: m[2] as string,
+      ...(requirements.length ? { requirement: requirements.join(", ") } : {}),
+      development: m[1] === "development_",
+    });
+  }
+  return out;
 }
 
 export function gemfileGems(text: string): Map<string, GemfileGem> {
@@ -252,13 +303,25 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
     const root = dirname(manifest);
     const lockPath = manifest.endsWith("gems.rb") ? join(root, "gems.locked") : `${manifest}.lock`;
     const lockText = tree.read(lockPath);
-    const declared = gemfileGems(tree.read(manifest) ?? "");
+    const declared = gemfileGemsIn(tree, manifest);
     const groups = new Map([...declared].map(([name, g]) => [name, g.groups]));
+    // `gemspec` in the Gemfile: the gem's own dependencies are direct ones, declared in its gemspec.
+    const gemspecs = /^\s*gemspec\b/m.test(tree.read(manifest) ?? "")
+      ? tree.files().filter((f) => dirname(f) === root && f.endsWith(".gemspec"))
+      : [];
+    const specDeps = new Map(
+      gemspecs.flatMap((path) =>
+        gemspecDependencies(tree.read(path) ?? "").map((d) => [d.name, { ...d, path }] as const),
+      ),
+    );
     const notes: string[] = [];
     const instances: DependencyInstance[] = [];
     const lock = lockText !== null ? parseGemfileLock(lockText) : null;
     if (!lock) notes.push("no Gemfile.lock: direct gems are unresolved ranges");
-    const directNames = new Set(lock ? lock.dependencies.map((d) => d.name) : [...groups.keys()]);
+    const directNames = new Set([
+      ...(lock ? lock.dependencies.map((d) => d.name) : [...groups.keys()]),
+      ...specDeps.keys(),
+    ]);
     const specOf = (name: string) =>
       lock?.specs.find((s) => s.name === name && s.platform === "ruby") ??
       lock?.specs.find((s) => s.name === name);
@@ -268,26 +331,31 @@ export function readRubyInventory(tree: RepoTree): RubyProject[] {
       const type = spec?.source.type;
       // Without a lock, where the gem comes from and its range are the Gemfile's own (D-18).
       const own = declared.get(name);
+      const fromSpec = specDeps.get(name);
       const source =
         type === "GIT"
           ? "git"
           : type === "PATH"
-            ? "path"
+            ? // The repo's own gem (`gemspec`, `remote: .`) is the project, not a dependency.
+              spec?.source.remote === "."
+              ? "workspace"
+              : "path"
             : spec?.source.remote && !/rubygems\.org/.test(spec.source.remote)
               ? "private-index"
               : !lock && own?.source
                 ? own.source
                 : "registry";
-      const requirement = dep?.requirement ?? (!lock ? own?.requirement : undefined);
+      const requirement = dep?.requirement ?? (!lock ? own?.requirement : undefined) ?? fromSpec?.requirement;
       const parsed = dependencyInstance.safeParse({
         ecosystem: "rubygems",
         name,
         version: spec && source === "registry" ? spec.version : null,
         ...(requirement && requirement !== ">= 0" ? { declaredRange: requirement } : {}),
         direct: true,
-        scope: scopeOf(groups.get(name)),
+        scope:
+          fromSpec && !groups.has(name) ? (fromSpec.development ? "dev" : "prod") : scopeOf(groups.get(name)),
         workspace: root,
-        manifestPath: manifest,
+        manifestPath: own?.file ?? (fromSpec && !own ? fromSpec.path : manifest),
         ...(lockText !== null ? { lockfilePath: lockPath } : {}),
         source,
         ...(type === "GIT" && spec?.source.remote ? { sourceRef: spec.source.remote } : {}),

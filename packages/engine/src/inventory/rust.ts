@@ -23,7 +23,42 @@ export interface RustProject {
   members: { name: string; manifest: string }[];
   /** `rust-version` (MSRV) of the root package or workspace, when declared. */
   rustVersion: string | null;
+  /**
+   * Cargo's `incompatible-rust-versions` (S18.4): `fallback` (resolver 3, edition 2024, or set in
+   * `.cargo/config.toml`) keeps dependencies within the MSRV; `allow` lets a target raise it.
+   */
+  msrvPolicy: "fallback" | "allow";
   notes: string[];
+}
+
+/**
+ * `[patch.<registry>]` and `[replace]` entries of a workspace root (S18.4): crate → what replaces it
+ * (`path ../serde`, `git https://…`). The replacement is what builds, so the crate isn't compared.
+ */
+export function cargoPatches(doc: Record<string, unknown>) {
+  const out = new Map<string, string>();
+  const describe = (spec: unknown) => {
+    const t = (spec ?? {}) as Record<string, unknown>;
+    if (typeof t.path === "string") return `path ${t.path}`;
+    if (typeof t.git === "string")
+      return `git ${t.git}${typeof t.rev === "string" ? `@${t.rev}` : typeof t.branch === "string" ? `#${t.branch}` : ""}`;
+    if (typeof t.version === "string") return `version ${t.version}`;
+    return null;
+  };
+  for (const table of Object.values((doc.patch ?? {}) as Record<string, Record<string, unknown>>))
+    for (const [key, spec] of Object.entries(table ?? {})) {
+      const crate =
+        typeof (spec as Record<string, unknown>)?.package === "string"
+          ? (spec as { package: string }).package
+          : key;
+      const what = describe(spec);
+      if (what) out.set(crate, `[patch] ${what}`);
+    }
+  for (const [key, spec] of Object.entries((doc.replace ?? {}) as Record<string, unknown>)) {
+    const what = describe(spec);
+    if (what) out.set(key.split(":")[0] as string, `[replace] ${what}`);
+  }
+  return out;
 }
 
 type Table = Record<string, unknown>;
@@ -149,6 +184,7 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
 
     const members: RustProject["members"] = [];
     const instances: DependencyInstance[] = [];
+    const patches = cargoPatches(top.doc);
     for (const manifest of manifests) {
       const doc = manifest === top.path ? top.doc : readToml(tree, manifest);
       if (!doc) continue;
@@ -168,7 +204,18 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
             spec = { ...(typeof base === "string" ? { version: base } : ((base ?? {}) as Table)), ...spec };
           }
           const crate = typeof spec.package === "string" ? spec.package : key;
-          const source = spec.path ? "path" : spec.git ? "git" : spec.registry ? "private-index" : "registry";
+          const patch = !spec.path && !spec.git ? patches.get(crate) : undefined;
+          const source = spec.path
+            ? "path"
+            : spec.git
+              ? "git"
+              : spec.registry
+                ? "private-index"
+                : patch && !patch.includes("] version ")
+                  ? patch.includes("] path ")
+                    ? "path"
+                    : "git"
+                  : "registry";
           // The member's own lock entry names exactly which locked version it uses.
           const ref = lockedMember?.dependencies?.map(parseLockRef).find((r) => r?.name === crate) ?? null;
           const candidates = lock?.packages.filter((p) => p.name === crate) ?? [];
@@ -189,16 +236,18 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
             manifestPath: manifest,
             ...(lockText !== null ? { lockfilePath: lockPath } : {}),
             source,
-            ...(typeof spec.git === "string" ? { sourceRef: spec.git } : {}),
+            ...(typeof spec.git === "string" ? { sourceRef: spec.git } : patch ? { sourceRef: patch } : {}),
             resolvedBy: locked && source === "registry" ? "lockfile" : "unresolved",
             ...(!locked || source !== "registry"
               ? {
                   unresolvedReason:
-                    source !== "registry"
-                      ? `a ${source} dependency, not from crates.io`
-                      : lock
-                        ? "not found in Cargo.lock"
-                        : "no Cargo.lock",
+                    patch && source !== "registry"
+                      ? `replaced by ${patch}: the replacement is what builds`
+                      : source !== "registry"
+                        ? `a ${source} dependency, not from crates.io`
+                        : lock
+                          ? "not found in Cargo.lock"
+                          : "no Cargo.lock",
                 }
               : {}),
           });
@@ -240,6 +289,14 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
         : typeof wsPkg["rust-version"] === "string"
           ? wsPkg["rust-version"]
           : null;
+    // Cargo's MSRV-aware resolution: resolver 3 (edition 2024's default) falls back to versions the
+    // rust-version supports; `.cargo/config.toml` can say either way.
+    const configured = /^\s*incompatible-rust-versions\s*=\s*"(fallback|allow)"/m.exec(
+      tree.read(join(root, ".cargo/config.toml")) ?? tree.read(join(root, ".cargo/config")) ?? "",
+    )?.[1] as "fallback" | "allow" | undefined;
+    const resolver = String(ws.resolver ?? pkg.resolver ?? (pkg.edition === "2024" ? "3" : ""));
+    const msrvPolicy = configured ?? (resolver === "3" ? "fallback" : "allow");
+    if (patches.size) notes.push(`patched: ${[...patches].map(([c, w]) => `${c} (${w})`).join(", ")}`);
     projects.push({
       root,
       manager: "cargo",
@@ -249,6 +306,7 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
       instances,
       members,
       rustVersion: rustVersion as string | null,
+      msrvPolicy,
       notes,
     });
   }

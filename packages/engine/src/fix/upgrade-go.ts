@@ -29,6 +29,12 @@ export function rewriteImports(text: string, oldPath: string, newPath: string): 
   return out === text ? null : out;
 }
 
+/** `file` (repo-relative) as seen from the folder `from` (repo-relative). */
+function relativeTo(from: string, file: string) {
+  const up = from === "." ? 0 : from.split("/").length;
+  return `${"../".repeat(up)}${file}`;
+}
+
 export function goTransaction(
   tree: RepoTree,
   project: GoProject,
@@ -48,15 +54,31 @@ export function goTransaction(
       if (after) edits.push({ path: file, before, after, from: instance.name, to: targetPath });
     }
   const gomod = project.manifest;
+  // A workspace that vendors (`go work vendor`, S18.4) re-vendors at the workspace, never per module.
+  const work = project.work;
+  const workVendor = work?.vendored ? `${work.root === "." ? "" : `${work.root}/`}vendor/modules.txt` : null;
   const readBack = [
     gomod,
     project.lockfile ?? `${prefix}go.sum`,
     ...(project.vendored ? [`${prefix}vendor/modules.txt`] : []),
+    ...(workVendor ? [workVendor] : []),
   ];
+  // The module's own edit in module mode, whatever the sandbox's workspace setting.
+  const own = (argv: string[]) =>
+    work ? ["env", "GOWORK=off", "GOFLAGS=-mod=mod -modcacherw", ...argv] : argv;
   const commands = [
-    ["go", "get", `${targetPath}@${target}`],
-    ["go", "mod", "tidy"],
-    ...(project.vendored ? [["go", "mod", "vendor"]] : []),
+    own(["go", "get", `${targetPath}@${target}`]),
+    own(["go", "mod", "tidy"]),
+    ...(project.vendored ? [own(["go", "mod", "vendor"])] : []),
+    ...(work?.vendored
+      ? [
+          [
+            "sh",
+            "-c",
+            `GOWORK="$PWD/${relativeTo(project.root, work.file)}" GOFLAGS=-modcacherw go work vendor`,
+          ],
+        ]
+      : []),
   ];
   return {
     describe:

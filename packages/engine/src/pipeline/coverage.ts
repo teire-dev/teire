@@ -1,4 +1,6 @@
 import type { AdvisoryCoverage } from "../advisories";
+import type { DependencyInstance } from "../contract";
+import type { TargetDecision } from "../registry/target";
 
 /**
  * What a scan could not check, so "nothing found" is never read as "all checked" (D96): advisory
@@ -25,11 +27,63 @@ export interface ScanCoverage {
     packages: number;
     advisories: { name: string; version: string; ids: string[] }[] | null;
   }[];
+  /** Direct dependencies with no version comparison, and why (S18.4): a git source, a patch, no version. */
+  notCompared?: { ecosystem: string; name: string; reason: string }[];
+  /** Upgrades found but held, and why: a patch to remake, a parent that manages it, a pin. */
+  held?: { ecosystem: string; name: string; reason: string }[];
 }
 
 export function newScanCoverage(): ScanCoverage {
   return { advisories: [], lookupsFailed: [], notes: [], detectOnly: [] };
 }
+
+const SOURCE_REASON: Record<string, string> = {
+  git: "a git source: Teire compares registry versions",
+  path: "a local path",
+  "private-index": "a private registry Teire has no access to",
+};
+
+/**
+ * What a scan said nothing about otherwise (S18.4, rule 12): each direct dependency it didn't
+ * compare and each upgrade it held, with the reason. A failed lookup is reported on its own.
+ */
+export function outcomesOf(
+  projects: { instances: DependencyInstance[] }[],
+  assessments: { instance: DependencyInstance; decision: TargetDecision | null }[],
+  coverage: ScanCoverage,
+) {
+  const key = (i: { ecosystem: string; name: string }) => `${i.ecosystem}:${i.name}`;
+  const failed = new Set(coverage.lookupsFailed.map(key));
+  const decided = new Map(assessments.filter((a) => a.decision).map((a) => [key(a.instance), a.decision]));
+  const notCompared = new Map<string, { ecosystem: string; name: string; reason: string }>();
+  for (const i of projects.flatMap((p) => p.instances)) {
+    if (!i.direct || i.source === "workspace" || decided.has(key(i)) || failed.has(key(i))) continue;
+    const reason =
+      i.source !== "registry"
+        ? `${SOURCE_REASON[i.source] ?? i.unresolvedReason ?? "its source isn't a registry"}${i.sourceRef && i.source !== "unknown" ? ` (${i.sourceRef})` : ""}`
+        : i.version === null
+          ? (i.unresolvedReason ?? "no version stated")
+          : null;
+    if (reason && !notCompared.has(key(i)))
+      notCompared.set(key(i), { ecosystem: i.ecosystem, name: i.name, reason });
+  }
+  const held = new Map<string, { ecosystem: string; name: string; reason: string }>();
+  for (const a of assessments)
+    if (a.decision?.kind === "blocked" && !held.has(key(a.instance)))
+      held.set(key(a.instance), {
+        ecosystem: a.instance.ecosystem,
+        name: a.instance.name,
+        reason: a.decision.reason,
+      });
+  coverage.notCompared = [...notCompared.values()];
+  coverage.held = [...held.values()];
+}
+
+const listed = (items: { name: string; reason: string }[]) =>
+  `${items
+    .slice(0, 8)
+    .map((i) => `\`${i.name}\` (${i.reason.length > 140 ? `${i.reason.slice(0, 139)}…` : i.reason})`)
+    .join("; ")}${items.length > 8 ? `; and ${items.length - 8} more` : ""}`;
 
 /** The scan's overall advisory status: the worst of its lookups (no lookup ran → "complete"). */
 export function advisoryStatus(c: ScanCoverage): AdvisoryCoverage["status"] {
@@ -77,6 +131,12 @@ export function coverageLines(c: ScanCoverage): string[] {
             : "No advisory matches the locked versions."
       }`,
     );
+  if (c.notCompared?.length)
+    out.push(
+      `${c.notCompared.length} direct ${c.notCompared.length === 1 ? "dependency was" : "dependencies were"} not compared: ${listed(c.notCompared)}.`,
+    );
+  if (c.held?.length)
+    out.push(`${c.held.length} upgrade${c.held.length === 1 ? " is" : "s are"} held: ${listed(c.held)}.`);
   out.push(...new Set(c.notes));
   return out;
 }

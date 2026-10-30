@@ -154,9 +154,13 @@ export async function rubyTransaction(
   const edits: ManifestEdit[] = [];
   const root = project.root;
   // The Gemfile first; a gem declared by the project's own gemspec (`gemspec` in the Gemfile) there.
+  // The file that declares it first (an `eval_gemfile`d one, S18.4).
   const candidates = [
-    project.manifest,
-    ...tree.files().filter((f) => dirname(f) === root && f.endsWith(".gemspec")),
+    ...new Set([
+      instance.manifestPath,
+      project.manifest,
+      ...tree.files().filter((f) => dirname(f) === root && f.endsWith(".gemspec")),
+    ]),
   ];
   for (const path of candidates) {
     const before = tree.read(path);

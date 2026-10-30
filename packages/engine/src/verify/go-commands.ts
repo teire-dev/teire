@@ -66,9 +66,26 @@ export function detectGoChecks(tree: RepoTree, project: GoProject, sandboxRoot =
     manager: "go",
     image: "go",
     cwd: project.root === "." ? sandboxRoot : join(sandboxRoot, project.root),
-    install: project.vendored ? ["go", "mod", "verify"] : ["go", "mod", "download"],
-    installEnv: { GOTOOLCHAIN: "auto", GOFLAGS: "-mod=mod -modcacherw", GOWORK: "off" },
-    env: project.vendored ? { ...OFFLINE_ENV, GOFLAGS: "-mod=vendor" } : OFFLINE_ENV,
+    // In a go.work workspace (S18.4) the module builds as its workspace builds it: GOWORK set, and
+    // `-mod` only readonly or vendor (Go refuses `-mod=mod` in workspace mode).
+    ...(project.work
+      ? (() => {
+          const gowork = join(sandboxRoot, project.work.file);
+          return {
+            install: ["go", "mod", "download"],
+            installEnv: { GOTOOLCHAIN: "auto", GOFLAGS: "-modcacherw", GOWORK: gowork },
+            env: {
+              ...OFFLINE_ENV,
+              GOWORK: gowork,
+              GOFLAGS: project.work.vendored ? "-mod=vendor" : "-mod=readonly -modcacherw",
+            },
+          };
+        })()
+      : {
+          install: project.vendored ? ["go", "mod", "verify"] : ["go", "mod", "download"],
+          installEnv: { GOTOOLCHAIN: "auto", GOFLAGS: "-mod=mod -modcacherw", GOWORK: "off" },
+          env: project.vendored ? { ...OFFLINE_ENV, GOFLAGS: "-mod=vendor" } : OFFLINE_ENV,
+        }),
     checks,
     provenOffline: true,
     notes,

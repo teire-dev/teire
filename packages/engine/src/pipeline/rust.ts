@@ -53,20 +53,36 @@ export interface RustAssessOptions extends RegistryOptions {
  * A crate's target policy. A version crates.io's index marks yanked is refused even before deps.dev
  * has caught up (it folds yanks into `isDeprecated` some time after the index says so).
  */
-async function rustPolicy(instance: DependencyInstance, options: RustAssessOptions): Promise<TargetPolicy> {
+async function rustPolicy(
+  instance: DependencyInstance,
+  project: RustProject,
+  options: RustAssessOptions,
+): Promise<TargetPolicy> {
   const minutes = (options.cooldownDays ?? REGISTRY.cooldownDays) * 1440;
-  const yanked = new Set(
-    (await cratesIndexLines(instance.name).catch(() => [])).filter((l) => l.yanked).map((l) => l.vers),
-  );
+  const lines = await cratesIndexLines(instance.name).catch(() => []);
+  const yanked = new Set(lines.filter((l) => l.yanked).map((l) => l.vers));
+  const needs = new Map(lines.flatMap((l) => (l.rust_version ? [[l.vers, l.rust_version] as const] : [])));
+  // Where Cargo itself keeps to the MSRV (S18.4), so does the target; elsewhere a target that needs
+  // a newer Rust raises rust-version with it (the co-upgrade, said in the PR).
+  const msrv = project.msrvPolicy === "fallback" ? project.rustVersion : null;
   return {
     now: options.now ?? new Date(),
     minAgeMinutes: () => minutes,
     pins: [],
     allowPrerelease: instance.version ? cargoScheme.isPrerelease(instance.version) : false,
     fallbackMajors: options.fallbackMajors ?? 0,
-    exclude: (version) => (yanked.has(version) ? "yanked on crates.io" : null),
+    exclude: (version) => {
+      if (yanked.has(version)) return "yanked on crates.io";
+      const rust = needs.get(version);
+      if (msrv && rust && cargoScheme.compare(normalRust(rust), normalRust(msrv)) > 0)
+        return `needs Rust ${rust}, above this project's rust-version ${msrv} (its resolver keeps to it)`;
+      return null;
+    },
   };
 }
+
+/** `1.70` → `1.70.0`, so Rust versions compare as semver. */
+const normalRust = (v: string) => (v.split(".").length === 2 ? `${v}.0` : v);
 
 export async function assessRustRepo(repoDir: string, tree: RepoTree, options: RustAssessOptions) {
   const projects = readRustInventory(tree);
@@ -112,7 +128,7 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
       const chosen = chooseTarget(
         info,
         instance.version,
-        withTargetMax(await rustPolicy(instance, options), instance.name, options),
+        withTargetMax(await rustPolicy(instance, project, options), instance.name, options),
         cargoScheme,
       );
       const decision = floor ? beyondRange(chosen, declared.declaredRange as string, cargoScheme) : chosen;
@@ -158,7 +174,7 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
     if (options.advisories !== false)
       assessments.push(
         ...(await securityAssessments(project, "cargo", cargoScheme, options, (instance) =>
-          rustPolicy(instance, options),
+          rustPolicy(instance, project, options),
         )),
       );
   }

@@ -41,6 +41,7 @@ import {
   coverageLines,
   lookupsAnswered,
   newScanCoverage,
+  outcomesOf,
   runtimesOf,
   type ScanCoverage,
 } from "@teire/engine/pipeline";
@@ -443,6 +444,7 @@ export async function assessCheckout(
           : null,
       });
   }
+  outcomesOf(projects, assessments, coverage);
   return { js, py, go, rust, ruby, jvm, projects, assessments, api, runtimes, coverage };
 }
 

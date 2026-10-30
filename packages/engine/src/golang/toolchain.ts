@@ -48,10 +48,17 @@ export async function scratchHome() {
   return mkdtemp(join(tmpdir(), "teire-go-home-"));
 }
 
-export async function runGo(args: string[], cwd: string, home: string, timeoutMs = GO.commandTimeoutMs) {
+export async function runGo(
+  args: string[],
+  cwd: string,
+  home: string,
+  timeoutMs = GO.commandTimeoutMs,
+  /** Over the safe defaults: a workspace's `GOWORK` (S18.4), never credentials. */
+  env: Partial<Record<"GOWORK" | "GOFLAGS", string>> = {},
+) {
   const { stdout, stderr } = await run(goBinary(), args, {
     cwd,
-    env: goEnv(home),
+    env: { ...goEnv(home), ...env },
     timeout: timeoutMs,
     maxBuffer: 256 * 1024 * 1024,
   });
