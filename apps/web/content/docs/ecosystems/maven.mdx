@@ -30,7 +30,7 @@ Versions come from `gradle.lockfile` when you have one, which also gives the tra
 
 japicmp compares the old and new jars' bytecode in two passes, leaving out `internal`, `impl` and `shaded` packages. Kotlin multiplatform libraries are read through their `-jvm` variant. Kotlin's `@Deprecated(level = ERROR or HIDDEN)` counts as removed, with its `replaceWith`.
 
-At scan time your sources are matched through their imports: explicit, wildcard, static and Kotlin `as`. A clean project therefore reads **inconclusive**. During the fix, once your baseline compiles, Teire reads the references out of your **compiled classes**. Those type-level sites replace the textual ones in the PR.
+Your sources are first matched through their imports: explicit, wildcard, static and Kotlin `as`. For a new major, the scan then compiles your project in the JVM sandbox (the dependencies fetched with the network, the compile offline) and reads the references out of your **compiled classes**, exactly as javac and kotlinc resolved them. Those type-level sites replace the textual ones, so an unused removed API reads **not affected**. A source file that uses the library but didn't compile (another source set, an Android variant) is unresolved and keeps the verdict **inconclusive**. Inlined constants and Kotlin `inline` bodies can't be seen in bytecode, so their textual sites stay. The fix reads the classes again after its own compile.
 
 ## How it upgrades
 

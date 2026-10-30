@@ -19,7 +19,9 @@ cargo-semver-checks compares the two published versions. It takes their rustdoc 
 
 Your code is then searched for the changed items. The search covers full and module paths, `use` groups, prelude globs, trait methods in files that import the trait, and removed features in `Cargo.toml`. Comments and strings are blanked first.
 
-This search works on syntax, not types, so a crate you don't use reads **inconclusive** rather than **not affected**. The sandbox then decides.
+For a new major, or an advisory that names functions, Teire then indexes your project with **rust-analyzer** in the Rust sandbox. Build scripts and proc-macros run there, never on Teire's own server. The dependencies are fetched first; the index runs with the network off, after `cargo metadata --offline --locked` proves every dependency is present (rust-analyzer would otherwise drop them quietly). Each reference to the installed version is a **type-resolved** site, so an unused removed item reads **not affected**. A textual match the index doesn't confirm, or a file the index didn't cover that names the crate, stays unresolved and reads **inconclusive**. When the index can't be built, the search stays textual and says so.
+
+A RustSec advisory that names its vulnerable functions is matched the same way: the finding says where they're called, or that they aren't.
 
 ## How it upgrades
 

@@ -34,7 +34,9 @@ For a major, Teire walks the package's bundled `.d.ts` files, or `@types/<name>`
 
 A changed type is an annotation, not a break.
 
-Your code is then type-checked against the installed version. A site counts only where the checker resolves it to the package: a method with the same name on your own class doesn't count.
+Your code is then type-checked against the installed version. A site counts only where the checker resolves it to the package: a method with the same name on your own class doesn't count. Every way your code reaches the package is followed: `import`, re-exports, `import x = require()`, `require()` and `import()`. A reference the checker can't follow (a `require` in a `.ts` file without Node's types, a package name built at runtime) is unresolved, so the verdict stays **inconclusive** instead of claiming the package is unused.
+
+npm and PyPI advisories don't name the vulnerable functions (neither OSV nor GitHub's advisory database carries them for these ecosystems), so an advisory there says **package present**: the vulnerable version is installed, and use can't be ruled out.
 
 ## How it upgrades
 

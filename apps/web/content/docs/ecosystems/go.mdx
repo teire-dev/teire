@@ -33,11 +33,11 @@ A version is never a target when Go itself steers away from it:
 
 ## How breaks are found
 
-apidiff compares the two versions' exported API and ignores the noise of the `/vN` path. A trailing `...Option` parameter added to a function is an annotation, not a break. Teire's helper then loads your packages with go/types and records every use of a changed object, resolved by type.
+apidiff compares the two versions' exported API and ignores the noise of the `/vN` path. A trailing `...Option` parameter added to a function is an annotation, not a break. Teire's helper then loads your packages with go/types and records every use of a changed object, resolved by type. Code that didn't type-check has no resolved uses, so it never counts as "unused": a reference the checker couldn't resolve, and every package that failed to load while importing the module, keep the verdict **inconclusive**.
 
 A fix that exists only as a commit (the advisory's fix is a pseudo-version, with no tagged release after it) is still a target, if the proxy serves that commit. dependabot-core's updater is asked first. Its Go finder lists tagged releases only, so when it can't reach the commit, Teire moves the module there with `go get module@<pseudo-version>`. Only if both refuse does a person get an issue.
 
-For advisories, govulncheck decides. If your code **calls** the vulnerable function, the finding is **affected**, with the call site. If the module is only imported or required, it is **not affected**, and the report says how far govulncheck could see.
+For advisories, govulncheck decides. If your code **calls** the vulnerable function, the finding is **affected**, with the call site. If the module is only imported or required, it is **not affected**, and the report says how far govulncheck could see; your tests aren't part of that analysis.
 
 ## How it upgrades
 
