@@ -3,7 +3,7 @@
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.png" />
       <source media="(prefers-color-scheme: light)" srcset=".github/assets/banner-light.png" />
-      <img src=".github/assets/banner-dark.png" width="960" alt="Teire 手入れ. When upstream breaks, Teire fixes your code. Found, fixed by Nemotron, proven by your own tests. Beside it, the live run of a real Teire fix: zod 3.25.76 to 4.6.6 in teire-dev/examples, PR #30, proven with typecheck and 4 of 4 tests passing before and after." />
+      <img src=".github/assets/banner-dark.png" width="960" alt="Teire 手入れ. When upstream breaks, Teire fixes your code. Dependabot bumps the version; Teire fixes the code it breaks and proves it with your own tests. Beside it, the live run of a real Teire fix: zod 3.25.76 to 4.6.6 in teire-dev/examples, PR #30, proven with typecheck and 4 of 4 tests passing before and after." />
     </picture>
   </a>
 </p>
@@ -84,7 +84,13 @@ Groq shut down `llama-3.1-8b-instant` and `llama-3.3-70b-versatile` on 2026-08-1
 5. **Pull request.** Evidence `verified` means a ready PR that opens with **Verified.** This run is from Teire's evaluation, through the same code path an installed repository takes; PRs on real installed repositories are linked under Proof as they open.
 
 <p align="center">
-  <img src=".github/assets/captures/report-wrapped-models-desktop.png" width="960" alt="Public report for teire-dev/examples/wrapped-models: 2 changes reaching this code, the Llama shutdown on 2026-08-16 at src/models.ts:7 and :9 with a Dry-run a fix button, and a Node.js 20 end-of-life notice." />
+  <a href="https://teire.vercel.app/providers/groq-com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/captures/groq-dark.png" />
+      <source media="(prefers-color-scheme: light)" srcset=".github/assets/captures/groq-light.png" />
+      <img src=".github/assets/captures/groq-light.png" width="960" alt="Groq's provider page on teire.vercel.app: discovered in code, its three pages read by Nemotron with every quote checked, 43 changes, the pages it watches with their status, and the retirement timeline." />
+    </picture>
+  </a>
 </p>
 
 Every model fix and every package fix follows the same loop. The [Go major](https://teire.vercel.app/docs/guide/anatomy-of-a-pr) (`golang-jwt/jwt` v4 → v5) is a second worked example: the agent moved `StandardClaims` to `RegisteredClaims` and the expiry check to `errors.Is(err, jwt.ErrTokenExpired)`, then verified 4/4 for $0.181.
@@ -97,6 +103,21 @@ Every model fix and every package fix follows the same loop. The [Go major](http
   </a>
 </p>
 <p align="center"><a href="https://teire.vercel.app/demo"><b>Watch the 2:50 demo</b></a> · <a href="https://youtu.be/s3VyWZnEVqc">youtu.be/s3VyWZnEVqc</a></p>
+
+### See it
+
+Every claim is one click from its proof. These are live pages; open any of them.
+
+<table>
+<tr>
+<td width="50%" valign="top"><a href="https://teire.vercel.app/runs/d1b0c4d8-a46e-4e9d-b057-30b6d12be23b?tile=code"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/captures/run-dark.png" /><img src=".github/assets/captures/run-light.png" alt="The zod 3.25.76 to 4.6.6 run behind PR #30: the run as tiles and, for Your code, where zod is declared and the lines the fix had to change, each linked at the commit the run read." /></picture></a><br /><sub><b>Your code, as lines.</b> The zod run behind PR #30: where it's declared and the lines the fix changed, linked at the commit it read.</sub></td>
+<td width="50%" valign="top"><a href="https://teire.vercel.app/runs/d1b0c4d8-a46e-4e9d-b057-30b6d12be23b"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/captures/run-pr-dark.png" /><img src=".github/assets/captures/run-pr-light.png" alt="The same run's PR tab: why this repo, what changed upstream quoted with each source, the commits between the versions, the changes, verification and receipt." /></picture></a><br /><sub><b>The PR, as its text.</b> Why this repo, what changed upstream (quoted and linked), the checks before and after, the receipt.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="https://teire.vercel.app/scan/1cd512ab-1426-4c3f-913b-4345f8605692"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/captures/report-dark.png" /><img src=".github/assets/captures/report-light.png" alt="gin-gonic/gin's public report: 32 Go dependencies read, one advisory reaching the code, quoted with its osv.dev link and traced to gin.go:806 and render/json.go:187." /></picture></a><br /><sub><b>A public scan.</b> gin-gonic/gin: an advisory traced to the two lines that call it, with its source.</sub></td>
+<td width="50%" valign="top"><a href="https://teire.vercel.app/app"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/captures/dashboard-dark.png" /><img src=".github/assets/captures/dashboard-light.png" alt="The dashboard Overview: ready to merge, needs you, open pull requests and reaching your code, then the estate: changes, repositories and outcomes as one flow." /></picture></a><br /><sub><b>The dashboard.</b> Every change, repository and pull request as one estate.</sub></td>
+</tr>
+</table>
 
 Follow the proof yourself on [teire.vercel.app](https://teire.vercel.app):
 1. **Scan.** On [/scan](https://teire.vercel.app/scan), sign in with GitHub and paste `teire-dev/examples`. In a few minutes the report shows every example's findings; among them, OpenAI's `gpt-4.1-nano` shutdown reaching `ai-web/src/summarize.ts:13`.

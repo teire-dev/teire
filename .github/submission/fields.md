@@ -42,8 +42,8 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
 | 2 | `captures/report-wrapped-models-desktop.png` | Public scan: Groq retired two Llama models; Nemotron traced the IDs through a tier registry to the request. |
 | 3 | `captures/dryrun-go-timeline-desktop.png` | Live run: Teire upgrades golang-jwt v4 to v5; checks fail, then Nemotron 3 Ultra edits until they pass. |
 | 4 | `captures/dryrun-go-pr-desktop.png` | The pull request Teire composed: upstream change, code changes, verification, and model receipt. |
-| 5 | `captures/dryrun-go-verification-desktop.png` | Build, typecheck and 4 of 4 tests pass before and after the Go fix on Cloudflare Containers. |
-| 6 | `captures/dryrun-go-receipt-desktop.png` | Every Nemotron call on Token Factory, with tokens and $0.1807 model cost for this captured run. |
+| 5 | `captures/dryrun-go-verification-desktop.png` | Build, typecheck and 4 of 4 tests pass before and after the Go fix on Token Factory Sandboxes. |
+| 6 | `captures/dryrun-go-receipt-desktop.png` | Every Nemotron call on Token Factory, with tokens and $0.1242 model cost for this run. |
 | 7 | `model-retirement-dark.png` | The model retirement journey, numbered, with the real values from the Groq run. |
 | 8 | `fix-loop-dark.png` | The fix loop: deterministic change and checks first, then Nemotron tools and repeated checks, final review, and an evidence-gated PR. |
 | 9 | `system-light.png` | The system: GitHub, web app, Postgres outbox, worker, Nemotron on Token Factory, dependency sources, and verification backends. |

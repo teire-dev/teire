@@ -84,6 +84,9 @@ describe("maskSecrets (run page output)", () => {
       "token.go:22`](https://github.com",
     );
     expect(maskSecrets("token: 12345abcdef")).toBe("token: ***");
+    expect(maskSecrets("**go-major/auth/token.go:** two edits")).toBe(
+      "**go-major/auth/token.go:** two edits",
+    );
     expect(out).toContain("src/auth.ts:40-42");
     expect(out).toContain("lib/session_id.rb:7:3");
     expect(out).toContain("AUTH_TOKEN: ***");

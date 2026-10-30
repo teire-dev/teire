@@ -57,7 +57,8 @@ export function maskSecrets(text: string): string {
       .replace(
         /\b([\w.-]*(?:token|secret|passw(?:or)?d|pwd|api[_-]?key|access[_-]?key|private[_-]?key|auth(?:orization)?|credential|cookie|session[_-]?id|signature)[\w.-]*["']?[ \t]*[=:][ \t]*["']?)(?!\*\*\*)([^\s"',;&]+)/gi,
         (match, name: string, value: string) =>
-          FILE_LINE.test(name) && LINE.test(value) ? match : `${name}***`,
+          // A file and its line, or a file label in markdown (`**auth/token.go:**`), hides nothing.
+          FILE_LINE.test(name) && (LINE.test(value) || !/[A-Za-z0-9]/.test(value)) ? match : `${name}***`,
       )
       .replace(/\b(?:sk|pk|rk|nvapi|xox[abp])[-_][A-Za-z0-9_-]{16,}\b/g, "***")
       .replace(/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, "***")
