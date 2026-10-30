@@ -22,6 +22,11 @@ export interface JvmModule {
   dir: string;
   manifest: string;
   lockfile: string | null;
+  /**
+   * Maven: where versions this module doesn't state come from outside the repo (D-28), in Maven's
+   * order: the parent POM it inherits, then the BOMs its POMs import (`group:artifact:version`).
+   */
+  remote?: { parent: string | null; imports: string[]; props: Record<string, string> };
 }
 
 export interface JvmProject {
@@ -40,7 +45,9 @@ export interface JvmProject {
 
 const xml = new XMLParser({ ignoreAttributes: true, parseTagValue: false, trimValues: true });
 const asArray = <T>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
-const VERSION = /^[0-9][0-9A-Za-z.+_-]*$/;
+/** A POM list element that may be one item or several. */
+export const asPomArray = asArray;
+export const VERSION = /^[0-9][0-9A-Za-z.+_-]*$/;
 
 interface PomDep {
   groupId?: string;
@@ -50,7 +57,22 @@ interface PomDep {
   optional?: string;
   type?: string;
 }
-interface Pom {
+interface PomPlugin {
+  groupId?: string;
+  artifactId?: string;
+  version?: string;
+}
+interface PomBuild {
+  plugins?: { plugin?: PomPlugin | PomPlugin[] };
+  pluginManagement?: { plugins?: { plugin?: PomPlugin | PomPlugin[] } };
+  extensions?: { extension?: PomPlugin | PomPlugin[] };
+}
+interface PomProfile {
+  id?: string;
+  dependencies?: { dependency?: PomDep | PomDep[] };
+  build?: PomBuild;
+}
+export interface Pom {
   parent?: { groupId?: string; artifactId?: string; version?: string; relativePath?: string };
   groupId?: string;
   artifactId?: string;
@@ -59,16 +81,27 @@ interface Pom {
   properties?: Record<string, string>;
   dependencyManagement?: { dependencies?: { dependency?: PomDep | PomDep[] } };
   dependencies?: { dependency?: PomDep | PomDep[] };
+  build?: PomBuild;
+  profiles?: { profile?: PomProfile | PomProfile[] };
 }
 
-function readPom(tree: RepoTree, path: string): Pom | null {
-  const text = tree.read(path);
-  if (text === null) return null;
+/** A POM's text as the model Teire reads (also for POMs fetched from a repository, D-28). */
+export function parsePom(text: string): Pom | null {
   try {
     return ((xml.parse(text) as { project?: Pom }).project ?? null) as Pom | null;
   } catch {
     return null;
   }
+}
+
+/** Maven's default plugin group, when a `<plugin>` names none. */
+export const MAVEN_PLUGIN_GROUP = "org.apache.maven.plugins";
+/** A BOM import: `<type>pom</type><scope>import</scope>` in `<dependencyManagement>`. */
+export const isBomImport = (d: PomDep) => d.scope === "import" && (d.type ?? "jar") === "pom";
+
+function readPom(tree: RepoTree, path: string): Pom | null {
+  const text = tree.read(path);
+  return text === null ? null : parsePom(text);
 }
 
 function scopeOf(scope: string | undefined, optional: string | undefined): DependencyInstance["scope"] {
@@ -83,17 +116,27 @@ interface PomContext {
   pom: Pom | null;
   props: Record<string, string>;
   managed: Map<string, string>;
+  /** Plugin versions from local `<pluginManagement>` sections. */
+  managedPlugins: Map<string, string>;
   /** A parent POM the repo does not contain (its properties and managed versions are unknown). */
   external: boolean;
+  /** That parent's coordinate, `group:artifact:version`, when its version is stated. */
+  externalParent: string | null;
+  /** BOMs this POM and its local parents import, nearest first. */
+  imports: string[];
 }
 
 function pomContext(tree: RepoTree, path: string, seen = new Set<string>()): PomContext {
   const pom = readPom(tree, path);
   const props: Record<string, string> = {};
   const managed = new Map<string, string>();
-  if (!pom || seen.has(path)) return { pom, props, managed, external: false };
+  const managedPlugins = new Map<string, string>();
+  const empty = { pom, props, managed, managedPlugins, external: false, externalParent: null, imports: [] };
+  if (!pom || seen.has(path)) return empty;
   seen.add(path);
   let external = false;
+  let externalParent: string | null = null;
+  let inherited: string[] = [];
   if (pom.parent) {
     const rel = typeof pom.parent.relativePath === "string" ? pom.parent.relativePath : "../pom.xml";
     const parentPath = normalize(join(dirname(path), rel.endsWith(".xml") ? rel : join(rel, "pom.xml")));
@@ -101,21 +144,38 @@ function pomContext(tree: RepoTree, path: string, seen = new Set<string>()): Pom
       const up = pomContext(tree, parentPath, seen);
       Object.assign(props, up.props);
       for (const [k, v] of up.managed) managed.set(k, v);
+      for (const [k, v] of up.managedPlugins) managedPlugins.set(k, v);
       external = up.external;
-    } else external = true;
+      externalParent = up.externalParent;
+      inherited = up.imports;
+    } else {
+      external = true;
+      const { groupId, artifactId, version } = pom.parent;
+      externalParent = groupId && artifactId && version ? `${groupId}:${artifactId}:${version}` : null;
+    }
   }
   for (const [k, v] of Object.entries(pom.properties ?? {})) props[k] = String(v);
   const version = pom.version ?? pom.parent?.version;
   if (version) Object.assign(props, { "project.version": version, version, "pom.version": version });
-  const interpolate = (s: string) =>
-    s.replace(/\$\{([^}]+)\}/g, (m, k: string) => (props[k] !== undefined ? props[k] : m));
-  for (const d of asArray(pom.dependencyManagement?.dependencies?.dependency))
-    if (d.groupId && d.artifactId && d.version && d.scope !== "import")
-      managed.set(`${interpolate(d.groupId)}:${interpolate(d.artifactId)}`, interpolate(d.version));
-  return { pom, props, managed, external };
+  const interpolate = (s: string) => interpolateWith(props, s);
+  const own: string[] = [];
+  for (const d of asArray(pom.dependencyManagement?.dependencies?.dependency)) {
+    if (!d.groupId || !d.artifactId || !d.version) continue;
+    if (isBomImport(d))
+      own.push(`${interpolate(d.groupId)}:${interpolate(d.artifactId)}:${interpolate(d.version)}`);
+    else managed.set(`${interpolate(d.groupId)}:${interpolate(d.artifactId)}`, interpolate(d.version));
+  }
+  for (const pl of asArray(pom.build?.pluginManagement?.plugins?.plugin))
+    if (pl.artifactId && pl.version)
+      managedPlugins.set(
+        `${interpolate(pl.groupId ?? MAVEN_PLUGIN_GROUP)}:${interpolate(pl.artifactId)}`,
+        interpolate(pl.version),
+      );
+  // Inheritance comes before import, so the parents' imports follow this POM's own (Maven's model).
+  return { pom, props, managed, managedPlugins, external, externalParent, imports: [...own, ...inherited] };
 }
 
-function interpolateWith(props: Record<string, string>, s: string, depth = 0): string {
+export function interpolateWith(props: Record<string, string>, s: string, depth = 0): string {
   const out = s.replace(/\$\{([^}]+)\}/g, (m, k: string) => (props[k] !== undefined ? props[k] : m));
   return out !== s && depth < 5 && out.includes("${") ? interpolateWith(props, out, depth + 1) : out;
 }
@@ -146,34 +206,140 @@ function readMaven(tree: RepoTree): JvmProject[] {
     const instances: DependencyInstance[] = [];
     for (const mod of modules) {
       const ctx = pomContext(tree, mod.manifest);
-      if (ctx.external)
-        notes.push(`${mod.manifest}: parent POM outside the repo (its managed versions are not read)`);
-      for (const d of asArray(ctx.pom?.dependencies?.dependency)) {
-        if (!d.groupId || !d.artifactId) continue;
-        const name = `${interpolateWith(ctx.props, d.groupId)}:${interpolateWith(ctx.props, d.artifactId)}`;
-        const raw = d.version ?? ctx.managed.get(name);
-        const version = raw ? interpolateWith(ctx.props, raw) : null;
+      const pom = ctx.pom;
+      if (ctx.external || ctx.imports.length)
+        mod.remote = {
+          parent: ctx.external ? ctx.externalParent : null,
+          imports: ctx.imports,
+          props: ctx.props,
+        };
+      const add = (
+        groupId: string,
+        artifactId: string,
+        raw: string | undefined,
+        fields: { scope: DependencyInstance["scope"]; role?: DependencyInstance["role"]; managed?: string },
+        manifestPath = mod.manifest,
+      ) => {
+        const name = `${interpolateWith(ctx.props, groupId)}:${interpolateWith(ctx.props, artifactId)}`;
+        const stated = raw ?? fields.managed;
+        const version = stated ? interpolateWith(ctx.props, stated) : null;
         const exact = version && VERSION.test(version) ? version : null;
-        const reason = !raw
-          ? "version managed outside the repo (remote parent or imported BOM)"
+        const reason = !stated
+          ? fields.role === "plugin"
+            ? "no version in the repo: the parent POM or Maven's own defaults set it"
+            : "version managed outside the repo (remote parent or imported BOM)"
           : !exact
-            ? `version "${raw}" is not a literal version or a property defined in the repo`
+            ? `version "${stated}" is not a literal version or a property defined in the repo`
             : undefined;
         const parsed = dependencyInstance.safeParse({
           ecosystem: "maven",
           name,
           version: exact,
-          ...(d.version ? { declaredRange: d.version } : {}),
+          ...(raw ? { declaredRange: raw } : {}),
           direct: true,
-          scope: scopeOf(d.scope, d.optional),
+          scope: fields.scope,
           workspace: mod.dir,
-          manifestPath: mod.manifest,
+          manifestPath,
           source: "registry",
           resolvedBy: exact ? "toolchain" : "unresolved",
+          ...(fields.role ? { role: fields.role } : {}),
           ...(reason ? { unresolvedReason: reason } : {}),
         });
-        if (parsed.success) instances.push(parsed.data);
+        if (parsed.success && !instances.some((i) => i.name === name && i.workspace === mod.dir))
+          instances.push(parsed.data);
+      };
+      // Dependencies, the module's own and each profile's (a profile's apply when it is active).
+      const profiles = asArray(pom?.profiles?.profile);
+      for (const d of [
+        ...asArray(pom?.dependencies?.dependency),
+        ...profiles.flatMap((pr) => asArray(pr.dependencies?.dependency)),
+      ])
+        if (d.groupId && d.artifactId)
+          add(d.groupId, d.artifactId, d.version, {
+            scope: scopeOf(d.scope, d.optional),
+            managed: ctx.managed.get(
+              `${interpolateWith(ctx.props, d.groupId)}:${interpolateWith(ctx.props, d.artifactId)}`,
+            ),
+          });
+      // The parent this module inherits from outside the repo, and the BOMs its own POM imports (S18.3).
+      if (pom?.parent && ctx.external && pom.parent.groupId && pom.parent.artifactId)
+        add(pom.parent.groupId, pom.parent.artifactId, pom.parent.version, {
+          scope: "build",
+          role: "parent",
+        });
+      for (const d of asArray(pom?.dependencyManagement?.dependencies?.dependency))
+        if (isBomImport(d) && d.groupId && d.artifactId)
+          add(d.groupId, d.artifactId, d.version, { scope: "build", role: "bom" });
+      // Plugins and build extensions, with their managed versions where the repo states them.
+      const builds = [pom?.build, ...profiles.map((pr) => pr.build)];
+      for (const b of builds)
+        for (const pl of [...asArray(b?.plugins?.plugin), ...asArray(b?.pluginManagement?.plugins?.plugin)])
+          if (pl.artifactId) {
+            const groupId = pl.groupId ?? MAVEN_PLUGIN_GROUP;
+            add(groupId, pl.artifactId, pl.version, {
+              scope: "build",
+              role: "plugin",
+              managed: ctx.managedPlugins.get(
+                `${interpolateWith(ctx.props, groupId)}:${interpolateWith(ctx.props, pl.artifactId)}`,
+              ),
+            });
+          }
+      for (const b of builds)
+        for (const ex of asArray(b?.extensions?.extension))
+          if (ex.groupId && ex.artifactId)
+            add(ex.groupId, ex.artifactId, ex.version, { scope: "build", role: "extension" });
+      if (ctx.external && !ctx.externalParent)
+        notes.push(`${mod.manifest}: parent POM outside the repo with no version stated`);
+    }
+    // Core extensions (`.mvn/extensions.xml`, D-29) and the Maven wrapper's distribution, once per build.
+    const at = (p: string) => (root === "." ? p : join(root, p));
+    const top = modules[0];
+    const extensions = tree.read(at(".mvn/extensions.xml"));
+    if (top && extensions) {
+      try {
+        const doc = xml.parse(extensions) as { extensions?: { extension?: PomPlugin | PomPlugin[] } };
+        for (const ex of asArray(doc.extensions?.extension)) {
+          if (!ex.groupId || !ex.artifactId) continue;
+          const exact = ex.version && VERSION.test(ex.version) ? ex.version : null;
+          const parsed = dependencyInstance.safeParse({
+            ecosystem: "maven",
+            name: `${ex.groupId}:${ex.artifactId}`,
+            version: exact,
+            ...(ex.version ? { declaredRange: ex.version } : {}),
+            direct: true,
+            scope: "build",
+            workspace: top.dir,
+            manifestPath: at(".mvn/extensions.xml"),
+            source: "registry",
+            resolvedBy: exact ? "toolchain" : "unresolved",
+            role: "extension",
+            ...(exact ? {} : { unresolvedReason: "no literal version in .mvn/extensions.xml" }),
+          });
+          if (parsed.success) instances.push(parsed.data);
+        }
+      } catch (error) {
+        notes.push(`.mvn/extensions.xml: ${error instanceof Error ? error.message : String(error)}`);
       }
+    }
+    const wrapperPath = at(".mvn/wrapper/maven-wrapper.properties");
+    const maven = /^distributionUrl=.*\/apache-maven\/([^/\s]+)\/apache-maven-[^/\s]+\.zip\s*$/m.exec(
+      tree.read(wrapperPath) ?? "",
+    )?.[1];
+    if (top && maven) {
+      const parsed = dependencyInstance.safeParse({
+        ecosystem: "maven",
+        name: "org.apache.maven:apache-maven",
+        version: VERSION.test(maven) ? maven : null,
+        declaredRange: maven,
+        direct: true,
+        scope: "build",
+        workspace: top.dir,
+        manifestPath: wrapperPath,
+        source: "registry",
+        resolvedBy: VERSION.test(maven) ? "toolchain" : "unresolved",
+        role: "wrapper",
+      });
+      if (parsed.success) instances.push(parsed.data);
     }
     notes.push("Maven has no lockfile: transitive versions are resolved in the sandbox (dependency:tree)");
     projects.push({
@@ -312,7 +478,41 @@ export function readCatalog(text: string): Catalog {
  * or a catalog accessor; calls that take other strings are left out by name.
  */
 const GRADLE_CONFIG =
-  /\b([a-zA-Z]\w*)\b\s*\(?\s*(?:(?:platform|enforcedPlatform)\s*\(\s*)?(?:"([\w.-]+:[\w.-]+(?::[^"$:]*)?)"|'([\w.-]+:[\w.-]+(?::[^'$:]*)?)'|(libs\.[\w.]+))/g;
+  /\b([a-zA-Z]\w*)\b\s*\(?\s*(?:(platform|enforcedPlatform)\s*\(\s*)?(?:"([\w.-]+:[\w.-]+(?::(?:\$\{?\w+\}?|[^"$:]*))?)"|'([\w.-]+:[\w.-]+(?::(?:\$\{?\w+\}?|[^'$:]*))?)'|(libs\.[\w.]+))/g;
+/** Map notation (S18.3): Groovy `implementation group: 'g', name: 'a', version: 'v'`, Kotlin `(group = …)`. */
+const GRADLE_MAP =
+  /\b([a-zA-Z]\w*)\b\s*\(?\s*group\s*[:=]\s*["']([\w.-]+)["']\s*,\s*name\s*[:=]\s*["']([\w.-]+)["'](?:\s*,\s*version\s*[:=]\s*["']([^"']+)["'])?/g;
+
+/**
+ * Version variables a Gradle build defines (S18.3): `gradle.properties`, Kotlin `val x = "1.2"`,
+ * Groovy `def x = '1.2'`, `ext.x = '1.2'`, an `ext { x = '1.2' }` block, `extra["x"] = "1.2"`,
+ * `val x by extra("1.2")` and `set("x", "1.2")`. Computed values are not variables.
+ */
+export function gradleVariables(texts: string[], properties: string | null) {
+  const out = new Map<string, string>();
+  for (const line of (properties ?? "").split("\n")) {
+    const m = /^\s*([\w.-]+)\s*[=:]\s*([^\s#]+)\s*$/.exec(line);
+    if (m?.[1] && m[2]) out.set(m[1], m[2]);
+  }
+  const literal = `["']([^"'$\\n]+)["']`;
+  const patterns = [
+    new RegExp(`^\\s*(?:val|var|def|String)\\s+(\\w+)\\s*(?::\\s*String\\s*)?=\\s*${literal}`, "gm"),
+    new RegExp(`\\bext\\.(\\w+)\\s*=\\s*${literal}`, "g"),
+    new RegExp(`\\bextra\\[\\s*["'](\\w+)["']\\s*\\]\\s*=\\s*${literal}`, "g"),
+    new RegExp(`\\bval\\s+(\\w+)\\s+by\\s+extra\\(\\s*${literal}\\s*\\)`, "g"),
+    new RegExp(`\\bset\\(\\s*["'](\\w+)["']\\s*,\\s*${literal}\\s*\\)`, "g"),
+  ];
+  for (const text of texts) {
+    for (const re of patterns) for (const m of text.matchAll(re)) if (m[1] && m[2]) out.set(m[1], m[2]);
+    for (const block of text.matchAll(/\bext\s*\{([\s\S]*?)\}/g))
+      for (const m of (block[1] ?? "").matchAll(new RegExp(`^\\s*(\\w+)\\s*=\\s*${literal}`, "gm")))
+        if (m[1] && m[2]) out.set(m[1], m[2]);
+  }
+  return out;
+}
+
+/** `"$kotlinVersion"` / `"${kotlin_version}"` → the variable's name. */
+const gradleVariable = (version: string) => /^\$\{?(\w+)\}?$/.exec(version)?.[1] ?? null;
 const NOT_A_CONFIGURATION = new Set([
   "id",
   "alias",
@@ -357,9 +557,7 @@ function readGradle(tree: RepoTree): JvmProject[] {
   const settingsFiles = tree
     .files()
     .filter(
-      (f) =>
-        /(?:^|\/)settings\.gradle(?:\.kts)?$/.test(f) &&
-        !/(?:^|\/)(?:buildSrc|build-logic|node_modules)\//.test(f),
+      (f) => /(?:^|\/)settings\.gradle(?:\.kts)?$/.test(f) && !/(?:^|\/)(?:buildSrc|node_modules)\//.test(f),
     );
   const roots = settingsFiles.length
     ? settingsFiles.map((s) => ({ root: dirname(s), settings: s }))
@@ -367,10 +565,22 @@ function readGradle(tree: RepoTree): JvmProject[] {
         .files()
         .filter((f) => /^build\.gradle(?:\.kts)?$/.test(f))
         .map((f) => ({ root: ".", settings: f }));
+  // An included build (`includeBuild("build-logic")`) is a build of its own; one without its own
+  // settings file is read from its build file (S18.3).
+  for (const { root, settings } of [...roots]) {
+    for (const m of (tree.read(settings) ?? "").matchAll(/\bincludeBuild\s*\(?\s*["']([^"']+)["']/g)) {
+      const dir = normalize(join(root, (m[1] as string).replace(/\/$/, "")));
+      if (dir.startsWith("..") || roots.some((r) => r.root === dir)) continue;
+      const build = [join(dir, "build.gradle.kts"), join(dir, "build.gradle")].find(
+        (f) => tree.read(f) !== null,
+      );
+      if (build) roots.push({ root: dir, settings: build });
+    }
+  }
   const projects: JvmProject[] = [];
   for (const { root, settings } of roots) {
     const at = (p: string) => (root === "." ? p : join(root, p));
-    const settingsText = tree.read(settings) ?? "";
+    const settingsText = /settings\.gradle(?:\.kts)?$/.test(settings) ? (tree.read(settings) ?? "") : "";
     const projectPaths = [":", ...gradleIncludes(settingsText)];
     const projectDirs = gradleProjectDirs(settingsText);
     const catalogPath = at("gradle/libs.versions.toml");
@@ -384,19 +594,43 @@ function readGradle(tree: RepoTree): JvmProject[] {
     }
     const modules: JvmModule[] = [];
     const instances: DependencyInstance[] = [];
+    const builds: { p: string; dir: string; manifest: string }[] = [];
     for (const p of projectPaths) {
       const moved = projectDirs.get(p);
       const dir = p === ":" ? root : moved ? at(moved) : at(p.slice(1).replace(/:/g, "/"));
       const manifest = [join(dir, "build.gradle.kts"), join(dir, "build.gradle")].find(
         (f) => tree.read(f) !== null,
       );
-      if (!manifest) continue;
+      if (manifest) builds.push({ p, dir, manifest });
+    }
+    // buildSrc (S18.3): its build file and the convention plugins under src/main, whose
+    // `dependencies` apply to the projects that use them.
+    const buildSrc = at("buildSrc");
+    for (const manifest of tree.files()) {
+      const own =
+        manifest === join(buildSrc, "build.gradle.kts") || manifest === join(buildSrc, "build.gradle");
+      const convention = manifest.startsWith(`${buildSrc}/src/main/`) && /\.gradle(?:\.kts)?$/.test(manifest);
+      if (own || convention)
+        builds.push({
+          p: own ? ":buildSrc" : `:buildSrc:${manifest.slice(manifest.lastIndexOf("/") + 1)}`,
+          dir: buildSrc,
+          manifest,
+        });
+    }
+    const variables = gradleVariables(
+      builds.map((b) => tree.read(b.manifest) ?? ""),
+      tree.read(at("gradle.properties")),
+    );
+    for (const { p, dir, manifest } of builds) {
       const lockPath = join(dir, "gradle.lockfile");
-      const lockText = tree.read(lockPath);
+      const lockText = p.startsWith(":buildSrc:") ? null : tree.read(lockPath);
       modules.push({ name: p, dir, manifest, lockfile: lockText !== null ? lockPath : null });
       const text = tree.read(manifest) ?? "";
       const locked = lockText !== null ? parseGradleLockfile(lockText) : null;
-      const declared = new Map<string, { version: string | null; config: string; declaredAs: string }>();
+      const declared = new Map<
+        string,
+        { version: string | null; config: string; declaredAs: string; bom?: boolean }
+      >();
       // Plugins (S18.1): `id 'x' version 'y'`, `id("x") version "y"` and catalog aliases, as their
       // marker coordinate `x:x.gradle.plugin`, which is how Gradle and Dependabot resolve them.
       for (const m of text.matchAll(GRADLE_PLUGIN)) {
@@ -419,14 +653,24 @@ function readGradle(tree: RepoTree): JvmProject[] {
       for (const m of text.matchAll(GRADLE_CONFIG)) {
         const config = m[1] as string;
         if (NOT_A_CONFIGURATION.has(config)) continue;
-        const notation = m[2] ?? m[3];
+        const bom = Boolean(m[2]);
+        const notation = m[3] ?? m[4];
         if (notation) {
           const [g, a, v] = notation.split(":");
-          if (g && a) declared.set(`${g}:${a}`, { version: v ?? null, config, declaredAs: notation });
-        } else if (m[4] && catalog) {
-          const lib = catalog.libraries.get(m[4].slice(5));
-          if (lib) declared.set(lib.module, { version: lib.version, config, declaredAs: m[4] });
+          if (g && a) declared.set(`${g}:${a}`, { version: v || null, config, declaredAs: notation, bom });
+        } else if (m[5] && catalog) {
+          const lib = catalog.libraries.get(m[5].slice(5));
+          if (lib) declared.set(lib.module, { version: lib.version, config, declaredAs: m[5], bom });
         }
+      }
+      for (const m of text.matchAll(GRADLE_MAP)) {
+        const config = m[1] as string;
+        if (NOT_A_CONFIGURATION.has(config) || !m[2] || !m[3]) continue;
+        declared.set(`${m[2]}:${m[3]}`, {
+          version: m[4] ?? null,
+          config,
+          declaredAs: `group: ${m[2]}, name: ${m[3]}`,
+        });
       }
       const lockedVersion = (name: string, test: boolean) =>
         locked
@@ -439,7 +683,9 @@ function readGradle(tree: RepoTree): JvmProject[] {
       for (const [name, d] of declared) {
         const test = /^(test|androidTest)/.test(d.config);
         const fromLock = locked ? (lockedVersion(name, test) ?? lockedVersion(name, !test)) : null;
-        const literal = d.version && VERSION.test(d.version) ? d.version : null;
+        const variable = d.version ? gradleVariable(d.version) : null;
+        const stated = variable ? (variables.get(variable) ?? null) : d.version;
+        const literal = stated && VERSION.test(stated) ? stated : null;
         const version = fromLock ?? literal;
         const parsed = dependencyInstance.safeParse({
           ecosystem: "maven",
@@ -459,11 +705,14 @@ function readGradle(tree: RepoTree): JvmProject[] {
           ...(locked ? { lockfilePath: lockPath } : {}),
           source: "registry",
           resolvedBy: fromLock ? "lockfile" : literal ? "toolchain" : "unresolved",
+          ...(d.config === "plugin" ? { role: "plugin" } : d.bom ? { role: "bom" } : {}),
           ...(!version
             ? {
-                unresolvedReason: d.version
-                  ? `version "${d.version}" is not a literal version`
-                  : "no version in the build file (a platform/BOM or plugin sets it)",
+                unresolvedReason: variable
+                  ? `version variable ${variable} is not defined as a literal in the build`
+                  : d.version
+                    ? `version "${d.version}" is not a literal version`
+                    : "no version in the build file (a platform/BOM or plugin sets it)",
               }
             : {}),
         });
@@ -490,6 +739,28 @@ function readGradle(tree: RepoTree): JvmProject[] {
         if (parsed.success) instances.push(parsed.data);
       }
     }
+    // The Gradle wrapper as a candidate of its own (D-30): its versions come from services.gradle.org.
+    const wrapperPath = at("gradle/wrapper/gradle-wrapper.properties");
+    const gradle = /^distributionUrl=.*gradle-(\d+(?:\.\d+)*(?:-rc-\d+)?)-(?:bin|all)\.zip\s*$/m.exec(
+      tree.read(wrapperPath) ?? "",
+    )?.[1];
+    const first = modules[0];
+    if (gradle && first) {
+      const parsed = dependencyInstance.safeParse({
+        ecosystem: "maven",
+        name: GRADLE_WRAPPER,
+        version: gradle,
+        declaredRange: gradle,
+        direct: true,
+        scope: "build",
+        workspace: first.name,
+        manifestPath: wrapperPath,
+        source: "registry",
+        resolvedBy: "toolchain",
+        role: "wrapper",
+      });
+      if (parsed.success) instances.push(parsed.data);
+    }
     if (!modules.some((m) => m.lockfile))
       notes.push("no gradle.lockfile: declared versions are the floor (conflict resolution can raise them)");
     projects.push({
@@ -506,6 +777,9 @@ function readGradle(tree: RepoTree): JvmProject[] {
   }
   return projects;
 }
+
+/** The Gradle wrapper's name as a dependency (Dependabot's own name for it). */
+export const GRADLE_WRAPPER = "gradle-wrapper";
 
 export function readJvmInventory(tree: RepoTree): JvmProject[] {
   return [...readMaven(tree), ...readGradle(tree)];

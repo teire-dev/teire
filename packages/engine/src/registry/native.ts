@@ -1,6 +1,7 @@
 import { sha256 } from "../catalog/source";
 import { GO, REGISTRY } from "../constants";
 import type { Ecosystem } from "../contract";
+import { GRADLE_WRAPPER } from "../inventory/jvm";
 import { guardedFetch } from "../net/fetch";
 import { cratesIndexLines } from "./cargo";
 import { escapeModulePath } from "./go";
@@ -27,7 +28,7 @@ export async function fromNativeRegistry(
     case "go":
       return fromGoProxy(name, now);
     case "maven":
-      return fromMaven(name, now);
+      return name === GRADLE_WRAPPER ? fromGradleVersions(now) : fromMaven(name, now);
     case "rubygems":
       return fromRubygems(name, now);
     default:
@@ -226,6 +227,47 @@ async function fromMaven(coordinate: string, now: Date) {
     });
   }
   return null;
+}
+
+interface GradleRelease {
+  version: string;
+  buildTime?: string;
+  current?: boolean;
+  snapshot?: boolean;
+  nightly?: boolean;
+  releaseNightly?: boolean;
+  broken?: boolean;
+}
+
+/** Gradle's own releases for the wrapper (D-30): services.gradle.org, nightlies and snapshots left out. */
+async function fromGradleVersions(now: Date) {
+  const url = "https://services.gradle.org/versions/all";
+  const res = await guardedFetch(url, {
+    allowHosts: ["services.gradle.org"],
+    maxBytes: REGISTRY.maxNativeBytes,
+  });
+  if (res.status !== 200) throw new Error(`services.gradle.org ${res.status}`);
+  const body = res.text();
+  const releases = (JSON.parse(body) as GradleRelease[]).filter(
+    (r) => !r.snapshot && !r.nightly && !r.releaseNightly,
+  );
+  // `20240229120000+0000` → ISO.
+  const iso = (t?: string) =>
+    t && /^\d{14}[+-]\d{4}$/.test(t)
+      ? `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}T${t.slice(8, 10)}:${t.slice(10, 12)}:${t.slice(12, 14)}Z`
+      : null;
+  const versions = releases.map((r) => ({
+    version: r.version,
+    publishedAt: iso(r.buildTime),
+    deprecated: r.broken ? "Gradle marks this release broken" : null,
+    isDefault: false,
+  }));
+  return info("maven", GRADLE_WRAPPER, versions, releases.find((r) => r.current)?.version ?? null, {
+    name: "services.gradle.org",
+    url,
+    body,
+    now,
+  });
 }
 
 async function fromRubygems(name: string, now: Date) {

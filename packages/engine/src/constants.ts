@@ -468,6 +468,8 @@ export const REGISTRY = {
   nativeDatedVersions: 30,
   nativeConcurrency: 6,
   maxPomBytes: 1024 * 1024,
+  /** Remote POMs one Maven project may read for its managed versions (Spring Boot's tree is ~40). */
+  maxRemotePoms: 120,
   /** Maven repositories a JVM package's versions are read from when deps.dev doesn't know it. */
   maven: {
     central: { name: "Maven Central", url: "https://repo1.maven.org/maven2", hosts: ["repo1.maven.org"] },

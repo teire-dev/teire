@@ -1,11 +1,12 @@
 import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
+import { wrapperTransaction } from "../fix/gradle-wrapper";
 import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
 import { jvmTransaction } from "../fix/upgrade-jvm";
 import { composeFixPullRequest } from "../github/compose";
 import { assess, locateTargets, summariseFindings } from "../impact";
-import { type JvmProject, readJvmInventory } from "../inventory/jvm";
+import { interpolateWith, type JvmProject, readJvmInventory, VERSION } from "../inventory/jvm";
 import type { RepoTree } from "../inventory/tree";
 import { locateJvm } from "../locate/jvm";
 import { locateBytecode, removedOverloads } from "../locate/jvm-bytecode";
@@ -13,12 +14,14 @@ import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "
 import { declaredPackageNotes, gatherJvmNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
+import { remoteManaged } from "../registry/maven-pom";
 import { mavenFlavor } from "../registry/maven-version";
 import { mavenSignals } from "../registry/supply-chain";
 import {
   beyondRange,
   chooseTarget,
   comparedInstance,
+  type TargetDecision,
   type TargetPolicy,
   withTargetMax,
 } from "../registry/target";
@@ -66,6 +69,9 @@ function jvmPolicy(instance: DependencyInstance, options: JvmAssessOptions): Tar
       const f = mavenFlavor(v);
       if (flavor && f !== flavor) return `a different flavor (${f || "none"}) than ${flavor}`;
       if (!flavor && f === "android") return "the Android flavor";
+      // Maven sorts `20040616` above `3.2.2`; it's an old date-stamped release, not a newer one.
+      if (DATE_STAMPED.test(v) && !(instance.version && DATE_STAMPED.test(instance.version)))
+        return "a date-stamped release, not a newer version";
       return null;
     },
   };
@@ -97,8 +103,47 @@ function packagesOf(declKeys: ReadonlySet<string>) {
   return [...out];
 }
 
+/**
+ * Versions a Maven module leaves to POMs outside the repo (D-28): its remote parent chain and the
+ * BOMs it imports are read, so a Spring Boot starter has its version (and its advisories) instead
+ * of "unresolved". Each such instance says what manages it.
+ */
+async function applyRemoteManaged(project: JvmProject, options: JvmAssessOptions) {
+  const budget = { left: REGISTRY.maxRemotePoms };
+  for (const mod of project.modules) {
+    if (!mod.remote) continue;
+    const open = project.instances.filter((i) => i.workspace === mod.dir && i.version === null && i.direct);
+    if (!open.length) continue;
+    const remote = await remoteManaged(mod.remote, options, budget).catch((error: unknown) => {
+      project.notes.push(
+        `${mod.manifest}: remote parent POMs not read (${error instanceof Error ? error.message : String(error)})`,
+      );
+      return null;
+    });
+    if (!remote) continue;
+    for (const note of remote.notes) if (!project.notes.includes(note)) project.notes.push(note);
+    const by = mod.remote.parent ? mod.remote.parent.split(":").slice(0, 2).join(":") : null;
+    for (const i of open) {
+      const property = i.declaredRange?.includes("${")
+        ? interpolateWith(remote.props, i.declaredRange)
+        : null;
+      const managed = (i.role === "plugin" ? remote.plugins : remote.dependencies).get(i.name);
+      const version = property ?? (i.declaredRange ? null : (managed?.version ?? null));
+      if (!version || !VERSION.test(version)) continue;
+      i.version = version;
+      i.resolvedBy = "toolchain";
+      i.managedBy = property ? `${by} ${mod.remote.parent?.split(":")[2]} (property)` : managed?.by;
+      delete i.unresolvedReason;
+    }
+  }
+}
+
+/** `20040616`: a date-stamped release Maven orders above every `x.y` (commons-collections). */
+const DATE_STAMPED = /^(?:19|20)\d{6}(?:[.-]\d+)*$/;
+
 export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: JvmAssessOptions) {
   const projects = readJvmInventory(tree);
+  for (const project of projects) if (project.manager === "maven") await applyRemoteManaged(project, options);
   const assessments: Assessment<JvmProject>[] = [];
   const diffOf = options.surfaceDiff ?? jvmSurfaceDiff;
   // A JVM build without a lockfile (Maven always, Gradle without gradle.lockfile) resolves its
@@ -163,7 +208,18 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
         withTargetMax(jvmPolicy(instance, options), instance.name, options),
         mavenScheme,
       );
-      const decision = floor ? beyondRange(chosen, declared.declaredRange as string, mavenScheme) : chosen;
+      const ranged = floor ? beyondRange(chosen, declared.declaredRange as string, mavenScheme) : chosen;
+      // A version from a parent or BOM outside the repo moves when that does (D-28); it's reported,
+      // and the parent or BOM is the upgrade.
+      const decision: TargetDecision =
+        instance.managedBy && ranged.kind === "upgrade"
+          ? {
+              kind: "blocked",
+              from: ranged.from,
+              reason: `its version comes from ${instance.managedBy}: upgrading that moves it`,
+              skipped: ranged.skipped,
+            }
+          : ranged;
       const a: Assessment<JvmProject> = {
         ...base,
         info,
@@ -172,7 +228,11 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
         // The floor isn't what installs get (the newest the range allows is): no deprecation from it.
         deprecation: floor ? null : deprecationChange(info, instance.version),
       };
-      if (decision.kind === "upgrade" && decision.isMajor) {
+      if (decision.kind === "upgrade" && decision.isMajor && instance.role) {
+        // A parent, BOM, plugin, extension or wrapper: no API the code calls, so the build decides.
+        a.summary = { verdict: "inconclusive", breaking: [], annotations: [], coverage: null };
+        a.priority = 4;
+      } else if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: japicmp`);
         a.diff = await diffOf(instance.name, instance.version, decision.to).catch((error: unknown) =>
           unreadableDiff("maven", instance.name, instance.version as string, decision.to, error),
@@ -307,6 +367,7 @@ export async function fixJvmDependency(
     plan,
     transaction:
       input.transaction ??
+      (await wrapperTransaction(input.tree, a.instance, target)) ??
       jvmTransaction(
         input.tree,
         a.project,

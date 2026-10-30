@@ -1,7 +1,7 @@
 import { dirname, join, normalize } from "node:path";
 import { VERIFY } from "../constants";
 import type { DependencyInstance } from "../contract";
-import type { JvmProject } from "../inventory/jvm";
+import { type JvmProject, MAVEN_PLUGIN_GROUP } from "../inventory/jvm";
 import type { RepoTree } from "../inventory/tree";
 import type { Transaction } from "./transaction";
 import type { ManifestEdit } from "./upgrade-js";
@@ -19,19 +19,36 @@ import type { ManifestEdit } from "./upgrade-js";
  */
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** The `<dependency>` blocks naming g:a, with their offsets. */
-function dependencyBlocks(xml: string, group: string, artifact: string) {
+type BlockTag = "dependency" | "parent" | "plugin" | "extension";
+
+/**
+ * The `<dependency>` (or `<parent>`, `<plugin>`, `<extension>`, S18.3) blocks naming g:a, with their
+ * offsets. A plugin's own dependencies, executions and configuration are blanked before matching, so
+ * their coordinates and versions are never taken for the plugin's; a plugin naming no group is in
+ * Maven's default one.
+ */
+function dependencyBlocks(xml: string, group: string, artifact: string, tag: BlockTag = "dependency") {
   const out: { start: number; end: number; text: string }[] = [];
-  for (const m of xml.matchAll(/<dependency>[\s\S]*?<\/dependency>/g)) {
+  for (const m of xml.matchAll(new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, "g"))) {
     const text = m[0];
-    if (
-      new RegExp(`<groupId>\\s*${esc(group)}\\s*</groupId>`).test(text) &&
-      new RegExp(`<artifactId>\\s*${esc(artifact)}\\s*</artifactId>`).test(text)
-    )
-      out.push({ start: m.index ?? 0, end: (m.index ?? 0) + text.length, text });
+    const own = mask(text, [
+      /<dependencies>[\s\S]*?<\/dependencies>/g,
+      /<executions>[\s\S]*?<\/executions>/g,
+      /<configuration>[\s\S]*?<\/configuration>/g,
+      /<!--[\s\S]*?-->/g,
+    ]);
+    const groupId =
+      /<groupId>\s*([^<]*?)\s*<\/groupId>/.exec(own)?.[1] ?? (tag === "plugin" ? MAVEN_PLUGIN_GROUP : null);
+    if (groupId === group && new RegExp(`<artifactId>\\s*${esc(artifact)}\\s*</artifactId>`).test(own))
+      out.push({ start: m.index ?? 0, end: (m.index ?? 0) + text.length, text: own });
   }
   return out;
 }
+
+const blockTag = (instance: DependencyInstance): BlockTag =>
+  instance.role === "parent" || instance.role === "plugin" || instance.role === "extension"
+    ? instance.role
+    : "dependency";
 
 function setProperty(xml: string, prop: string, value: string) {
   const re = new RegExp(`(<properties>[\\s\\S]*?<${esc(prop)}>)\\s*([^<]*?)\\s*(</${esc(prop)}>)`);
@@ -73,11 +90,15 @@ export function mavenEdit(
     const before = tree.read(path) as string;
     const prop = /^\$\{([^}]+)\}$/.exec(raw.trim())?.[1];
     if (!prop) {
-      const text = block.text.replace(/(<version>)\s*[^<]*?\s*(<\/version>)/, `$1${target}$2`);
+      // The version element's offset in the masked block is its offset in the file's.
+      const at = /<version>\s*[^<]*?\s*<\/version>/.exec(block.text);
+      if (!at) return null;
+      const start = block.start + at.index;
+      const end = start + at[0].length;
       return {
         path,
         before,
-        after: before.slice(0, block.start) + text + before.slice(block.end),
+        after: `${before.slice(0, start)}<version>${target}</version>${before.slice(end)}`,
         from: raw.trim(),
         to: target,
       };
@@ -90,19 +111,21 @@ export function mavenEdit(
     }
     return null;
   };
+  const tag = blockTag(instance);
   for (const path of chain) {
     const xml = tree.read(path) ?? "";
-    for (const block of dependencyBlocks(xml, group, artifact)) {
+    for (const block of dependencyBlocks(xml, group, artifact, tag)) {
       const raw = /<version>\s*([^<]*?)\s*<\/version>/.exec(block.text)?.[1];
       if (raw) return editVersion(path, raw, block);
     }
   }
-  // Managed: the version sits in a local dependencyManagement section.
+  // Managed: the version sits in a local dependencyManagement (pluginManagement) section.
+  const section = tag === "plugin" ? "pluginManagement" : "dependencyManagement";
   for (const path of [...chain, project.manifest]) {
     const xml = tree.read(path) ?? "";
-    const managed = /<dependencyManagement>[\s\S]*?<\/dependencyManagement>/.exec(xml);
+    const managed = new RegExp(`<${section}>[\\s\\S]*?<\\/${section}>`).exec(xml);
     if (!managed) continue;
-    for (const block of dependencyBlocks(managed[0], group, artifact)) {
+    for (const block of dependencyBlocks(managed[0], group, artifact, tag)) {
       const raw = /<version>\s*([^<]*?)\s*<\/version>/.exec(block.text)?.[1];
       const offset = managed.index ?? 0;
       if (raw)
@@ -150,15 +173,53 @@ export function gradleEdits(
     }
     return edits;
   }
-  // `"g:a:v"` strings in any build file of the project, and `"g:a:$var"` variables.
+  // `"g:a:v"` strings and map notation (`group: "g", name: "a", version: "v"`, S18.3) in any build
+  // file of the project, and the variables `"g:a:$var"` or `version: "$var"` name.
   const variables = new Set<string>();
+  const mapped = new RegExp(
+    `(group\\s*[:=]\\s*["']${esc(group)}["']\\s*,\\s*name\\s*[:=]\\s*["']${esc(artifact)}["']\\s*,\\s*version\\s*[:=]\\s*["'])([^"']+)(["'])`,
+    "g",
+  );
+  const pending = new Map<string, string>();
   for (const m of project.modules) {
-    const before = tree.read(m.manifest);
+    const before = pending.get(m.manifest) ?? tree.read(m.manifest);
     if (before === null) continue;
-    const after = before.replace(new RegExp(`(["'])(${ga}):([0-9][^"'$:]*)\\1`, "g"), `$1$2:${target}$1`);
     for (const v of before.matchAll(new RegExp(`["']${ga}:\\$\\{?(\\w+)\\}?["']`, "g")))
       if (v[1]) variables.add(v[1]);
-    if (after !== before) edits.push({ path: m.manifest, before, after, from, to: target });
+    for (const v of before.matchAll(mapped)) {
+      const name = /^\$\{?(\w+)\}?$/.exec(v[2] ?? "")?.[1];
+      if (name) variables.add(name);
+    }
+    const after = before
+      .replace(new RegExp(`(["'])(${ga}):([0-9][^"'$:]*)\\1`, "g"), `$1$2:${target}$1`)
+      .replace(mapped, (all, head: string, version: string, tail: string) =>
+        version.startsWith("$") ? all : `${head}${target}${tail}`,
+      );
+    pending.set(m.manifest, after);
+  }
+  // A variable defined in a build file: `val x = "…"`, `def x = '…'`, `ext.x = …`, an `ext { }`
+  // block, `extra["x"] = …`, `val x by extra("…")`, `set("x", …)`.
+  for (const v of variables) {
+    const name = esc(v);
+    const definitions = [
+      new RegExp(
+        `(^\\s*(?:val|var|def|String)\\s+${name}\\s*(?::\\s*String\\s*)?=\\s*["'])[^"'$\\n]+(["'])`,
+        "m",
+      ),
+      new RegExp(`(\\bext\\.${name}\\s*=\\s*["'])[^"'$\\n]+(["'])`),
+      new RegExp(`(\\bextra\\[\\s*["']${name}["']\\s*\\]\\s*=\\s*["'])[^"'$\\n]+(["'])`),
+      new RegExp(`(\\bval\\s+${name}\\s+by\\s+extra\\(\\s*["'])[^"'$\\n]+(["'])`),
+      new RegExp(`(\\bset\\(\\s*["']${name}["']\\s*,\\s*["'])[^"'$\\n]+(["'])`),
+      new RegExp(`(\\bext\\s*\\{[^}]*?^\\s*${name}\\s*=\\s*["'])[^"'$\\n]+(["'])`, "m"),
+    ];
+    for (const [path, text] of pending) {
+      const re = definitions.find((d) => d.test(text));
+      if (re) pending.set(path, text.replace(re, `$1${target}$2`));
+    }
+  }
+  for (const [path, after] of pending) {
+    const before = tree.read(path) ?? "";
+    if (after !== before) edits.push({ path, before, after, from, to: target });
   }
   if (project.catalog) {
     const before = tree.read(project.catalog) ?? "";
@@ -347,6 +408,47 @@ export function mavenManagedPin(
       };
 }
 
+/**
+ * Defines (or moves) `<prop>` in a POM's own `<properties>` (D-28): a property the remote parent
+ * defines is overridden by the child, and everything the parent manages with it moves with it.
+ */
+export function mavenPropertyOverride(
+  tree: RepoTree,
+  path: string,
+  prop: string,
+  target: string,
+): ManifestEdit | null {
+  const before = tree.read(path);
+  if (before === null) return null;
+  const moved = setProperty(before, prop, target);
+  if (moved) return { path, before, after: moved.text, from: `${prop} ${moved.from}`, to: target };
+  const indent = /\n([ \t]+)<(?:dependencies|properties|modelVersion)>/.exec(before)?.[1] ?? "  ";
+  const own = mask(before, [
+    /<!--[\s\S]*?-->/g,
+    /<profiles>[\s\S]*?<\/profiles>/g,
+    /<build>[\s\S]*?<\/build>/g,
+  ]);
+  const props = /\n([ \t]*)<\/properties>/.exec(own);
+  const line = `${indent}${indent}<${prop}>${target}</${prop}>\n`;
+  const after = props
+    ? `${before.slice(0, props.index + 1)}${line}${before.slice(props.index + 1)}`
+    : (() => {
+        const section = `${indent}<properties>\n${line}${indent}</properties>\n`;
+        const deps = /\n[ \t]*<dependencies>/.exec(own);
+        return deps
+          ? `${before.slice(0, deps.index + 1)}${section}${before.slice(deps.index + 1)}`
+          : before.replace(/<\/project>\s*$/, `${section}</project>\n`);
+      })();
+  return {
+    path,
+    before,
+    after,
+    from: "",
+    to: target,
+    note: `\`<${prop}>\` set to ${target} here, over the parent's`,
+  };
+}
+
 /** `text` with every match of `patterns` replaced by spaces of the same length (offsets stay valid). */
 function mask(text: string, patterns: RegExp[]) {
   return patterns.reduce((out, re) => out.replace(re, (m) => m.replace(/[^\n]/g, " ")), text);
@@ -378,9 +480,17 @@ export function jvmTransaction(
   because = `fixes a security advisory in ${instance.name}`,
 ): Transaction {
   if (project.manager === "maven") {
-    const versionEdit = instance.direct
-      ? mavenEdit(tree, project, instance, target)
-      : mavenManagedPin(tree, project, instance.name, target);
+    // A version managed outside the repo (D-28) is pinned locally: a local managed entry wins over a
+    // parent's, so only this package moves.
+    // A `${prop}` the parent defines is overridden by defining it here (Spring Boot's documented way).
+    const property = instance.managedBy
+      ? /^\$\{([^}]+)\}$/.exec(instance.declaredRange?.trim() ?? "")?.[1]
+      : null;
+    const versionEdit = property
+      ? mavenPropertyOverride(tree, instance.manifestPath, property, target)
+      : instance.direct && !instance.managedBy
+        ? mavenEdit(tree, project, instance, target)
+        : mavenManagedPin(tree, project, instance.name, target);
     const withJava = javaFloor
       ? withJavaFloor(tree, project, versionEdit ? [versionEdit] : [], javaFloor.version, javaFloor.why)
       : versionEdit
@@ -388,7 +498,8 @@ export function jvmTransaction(
         : [];
     const edit = withJava.find((e) => e.path === versionEdit?.path) ?? null;
     const readBack = withJava.length ? [...new Set(withJava.map((e) => e.path))] : [instance.manifestPath];
-    const resolved = !instance.direct && edit ? mavenResolvedCheck(instance.name, target) : null;
+    const resolved =
+      (!instance.direct || instance.managedBy) && edit ? mavenResolvedCheck(instance.name, target) : null;
     return {
       describe: edit
         ? `${edit.path}: ${instance.name} ${edit.from} → ${target}${javaFloor && withJava.length > (versionEdit ? 1 : 0) ? `; Java raised to ${javaFloor.version}` : ""} (Maven has no lockfile; the sandbox resolves the new graph)`

@@ -262,6 +262,17 @@ export const dependencyInstance = z.object({
   resolvedBy: z.enum(["lockfile", "toolchain", "sandbox", "unresolved", "range-floor"]),
   unresolvedReason: z.string().optional(),
   environment: z.object({ markers: z.string().optional(), platform: z.string().optional() }).optional(),
+  /**
+   * A build-tool candidate rather than a library the code imports (S18.3): a Maven parent, an
+   * imported BOM, a Maven or Gradle plugin, a build extension, or the build tool's wrapper. Its
+   * upgrade is checked by the build, never by an API diff of the code.
+   */
+  role: z.enum(["parent", "bom", "plugin", "extension", "wrapper"]).optional(),
+  /**
+   * Where a version the build file doesn't state comes from (D-28): a parent or BOM outside the
+   * repo, `group:artifact version`. Upgrading that moves it; a security fix pins it locally.
+   */
+  managedBy: z.string().optional(),
 });
 export type DependencyInstance = z.infer<typeof dependencyInstance>;
 
