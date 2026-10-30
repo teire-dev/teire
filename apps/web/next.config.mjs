@@ -9,9 +9,10 @@ const nextConfig = {
   partialPrefetching: true,
   reactCompiler: true,
   transpilePackages: ["@teire/db", "@teire/engine"],
-  /** Short docs URLs: the sections live under their tabs. */
+  /** Short URLs: /demo is the hackathon video; the docs sections live under their tabs. */
   async redirects() {
     return [
+      { source: "/demo", destination: "https://youtu.be/03-D16dkLf4", permanent: false },
       { source: "/docs", destination: "/docs/guide", permanent: false },
       { source: "/docs/cli", destination: "/docs/build/cli", permanent: false },
       { source: "/docs/mcp", destination: "/docs/build/mcp", permanent: false },
