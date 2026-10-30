@@ -1,6 +1,8 @@
 import { ArrowUpRight } from "lucide-react";
 import localFont from "next/font/local";
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
+import { STACK } from "@/lib/brands";
 import hero from "@/lib/landing/hero-run.json";
 import pen from "@/lib/landing/pen.json";
 import { cn } from "@/lib/utils";
@@ -15,8 +17,8 @@ const after = (name: "typecheck" | "test") =>
 /**
  * The hero's proof (revamp S4, the thumbnail the owner chose): the real zod run's checks, what the
  * upgrade broke on the left and what passed after the fix on the right, with the pen's ring around
- * the green column. Every figure comes from the run's committed snapshot; the card opens the run and
- * the note opens its pull request. The pen strokes are rough.js output baked once (`pen.json`), so
+ * the green column and a note crediting the fix with NVIDIA Nemotron's mark. Every figure comes from
+ * the run's committed snapshot; the card opens the run and the note opens its pull request. The pen strokes are rough.js output baked once (`pen.json`), so
  * the page draws them as plain paths. Fixed size so the ring stays on its column; phones zoom it.
  */
 export function ProofCard({ className }: { className?: string }) {
@@ -73,14 +75,17 @@ export function ProofCard({ className }: { className?: string }) {
       </svg>
       <a
         href={hero.pr.url}
+        aria-label="Fixed by NVIDIA Nemotron, proven: the pull request on GitHub"
         className={cn(
           virgil.className,
-          "absolute -rotate-3 text-[25px] whitespace-nowrap text-cta hover:underline",
+          "absolute flex -rotate-3 items-center text-[25px] whitespace-nowrap text-cta hover:underline",
         )}
         style={{ left: pen.note.x, top: pen.note.y }}
       >
-        fixed by Nemotron · proven
-        <ArrowUpRight className="ml-1 inline size-4 align-baseline" aria-hidden />
+        fixed by
+        {/* Nemotron by its mark, not its name (the owner, revamp S4): the logo is the credit. */}
+        <BrandLogo light={STACK.nemotron.dark} alt="" className="-my-2 mx-2 h-10 w-auto" />· proven
+        <ArrowUpRight className="ml-1 size-4" aria-hidden />
       </a>
     </div>
   );
