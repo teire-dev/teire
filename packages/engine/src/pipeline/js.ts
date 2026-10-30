@@ -21,8 +21,9 @@ import type { ModelPrice, TokenFactory } from "../llm";
 import { type LocateResult, locateTs } from "../locate/ts";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherNpmNotes, githubRepoOf } from "../notes/sources";
-import { getNpmVersion, getPackageInfo, supplyChainSignals } from "../registry/clients";
+import { getNpmVersion, getPackageInfo, npmDistTag, supplyChainSignals } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
+import { widenedManifests } from "../registry/library";
 import {
   beyondRange,
   chooseTarget,
@@ -33,6 +34,7 @@ import {
 } from "../registry/target";
 import type { PackageInfo } from "../registry/types";
 import { npmScheme } from "../registry/versions";
+import { dependabotVersioning } from "../resolver/scan-policy";
 import { type NpmSurfaceOptions, npmSurface, npmSurfaceDiff, npmTypesLayout } from "../surface/npm";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
@@ -91,6 +93,29 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
   const diffOf = options.surfaceDiff ?? ((name, from, to) => npmSurfaceDiff(name, from, to, options));
   for (const project of projects) {
     const policy = readJsUpgradePolicy(tree, project);
+    // Libraries widen, apps bump (S18.5): each importer's package.json on its own.
+    project.widen = await widenedManifests(
+      "npm",
+      project.importers.map((importer) => {
+        const path = [project.root, importer].filter((p) => p !== ".").join("/");
+        const manifest = path ? `${path}/package.json` : "package.json";
+        let doc: { name?: string; private?: boolean } = {};
+        try {
+          doc = JSON.parse(tree.read(manifest) ?? "{}");
+        } catch {
+          // An unreadable package.json is no library.
+        }
+        return {
+          path: manifest,
+          name: typeof doc.name === "string" ? doc.name : null,
+          private: doc.private === true,
+        };
+      }),
+      {
+        ...options,
+        versioning: dependabotVersioning(options.dependabot, "npm", project) ?? options.versioning,
+      },
+    );
     for (const declared of project.instances) {
       if (!declared.direct || declared.source !== "registry") continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
@@ -137,17 +162,26 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
         continue;
       }
       const floor = instance.resolvedBy === "range-floor";
+      // A dist-tag the repo follows for this package (D-43) is the ceiling in place of `latest`.
+      const tag = options.distTags?.[instance.name];
+      const followTag = tag ? await npmDistTag(instance.name, tag).catch(() => null) : null;
+      if (tag && !followTag) options.coverage?.notes.push(`${instance.name}: no "${tag}" dist-tag on npm`);
       const chosen = chooseTarget(
         info,
         instance.version,
-        withTargetMax(
-          jsTargetPolicy(policy, instance.name, instance.version, {
-            cooldownDays: options.cooldownDays,
-            fallbackMajors: options.fallbackMajors,
-          }),
-          instance.name,
-          options,
-        ),
+        {
+          ...withTargetMax(
+            jsTargetPolicy(policy, instance.name, instance.version, {
+              cooldownDays: options.cooldownDays,
+              fallbackMajors: options.fallbackMajors,
+            }),
+            instance.name,
+            options,
+            "npm",
+            { project, instance },
+          ),
+          ...(followTag ? { followTag: { tag: tag as string, version: followTag } } : {}),
+        },
         npmScheme,
       );
       const decision = patchedHold(
@@ -252,6 +286,8 @@ export interface FixDependencyInput {
   transaction?: Transaction;
   /** The newer major this run fell back from (D71), and why: the PR says so. */
   fallbackFrom?: { version: string; reason: string };
+  /** Dependabot's open PRs for this package (S18.6). */
+  supersedes?: { number: number; title: string; url: string }[];
 }
 
 export interface FixDependencyResult {
@@ -372,6 +408,7 @@ export async function fixJsDependency(input: FixDependencyInput): Promise<FixDep
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
+    ...(input.supersedes?.length ? { supersedes: input.supersedes } : {}),
     ...(supplyChain.length ? { supplyChain } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,

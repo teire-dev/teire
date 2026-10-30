@@ -2,6 +2,7 @@ import { sha256 } from "../catalog/source";
 import { REGISTRY } from "../constants";
 import type { Ecosystem } from "../contract";
 import { guardedFetch } from "../net/fetch";
+import type { DependabotScan } from "../resolver/scan-policy";
 import { fromNativeRegistry } from "./native";
 import type { CacheEntry, PackageInfo, RegistryCache, VersionInfo } from "./types";
 import { versionScheme } from "./versions";
@@ -193,6 +194,25 @@ export interface RegistryOptions {
   ignoreUpdates?: { name: string; types: ("major" | "minor" | "patch")[] }[];
   /** Majors below the newest to target (D71: one lower after two failed verifications). */
   fallbackMajors?: number;
+  /** `upgrades.prerelease` (D-43): packages whose pre-releases are proposed (`*` for all). */
+  prereleases?: string[];
+  /** `upgrades.distTags` (D-43): npm package → the dist-tag it follows (`next`, `canary`). */
+  distTags?: Record<string, string>;
+  /** `upgrades.versioning` (S18.5): libraries widen ranges and apps bump (`auto`), or one for all. */
+  versioning?: "auto" | "increase" | "widen";
+  /** The repo's dependabot.yml, honoured at target choice (S18.6). */
+  dependabot?: DependabotScan;
+}
+
+/** The version an npm dist-tag points at (`next` → `5.0.0-rc.2`), from npm's own tag endpoint. */
+export async function npmDistTag(name: string, tag: string): Promise<string | null> {
+  const res = await guardedFetch(
+    `https://${REGISTRY.hosts.npm}/-/package/${name.replace("/", "%2F")}/dist-tags`,
+    { allowHosts: [REGISTRY.hosts.npm], headers: { accept: "application/json" } },
+  );
+  if (res.status !== 200) return null;
+  const version = (JSON.parse(res.text()) as Record<string, unknown>)[tag];
+  return typeof version === "string" ? version : null;
 }
 
 /**

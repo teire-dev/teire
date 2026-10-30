@@ -388,6 +388,8 @@ export interface FixPullRequestInput {
   supplyChain?: string[];
   /** The newer major tried first (D71): its checks still failed after the agent's attempts. */
   fallbackFrom?: { version: string; reason: string };
+  /** Dependabot's open PRs for this package (S18.6), linked as superseded. */
+  supersedes?: { number: number; title: string; url: string }[];
 }
 
 function verdictLine(input: FixPullRequestInput) {
@@ -442,6 +444,10 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       ...(image ? [image] : []),
       verdictLine(input),
     ];
+    for (const pr of input.supersedes ?? [])
+      out.push(
+        `**Supersedes Dependabot's [#${pr.number}](${pr.url})** (${forGitHub(pr.title, 120)}). This PR makes the change verified against your code; Dependabot closes its own once the dependency is updated.`,
+      );
     if (input.fallbackFrom)
       out.push(
         `**Why ${run.target}, not ${input.fallbackFrom.version}.** Teire tried ${input.fallbackFrom.version} first; the repo's checks still failed after the agent's attempts (${sanitizeUpstream(forGitHub(input.fallbackFrom.reason, 400), null)}), so this PR moves to the newest version of the previous major.`,

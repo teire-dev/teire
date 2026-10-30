@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import { PRIORITY, REGISTRY, RUBY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { plannedRenames } from "../fix/renames";
@@ -12,6 +13,7 @@ import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "
 import { declaredPackageNotes, gatherRubyNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange, rubygemsYankChange } from "../registry/deprecation";
+import { widenedManifests } from "../registry/library";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
 import { gemSignals, snapshotOwners } from "../registry/supply-chain";
 import {
@@ -22,6 +24,7 @@ import {
   withTargetMax,
 } from "../registry/target";
 import { rubygemsScheme } from "../registry/versions";
+import { dependabotVersioning } from "../resolver/scan-policy";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import { rubySurfaceDiff } from "../surface/ruby";
 import { rubyDocsLookup } from "../surface/rubydoc";
@@ -91,6 +94,21 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
   const assessments: Assessment<RubyProject>[] = [];
   const diffOf = options.surfaceDiff ?? rubySurfaceDiff;
   for (const project of projects) {
+    // A published gem's own requirements widen; the Gemfile's bump (S18.5).
+    project.widen = await widenedManifests(
+      "rubygems",
+      tree
+        .files()
+        .filter((f) => f.endsWith(".gemspec") && dirname(f) === project.root)
+        .map((path) => ({
+          path,
+          name: /\.name\s*=\s*["']([\w.-]+)["']/.exec(tree.read(path) ?? "")?.[1] ?? null,
+        })),
+      {
+        ...options,
+        versioning: dependabotVersioning(options.dependabot, "rubygems", project) ?? options.versioning,
+      },
+    );
     for (const declared of project.instances) {
       if (!declared.direct || declared.source !== "registry") continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
@@ -133,7 +151,10 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
       const chosen = chooseTarget(
         info,
         instance.version,
-        withTargetMax(rubyPolicy(instance, project, versions, options), instance.name, options),
+        withTargetMax(rubyPolicy(instance, project, versions, options), instance.name, options, "rubygems", {
+          project,
+          instance,
+        }),
         rubygemsScheme,
       );
       const decision = floor ? beyondRange(chosen, declared.declaredRange as string, rubygemsScheme) : chosen;
@@ -323,6 +344,7 @@ export async function fixRubyDependency(
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
+    ...(input.supersedes?.length ? { supersedes: input.supersedes } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

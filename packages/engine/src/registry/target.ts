@@ -1,5 +1,6 @@
 import { REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
+import { type DependabotScan, withDependabot } from "../resolver/scan-policy";
 import type { PackageInfo, VersionInfo } from "./types";
 import type { VersionScheme } from "./versions";
 
@@ -31,6 +32,17 @@ export interface TargetPolicy {
   max?: { version: string; reason: string };
   /** Update types the repository ignores for this package (`@teire ignore <package> major`, D112). */
   ignoreUpdates?: ("major" | "minor" | "patch")[];
+  /**
+   * An npm dist-tag the repo follows for this package (D-43, `upgrades.distTags`): its version is
+   * the ceiling in place of `latest`, pre-release or not.
+   */
+  followTag?: { tag: string; version: string };
+  /** Pre-releases opted in (D-43): versions above the registry's default are proposed too. */
+  aboveDefault?: boolean;
+  /** No version published after this (uv's `exclude-newer`, S18.5): what the repo's resolver would refuse. */
+  publishedBefore?: { date: string; source: string };
+  /** Version updates held for this package, and why (dependabot.yml's ignore or allow list, S18.6). */
+  ignored?: string;
 }
 
 /** Dependabot's update types: leaving the caret range is major; otherwise a new minor, or a patch. */
@@ -47,14 +59,36 @@ export function withTargetMax(
   options: {
     targetMax?: { name: string; version: string; reason: string };
     ignoreUpdates?: { name: string; types: ("major" | "minor" | "patch")[] }[];
+    /** `upgrades.prerelease` (D-43): package names, `ecosystem:name`, or `*`. */
+    prereleases?: string[];
+    dependabot?: DependabotScan;
+    coverage?: { notes: string[] };
   },
+  ecosystem?: string,
+  /** The project and instance, for the repo's dependabot.yml entry (S18.6). */
+  context?: { project: { manager: string; root: string }; instance: DependencyInstance },
 ): TargetPolicy {
+  if (context && ecosystem && options.dependabot) {
+    const { policy: applied, conflicts } = withDependabot(
+      policy,
+      options.dependabot,
+      ecosystem,
+      context.project,
+      context.instance,
+    );
+    for (const c of conflicts) if (!options.coverage?.notes.includes(c)) options.coverage?.notes.push(c);
+    policy = applied;
+  }
   const cap = options.targetMax;
   const ignored = (options.ignoreUpdates ?? []).filter((i) => i.name === name).flatMap((i) => i.types);
+  const prerelease = (options.prereleases ?? []).some(
+    (p) => p === "*" || p === name || (ecosystem !== undefined && p === `${ecosystem}:${name}`),
+  );
   return {
     ...policy,
     ...(cap && cap.name === name ? { max: { version: cap.version, reason: cap.reason } } : {}),
     ...(ignored.length ? { ignoreUpdates: [...new Set(ignored)] } : {}),
+    ...(prerelease ? { allowPrerelease: true, aboveDefault: true } : {}),
   };
 }
 
@@ -115,12 +149,22 @@ function reasonFor(
   defaultVersion: string | null,
   applyAge: boolean,
 ): { reason: SkipReason; detail: string } | null {
-  if (!policy.allowPrerelease && scheme.isPrerelease(v.version))
+  if (!policy.allowPrerelease && !policy.followTag && scheme.isPrerelease(v.version))
     return { reason: "prerelease", detail: "pre-release versions are not proposed" };
   const excluded = policy.exclude?.(v.version);
   if (excluded) return { reason: "incompatible", detail: excluded };
-  if (defaultVersion && scheme.compare(v.version, defaultVersion) > 0)
-    return { reason: "above-default", detail: `newer than the registry's default version ${defaultVersion}` };
+  if (defaultVersion && !policy.aboveDefault && scheme.compare(v.version, defaultVersion) > 0)
+    return {
+      reason: "above-default",
+      detail: policy.followTag
+        ? `newer than ${defaultVersion}, the "${policy.followTag.tag}" dist-tag this repo follows`
+        : `newer than the registry's default version ${defaultVersion}`,
+    };
+  if (policy.publishedBefore && v.publishedAt && v.publishedAt > policy.publishedBefore.date)
+    return {
+      reason: "pinned",
+      detail: `published after ${policy.publishedBefore.date.slice(0, 10)} (${policy.publishedBefore.source})`,
+    };
   if (v.deprecated !== null)
     return { reason: "deprecated", detail: v.deprecated ? `deprecated: ${v.deprecated}` : "deprecated" };
   if (policy.max && scheme.compare(v.version, policy.max.version) > 0)
@@ -164,8 +208,9 @@ export function chooseTarget(
     return { kind: "blocked", from: current, reason: `"${current}" is not a registry version`, skipped: [] };
   const pinned = checkPins(scheme, policy.pins);
   if (pinned) return { kind: "blocked", from: current, reason: pinned, skipped: [] };
+  if (policy.ignored) return { kind: "blocked", from: current, reason: policy.ignored, skipped: [] };
 
-  const defaultVersion = stableDefault(info, scheme);
+  const defaultVersion = policy.followTag?.version ?? stableDefault(info, scheme);
   const eligible: VersionInfo[] = [];
   const newer = info.versions.filter((v) => scheme.compare(v.version, current) > 0).reverse();
   for (const v of newer) {

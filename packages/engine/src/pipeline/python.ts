@@ -1,4 +1,5 @@
 import * as pep440 from "@renovatebot/pep440";
+import { parse as parseToml } from "smol-toml";
 import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { planPythonEdits } from "../fix/python-edits";
@@ -14,6 +15,7 @@ import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "
 import { declaredPackageNotes, gatherPypiNotes, githubRepoOf } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
+import { widenedManifests } from "../registry/library";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
 import { pypiSignals, snapshotOwners } from "../registry/supply-chain";
 import {
@@ -24,6 +26,7 @@ import {
   withTargetMax,
 } from "../registry/target";
 import { pypiScheme } from "../registry/versions";
+import { dependabotVersioning } from "../resolver/scan-policy";
 import { pythonDocsLookup } from "../surface/pydoc";
 import { fetchPypiWheel, pypiSurfaceDiff } from "../surface/pypi";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
@@ -75,6 +78,18 @@ function requiresNewerPython(index: PypiIndex | null, version: string, python: s
     : null;
 }
 
+/** `[project].name`, or Poetry's `[tool.poetry].name`, of a pyproject. */
+function pyprojectName(text: string | null) {
+  if (!text) return null;
+  try {
+    const doc = parseToml(text) as { project?: { name?: unknown }; tool?: { poetry?: { name?: unknown } } };
+    const name = doc.project?.name ?? doc.tool?.poetry?.name;
+    return typeof name === "string" ? name : null;
+  } catch {
+    return null;
+  }
+}
+
 function pyPolicy(
   instance: DependencyInstance,
   index: PypiIndex | null,
@@ -98,6 +113,16 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
   const diffOf = options.surfaceDiff ?? ((name, from, to) => pypiSurfaceDiff(name, from, to, options));
   for (const project of projects) {
     const python = pythonFor(tree, project.root)?.version ?? DEFAULT_PYTHON;
+    // A published library's pyproject ranges widen; an app's bump (S18.5).
+    const pyproject = project.root === "." ? "pyproject.toml" : `${project.root}/pyproject.toml`;
+    project.widen = await widenedManifests(
+      "pypi",
+      [{ path: pyproject, name: pyprojectName(tree.read(pyproject)) }],
+      {
+        ...options,
+        versioning: dependabotVersioning(options.dependabot, "pypi", project) ?? options.versioning,
+      },
+    );
     for (const declared of project.instances) {
       if (!declared.direct || declared.source !== "registry") continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
@@ -141,7 +166,13 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
       const chosen = chooseTarget(
         info,
         instance.version,
-        withTargetMax(pyPolicy(instance, index, options, python), instance.name, options),
+        {
+          ...withTargetMax(pyPolicy(instance, index, options, python), instance.name, options, "pypi", {
+            project,
+            instance,
+          }),
+          ...(project.excludeNewer ? { publishedBefore: project.excludeNewer } : {}),
+        },
         pypiScheme,
       );
       const decision = floor ? beyondRange(chosen, declared.declaredRange as string, pypiScheme) : chosen;
@@ -336,6 +367,7 @@ export async function fixPyDependency(
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
+    ...(input.supersedes?.length ? { supersedes: input.supersedes } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

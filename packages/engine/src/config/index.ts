@@ -2,6 +2,7 @@ import { LineCounter, type Node, parseDocument } from "yaml";
 import { z } from "zod";
 import { PULL_REQUESTS, REGISTRY } from "../constants";
 import type { RepoTree } from "../inventory/tree";
+import type { DependabotConfig } from "../resolver/config";
 
 /**
  * `.github/teire.yml` (card C8, plan S09). The file is read leniently: a key with the wrong type
@@ -58,6 +59,17 @@ export const teireConfigSchema = z
         cooldownDays: z.number().int().min(0).max(90).describe("Skip versions younger than this many days."),
         allow: z.array(z.string()).describe("Only upgrade these packages."),
         deny: z.array(z.string()).describe("Never upgrade these packages."),
+        prerelease: z
+          .array(z.string())
+          .describe("Packages whose pre-releases Teire proposes (`react`, `npm:react`, or `*` for all)."),
+        distTags: z
+          .record(z.string(), z.string())
+          .describe("npm packages that follow a dist-tag instead of `latest` (`{ next: canary }`)."),
+        versioning: z
+          .enum(["auto", "increase", "widen"])
+          .describe(
+            "auto (the default): a published library's ranges widen to admit the new version, an app's move to it. increase: always move. widen: always widen.",
+          ),
       })
       .partial()
       .strict(),
@@ -135,7 +147,16 @@ export interface TeireConfig {
   ecosystems: Record<(typeof ECOSYSTEM_KEYS)[number], boolean>;
   paths: string[];
   ignorePaths: string[];
-  upgrades: { majors: boolean; plainBumps: boolean; cooldownDays: number; allow: string[]; deny: string[] };
+  upgrades: {
+    majors: boolean;
+    plainBumps: boolean;
+    cooldownDays: number;
+    allow: string[];
+    deny: string[];
+    prerelease: string[];
+    distTags: Record<string, string>;
+    versioning: "auto" | "increase" | "widen";
+  };
   schedule: "push" | "daily" | "weekly" | "off";
   verify: { workspace: string; install?: string; typecheck?: string; test?: string }[];
   pullRequests: {
@@ -169,7 +190,16 @@ export function defaultConfig(): TeireConfig {
     ecosystems: Object.fromEntries(ECOSYSTEM_KEYS.map((k) => [k, true])) as TeireConfig["ecosystems"],
     paths: [],
     ignorePaths: [],
-    upgrades: { majors: true, plainBumps: true, cooldownDays: REGISTRY.cooldownDays, allow: [], deny: [] },
+    upgrades: {
+      majors: true,
+      plainBumps: true,
+      cooldownDays: REGISTRY.cooldownDays,
+      allow: [],
+      deny: [],
+      prerelease: [],
+      distTags: {},
+      versioning: "auto",
+    },
     // Daily by default, as Dependabot schedules per repo: an idle repo still learns of new changes (D95).
     schedule: "daily",
     verify: [],
@@ -366,6 +396,30 @@ export function describeConfig(config: TeireConfig) {
  * The update types ignored per package (D112): `ignore` entries like `npm:minimatch@major` or
  * `minimatch@minor`, from teire.yml or `@teire ignore <package> major|minor|patch`.
  */
+/**
+ * The target-choice settings every pipeline takes from `upgrades` (S18.5), and the repo's
+ * dependabot.yml with the `teire.yml` keys that win over it (S18.6).
+ */
+export function upgradeOptions(config: TeireConfig, dependabot?: DependabotConfig) {
+  return {
+    cooldownDays: config.upgrades.cooldownDays,
+    ignoreUpdates: updateIgnores(config.ignore),
+    prereleases: config.upgrades.prerelease,
+    distTags: config.upgrades.distTags,
+    versioning: config.upgrades.versioning,
+    ...(dependabot?.updates.length
+      ? {
+          dependabot: {
+            config: dependabot,
+            explicit: Object.entries(config.origins)
+              .filter(([, origin]) => origin !== "default")
+              .map(([key]) => key),
+          },
+        }
+      : {}),
+  };
+}
+
 export function updateIgnores(ignore: string[]) {
   const byName = new Map<string, ("major" | "minor" | "patch")[]>();
   for (const entry of ignore) {

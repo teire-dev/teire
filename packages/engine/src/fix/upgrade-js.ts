@@ -61,6 +61,7 @@ function editPackageJson(
   name: string,
   target: string,
   alias?: string,
+  widen = false,
 ): PackageJsonEdit[] | null {
   let doc: Record<string, Record<string, string> | undefined>;
   try {
@@ -79,7 +80,11 @@ function editPackageJson(
     const range = declared.slice(aliasPrefix.length);
     // A patched (`patch:`) or JSR (`jsr:`) dependency is never rewritten as a plain range (D-23).
     if (/^(workspace:|catalog:|file:|link:|git|https?:|patch:|jsr:)/.test(range)) return null;
-    const next = `${aliasPrefix}${section === "peerDependencies" ? widenRange(range, target) : bumpRange(range, target)}`;
+    // A library's runtime ranges widen too (S18.5, Dependabot's `auto`); its dev ones always bump.
+    const wide =
+      section === "peerDependencies" ||
+      (widen && (section === "dependencies" || section === "optionalDependencies"));
+    const next = `${aliasPrefix}${wide ? widenRange(range, target) : bumpRange(range, target)}`;
     if (next === declared) continue;
     const edits = modify(current, [section, key], next, {
       formattingOptions: { insertSpaces: true, tabSize: 2 },
@@ -95,6 +100,7 @@ export function planManifestEdits(
   tree: RepoTree,
   instance: DependencyInstance,
   target: string,
+  widen = false,
 ): ManifestEdit[] {
   const path = instance.manifestPath;
   const text = tree.read(path);
@@ -120,7 +126,7 @@ export function planManifestEdits(
     doc.setIn(keyPath, next);
     return [{ path: workspacePath, before: workspaceText, after: doc.toString(), from: current, to: next }];
   }
-  const edited = editPackageJson(text, instance.name, target, instance.aliasName) ?? [];
+  const edited = editPackageJson(text, instance.name, target, instance.aliasName, widen) ?? [];
   // Chained: each edit starts from the one before, so the last carries the whole file.
   return edited.map((e, i) => ({
     path,
@@ -128,7 +134,11 @@ export function planManifestEdits(
     after: e.text,
     from: e.from,
     to: e.to,
-    ...(e.section === "peerDependencies" ? { note: "peer range widened" } : {}),
+    ...(e.section === "peerDependencies"
+      ? { note: "peer range widened" }
+      : e.to.includes("||")
+        ? { note: "library range widened" }
+        : {}),
   }));
 }
 
@@ -257,7 +267,12 @@ export function jsTransaction(
   const readBack = lockfile ? [lockfile] : [];
   const regenerate = lockfileCommand(manager, project.lockfileVersion);
   if (instance.direct) {
-    const manifest = planManifestEdits(tree, instance, target);
+    const manifest = planManifestEdits(
+      tree,
+      instance,
+      target,
+      project.widen?.includes(instance.manifestPath) === true,
+    );
     return {
       describe:
         manifest.map((e) => `${e.path}: ${e.from} → ${e.to}`).join(", ") || `${instance.name} → ${target}`,

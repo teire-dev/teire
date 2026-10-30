@@ -144,6 +144,8 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
           goPolicy(instance, options, goUnusable(project, family.pathOf, retractions)),
           instance.name,
           options,
+          "go",
+          { project, instance },
         ),
         goScheme,
       );
@@ -447,6 +449,7 @@ export async function fixGoDependency(
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
+    ...(input.supersedes?.length ? { supersedes: input.supersedes } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

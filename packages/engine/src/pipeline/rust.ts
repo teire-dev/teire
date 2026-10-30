@@ -128,7 +128,10 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
       const chosen = chooseTarget(
         info,
         instance.version,
-        withTargetMax(await rustPolicy(instance, project, options), instance.name, options),
+        withTargetMax(await rustPolicy(instance, project, options), instance.name, options, "cargo", {
+          project,
+          instance,
+        }),
         cargoScheme,
       );
       const decision = floor ? beyondRange(chosen, declared.declaredRange as string, cargoScheme) : chosen;
@@ -289,6 +292,7 @@ export async function fixRustDependency(
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
+    ...(input.supersedes?.length ? { supersedes: input.supersedes } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

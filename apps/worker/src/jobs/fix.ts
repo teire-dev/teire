@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { AFFECTED_RANGES_SEPARATOR, stillAffected } from "@teire/engine/advisories";
 import { RunCancelledError, withCancel } from "@teire/engine/cancel";
-import { matchesTarget, readTeireConfig, type TeireConfig, updateIgnores } from "@teire/engine/config";
+import { matchesTarget, readTeireConfig, type TeireConfig, upgradeOptions } from "@teire/engine/config";
 import { FIX, RUNS, SCAN } from "@teire/engine/constants";
 import { type CallSite, type ChangeV2, type Ecosystem, lineageKey } from "@teire/engine/contract";
 import {
@@ -275,6 +275,34 @@ interface Outcome {
 }
 
 type Common = Omit<Parameters<typeof fixJsDependency>[0], "assessment">;
+
+/**
+ * Dependabot's open PRs for a package (S18.6): "Bump <name> from …" or "Update <name> requirement
+ * …", opened by dependabot[bot]. A failed lookup links nothing.
+ */
+export async function dependabotPullRequests(
+  octokit: {
+    rest: {
+      pulls: {
+        list: (p: { owner: string; repo: string; state: "open"; per_page: number }) => Promise<{
+          data: { number: number; title: string; html_url: string; user: { login: string } | null }[];
+        }>;
+      };
+    };
+  },
+  owner: string,
+  repo: string,
+  name: string,
+) {
+  if (!name) return [];
+  const own = new RegExp(`^(?:Bump|Update) ${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?: |$)`);
+  const { data } = await octokit.rest.pulls
+    .list({ owner, repo, state: "open", per_page: 100 })
+    .catch(() => ({ data: [] }));
+  return data
+    .filter((pr) => pr.user?.login === "dependabot[bot]" && own.test(pr.title))
+    .map((pr) => ({ number: pr.number, title: pr.title, url: pr.html_url }));
+}
 
 const PACKAGE_ECOSYSTEMS = ["npm", "pypi", "go", "cargo", "rubygems", "maven"] as const;
 
@@ -938,8 +966,7 @@ async function packageOutcome(
   const cache = postgresRegistryCache(ctx.db);
   const assessOptions = {
     cache,
-    cooldownDays: config.upgrades.cooldownDays,
-    ignoreUpdates: updateIgnores(config.ignore),
+    ...upgradeOptions(config, readDependabotConfig(tree)),
     onlyPackage: packageName,
     ...(cap ? { targetMax: { name: packageName, version: cap.version, reason: cap.reason } } : {}),
     ...(cap?.floor ? { targetFloor: { name: packageName, version: cap.version } } : {}),
@@ -1876,6 +1903,14 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       | { version: string; reason: string }
       | undefined;
     const targetVersion = run.targetVersion;
+    // An open Dependabot PR for the same package is linked as superseded (S18.6).
+    if (!isApi && installation)
+      common.supersedes = await dependabotPullRequests(
+        installation.octokit,
+        owner,
+        name,
+        groupKey.split("/").slice(1, -1).join("/"),
+      );
     const outcome = await withCancel(abort.signal, async () =>
       isApi
         ? await apiOutcome(

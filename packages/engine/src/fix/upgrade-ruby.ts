@@ -59,6 +59,34 @@ export function gemRequirementFor(requirements: string[], target: string): strin
   return next.every(ok) ? next : [`~> ${target.split(".").slice(0, 2).join(".")}`];
 }
 
+/**
+ * A library's requirements admitting `target` with their floor kept (S18.5): `~> 2.2` → `>= 2.2,
+ * < 4`; an upper bound moves past the target; one already allowing it stays (null).
+ */
+export function widenGemRequirement(requirements: string[], target: string): string[] | null {
+  const ok = (r: string) => {
+    try {
+      return rubygemsScheme.satisfies(target, r);
+    } catch {
+      return false;
+    }
+  };
+  if (requirements.every(ok)) return null;
+  const major = Number(target.split(".")[0]);
+  if (!Number.isFinite(major)) return gemRequirementFor(requirements, target);
+  const floors: string[] = [];
+  const kept: string[] = [];
+  for (const r of requirements) {
+    const m = /^\s*(~>|>=|>|<=|<|!=|=)?\s*(\S+)\s*$/.exec(r);
+    if (!m) return gemRequirementFor(requirements, target);
+    const [, op = "=", v] = m;
+    if (op === "~>" || op === "=") floors.push(`>= ${v}`);
+    else if (op === ">=" || op === ">") floors.push(r.trim());
+    else if (op === "!=") kept.push(r.trim());
+  }
+  return [...floors, ...kept, `< ${major + 1}`];
+}
+
 interface Located {
   start: number;
   end: number;
@@ -120,10 +148,12 @@ async function findDeclaration(text: string, name: string): Promise<Located | nu
 }
 
 /** The manifest text with the gem's requirement admitting `target`; null when no edit is needed. */
-export async function editGemRequirement(text: string, name: string, target: string) {
+export async function editGemRequirement(text: string, name: string, target: string, widen = false) {
   const at = await findDeclaration(text, name);
   if (!at || at.requirements.length === 0) return null;
-  const next = gemRequirementFor(at.requirements, target);
+  const next = widen
+    ? widenGemRequirement(at.requirements, target)
+    : gemRequirementFor(at.requirements, target);
   if (!next) return null;
   const bytes = Buffer.from(text);
   const rendered = next.map((r) => `${at.quote}${r}${at.quote}`).join(", ");
@@ -165,7 +195,9 @@ export async function rubyTransaction(
   for (const path of candidates) {
     const before = tree.read(path);
     if (before === null) continue;
-    const edit = await editGemRequirement(before, instance.name, target);
+    // A gem's own runtime requirements widen when the gem is a published library (S18.5).
+    const widen = project.widen?.includes(path) === true && instance.scope === "prod";
+    const edit = await editGemRequirement(before, instance.name, target, widen);
     if (!edit) {
       if (await findDeclaration(before, instance.name)) break;
       continue;

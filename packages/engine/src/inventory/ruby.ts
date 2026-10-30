@@ -24,6 +24,8 @@ export interface RubyProject {
    * dependencies must still install there, whatever Ruby its own development uses.
    */
   rubyFloor: string | null;
+  /** Gemspecs whose runtime requirements widen (S18.5: a published gem), set by the scan. */
+  widen?: string[];
   platforms: string[];
   notes: string[];
 }

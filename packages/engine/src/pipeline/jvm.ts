@@ -205,7 +205,7 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
       const chosen = chooseTarget(
         info,
         instance.version,
-        withTargetMax(jvmPolicy(instance, options), instance.name, options),
+        withTargetMax(jvmPolicy(instance, options), instance.name, options, "maven", { project, instance }),
         mavenScheme,
       );
       const ranged = floor ? beyondRange(chosen, declared.declaredRange as string, mavenScheme) : chosen;
@@ -433,6 +433,7 @@ export async function fixJvmDependency(
     runId: input.runId,
     ...(input.options.targetMax ? { targetMax: input.options.targetMax } : {}),
     ...(input.fallbackFrom ? { fallbackFrom: input.fallbackFrom } : {}),
+    ...(input.supersedes?.length ? { supersedes: input.supersedes } : {}),
     ...(input.runUrl ? { runUrl: input.runUrl } : {}),
     groupKey,
     instance: a.instance,

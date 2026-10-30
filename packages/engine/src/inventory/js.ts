@@ -24,6 +24,12 @@ export interface JsProject {
   importers: string[];
   instances: DependencyInstance[];
   notes: string[];
+  /**
+   * Manifests whose runtime ranges widen (S18.5, libraries widen, apps bump): set by the scan from
+   * `upgrades.versioning`, and under `auto` from whether that package is published under its own
+   * name and isn't private.
+   */
+  widen?: string[];
 }
 
 type Scope = DependencyInstance["scope"];

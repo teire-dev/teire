@@ -6,7 +6,7 @@ import {
   readTeireConfig,
   startsOnItsOwn,
   type TeireConfig,
-  updateIgnores,
+  upgradeOptions,
 } from "@teire/engine/config";
 import { ECOSYSTEMS, lineageKey } from "@teire/engine/contract";
 import {
@@ -46,6 +46,7 @@ import {
   type ScanCoverage,
 } from "@teire/engine/pipeline";
 import { versionScheme } from "@teire/engine/registry";
+import { readDependabotConfig } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
 import { selectBackend } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
@@ -251,6 +252,9 @@ export async function assessCheckout(
   // What this scan could not check (advisory sources down, registries that did not answer), D96.
   const coverage = newScanCoverage();
   const auth = { ...(input.token ? { githubToken: input.token } : {}), coverage };
+  // dependabot.yml shapes target choice too (S18.6); what Teire doesn't apply is said.
+  const dependabot = readDependabotConfig(tree);
+  coverage.notes.push(...dependabot.problems);
   const on = config.ecosystems;
   const none = { projects: [], assessments: [] };
   const cache = postgresRegistryCache(db);
@@ -258,8 +262,7 @@ export async function assessCheckout(
     ? none
     : await assessJsRepo(dir, tree, {
         cache,
-        cooldownDays: config.upgrades.cooldownDays,
-        ignoreUpdates: updateIgnores(config.ignore),
+        ...upgradeOptions(config, dependabot),
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
       });
@@ -267,8 +270,7 @@ export async function assessCheckout(
     ? none
     : await assessPyRepo(dir, tree, {
         cache,
-        cooldownDays: config.upgrades.cooldownDays,
-        ignoreUpdates: updateIgnores(config.ignore),
+        ...upgradeOptions(config, dependabot),
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
       });
@@ -276,8 +278,7 @@ export async function assessCheckout(
     ? none
     : await assessGoRepo(dir, tree, {
         cache,
-        cooldownDays: config.upgrades.cooldownDays,
-        ignoreUpdates: updateIgnores(config.ignore),
+        ...upgradeOptions(config, dependabot),
         ...auth,
         surfaceDiff: (oldPath, f, newPath, t) =>
           cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () => goSurfaceDiff(oldPath, f, newPath, t)),
@@ -286,8 +287,7 @@ export async function assessCheckout(
     ? none
     : await assessRustRepo(dir, tree, {
         cache,
-        cooldownDays: config.upgrades.cooldownDays,
-        ignoreUpdates: updateIgnores(config.ignore),
+        ...upgradeOptions(config, dependabot),
         ...auth,
         surfaceDiff: (n, f, t) =>
           cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
@@ -298,8 +298,7 @@ export async function assessCheckout(
     ? none
     : await assessRubyRepo(dir, tree, {
         cache,
-        cooldownDays: config.upgrades.cooldownDays,
-        ignoreUpdates: updateIgnores(config.ignore),
+        ...upgradeOptions(config, dependabot),
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
       });
@@ -307,8 +306,7 @@ export async function assessCheckout(
     ? none
     : await assessJvmRepo(dir, tree, {
         cache,
-        cooldownDays: config.upgrades.cooldownDays,
-        ignoreUpdates: updateIgnores(config.ignore),
+        ...upgradeOptions(config, dependabot),
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
       });

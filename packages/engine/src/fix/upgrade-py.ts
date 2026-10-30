@@ -43,8 +43,42 @@ export function bumpSpecifier(spec: string, target: string): string {
   return /</.test(s) && Number.isFinite(major) ? `>=${target},<${major + 1}` : `>=${target}`;
 }
 
+/**
+ * A library's specifier admitting `target` with its floor kept (S18.5, libraries widen): the upper
+ * bound moves past the target (`>=1.2,<2` → `>=1.2,<3`), `~=1.4` and `==1.4.2` become `>=1.4,<3`,
+ * `!=` exclusions stay. One that already allows the target is left as it is.
+ */
+export function widenSpecifier(spec: string, target: string): string {
+  const s = spec.trim();
+  if (!s || (pep440.validRange(s) && pypiScheme.satisfies(target, s))) return s;
+  const major = pep440.major(target);
+  if (!Number.isFinite(major)) return bumpSpecifier(s, target);
+  const ceiling = `<${major + 1}`;
+  const clauses = s
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+  const floors: string[] = [];
+  const kept: string[] = [];
+  for (const c of clauses) {
+    const m = /^(~=|===?|>=|>|<=|<|!=)\s*(.+)$/.exec(c);
+    if (!m) return bumpSpecifier(s, target);
+    const [, op, v] = m;
+    if (op === "~=" || op === "==" || op === "===") floors.push(`>=${(v as string).replace(/\.\*$/, "")}`);
+    else if (op === ">=" || op === ">") floors.push(c);
+    else if (op === "!=") kept.push(c);
+  }
+  return [...floors, ...kept, ceiling].join(",");
+}
+
 /** Edits the quoted requirement string for `name` in a pyproject (PEP 621 / dependency groups). */
-function editPyproject(text: string, path: string, name: string, target: string): ManifestEdit | null {
+function editPyproject(
+  text: string,
+  path: string,
+  name: string,
+  target: string,
+  widen = false,
+): ManifestEdit | null {
   const re = new RegExp(
     `(["'])(\\s*${namePattern(name)}\\s*(?:\\[[^\\]]*\\])?\\s*)([^"';]*?)(\\s*;[^"']*)?\\1`,
     "gi",
@@ -56,7 +90,7 @@ function editPyproject(text: string, path: string, name: string, target: string)
     (whole, quote: string, head: string, spec: string, marker: string | undefined) => {
       if (from) return whole;
       from = spec.trim();
-      to = bumpSpecifier(from, target);
+      to = widen ? widenSpecifier(from, target) : bumpSpecifier(from, target);
       return `${quote}${head.trimEnd()}${to}${marker ?? ""}${quote}`;
     },
   );
@@ -205,7 +239,13 @@ export function pyTransaction(
     const text = tree.read(manifest);
     if (text === null) return [];
     const e = manifest.endsWith(".toml")
-      ? editPyproject(text, manifest, instance.name, target)
+      ? editPyproject(
+          text,
+          manifest,
+          instance.name,
+          target,
+          project.widen?.includes(manifest) === true && instance.scope === "prod",
+        )
       : editRequirements(text, manifest, instance.name, target, hashes);
     return e ? [e] : [];
   };
