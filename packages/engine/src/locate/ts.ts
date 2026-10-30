@@ -191,6 +191,9 @@ export function locateTs(input: LocateInput): LocateResult {
     skipLibCheck: true,
     allowJs: true,
     checkJs: false,
+    // A package that ships only JavaScript (minimatch 3, no types) resolves to its own source, so a
+    // `require()` of it is read by type, not left unresolved (smoke: serve-handler's minimatch).
+    maxNodeModuleJsDepth: 1,
     types: [],
     typeRoots: [],
     composite: false,
@@ -242,6 +245,26 @@ export function locateTs(input: LocateInput): LocateResult {
       }
     }
     return sym;
+  };
+
+  /** The `export =` callable of the package a local name is bound to by `require()`, keyed. */
+  const moduleCallableKey = (callee: Node): string | null => {
+    const local = checker.getSymbolAtLocation(callee.compilerNode);
+    const decl = local?.valueDeclaration ?? local?.declarations?.[0];
+    let literal: ts.Expression | undefined;
+    if (decl && ts.isVariableDeclaration(decl) && decl.initializer && ts.isCallExpression(decl.initializer)) {
+      const init = decl.initializer;
+      if (ts.isIdentifier(init.expression) && init.expression.text === "require") literal = init.arguments[0];
+    } else if (
+      decl &&
+      ts.isImportEqualsDeclaration(decl) &&
+      ts.isExternalModuleReference(decl.moduleReference)
+    )
+      literal = decl.moduleReference.expression;
+    if (!literal || !ts.isStringLiteralLike(literal) || literal.text !== input.packageName) return null;
+    const moduleSymbol = checker.getSymbolAtLocation(literal);
+    const equals = moduleSymbol?.exports?.get("export=" as ts.__String);
+    return equals ? declKeyOf(resolve(equals) as ts.Symbol) : null;
   };
 
   const hits: Hit[] = [];
@@ -314,6 +337,22 @@ export function locateTs(input: LocateInput): LocateResult {
           record(node, key, "object", { props });
         }
         return;
+      }
+
+      // A call or `new` through a name bound to the module itself (`const mm = require("minimatch")`,
+      // `import mm = require(…)`): a use of its `module.exports = fn`, keyed as the module's
+      // `export =` callable (smoke: serve-handler's `minimatch(path, glob)`).
+      if (
+        (Node.isCallExpression(node) || Node.isNewExpression(node)) &&
+        Node.isIdentifier(node.getExpression())
+      ) {
+        const key = moduleCallableKey(node.getExpression());
+        if (key && input.declKeys.has(key)) {
+          record(node.getExpression(), key, Node.isNewExpression(node) ? "new" : "call", {
+            argCount: node.getArguments()?.length ?? 0,
+          });
+          return;
+        }
       }
 
       if (!Node.isIdentifier(node) || !input.names.has(node.getText())) return;

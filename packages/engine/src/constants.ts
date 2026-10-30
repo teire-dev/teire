@@ -522,7 +522,7 @@ export const SURFACE = {
   /** Signature text kept per symbol inside a change record; the full diff stays in `surface_diffs`. */
   recordSignatureChars: 600,
   tool: "teire-dts-walker",
-  toolVersion: "2+typescript@6.0.3",
+  toolVersion: "3+typescript@6.0.3",
   noiseFilterVersion: "2",
 } as const;
 

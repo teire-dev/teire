@@ -399,6 +399,21 @@ export function extractTsSurface(input: WalkInput): ApiSurface {
       }
       enqueue(exp, `${prefix}${exportName}`, 0);
     }
+    // `module.exports = fn` (`export = M` in its types): the module itself is called or constructed
+    // (`require("minimatch")(path, glob)`), so that callable is part of the API, under `export=`.
+    // A version that drops it breaks every such caller (smoke: serve-handler's minimatch 3 → 10).
+    const equals = checker.getSymbolAtLocation(sourceFile)?.exports?.get("export=" as ts.__String);
+    if (equals) {
+      const target = resolveAlias(equals);
+      const decl = target.valueDeclaration ?? target.declarations?.[0];
+      try {
+        const type = decl ? checker.getTypeOfSymbolAtLocation(target, decl) : undefined;
+        if (type && (type.getCallSignatures().length || type.getConstructSignatures().length))
+          enqueue(target, `${prefix}export=`, 0);
+      } catch {
+        // no callable module
+      }
+    }
   };
 
   const drain = () => {
