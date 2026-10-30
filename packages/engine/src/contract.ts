@@ -254,8 +254,12 @@ export const dependencyInstance = z.object({
   lockfilePath: z.string().optional(),
   source: z.enum(["registry", "git", "path", "workspace", "private-index", "unknown"]),
   sourceRef: z.string().optional(),
-  /** `toolchain`: the ecosystem's own resolver chose it (Go's minimal version selection; go.sum is no lockfile). */
-  resolvedBy: z.enum(["lockfile", "toolchain", "sandbox", "unresolved"]),
+  /**
+   * `toolchain`: the ecosystem's own resolver chose it (Go's minimal version selection; go.sum is no
+   * lockfile). `range-floor`: no lockfile pins it, so it is compared from the lowest published
+   * version its declared range allows (D-37), and said to be that, never as the installed version.
+   */
+  resolvedBy: z.enum(["lockfile", "toolchain", "sandbox", "unresolved", "range-floor"]),
   unresolvedReason: z.string().optional(),
   environment: z.object({ markers: z.string().optional(), platform: z.string().optional() }).optional(),
 });

@@ -414,6 +414,10 @@ function verdictLine(input: FixPullRequestInput) {
   }
 }
 
+/** The version a PR moves from: the locked one, or the declared range when none is locked (D-37). */
+const fromOf = (i: { version: string | null; declaredRange?: string; resolvedBy?: string }) =>
+  i.resolvedBy === "range-floor" && i.declaredRange ? i.declaredRange : (i.version ?? "?");
+
 export function composeFixPullRequest(input: FixPullRequestInput): { title: string; body: string } {
   const { run, instance, repo, plan } = input;
   const codeFiles = run.files.filter((f) => !run.transactionFiles.includes(f.path));
@@ -425,8 +429,8 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
     (r) => r.kind === "security-advisory" && r.applicability.fixedIn.length === 0,
   );
   const title = advisories.length
-    ? `Upgrade ${instance.name} from ${instance.version} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
-    : `Upgrade ${instance.name} from ${instance.version} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
+    ? `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target} to fix ${advisories.length === 1 ? (advisories[0]?.id.split("/").at(-1) ?? "an advisory") : `${advisories.length} advisories`}`
+    : `Upgrade ${instance.name} from ${fromOf(instance)} to ${run.target}${codeFiles.length ? " and adapt the code" : ""}`;
   const sections = (withDiff: boolean, siteCap: number, noteCap: number) => {
     const image = runFlowImage(input.runUrl);
     const out: string[] = [
@@ -440,6 +444,11 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       );
     if (input.targetMax?.name === instance.name)
       out.push(`**Why ${run.target}.** ${sanitizeUpstream(forGitHub(input.targetMax.reason, 400), null)}.`);
+    // D-37: no lockfile pins it, so the comparison started at its range's floor; said, never hidden.
+    if (instance.resolvedBy === "range-floor" && instance.declaredRange)
+      out.push(
+        `**No lockfile pins ${instance.name}.** Teire compared it from ${instance.version}, the lowest version \`${forGitHub(instance.declaredRange, 80)}\` allows: a fresh install could still get it.`,
+      );
 
     // Why this repo
     const sites = input.summary.breaking.flatMap((f) => f.callSites.map((s) => ({ s, f })));

@@ -15,7 +15,13 @@ import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { mavenFlavor } from "../registry/maven-version";
 import { mavenSignals } from "../registry/supply-chain";
-import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
+import {
+  beyondRange,
+  chooseTarget,
+  comparedInstance,
+  type TargetPolicy,
+  withTargetMax,
+} from "../registry/target";
 import { mavenScheme } from "../registry/versions";
 import { javaRequirement, jvmSurfaceDiff } from "../surface/jvm";
 import { jvmDocsLookup } from "../surface/jvmdoc";
@@ -111,17 +117,17 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
     });
   for (const project of projects) {
     const seen = new Set<string>();
-    for (const instance of project.instances) {
-      if (!instance.direct || instance.source !== "registry") continue;
-      if (options.onlyPackage && instance.name !== options.onlyPackage) continue;
+    for (const declared of project.instances) {
+      if (!declared.direct || declared.source !== "registry") continue;
+      if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       // One assessment per artifact and version, however many modules declare it.
-      const id = `${instance.name}@${instance.version}`;
+      const id = `${declared.name}@${declared.version ?? declared.declaredRange}`;
       if (seen.has(id)) continue;
       seen.add(id);
       const base: Assessment<JvmProject> = {
         purpose: "upgrade",
         project,
-        instance,
+        instance: declared,
         info: null,
         decision: null,
         diff: null,
@@ -132,29 +138,39 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
         summary: null,
         priority: null,
       };
-      if (!instance.version) {
+      // A locked version, or a registry range to take the floor of (D-37); otherwise unresolved.
+      if (!declared.version && !(declared.declaredRange && mavenScheme.isRange(declared.declaredRange))) {
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("maven", instance.name, options).catch(() => {
-        options.coverage?.lookupsFailed.push({ ecosystem: "maven", name: instance.name });
+      const info = await getPackageInfo("maven", declared.name, options).catch(() => {
+        options.coverage?.lookupsFailed.push({ ecosystem: "maven", name: declared.name });
         return null;
       });
       if (!info) {
         assessments.push(base);
         continue;
       }
-      const decision = chooseTarget(
+      const instance = comparedInstance(declared, info, mavenScheme);
+      if (!instance?.version) {
+        assessments.push(base);
+        continue;
+      }
+      const floor = instance.resolvedBy === "range-floor";
+      const chosen = chooseTarget(
         info,
         instance.version,
         withTargetMax(jvmPolicy(instance, options), instance.name, options),
         mavenScheme,
       );
+      const decision = floor ? beyondRange(chosen, declared.declaredRange as string, mavenScheme) : chosen;
       const a: Assessment<JvmProject> = {
         ...base,
         info,
         decision,
-        deprecation: deprecationChange(info, instance.version),
+        instance,
+        // The floor isn't what installs get (the newest the range allows is): no deprecation from it.
+        deprecation: floor ? null : deprecationChange(info, instance.version),
       };
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: japicmp`);

@@ -14,7 +14,13 @@ import { cratesIndexLines } from "../registry/cargo";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { crateSignals } from "../registry/supply-chain";
-import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
+import {
+  beyondRange,
+  chooseTarget,
+  comparedInstance,
+  type TargetPolicy,
+  withTargetMax,
+} from "../registry/target";
 import { cargoScheme } from "../registry/versions";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import { cargoSurfaceDiff } from "../surface/rust";
@@ -67,13 +73,13 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
   const assessments: Assessment<RustProject>[] = [];
   const diffOf = options.surfaceDiff ?? cargoSurfaceDiff;
   for (const project of projects) {
-    for (const instance of project.instances) {
-      if (!instance.direct || instance.source !== "registry") continue;
-      if (options.onlyPackage && instance.name !== options.onlyPackage) continue;
+    for (const declared of project.instances) {
+      if (!declared.direct || declared.source !== "registry") continue;
+      if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       const base: Assessment<RustProject> = {
         purpose: "upgrade",
         project,
-        instance,
+        instance: declared,
         info: null,
         decision: null,
         diff: null,
@@ -84,29 +90,39 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
         summary: null,
         priority: null,
       };
-      if (!instance.version) {
+      // A locked version, or a registry range to take the floor of (D-37); otherwise unresolved.
+      if (!declared.version && !(declared.declaredRange && cargoScheme.isRange(declared.declaredRange))) {
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("cargo", instance.name, options).catch(() => {
-        options.coverage?.lookupsFailed.push({ ecosystem: "cargo", name: instance.name });
+      const info = await getPackageInfo("cargo", declared.name, options).catch(() => {
+        options.coverage?.lookupsFailed.push({ ecosystem: "cargo", name: declared.name });
         return null;
       });
       if (!info) {
         assessments.push(base);
         continue;
       }
-      const decision = chooseTarget(
+      const instance = comparedInstance(declared, info, cargoScheme);
+      if (!instance?.version) {
+        assessments.push(base);
+        continue;
+      }
+      const floor = instance.resolvedBy === "range-floor";
+      const chosen = chooseTarget(
         info,
         instance.version,
         withTargetMax(await rustPolicy(instance, options), instance.name, options),
         cargoScheme,
       );
+      const decision = floor ? beyondRange(chosen, declared.declaredRange as string, cargoScheme) : chosen;
       const a: Assessment<RustProject> = {
         ...base,
         info,
         decision,
-        deprecation: deprecationChange(info, instance.version),
+        instance,
+        // The floor isn't what installs get (the newest the range allows is): no deprecation from it.
+        deprecation: floor ? null : deprecationChange(info, instance.version),
       };
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: cargo-semver-checks`);

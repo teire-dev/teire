@@ -14,7 +14,13 @@ import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
 import { gemSignals, snapshotOwners } from "../registry/supply-chain";
-import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
+import {
+  beyondRange,
+  chooseTarget,
+  comparedInstance,
+  type TargetPolicy,
+  withTargetMax,
+} from "../registry/target";
 import { rubygemsScheme } from "../registry/versions";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import { rubySurfaceDiff } from "../surface/ruby";
@@ -83,13 +89,13 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
   const assessments: Assessment<RubyProject>[] = [];
   const diffOf = options.surfaceDiff ?? rubySurfaceDiff;
   for (const project of projects) {
-    for (const instance of project.instances) {
-      if (!instance.direct || instance.source !== "registry") continue;
-      if (options.onlyPackage && instance.name !== options.onlyPackage) continue;
+    for (const declared of project.instances) {
+      if (!declared.direct || declared.source !== "registry") continue;
+      if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       const base: Assessment<RubyProject> = {
         purpose: "upgrade",
         project,
-        instance,
+        instance: declared,
         info: null,
         decision: null,
         diff: null,
@@ -100,32 +106,42 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
         summary: null,
         priority: null,
       };
-      if (!instance.version) {
+      // A locked version, or a registry range to take the floor of (D-37); otherwise unresolved.
+      if (!declared.version && !(declared.declaredRange && rubygemsScheme.isRange(declared.declaredRange))) {
         assessments.push(base);
         continue;
       }
       const [info, versions] = await Promise.all([
-        getPackageInfo("rubygems", instance.name, options).catch(() => {
-          options.coverage?.lookupsFailed.push({ ecosystem: "rubygems", name: instance.name });
+        getPackageInfo("rubygems", declared.name, options).catch(() => {
+          options.coverage?.lookupsFailed.push({ ecosystem: "rubygems", name: declared.name });
           return null;
         }),
-        gemVersions(instance.name).catch(() => [] as GemVersion[]),
+        gemVersions(declared.name).catch(() => [] as GemVersion[]),
       ]);
       if (!info) {
         assessments.push(base);
         continue;
       }
-      const decision = chooseTarget(
+      const instance = comparedInstance(declared, info, rubygemsScheme);
+      if (!instance?.version) {
+        assessments.push(base);
+        continue;
+      }
+      const floor = instance.resolvedBy === "range-floor";
+      const chosen = chooseTarget(
         info,
         instance.version,
         withTargetMax(rubyPolicy(instance, project, versions, options), instance.name, options),
         rubygemsScheme,
       );
+      const decision = floor ? beyondRange(chosen, declared.declaredRange as string, rubygemsScheme) : chosen;
       const a: Assessment<RubyProject> = {
         ...base,
         info,
         decision,
-        deprecation: deprecationChange(info, instance.version),
+        instance,
+        // The floor isn't what installs get (the newest the range allows is): no deprecation from it.
+        deprecation: floor ? null : deprecationChange(info, instance.version),
       };
       // Who owns the gem now, kept for the upgrade's owner comparison (D-14, R21.6).
       if (decision.kind === "upgrade")

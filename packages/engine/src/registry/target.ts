@@ -1,4 +1,5 @@
 import { REGISTRY } from "../constants";
+import type { DependencyInstance } from "../contract";
 import type { PackageInfo, VersionInfo } from "./types";
 import type { VersionScheme } from "./versions";
 
@@ -276,4 +277,46 @@ export function chooseFixedTarget(
     cooldownWaived: young,
     skipped: collect(skips),
   };
+}
+
+/**
+ * D-37: a dependency no lockfile pins (a lockless repository, a range-only requirement) is compared
+ * from the lowest published, non-pre-release version its declared range allows: the oldest version a
+ * fresh install may still get, so a break between it and the target is one the code can meet. Null
+ * when the range isn't a registry range or nothing published satisfies it.
+ */
+export function rangeFloor(
+  info: PackageInfo,
+  range: string | undefined,
+  scheme: VersionScheme,
+): string | null {
+  if (!range || !scheme.isRange(range)) return null;
+  return (
+    info.versions.find((v) => !scheme.isPrerelease(v.version) && scheme.satisfies(v.version, range))
+      ?.version ?? null
+  );
+}
+
+/**
+ * A range-only dependency's decision: a target its range already allows changes nothing (a fresh
+ * install takes it), so only a target past the range is an upgrade, the range moving to it.
+ */
+export function beyondRange(decision: TargetDecision, range: string, scheme: VersionScheme): TargetDecision {
+  return decision.kind === "upgrade" && scheme.satisfies(decision.to, range)
+    ? { kind: "up-to-date", from: decision.from, skipped: decision.skipped }
+    : decision;
+}
+
+/**
+ * The version a dependency is compared from: the locked one, or for a range-only dependency its
+ * range's floor, marked `range-floor`. Null when neither is known (it stays unresolved).
+ */
+export function comparedInstance<T extends DependencyInstance>(
+  instance: T,
+  info: PackageInfo,
+  scheme: VersionScheme,
+): T | null {
+  if (instance.version) return instance;
+  const floor = rangeFloor(info, instance.declaredRange, scheme);
+  return floor ? { ...instance, version: floor, resolvedBy: "range-floor" } : null;
 }

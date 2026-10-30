@@ -16,7 +16,13 @@ import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
 import { pypiSignals, snapshotOwners } from "../registry/supply-chain";
-import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
+import {
+  beyondRange,
+  chooseTarget,
+  comparedInstance,
+  type TargetPolicy,
+  withTargetMax,
+} from "../registry/target";
 import { pypiScheme } from "../registry/versions";
 import { pythonDocsLookup } from "../surface/pydoc";
 import { fetchPypiWheel, pypiSurfaceDiff } from "../surface/pypi";
@@ -92,13 +98,13 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
   const diffOf = options.surfaceDiff ?? ((name, from, to) => pypiSurfaceDiff(name, from, to, options));
   for (const project of projects) {
     const python = pythonFor(tree, project.root)?.version ?? DEFAULT_PYTHON;
-    for (const instance of project.instances) {
-      if (!instance.direct || instance.source !== "registry") continue;
-      if (options.onlyPackage && instance.name !== options.onlyPackage) continue;
+    for (const declared of project.instances) {
+      if (!declared.direct || declared.source !== "registry") continue;
+      if (options.onlyPackage && declared.name !== options.onlyPackage) continue;
       const base: Assessment<PyProject> = {
         purpose: "upgrade",
         project,
-        instance,
+        instance: declared,
         info: null,
         decision: null,
         diff: null,
@@ -109,30 +115,43 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
         summary: null,
         priority: null,
       };
-      if (!instance.version || instance.environment?.markers) {
+      // A locked version, or a registry range to take the floor of (D-37); otherwise unresolved.
+      if (
+        (!declared.version && !(declared.declaredRange && pypiScheme.isRange(declared.declaredRange))) ||
+        declared.environment?.markers
+      ) {
         assessments.push(base);
         continue;
       }
-      const info = await getPackageInfo("pypi", instance.name, options).catch(() => {
-        options.coverage?.lookupsFailed.push({ ecosystem: "pypi", name: instance.name });
+      const info = await getPackageInfo("pypi", declared.name, options).catch(() => {
+        options.coverage?.lookupsFailed.push({ ecosystem: "pypi", name: declared.name });
         return null;
       });
       if (!info) {
         assessments.push(base);
         continue;
       }
+      const instance = comparedInstance(declared, info, pypiScheme);
+      if (!instance?.version) {
+        assessments.push(base);
+        continue;
+      }
+      const floor = instance.resolvedBy === "range-floor";
       const index = await getPypiIndex(instance.name, options).catch(() => null);
-      const decision = chooseTarget(
+      const chosen = chooseTarget(
         info,
         instance.version,
         withTargetMax(pyPolicy(instance, index, options, python), instance.name, options),
         pypiScheme,
       );
+      const decision = floor ? beyondRange(chosen, declared.declaredRange as string, pypiScheme) : chosen;
       const a: Assessment<PyProject> = {
         ...base,
         info,
         decision,
-        deprecation: deprecationChange(info, instance.version),
+        instance,
+        // The floor isn't what installs get (the newest the range allows is): no deprecation from it.
+        deprecation: floor ? null : deprecationChange(info, instance.version),
       };
       // Who owns the project now, kept for the upgrade's owner comparison (D-14, R21.6).
       if (decision.kind === "upgrade")

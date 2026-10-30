@@ -46,7 +46,7 @@
     },
     "resolvedBy": {
       "type": "string",
-      "enum": ["lockfile", "toolchain", "sandbox", "unresolved"]
+      "enum": ["lockfile", "toolchain", "sandbox", "unresolved", "range-floor"]
     },
     "unresolvedReason": {
       "type": "string"
