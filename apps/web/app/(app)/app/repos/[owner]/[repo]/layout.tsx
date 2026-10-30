@@ -3,6 +3,7 @@ import { Lock, Pause, Play, RefreshCw } from "lucide-react";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { RemoveRepository } from "@/components/app/access-controls";
 import { ActionButton } from "@/components/app/action-button";
 import { FixModeControl } from "@/components/app/fix-mode-control";
 import { RepoTabs } from "@/components/app/repo-tabs";
@@ -106,6 +107,7 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
           >
             Ask about this repository
           </AskButton>
+          {repo.status !== "disabled" ? <RemoveRepository repo={fullName} /> : null}
           <Button asChild variant="ghost" size="icon-sm" aria-label="Open on GitHub" title="Open on GitHub">
             <a href={`https://github.com/${fullName}`}>
               <BrandLogo

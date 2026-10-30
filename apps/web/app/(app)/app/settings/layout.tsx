@@ -13,6 +13,7 @@ export default function SettingsLayout({ children }: LayoutProps<"/app/settings"
             { key: "repositories", label: "Repositories" },
             { key: "installations", label: "Installations" },
             { key: "usage", label: "Usage" },
+            { key: "account", label: "Account" },
           ]}
         />
       </div>

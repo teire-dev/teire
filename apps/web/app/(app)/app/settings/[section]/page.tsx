@@ -4,6 +4,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import {
+  DeleteAccount,
+  RevokeGitHubAccess,
+  SignOutEverywhere,
+  Uninstall,
+} from "@/components/app/access-controls";
 import { BulkFixMode } from "@/components/app/bulk-fix-mode";
 import { ConfigBoard } from "@/components/app/config-board";
 import { ConfigPrForm } from "@/components/app/config-pr-form";
@@ -18,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { StackedActivityBars } from "@/components/ui/stacked-activity";
 import { myScope } from "@/lib/app-shell";
 import { assistantSpend } from "@/lib/assistant/budget";
+import { githubLogin } from "@/lib/auth";
 import { myInstallations } from "@/lib/dashboard";
 import { configCurrent } from "@/lib/fix-mode";
 import { languageMarks } from "@/lib/marks";
@@ -26,7 +33,7 @@ import { APP_SLUG, INSTALL_URL } from "@/lib/site";
 import { reposOf, usageDaily, usageOf } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "../../gate";
 
-const SECTIONS = ["organization", "repositories", "installations", "usage"] as const;
+const SECTIONS = ["organization", "repositories", "installations", "usage", "account"] as const;
 type Section = (typeof SECTIONS)[number];
 
 export async function generateMetadata({ params }: PageProps<"/app/settings/[section]">) {
@@ -83,6 +90,8 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
   if (!SECTIONS.includes(section as Section)) notFound();
   if (!session) return <SignInCard next={`/app/settings/${section}`} />;
   if (section === "installations") return <Installations userId={session.user.id} />;
+  if (section === "account")
+    return <Account userId={session.user.id} name={session.user.name} image={session.user.image ?? null} />;
   const mine = await myScope(session.user.id);
   if (!mine) return <InstallCard />;
   const inst = mine.installation;
@@ -260,6 +269,66 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
   }
 }
 
+/**
+ * Who is signed in, and every way to take Teire's access away (the account owner's own controls):
+ * sign out here or everywhere, revoke Teire's GitHub authorization, or delete the Teire account.
+ */
+async function Account({ userId, name, image }: { userId: string; name: string; image: string | null }) {
+  const login = await githubLogin(userId);
+  return (
+    <div className="flex flex-col gap-8">
+      <Part title="Signed in">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-sheet p-4 shadow-card">
+          <Avatar className="size-10">
+            {image ? <AvatarImage src={image} alt="" /> : null}
+            <AvatarFallback className="text-xs">{name.slice(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium text-ink">{name}</span>
+            <span className="flex items-center gap-1 font-mono text-[11px] text-ink-3">
+              <GithubMark className="size-3" />
+              {login ?? "GitHub didn't answer"}
+            </span>
+          </span>
+          <span className="ml-auto flex flex-wrap gap-2">
+            <SignOutEverywhere />
+          </span>
+        </div>
+      </Part>
+      <Part title="GitHub access">
+        <div className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
+          <p className="text-sm text-ink-2">
+            Teire reads which repositories you can see with an authorization you gave GitHub. Its access to
+            your repositories is the app's installation:{" "}
+            <Link href="/app/settings/installations" className="text-link hover:underline">
+              uninstall it
+            </Link>{" "}
+            or remove a repository from its page.
+          </p>
+          <span>
+            <RevokeGitHubAccess />
+          </span>
+        </div>
+      </Part>
+      <Part title="Delete your Teire account">
+        <div className="flex flex-col gap-3 rounded-xl bg-sheet p-4 shadow-card">
+          <p className="text-sm text-ink-2">
+            Your sign-in, GitHub access, Ask Teire threads and what Teire knew you could see. Installations
+            keep running until you uninstall them.
+          </p>
+          <span>
+            {login ? (
+              <DeleteAccount login={login} />
+            ) : (
+              <span className="text-sm text-ink-3">Sign in again to delete your account.</span>
+            )}
+          </span>
+        </div>
+      </Part>
+    </div>
+  );
+}
+
 async function Installations({ userId }: { userId: string }) {
   const installs = await myInstallations(userId);
   return (
@@ -286,17 +355,20 @@ async function Installations({ userId }: { userId: string }) {
                   </span>
                 ) : null}
               </span>
-              <a
-                href={
-                  i.type === "Organization"
-                    ? `https://github.com/organizations/${i.login}/settings/installations/${i.id}`
-                    : `https://github.com/settings/installations/${i.id}`
-                }
-                className="flex items-center gap-1.5 border-t border-rule pt-3 text-xs text-ink-2 hover:text-ink"
-              >
-                <GithubMark className="size-3.5" />
-                Repository access <ExternalLink className="size-3" aria-hidden />
-              </a>
+              <span className="flex items-center justify-between gap-2 border-t border-rule pt-2">
+                <a
+                  href={
+                    i.type === "Organization"
+                      ? `https://github.com/organizations/${i.login}/settings/installations/${i.id}`
+                      : `https://github.com/settings/installations/${i.id}`
+                  }
+                  className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink"
+                >
+                  <GithubMark className="size-3.5" />
+                  Repository access <ExternalLink className="size-3" aria-hidden />
+                </a>
+                <Uninstall installationId={i.id} login={i.login} />
+              </span>
             </li>
           ))}
           <li>

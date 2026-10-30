@@ -19,7 +19,9 @@ import {
   getRepo,
   getRun,
   latestUpgrades,
+  markInstallation,
   recordFeedback,
+  removeInstallationData,
   setAction,
   setFindingsState,
   setIgnore,
@@ -446,8 +448,9 @@ async function started(
 }
 
 /**
- * The installation's default fix mode (D126): an org admin, or the account owner for a user
- * installation. Membership is read from GitHub now; an answer GitHub didn't give is a refusal.
+ * Installation-wide actions (D126): the installation's default fix mode, or uninstalling Teire. Only
+ * an org admin, or the account owner for a user installation. Membership is read from GitHub now; an
+ * answer GitHub didn't give is a refusal.
  */
 async function installationAction(
   ctx: EventContext,
@@ -464,9 +467,10 @@ async function installationAction(
     .where(eq(installations.id, action.installationId))
     .limit(1);
   if (!inst) return refused("Teire is no longer installed there");
+  const what = parsed.kind === "uninstall" ? "uninstall Teire from it" : "change the installation's default";
   if (inst.accountType === "User") {
     if (inst.accountLogin.toLowerCase() !== login.toLowerCase())
-      return refused(`Only ${inst.accountLogin} can change this installation's default`);
+      return refused(`Only ${inst.accountLogin} can ${what}`);
   } else {
     const { octokit } = await ctx.gh.installation(inst.id);
     // The org role, read from GitHub now (D126). Only an org admin passes: GitHub tells Teire that
@@ -480,8 +484,22 @@ async function installationAction(
       return refused(
         `Teire can't check who administers ${inst.accountLogin}: the Teire app needs the organization permission "Members: read" (an owner of ${inst.accountLogin} grants it in the app's settings on GitHub)`,
       );
-    if (role !== "admin")
-      return refused(`Only an admin of ${inst.accountLogin} can change the installation's default`);
+    if (role !== "admin") return refused(`Only an admin of ${inst.accountLogin} can ${what}`);
+  }
+  if (parsed.kind === "uninstall") {
+    if (String(parsed.params.account).toLowerCase() !== inst.accountLogin.toLowerCase())
+      return refused(`Type ${inst.accountLogin} to confirm`);
+    // Uninstalled as GitHub's own uninstall would: the App's grant ends, runs stop and the
+    // repositories' data is removed now; the webhook that follows finds it done.
+    await ctx.gh.app.octokit.request("DELETE /app/installations/{installation_id}", {
+      installation_id: inst.id,
+    });
+    await markInstallation(db, inst.id, { deletedAt: new Date() });
+    await removeInstallationData(db, inst.id);
+    return {
+      status: "done",
+      result: `Teire is uninstalled from ${inst.accountLogin}: it can't read or change its repositories any more, its runs stopped and their data is removed`,
+    };
   }
   const mode = parsed.params.mode as FixMode;
   const security = (parsed.params.security as "auto" | "ask" | undefined) ?? inst.securityFixMode;

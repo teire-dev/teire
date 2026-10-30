@@ -49,6 +49,7 @@ const PAGES = [
   { label: "Runs that need you", href: "/app/runs?show=needs-you", icon: Activity },
   { label: "Settings", href: "/app/settings", icon: Settings },
   { label: "Usage", href: "/app/settings/usage", icon: Settings },
+  { label: "Account", href: "/app/settings/account", icon: Settings },
   { label: "Docs", href: "/docs", icon: BookOpen },
   { label: "Trust: how Teire runs", href: "/trust", icon: ShieldCheck },
 ] as const;

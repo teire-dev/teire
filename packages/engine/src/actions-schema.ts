@@ -57,6 +57,8 @@ export const ACTION_PARAMS: Record<ActionKind, z.ZodObject> = {
     reason: z.string().trim().min(1).max(2000),
     groupKey: z.string().max(300).optional(),
   }),
+  /** Teire uninstalled from an account (the person types the account's login to confirm). */
+  uninstall: z.object({ account: target }),
 } as const;
 
 export type ActionParams<K extends ActionKind> = z.infer<(typeof ACTION_PARAMS)[K]>;

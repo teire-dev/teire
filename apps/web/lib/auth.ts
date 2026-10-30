@@ -30,6 +30,19 @@ function create() {
     secret: process.env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "pg", schema: { user, session, account, verification } }),
     socialProviders: { github: { clientId, clientSecret } },
+    // "Delete my Teire account" (Settings → Account): GitHub's authorization for Teire ends while the
+    // token is still here, then what only this person had goes; Better Auth removes the user, the
+    // GitHub account link and every session. A session older than a day signs in again first.
+    user: {
+      deleteUser: {
+        enabled: true,
+        beforeDelete: async (u) => {
+          const { forgetPerson, revokeGrant } = await import("./revoke");
+          await revokeGrant(u.id);
+          await forgetPerson(u.id);
+        },
+      },
+    },
     // Sign-in failures land on /signin with ?error= (said there in plain words), not a default page.
     onAPIError: { errorURL: "/signin" },
     databaseHooks: {

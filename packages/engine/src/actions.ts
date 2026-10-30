@@ -25,6 +25,7 @@ export const ACTION_KINDS = [
   "fix-in-all",
   "feedback",
   "activate",
+  "uninstall",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
@@ -43,6 +44,7 @@ export const TERMINAL: ReadonlySet<ActionStatus> = new Set(["done", "refused", "
 export const INSTALLATION_ACTIONS: ReadonlySet<ActionKind> = new Set([
   "set-installation-fix-mode",
   "fix-in-all",
+  "uninstall",
 ]);
 
 /**
@@ -114,6 +116,8 @@ export function describeAction(kind: ActionKind, params: Record<string, unknown>
       return "Report a wrong finding";
     case "activate":
       return params.keep ? "Turn Teire on, keeping the onboarding PR" : "Turn Teire on";
+    case "uninstall":
+      return `Uninstall Teire from ${String(params.account)}`;
     default:
       if ((kind as string) === "close-pr") return `Closed #${params.number}`;
       return `${kind[0]?.toUpperCase()}${kind.slice(1)}`;
