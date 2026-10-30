@@ -3,14 +3,18 @@ import {
   and,
   artifacts,
   asc,
+  changes,
   desc,
   eq,
+  findings,
   gt,
+  inArray,
   llmCalls,
   or,
   publicScans,
   runEvents,
   sandboxExecs,
+  scans,
   sql,
   userInstallations,
   userRepos,
@@ -22,6 +26,7 @@ import { visibleRun } from "./access";
 import { auth } from "./auth";
 import { database } from "./db";
 import { reachKey, reachOf } from "./reach";
+import { postOf, type RunChange, type RunCode, type RunSite } from "./run-evidence";
 import { getSession } from "./session";
 
 /**
@@ -69,6 +74,10 @@ export interface RunSheetData {
     startedAt: string | null;
     finishedAt: string | null;
     createdAt: string;
+    /** The commit the run read and the commit it pushed: "your code" links point at `baseSha`. */
+    baseSha: string | null;
+    headSha: string | null;
+    changeId: string | null;
   };
   repo: { fullName: string; isPrivate: boolean };
   /** `runId`: the run whose evidence the PR carries now (a re-verify takes it over). */
@@ -78,6 +87,8 @@ export interface RunSheetData {
     url: string | null;
     state: string;
     runId: string | null;
+    branch: string | null;
+    headSha: string | null;
   } | null;
   verification: {
     baseline?: SheetCheck[];
@@ -109,6 +120,10 @@ export interface RunSheetData {
     createdAt: string;
   }[];
   reach: { sites: number | null; advisory: boolean };
+  /** The lines the run reached, linked at the commit they were read at. */
+  code: RunCode;
+  /** The upstream changes the run answers, each with every source it was read from. */
+  changes: RunChange[];
   /** A dry run's PR as GitHub would show it. */
   preview: { title?: string; body?: string; mode?: string } | null;
   /** The public report a dry run came from. */
@@ -137,7 +152,7 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
   const { run, repo } = row;
   const db = database();
   const dry = run.kind === "dry_run";
-  const [[artifact], events, execs, calls, reach, [preview], [report], session] = await Promise.all([
+  const [[artifact], events, execs, calls, reach, [report], session] = await Promise.all([
     // The run's own PR or issue. A PR's link moves to its newest run (a re-verify), so a re-verify
     // and the run that opened the PR both find it by the group it answers.
     db
@@ -166,13 +181,6 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
     reachOf([{ repoId: repo.id, groupKey: run.groupKey }]),
     dry
       ? db
-          .select({ payload: runEvents.payload })
-          .from(runEvents)
-          .where(and(eq(runEvents.runId, run.id), eq(runEvents.step, "pr"), eq(runEvents.type, "dry-run")))
-          .limit(1)
-      : Promise.resolve([]),
-    dry
-      ? db
           .select({ id: publicScans.id })
           .from(publicScans)
           .where(and(eq(publicScans.repoId, repo.id), eq(publicScans.status, "done")))
@@ -181,6 +189,8 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
       : Promise.resolve([]),
     getSession(),
   ]);
+  const evidence = await evidenceOf(repo.id, run.groupKey, run.changeId, events);
+  const post = postOf(events, artifact ?? null);
   const member =
     !dry && session && repo.installationId
       ? (
@@ -218,6 +228,9 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
       startedAt: iso(run.startedAt),
       finishedAt: iso(run.finishedAt),
       createdAt: run.createdAt.toISOString(),
+      baseSha: run.baseSha,
+      headSha: run.headSha,
+      changeId: run.changeId,
     },
     repo: { fullName: repo.fullName, isPrivate: repo.isPrivate },
     artifact: artifact
@@ -227,6 +240,8 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
           url: artifact.url,
           state: artifact.state,
           runId: artifact.runId,
+          branch: artifact.branch,
+          headSha: artifact.headSha,
         }
       : null,
     verification: masked((run.verification as RunSheetData["verification"]) ?? null),
@@ -260,9 +275,110 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
       createdAt: c.createdAt.toISOString(),
     })),
     reach: reach.get(reachKey(repo.id, run.groupKey)) ?? { sites: null, advisory: false },
-    preview: masked((preview?.payload as RunSheetData["preview"]) ?? null),
+    code: masked(evidence.code),
+    changes: evidence.changes,
+    preview: post ? masked({ title: post.title ?? undefined, body: post.body, mode: post.kind }) : null,
     report: report?.id ?? null,
     member,
+  };
+}
+
+const SITES_SHOWN = 40;
+const CHANGES_SHOWN = 6;
+const SOURCES_SHOWN = 4;
+const QUOTE_CHARS = 700;
+
+/**
+ * What a run reached and answers (revamp S1). The lines come from the run's own snapshot, recorded
+ * when it assessed the change (`assess`/`sites`); a run from before snapshots shows the latest
+ * scan's lines for its group, said as such and linked at the commit that scan read. The changes are
+ * the run's own, or the ones its group's findings name, with every source's quote and link.
+ */
+async function evidenceOf(
+  repoId: number,
+  groupKey: string | null,
+  changeId: string | null,
+  events: { step: string; type: string; payload: unknown }[],
+): Promise<{ code: RunCode; changes: RunChange[] }> {
+  const db = database();
+  const snapshot = events.findLast((e) => e.step === "assess" && e.type === "sites")?.payload as
+    | { sha?: string; sites?: RunSite[]; total?: number; changes?: string[] }
+    | undefined;
+  const found = groupKey
+    ? await db
+        .select({
+          callSites: findings.callSites,
+          changeId: findings.changeId,
+          verdict: findings.verdict,
+          sha: scans.sha,
+        })
+        .from(findings)
+        .leftJoin(scans, eq(scans.id, findings.scanId))
+        .where(and(eq(findings.repoId, repoId), eq(findings.groupKey, groupKey)))
+    : [];
+  const affected = found.filter((f) => f.verdict === "affected");
+  let code: RunCode;
+  if (snapshot?.sites) {
+    code = {
+      at: "run",
+      sha: snapshot.sha ?? null,
+      sites: snapshot.sites.slice(0, SITES_SHOWN),
+      total: snapshot.total ?? snapshot.sites.length,
+    };
+  } else {
+    const seen = new Set<string>();
+    const sites: RunSite[] = [];
+    for (const f of affected)
+      for (const s of (Array.isArray(f.callSites) ? f.callSites : []) as Partial<RunSite>[]) {
+        if (!s.file || !s.line || seen.has(`${s.file}:${s.line}`)) continue;
+        seen.add(`${s.file}:${s.line}`);
+        sites.push({ file: s.file, line: s.line, snippet: s.snippet ?? "", kind: s.kind ?? null });
+      }
+    sites.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+    code = {
+      at: sites.length ? "scan" : null,
+      sha: affected.find((f) => f.sha)?.sha ?? null,
+      sites: sites.slice(0, SITES_SHOWN),
+      total: sites.length,
+    };
+  }
+  const ids = [
+    ...new Set(
+      [changeId, ...(snapshot?.changes ?? []), ...affected.map((f) => f.changeId)].filter(
+        (id): id is string => !!id,
+      ),
+    ),
+  ].slice(0, CHANGES_SHOWN);
+  const rows = ids.length
+    ? await db
+        .select({ id: changes.id, title: changes.title, kind: changes.kind, record: changes.record })
+        .from(changes)
+        .where(inArray(changes.id, ids))
+    : [];
+  const order = new Map(ids.map((id, i) => [id, i]));
+  return {
+    code,
+    changes: rows
+      .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+      .map((c) => ({
+        id: c.id,
+        title: c.title,
+        kind: c.kind,
+        sources: (
+          ((c.record as { sources?: Record<string, unknown>[] } | null)?.sources ?? []) as Record<
+            string,
+            unknown
+          >[]
+        )
+          .slice(0, SOURCES_SHOWN)
+          .map((s) => ({
+            url: typeof s.url === "string" ? s.url : null,
+            quote: typeof s.quote === "string" ? s.quote.slice(0, QUOTE_CHARS) : null,
+            kind: typeof s.kind === "string" ? s.kind : null,
+            trustBasis: typeof s.trustBasis === "string" ? s.trustBasis : null,
+            checkedAt: typeof s.checkedAt === "string" ? s.checkedAt : null,
+          })),
+      })),
   };
 }
 
@@ -369,6 +485,9 @@ export async function runSheetTick(
       startedAt: iso(r.started_at),
       finishedAt: iso(r.finished_at),
       createdAt: iso(r.created_at) ?? "",
+      baseSha: str(r.base_sha),
+      headSha: str(r.head_sha),
+      changeId: str(r.change_id),
     },
     artifact: a
       ? {
@@ -377,6 +496,8 @@ export async function runSheetTick(
           url: str(a.url),
           state: String(a.state),
           runId: str(a.run_id),
+          branch: str(a.branch),
+          headSha: str(a.head_sha),
         }
       : null,
     verification: masked((r.verification as RunSheetData["verification"]) ?? null),

@@ -55,7 +55,7 @@ export interface ActivityRow {
   costUsd: number;
 }
 
-const TITLES: Record<string, [live: string, done: string]> = {
+export const TITLES: Record<string, [live: string, done: string]> = {
   queue: ["Waiting for its turn", "Queued"],
   assess: ["Assessing the change", "Assessed the change"],
   resolver: ["dependabot-core's updater is changing the dependency files", "dependabot-core's updater"],

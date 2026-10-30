@@ -2,14 +2,15 @@
 
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { TileSquare } from "@/components/flow/tile";
-import { Markdown } from "@/components/markdown";
 import { DiffView } from "@/components/run/diff-view";
 import { Ledger, type LedgerCheck } from "@/components/teire/ledger";
 import { EvidenceChip } from "@/components/teire/status-chip";
 import type { ActivityRow } from "@/lib/activity";
 import { FLOW_STATE_LABEL, type FlowEntity, type FlowTile, TILE_OF_STEP } from "@/lib/flow/model";
+import { postOf } from "@/lib/run-evidence";
 import type { RunSheetData } from "@/lib/run-sheet";
 import { cn } from "@/lib/utils";
+import { Commits, PostView, Upstream, YourCode } from "./evidence";
 import { ActivityItem, Closing, type ContextItem } from "./sheet-parts";
 
 /**
@@ -51,6 +52,7 @@ export function Inspector({
     else current.push(row);
   }
   const latest = attempts.at(-1) ?? [];
+  const post = tile.entity === "outcome" ? postOf(sheet.events, artifact) : null;
   const earlier = attempts.slice(0, -1).flat();
   return (
     <section aria-label={`${tile.label}: evidence`} className={cn("flex min-w-0 flex-col gap-4", className)}>
@@ -70,53 +72,21 @@ export function Inspector({
         ) : null}
       </header>
 
-      {tile.entity === "change" ? (
-        data.context.length ? (
-          <ul className="flex flex-col gap-3">
-            {data.context.flatMap(([group, items]) =>
-              items.slice(0, 6).map((item, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: two sources can share a title; order is stable
-                <li key={`${group}-${item.title}-${i}`} className="rounded-card bg-sunken p-3">
-                  <p className="eyebrow mb-1">{group}</p>
-                  {item.url?.startsWith("https://") ? (
-                    <a
-                      href={item.url}
-                      rel="noreferrer noopener"
-                      target="_blank"
-                      className="text-[13px] font-medium text-ink hover:underline"
-                    >
-                      {item.title}
-                    </a>
-                  ) : (
-                    <p className="text-[13px] font-medium text-ink">{item.title}</p>
-                  )}
-                  {item.quote ? (
-                    <details className="mt-1">
-                      <summary className="cursor-pointer font-mono text-[11px] text-ink-3">
-                        What it said
-                      </summary>
-                      <blockquote className="mt-1 max-h-48 overflow-auto border-l-2 border-rule pl-2 text-[12px] leading-relaxed whitespace-pre-wrap text-ink-2">
-                        {item.quote}
-                      </blockquote>
-                    </details>
-                  ) : null}
-                </li>
-              )),
-            )}
-          </ul>
-        ) : (
-          <p className="text-sm text-ink-3">Recorded upstream.</p>
-        )
-      ) : null}
+      {tile.entity === "change" ? <Upstream sheet={sheet} context={data.context} /> : null}
+
+      {tile.entity === "code" ? <YourCode sheet={sheet} /> : null}
 
       {tile.entity === "repository" ? (
-        <a
-          href={`https://github.com/${repo.fullName}`}
-          className="inline-flex items-center gap-1.5 text-sm text-link hover:underline"
-        >
-          {repo.fullName}
-          <ExternalLink className="size-3.5" />
-        </a>
+        <div className="flex flex-col gap-3">
+          <a
+            href={`https://github.com/${repo.fullName}`}
+            className="inline-flex items-center gap-1.5 text-sm text-link hover:underline"
+          >
+            {repo.fullName}
+            <ExternalLink className="size-3.5" />
+          </a>
+          <Commits sheet={sheet} />
+        </div>
       ) : null}
 
       {tile.entity === "check" ? (
@@ -173,14 +143,7 @@ export function Inspector({
               <ArrowRight className="ml-auto size-4 text-ink-3 group-hover:text-ink" />
             </a>
           ) : null}
-          {run.kind === "dry_run" && sheet.preview?.body ? (
-            <article className="max-h-[480px] overflow-auto rounded-card bg-sunken p-4">
-              {sheet.preview.title ? (
-                <h3 className="mb-3 text-[15px] font-medium">{sheet.preview.title}</h3>
-              ) : null}
-              <Markdown>{sheet.preview.body}</Markdown>
-            </article>
-          ) : null}
+          {post ? <PostView post={post} compact /> : null}
           <div className="overflow-hidden rounded-card bg-sunken">
             <Closing sheet={sheet} />
           </div>
@@ -210,6 +173,7 @@ export function Inspector({
           ) : null}
         </>
       ) : tile.entity !== "change" &&
+        tile.entity !== "code" &&
         tile.entity !== "repository" &&
         tile.entity !== "outcome" &&
         tile.entity !== "check" ? (

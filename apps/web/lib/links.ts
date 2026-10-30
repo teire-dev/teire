@@ -14,6 +14,11 @@ export function providerHref(slug: string) {
   return slug && !slug.startsWith("declared-") ? `/providers/${slug}` : null;
 }
 
+/** A change in the catalog (`npm/zod/3.25.76..4.6.7/symbol-removed`, `advisory/npm/zod/GHSA-…`). */
+export function changeHref(id: string) {
+  return `/changes/${id.split("/").map(encodeURIComponent).join("/")}`;
+}
+
 /** A finding group: `models/<provider>`, `api/<provider>`, `<ecosystem>/<package…>/<target>` or `runtime/<name>`. */
 export function groupHref(key: string) {
   const [head = "", ...rest] = key.split("/");

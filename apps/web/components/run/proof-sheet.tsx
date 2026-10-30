@@ -22,9 +22,11 @@ import { canReplay, sheetAt } from "@/lib/flow/clock";
 import { type FlowTile, runFlow, TILE_OF_STEP } from "@/lib/flow/model";
 import { subjectMark } from "@/lib/marks";
 import { proofOfRun, STEP_DOING } from "@/lib/proof";
+import { postOf } from "@/lib/run-evidence";
 import type { RunSheetData, RunSheetTick } from "@/lib/run-sheet";
 import { traceOf } from "@/lib/trace";
 import { backendName } from "@/lib/utils";
+import { Commits, EventLog, PostView } from "./evidence";
 import { Inspector, type InspectorData } from "./inspector";
 import { RunCanvas } from "./run-canvas";
 import { ShareRun } from "./share-run";
@@ -139,6 +141,9 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const tokens = sheet.calls.reduce((n, c) => n + c.tokensIn + c.tokensOut, 0);
   const context = contextOf(sheet);
   const dry = run.kind === "dry_run";
+  // The PR or issue as its text, read from the events on every poll, so it appears when the run ends.
+  const post = postOf(sheet.events, artifact);
+  const [tab, setTab] = useState<string | null>(null);
   // Under Off a base move leaves the PR as it was (D125): its evidence is from an older base until
   // a re-verify (which then holds the PR) checks it again.
   const stale =
@@ -179,7 +184,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
     // Model and API changes are swaps in the code; only package changes go through the updater.
     updater: !/^(models|api)\//.test(run.groupKey ?? ""),
     lastStep: [...sheet.events].reverse().find((e) => TILE_OF_STEP[e.step])?.step ?? null,
-    preview: !!sheet.preview?.body,
+    preview: !!post,
     checkCount: new Set(after.map((c) => c.name)).size,
     ...(test && testBefore
       ? { checksFigure: `${testBefore.passed}/${testBefore.collected} → ${test.passed}/${test.collected}` }
@@ -250,6 +255,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
               ))}
             </div>
             <RunFacts sheet={sheet} />
+            <Commits sheet={sheet} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -341,7 +347,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
       ) : null}
 
       {/* The canvas and its inspector (n8n's execution view). Phones get the tiles as a list. */}
-      <section className="grid animate-enter overflow-hidden rounded-feature bg-sheet shadow-card [animation-delay:60ms] lg:grid-cols-[minmax(0,1fr)_370px]">
+      <section className="grid animate-enter overflow-hidden rounded-feature bg-sheet shadow-card [animation-delay:60ms] lg:grid-cols-[minmax(0,1fr)_420px]">
         <div className="hidden border-rule md:block max-lg:border-b lg:border-r">
           <RunCanvas
             key={graph.tiles.map((t) => t.id).join("|")}
@@ -388,14 +394,24 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
 
       {/* The console (n8n's bottom panel): the timeline that replays the run, and the raw record. */}
       <section className="animate-enter rounded-feature bg-sheet p-4 shadow-card [animation-delay:120ms] sm:p-5">
-        <Tabs defaultValue="timeline" className="gap-4">
+        <Tabs value={tab ?? (post && !active ? "post" : "timeline")} onValueChange={setTab} className="gap-4">
           <TabsList>
+            {post ? (
+              <TabsTrigger value="post">
+                {post.state === "proposed" ? "Proposed PR" : post.kind === "issue" ? "The issue" : "The PR"}
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="steps">Steps</TabsTrigger>
             {run.diff ? <TabsTrigger value="changes">Changes</TabsTrigger> : null}
             <TabsTrigger value="receipt">Receipt</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
           </TabsList>
+          {post ? (
+            <TabsContent value="post">
+              <PostView post={post} />
+            </TabsContent>
+          ) : null}
           <TabsContent value="timeline">
             {spans.length ? (
               <AgentTrace
@@ -459,11 +475,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
             <Receipt calls={sheet.calls} execs={sheet.execs} total={Number(run.costUsd)} />
           </TabsContent>
           <TabsContent value="events">
-            <pre className="max-h-96 overflow-auto rounded-card bg-console p-4 font-mono text-[11px] leading-relaxed text-console-ink-2">
-              {sheet.events
-                .map((e) => `${e.seq} ${e.at.slice(11, 19)} ${e.step} ${e.type} ${JSON.stringify(e.payload)}`)
-                .join("\n")}
-            </pre>
+            <EventLog events={sheet.events} />
           </TabsContent>
         </Tabs>
       </section>

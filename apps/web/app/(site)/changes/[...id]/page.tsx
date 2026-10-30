@@ -15,22 +15,13 @@ import { StatusChip } from "@/components/teire/status-chip";
 import { Button } from "@/components/ui/button";
 import { getChange, providerNames } from "@/lib/catalog";
 import { changeLife } from "@/lib/change-flow";
+import { TRUST_BASIS } from "@/lib/trust";
 import { ClassChip } from "../class-chip";
 
 /**
  * One change (plan revision 3.4, V5): its life as a flow (source, what changes, the date, your code,
  * the fix), every source quoted, what Teire looks for as chips, and Fix in all for your repositories.
  */
-/** Where a source's words come from, so a reader can weigh them (`trustBasis`, plan revision 3.3, U5). */
-const TRUST_BASIS: Record<string, string> = {
-  registry: "from the package registry",
-  "source-repo": "from the project's own repository",
-  "official-domain": "from the provider's own site",
-  "advisory-db": "from an advisory database",
-  computed: "computed by Teire from the published code",
-  "repo-config": "declared in a repository's teire.yml",
-};
-
 export async function generateMetadata({ params }: PageProps<"/changes/[...id]">): Promise<Metadata> {
   const { id } = await params;
   const record = await getChange(id.map(decodeURIComponent).join("/"));
