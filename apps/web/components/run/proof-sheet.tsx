@@ -421,6 +421,16 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
                 runId={run.id.slice(0, 8)}
                 model={modelLabel(model) ?? undefined}
                 live={active}
+                // How it ended, as the header says it (Codex walk B10: an interrupted run read "Completed").
+                endedAs={
+                  run.status === "failed"
+                    ? run.step === "interrupted"
+                      ? "Interrupted"
+                      : "Failed"
+                    : run.status === "cancelled"
+                      ? "Cancelled"
+                      : "Completed"
+                }
                 defaultTime={traceEnd}
                 autoPlay={false}
                 speed={Math.max(1, traceEnd / 8000)}

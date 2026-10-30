@@ -66,6 +66,8 @@ export interface AgentTraceProps extends React.ComponentProps<"div"> {
   onSpanSelect?: (span: TraceSpan) => void;
   /** The run is still going: its last recorded span is not its end, so it never reads "Completed". */
   live?: boolean;
+  /** How the run ended, said once the playhead reaches its end (an interrupted run isn't "Completed"). */
+  endedAs?: string;
   /**
    * The playhead, reported about ten times a second while it moves (plan revision 3.4, B5: one clock,
    * so the run canvas and the inspector follow the replay).
@@ -332,6 +334,7 @@ export function AgentTrace({
   rowHeight = 34,
   onSpanSelect,
   live = false,
+  endedAs,
   onTime,
   className,
   style,
@@ -367,9 +370,17 @@ export function AgentTrace({
 
   // The loop reads props through this ref, so knobs apply live without restarting it. Written in an
   // effect rather than during render: effects still run before the browser paints the next frame.
-  const opts = React.useRef({ loop, speed, holdMs, showTokens, total, live });
+  const opts = React.useRef<{
+    loop: boolean;
+    speed: number;
+    holdMs: number;
+    showTokens: boolean;
+    total: number;
+    live: boolean;
+    endedAs?: string | undefined;
+  }>({ loop, speed, holdMs, showTokens, total, live, endedAs });
   useIsomorphicLayoutEffect(() => {
-    opts.current = { loop, speed, holdMs, showTokens, total, live };
+    opts.current = { loop, speed, holdMs, showTokens, total, live, endedAs };
   });
 
   const registerRow = React.useCallback((index: number, handle: RowHandle | null) => {
@@ -445,7 +456,7 @@ export function AgentTrace({
       if (runState !== lastRun) {
         root.dataset.run = runState;
         if (statusRef.current)
-          statusRef.current.textContent = runState === "complete" ? "Completed" : "Running";
+          statusRef.current.textContent = runState === "complete" ? (o.endedAs ?? "Completed") : "Running";
         lastRun = runState;
       }
 
@@ -658,7 +669,7 @@ export function AgentTrace({
           ref={statusRef}
           className="border-rule text-ink-3 ml-auto shrink-0 rounded-full border px-2 py-0.5 font-mono text-[11px] leading-4"
         >
-          {live ? "Running" : "Completed"}
+          {live ? "Running" : (endedAs ?? "Completed")}
         </span>
       </div>
 
