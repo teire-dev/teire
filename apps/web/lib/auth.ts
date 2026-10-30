@@ -73,7 +73,7 @@ export function auth() {
  */
 export async function githubToken(userId: string): Promise<string | null> {
   const [row] = await database()
-    .select({ id: account.id, token: account.accessToken })
+    .select({ id: account.id, token: account.accessToken, expires: account.accessTokenExpiresAt })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
     .limit(1);
@@ -81,7 +81,10 @@ export async function githubToken(userId: string): Promise<string | null> {
   const fresh = await auth()
     .api.getAccessToken({ body: { accountId: row.id, userId } })
     .catch(() => null);
-  return fresh?.accessToken || row.token || null;
+  if (fresh?.accessToken) return fresh.accessToken;
+  // Expired and GitHub wouldn't refresh it (revoked, or the refresh token expired too): none.
+  if (row.expires && row.expires.getTime() < Date.now()) return null;
+  return row.token ?? null;
 }
 
 /** The GitHub login this person signed in with (Better Auth keeps their display name, not the login). */

@@ -68,8 +68,10 @@ export async function requestAction(input: {
     installationId = row.installationId;
   }
 
-  // The worker reads this person's stored GitHub token to check who asks: make sure it is live.
-  await githubToken(input.userId);
+  // The worker reads this person's stored GitHub token to check who asks: make sure it is live, and
+  // say so now rather than accept the action and refuse it later (Codex B8).
+  if (!(await githubToken(input.userId)))
+    return { ok: false, error: "Your GitHub sign-in has expired: sign out and sign in again" };
   const guid = `teire-action-${randomUUID()}`;
   const action = await db.transaction(async (tx) => {
     const [created] = await tx
