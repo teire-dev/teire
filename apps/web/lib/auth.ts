@@ -3,7 +3,6 @@ import {
   and,
   asc,
   eq,
-  installations as installationRows,
   session,
   sql,
   user,
@@ -54,13 +53,6 @@ export function auth() {
   return instance;
 }
 
-interface GitHubInstallation {
-  id: number;
-  account: { id: number; login: string; type: string; avatar_url?: string } | null;
-  repository_selection?: string;
-  suspended_at?: string | null;
-}
-
 /** The GitHub login this person signed in with (Better Auth keeps their display name, not the login). */
 export async function githubLogin(userId: string): Promise<string | null> {
   const [row] = await database()
@@ -98,29 +90,7 @@ export async function refreshInstallations(userId: string): Promise<boolean> {
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) return false;
-  const { installations } = (await res.json()) as { installations: GitHubInstallation[] };
-  // GitHub sends a person back the moment they install, before the worker has read the installation
-  // webhook: GitHub's own answer here writes the row first (insert only; the webhook stays the
-  // authority and updates it), so a fresh installation is never "not visible" for those seconds.
-  if (installations.length)
-    await db
-      .insert(installationRows)
-      .values(
-        installations.map((i) => ({
-          id: i.id,
-          accountId: i.account?.id ?? 0,
-          accountLogin: i.account?.login ?? "",
-          accountType: (i.account?.type === "Organization" ? "Organization" : "User") as
-            | "User"
-            | "Organization",
-          avatarUrl: i.account?.avatar_url ?? null,
-          repositorySelection: (i.repository_selection === "selected" ? "selected" : "all") as
-            | "all"
-            | "selected",
-          suspendedAt: i.suspended_at ? new Date(i.suspended_at) : null,
-        })),
-      )
-      .onConflictDoNothing();
+  const { installations } = (await res.json()) as { installations: { id: number }[] };
   // Inside each installation, the repositories this person can access (U3 review): an organisation
   // member may see the installation without access to every private repository in it.
   const repoIds = new Map<number, number[]>();

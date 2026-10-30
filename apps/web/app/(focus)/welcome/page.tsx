@@ -6,6 +6,7 @@ import { LogoMark } from "@/components/logo";
 import { SignInButton } from "@/components/sign-in-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Arriving } from "@/components/welcome/arriving";
 import { Onboarding } from "@/components/welcome/onboarding";
 import { getSession } from "@/lib/session";
 import { INSTALL_URL } from "@/lib/site";
@@ -56,6 +57,12 @@ async function Flow({ searchParams }: { searchParams: PageProps<"/welcome">["sea
       </Card>
     );
   const data = await welcomeOf(session.user.id, asked);
+  if (data.state === "arriving")
+    return (
+      <Card title="Connecting to GitHub.">
+        <Arriving />
+      </Card>
+    );
   if (data.state === "not-visible") {
     const here = `/welcome?installation_id=${asked}`;
     // GitHub didn't answer: nothing is known about this account yet, so the way on is to ask again.

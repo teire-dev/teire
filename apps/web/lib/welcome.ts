@@ -1,4 +1,15 @@
-import { and, artifacts, desc, eq, findings, inArray, installations, repos, sql } from "@teire/db";
+import {
+  and,
+  artifacts,
+  desc,
+  eq,
+  findings,
+  inArray,
+  installations,
+  repos,
+  sql,
+  userInstallations,
+} from "@teire/db";
 import { currentInstallation } from "./app-shell";
 import { freshAccess, githubLogin, refreshInstallations } from "./auth";
 import { myInstallations } from "./dashboard";
@@ -24,6 +35,16 @@ export async function welcomeOf(userId: string, asked: number | null) {
   }
   const installation =
     asked !== null ? (all.find((i) => i.id === asked) ?? null) : (await currentInstallation(userId)).current;
+  // GitHub lists it for this person, but the worker hasn't read its webhook yet (GitHub sends people
+  // back the moment they install): the page waits for it instead of calling it someone else's.
+  if (!installation && asked !== null && answered) {
+    const [listed] = await database()
+      .select({ id: userInstallations.installationId })
+      .from(userInstallations)
+      .where(and(eq(userInstallations.userId, userId), eq(userInstallations.installationId, asked)))
+      .limit(1);
+    if (listed) return { state: "arriving" as const, installation: null, repos: [] };
+  }
   if (!installation && asked !== null) {
     // Say which account is signed in and where the installation is, so the way on is plain: GitHub
     // doesn't list it for this account (installed with another one), or GitHub didn't answer.
