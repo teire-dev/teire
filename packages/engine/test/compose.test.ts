@@ -185,7 +185,7 @@ describe("the body's flow image and folds", () => {
   it("links the run's image to the run page, and draws none without a page", () => {
     const id = "6611b070-513d-4a06-8bc4-ff8e964a9fd8";
     expect(runFlowImage(`https://teire.vercel.app/runs/${id}`)).toBe(
-      `[![The run as Teire drew it: the change, your code, the fix, your checks before and after, and this outcome](https://teire.vercel.app/og/run/${id})](https://teire.vercel.app/runs/${id})`,
+      `[![The run as Teire drew it: the change, your code, the fix, your checks before and after, and this outcome](https://teire.vercel.app/og/run/${id}?v=2)](https://teire.vercel.app/runs/${id})`,
     );
     expect(runFlowImage(undefined)).toBeNull();
     expect(runFlowImage("https://teire.vercel.app/runs/not-a-run")).toBeNull();
@@ -211,5 +211,25 @@ describe("the body's flow image and folds", () => {
     );
     expect(out).toContain("### Risks not covered");
     expect(out).not.toContain("### Receipt");
+  });
+
+  it("keeps upstream's lead and first quote open, and folds only the rest", () => {
+    const out = joinBlocks(
+      foldSections([
+        "### What changed upstream",
+        "Comparing 3.25.76 and 4.6.6:",
+        "> `z.record()` now takes a key and a value schema — v4.0.0",
+        "> another note — v4.1.0",
+        "Commits between 3.25.76 and 4.6.6:",
+        "### Risks not covered",
+      ]),
+    );
+    expect(out).toContain(
+      "### What changed upstream\n\nComparing 3.25.76 and 4.6.6:\n\n> `z.record()` now takes a key and a value schema — v4.0.0",
+    );
+    expect(out).toContain(
+      "<details><summary><b>More from upstream</b></summary>\n\n> another note — v4.1.0\n\nCommits between 3.25.76 and 4.6.6:\n\n</details>",
+    );
+    expect(out.indexOf("### Risks not covered")).toBeGreaterThan(out.indexOf("</details>"));
   });
 });

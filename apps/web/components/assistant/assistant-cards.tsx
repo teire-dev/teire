@@ -50,6 +50,36 @@ export type Out<N extends ToolName> = Exclude<
 export { ago };
 
 const INTERNAL = /^\/(app|docs|runs|changes|scan|providers|packages|welcome|trust)(\/|\?|#|$)/;
+const REPO = /^[\w.-]+\/[\w.-]+$/;
+const SHA = /^[0-9a-f]{40}$/;
+
+/** A line on GitHub at the scanned commit, built from the repository, commit and path Teire read. */
+const lineHref = (repo: string, sha: string | null | undefined, file: string, line: number) =>
+  sha && SHA.test(sha) && REPO.test(repo)
+    ? `https://github.com/${repo}/blob/${sha}/${file.split("/").map(encodeURIComponent).join("/")}#L${line}`
+    : null;
+
+/** A recorded source's page, shown by its host: only an https address Teire stored, never model text. */
+function SourceHost({ url }: { url: string | null | undefined }) {
+  if (!url?.startsWith("https://")) return null;
+  let host: string;
+  try {
+    host = new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="entity-link inline-flex items-center gap-0.5"
+    >
+      {host}
+      <ArrowUpRight className="size-3" aria-hidden />
+    </a>
+  );
+}
 const OURS = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(pull|issues)\/\d+$/;
 
 /** A link inside Teire, or a Teire PR/issue on GitHub; anything else is text. */
@@ -457,7 +487,14 @@ function CountPills({ items }: { items: [number, string, FigureTone][] }) {
 function GroupRow({
   g,
 }: {
-  g: { key: string; title: string; verdict: string; sites: number; link: string };
+  g: {
+    key: string;
+    title: string;
+    verdict: string;
+    sites: number;
+    link: string;
+    firstSite?: { file: string; line: number } | null;
+  };
 }) {
   return (
     <li>
@@ -467,6 +504,11 @@ function GroupRow({
       >
         <Mark brand={subjectMark(g.key)} size="sm" />
         <span className="min-w-0 flex-1 truncate text-ink">{g.title}</span>
+        {g.firstSite ? (
+          <span className="hidden max-w-40 shrink truncate font-mono text-[11px] text-ink-3 sm:inline">
+            {g.firstSite.file.split("/").at(-1)}:{g.firstSite.line}
+          </span>
+        ) : null}
         {g.verdict !== "affected" ? (
           <VerdictChip verdict={g.verdict} />
         ) : g.sites ? (
@@ -559,27 +601,45 @@ export function FindingCard({ o }: { o: Out<"get_finding"> }) {
       />
       {o.change?.replacement ? <Swap from={subjectOfKey(o.key).name} to={o.change.replacement} /> : null}
       {o.sites.length ? (
-        <details className="group/sites text-xs">
-          <summary className="w-fit cursor-pointer list-none font-mono text-[11px] text-ink-3 hover:text-ink [&::-webkit-details-marker]:hidden">
-            {o.sites.length + o.moreSites} line{o.sites.length + o.moreSites === 1 ? "" : "s"} ›
-          </summary>
-          <ul className="mt-1.5 flex flex-col gap-1">
-            {o.sites.map((x) => (
+        <ul className="flex flex-col gap-1 text-xs" aria-label="The lines it reaches">
+          {o.sites.slice(0, 3).map((x) => {
+            const href = lineHref(o.repo, o.sha, x.file, x.line);
+            return (
               <li
                 key={`${x.file}:${x.line}`}
                 className="rounded-md bg-sunken px-2 py-1 ring-1 ring-rule ring-inset"
               >
-                <span className="font-mono text-[11px] text-ink-3">
-                  {x.file}:{x.line} · {x.resolution}
+                <span className="flex items-center gap-1.5 font-mono text-[11px] text-ink-3">
+                  {href ? (
+                    <a href={href} target="_blank" rel="noreferrer noopener" className="entity-link truncate">
+                      {x.file}:{x.line}
+                    </a>
+                  ) : (
+                    <span className="truncate">
+                      {x.file}:{x.line}
+                    </span>
+                  )}
+                  <span className="ml-auto shrink-0">{x.resolution}</span>
                 </span>
                 <pre className="overflow-x-auto font-mono text-[11px] text-ink">{x.code}</pre>
               </li>
-            ))}
-            {o.moreSites ? <li className="text-[11px] text-ink-3">+{o.moreSites}</li> : null}
-          </ul>
-        </details>
+            );
+          })}
+          {o.sites.length + o.moreSites > 3 ? (
+            <li className="font-mono text-[11px] text-ink-3">
+              +{o.sites.length + o.moreSites - 3} more on <SafeLink href={o.link}>the finding</SafeLink>
+            </li>
+          ) : null}
+        </ul>
       ) : null}
-      {o.change?.quote ? <OwnWords quote={o.change.quote} link={o.change.link} /> : null}
+      {o.change?.quote ? (
+        <OwnWords
+          quote={o.change.quote}
+          link={o.change.link}
+          source={o.change.sourceUrl}
+          basis={o.change.trustBasis}
+        />
+      ) : null}
     </Card>
   );
 }
@@ -748,22 +808,29 @@ function Swap({ from, to }: { from: string; to: string }) {
   );
 }
 
-/** A source's own words, folded: the card leads with the flow, the quote is there to check it. */
-function OwnWords({ quote, link, basis }: { quote: string; link?: string | null; basis?: string | null }) {
+/** A source's own words, open (revamp S2): the quote, the page it came from, and the change record. */
+function OwnWords({
+  quote,
+  link,
+  source,
+  basis,
+}: {
+  quote: string;
+  link?: string | null;
+  source?: string | null;
+  basis?: string | null;
+}) {
   return (
-    <details className="text-xs">
-      <summary className="w-fit cursor-pointer list-none font-mono text-[11px] text-ink-3 hover:text-ink [&::-webkit-details-marker]:hidden">
-        In its own words ›
-      </summary>
-      <blockquote className="mt-1.5 border-l-2 border-rule-strong pl-2 break-words text-ink-2">
+    <figure className="flex flex-col gap-1 text-xs">
+      <blockquote className="line-clamp-4 border-l-2 border-signal/60 pl-2 break-words text-ink-2">
         {quote}
-        <span className="mt-1 block font-mono text-[11px] text-ink-3">
-          {basis ? basis.replace(/[_-]/g, " ") : null}
-          {basis && link ? " · " : null}
-          {link ? <SafeLink href={link}>change record</SafeLink> : null}
-        </span>
       </blockquote>
-    </details>
+      <figcaption className="flex flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-ink-3">
+        <SourceHost url={source} />
+        {basis ? <span>{basis.replace(/[_-]/g, " ")}</span> : null}
+        {link ? <SafeLink href={link}>change record</SafeLink> : null}
+      </figcaption>
+    </figure>
   );
 }
 
@@ -783,7 +850,7 @@ export function ChangeCard({ o }: { o: Out<"get_change"> }) {
       ) : (
         <p className="text-xs text-ink-3">It doesn&apos;t reach any of your repositories.</p>
       )}
-      {o.quote ? <OwnWords quote={o.quote} basis={o.trustBasis} /> : null}
+      {o.quote ? <OwnWords quote={o.quote} source={o.sourceUrl} basis={o.trustBasis} /> : null}
       {fixInAll(o.id, o.reaches) ? (
         <SafeLink href={fixInAll(o.id, o.reaches)} className="w-fit text-xs text-ink-2">
           Fix in all ›

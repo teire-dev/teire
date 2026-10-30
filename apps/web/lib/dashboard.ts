@@ -102,6 +102,7 @@ export async function repoDetail(userId: string, fullName: string) {
         title: changes.title,
         kind: changes.kind,
         deadline: changes.deadline,
+        source: sql`${changes.record}->'sources'->0`,
       })
       .from(findings)
       .leftJoin(changes, eq(changes.id, findings.changeId))

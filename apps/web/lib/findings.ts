@@ -22,6 +22,25 @@ export interface FindingRow {
   title: string | null;
   kind: string | null;
   deadline: Date | string | null;
+  /** The change's first source (`changes.record.sources[0]`): its words, link and trust basis. */
+  source?: unknown;
+}
+
+/** A change's lead source as a finding shows it: the words, where they're from, and how far to trust them. */
+export interface GroupSource {
+  quote: string | null;
+  url: string | null;
+  basis: string | null;
+}
+
+const QUOTE_CHARS = 400;
+
+function sourceOf(raw: unknown): GroupSource | null {
+  if (!raw || typeof raw !== "object") return null;
+  const s = raw as Record<string, unknown>;
+  const quote = typeof s.quote === "string" && s.quote.trim() ? s.quote.trim().slice(0, QUOTE_CHARS) : null;
+  const url = typeof s.url === "string" && s.url.startsWith("https://") ? s.url : null;
+  return quote || url ? { quote, url, basis: typeof s.trustBasis === "string" ? s.trustBasis : null } : null;
 }
 
 export interface FindingGroup {
@@ -36,6 +55,8 @@ export interface FindingGroup {
   changeIds: string[];
   /** Findings of the same group with a weaker verdict (mentions to check, versions outside the change). */
   others: number;
+  /** What changed upstream, in its source's words, for the group's lead change. */
+  source: GroupSource | null;
   rows: FindingRow[];
 }
 
@@ -92,6 +113,7 @@ export function groupFindings(rows: FindingRow[]): FindingGroup[] {
       reachability: head.reachability ?? null,
       changeIds: leadIds,
       others: sorted.length - lead.length,
+      source: lead.map((r) => sourceOf(r.source)).find(Boolean) ?? null,
       rows: sorted,
     };
   });

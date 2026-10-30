@@ -70,7 +70,8 @@ function cell(side: SideResult, name: string) {
  * steps' states. Nothing when the run has no page.
  */
 export function runFlowImage(runUrl: string | undefined) {
-  const image = runUrl?.replace(/\/runs\/([0-9a-f-]{36})$/, "/og/run/$1");
+  // Versioned, so GitHub's image proxy fetches the current look rather than a cached older one.
+  const image = runUrl?.replace(/\/runs\/([0-9a-f-]{36})$/, `/og/run/$1?v=${FLOW_IMAGE_VERSION}`);
   if (!runUrl || !image || image === runUrl) return null;
   return flowImage(
     image,
@@ -84,8 +85,18 @@ export function flowImage(image: string, href: string, alt: string) {
   return `[![${alt.replace(/[[\]]/g, "")}](${image})](${href})`;
 }
 
+/** The run image's look; bumped when it changes so the image proxy refetches it. */
+const FLOW_IMAGE_VERSION = 2;
+
 /** The sections a reviewer reads only to check something: folded under their own heading. */
 const FOLDED = new Set(["What changed upstream", "Supply chain", "Receipt"]);
+
+/**
+ * Upstream's lead stays open (revamp S2: proof in view): the section's opening lines up to and
+ * including its first quote show under the heading, and only the rest folds.
+ */
+const LEADS_OPEN = new Set(["What changed upstream"]);
+const LEAD_BLOCKS = 3;
 
 /**
  * Each folded section (a "### Title" block and the blocks under it, up to the next heading or the
@@ -102,6 +113,16 @@ export function foldSections(blocks: string[]) {
     const inner: string[] = [];
     while (i + 1 < blocks.length && !/^### |^<sub>Teire/.test(blocks[i + 1] ?? ""))
       inner.push(blocks[++i] as string);
+    if (LEADS_OPEN.has(head[1])) {
+      const quote = inner.findIndex((b) => b.startsWith(">"));
+      const lead = inner.splice(0, quote >= 0 && quote < LEAD_BLOCKS ? quote + 1 : Math.min(1, inner.length));
+      out.push(blocks[i - inner.length - lead.length] as string, ...lead);
+      if (inner.length)
+        out.push(
+          `<details><summary><b>More from upstream</b></summary>\n\n${joinBlocks(inner)}\n\n</details>`,
+        );
+      continue;
+    }
     out.push(`<details><summary><b>${head[1]}</b></summary>\n\n${joinBlocks(inner)}\n\n</details>`);
   }
   return out;

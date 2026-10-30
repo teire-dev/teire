@@ -54,6 +54,7 @@ export async function scanFindings(repoId: number, scanId: string): Promise<Find
       title: changes.title,
       kind: changes.kind,
       deadline: changes.deadline,
+      source: sql`${changes.record}->'sources'->0`,
     })
     .from(findings)
     .leftJoin(changes, eq(changes.id, findings.changeId))

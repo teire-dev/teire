@@ -401,6 +401,8 @@ export function assistantTools(viewer: Viewer) {
           return {
             asOf: iso(got.repo.lastScannedAt) ?? now(),
             repo: got.repo.fullName,
+            // The commit the lines were read at, so a card links each line on GitHub (revamp S2).
+            sha: got.repo.lastScannedSha ?? null,
             counts: {
               reaching: b.affected.length,
               needsPerson: b.human.length,
@@ -448,6 +450,7 @@ export function assistantTools(viewer: Viewer) {
           return {
             asOf: iso(got.repo.lastScannedAt) ?? now(),
             repo: got.repo.fullName,
+            sha: got.repo.lastScannedSha ?? null,
             key: g.key,
             title: g.title,
             verdict: g.verdict,
@@ -469,6 +472,7 @@ export function assistantTools(viewer: Viewer) {
                   replacement: lead.replacement?.value ?? null,
                   quote: source?.quote?.slice(0, 500) ?? null,
                   sourceUrl: source?.url ?? null,
+                  trustBasis: source?.trustBasis ?? null,
                   checkedAt: source?.checkedAt ?? null,
                   link: `/changes/${lead.id}`,
                 }

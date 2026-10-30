@@ -20,11 +20,13 @@ import { Button } from "@/components/ui/button";
 import { ecosystemOf } from "@/lib/brands";
 import { bucketGroups, type FindingGroup, groupFindings } from "@/lib/findings";
 import type { FlowState } from "@/lib/flow/model";
+import { changeHref } from "@/lib/links";
 import { subjectMark } from "@/lib/marks";
 import { proofOfRun } from "@/lib/proof";
 import { dryRunsFor, publicReport, usageToday } from "@/lib/reports";
 import { getSession } from "@/lib/session";
 import { INSTALL_URL } from "@/lib/site";
+import { until } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { startDryRun } from "../actions";
 
@@ -268,10 +270,12 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
         </div>
       )}
 
+      <Deadlines groups={groups} />
+
       {couldnt.length || b.quiet.length || b.outside.length ? (
         <div className="flex flex-col gap-2">
           {couldnt.length ? (
-            <Fold tone="attention" label="Couldn't check" count={couldnt.length}>
+            <Fold tone="attention" label="Couldn't check" count={couldnt.length} open>
               <ul className="flex flex-col gap-1 p-4 text-sm text-ink-2">
                 {couldnt.map((g) => (
                   <li key={g}>{g}</li>
@@ -334,14 +338,17 @@ function Fold({
   count,
   tone,
   children,
+  open = false,
 }: {
   label: string;
   count: number;
   tone: "attention" | "proven";
   children: React.ReactNode;
+  /** What the scan could not check stays in view (revamp S2): a gap is part of the proof. */
+  open?: boolean;
 }) {
   return (
-    <details className="group/fold overflow-hidden rounded-xl bg-sheet shadow-card">
+    <details open={open} className="group/fold overflow-hidden rounded-xl bg-sheet shadow-card">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
         <span
           aria-hidden
@@ -356,6 +363,45 @@ function Fold({
       </summary>
       <div className="border-t border-rule">{children}</div>
     </details>
+  );
+}
+
+const DEADLINES_SHOWN = 8;
+
+/** Every dated change this repository meets, soonest first, each linked to its change (revamp S2). */
+function Deadlines({ groups }: { groups: FindingGroup[] }) {
+  const dated = groups
+    .filter((g) => g.deadline && g.verdict !== "not_applicable")
+    .sort((a, b) => (a.deadline as string).localeCompare(b.deadline as string))
+    .slice(0, DEADLINES_SHOWN);
+  if (!dated.length) return null;
+  return (
+    <section className="flex flex-col gap-2 rounded-xl bg-sheet p-4 shadow-card" aria-label="Deadlines">
+      <p className="eyebrow">Deadlines</p>
+      <ul className="divide-y divide-rule">
+        {dated.map((g) => (
+          <li key={g.key} className="flex items-center gap-2.5 py-2">
+            <Mark brand={subjectMark(g.key)} size="sm" />
+            {g.changeIds[0] ? (
+              <Link
+                href={changeHref(g.changeIds[0])}
+                className="min-w-0 truncate text-sm text-ink hover:underline"
+              >
+                {g.title}
+              </Link>
+            ) : (
+              <span className="min-w-0 truncate text-sm text-ink">{g.title}</span>
+            )}
+            <span className="ml-auto shrink-0 font-mono text-[11px] text-attention">
+              {until(g.deadline as string)}
+            </span>
+            <span className="hidden shrink-0 font-mono text-[11px] text-ink-3 sm:inline">
+              {(g.deadline as string).slice(0, 10)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -400,7 +446,13 @@ function RepoHeader({
       </h1>
       {sha ? (
         <p className="font-mono text-xs text-ink-3">
-          {sha.slice(0, 7)}
+          <a
+            href={`https://github.com/${name}/commit/${sha}`}
+            className="text-ink-2 hover:text-ink hover:underline"
+            title="The commit this report read"
+          >
+            {sha.slice(0, 7)}
+          </a>
           {finishedAt ? ` · scanned ${finishedAt.toISOString().slice(0, 16).replace("T", " ")} UTC` : ""}
         </p>
       ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -45,6 +45,13 @@ function words(t: FlowTile): { main: string; sub?: string } {
   return t.meta ? { main: t.label, sub: t.meta } : { main: t.label };
 }
 
+/** The checks' evidence word (`check` tiles only): what the colour means, said. */
+const EVIDENCE: Partial<Record<FlowState, string>> = {
+  proven: "proven",
+  not_proven: "not proven",
+  failed: "regression",
+};
+
 function Segment({ tile, first, runHref }: { tile: FlowTile; first: boolean; runHref?: string | undefined }) {
   const said = words(tile);
   const Icon = tile.entity === "outcome" ? outcomeIcon(tile.label) : TILE_ICON[tile.entity];
@@ -82,6 +89,12 @@ function Segment({ tile, first, runHref }: { tile: FlowTile; first: boolean; run
           {said.sub ? (
             <span className="hidden min-w-0 truncate font-mono text-[11px] 2xl:inline">{said.sub}</span>
           ) : null}
+          {/* The checks' verdict in words beside its colour (revamp S2): colour is never the only signal. */}
+          {tile.entity === "check" && EVIDENCE[tile.state] ? (
+            <span className="shrink-0 font-mono text-[10.5px] opacity-80">{EVIDENCE[tile.state]}</span>
+          ) : null}
+          {/* A segment opens its evidence in place: the caret says so. */}
+          <ChevronDown className="size-3 shrink-0 opacity-50 group-hover/seg:opacity-90" aria-hidden />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72">
@@ -144,6 +157,8 @@ export function Trail({
   const tiles = graph.tiles.filter(
     (t) => !omit.includes(t.entity) && (t.state !== "skipped" || t.entity === "outcome"),
   );
+  // The pull request or issue on GitHub, one click from the list (revamp S2).
+  const opened = tiles.find((t) => t.entity === "outcome" && t.href?.startsWith("https://github.com/"));
   return (
     <nav aria-label={label} className={cn("min-w-0", className)} data-flow>
       {/* Steps keep their size and the row scrolls sideways when it can't fit (a phone), never crushes. */}
@@ -153,6 +168,18 @@ export function Trail({
             <Segment tile={t} first={i === 0} runHref={runHref} />
           </li>
         ))}
+        {opened?.href ? (
+          <li className="flex shrink-0">
+            <a
+              href={opened.href}
+              aria-label={`${opened.label} on GitHub`}
+              title={`${opened.label} on GitHub`}
+              className="ml-1.5 flex size-7 items-center justify-center rounded-full text-ink-3 ring-1 ring-rule ring-inset hover:text-ink hover:ring-rule-strong"
+            >
+              <ArrowUpRight className="size-3.5" aria-hidden />
+            </a>
+          </li>
+        ) : null}
       </ol>
     </nav>
   );

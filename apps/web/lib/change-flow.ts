@@ -42,6 +42,8 @@ export function changeLife(record: ChangeV2, names: Record<string, string>) {
               ? "computed"
               : "quote checked",
         ...(logo ? { brand: { label: ownerName, light: logo.light, dark: logo.dark } } : {}),
+        // The source tile opens the page Teire read (revamp S2: every claim one click from its source).
+        ...(record.sources[0]?.url.startsWith("https://") ? { href: record.sources[0].url } : {}),
       },
       {
         id: "what",

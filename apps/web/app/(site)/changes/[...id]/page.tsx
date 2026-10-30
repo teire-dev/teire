@@ -1,5 +1,5 @@
 import type { ChangeV2 } from "@teire/engine/contract";
-import { ArrowRight, ChevronDown, Quote as QuoteIcon, ScanSearch } from "lucide-react";
+import { ArrowRight, Quote as QuoteIcon, ScanSearch } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { getChange, providerNames } from "@/lib/catalog";
 import { changeLife } from "@/lib/change-flow";
 import { TRUST_BASIS } from "@/lib/trust";
+import { cn } from "@/lib/utils";
 import { ClassChip } from "../class-chip";
 
 /**
@@ -145,57 +146,46 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
           };
           return (
             <>
-              {lead ? (
-                <details className="group/quote rounded-xl bg-sheet shadow-card">
-                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-3 text-sm [&::-webkit-details-marker]:hidden">
-                    <QuoteIcon className="size-4 text-ink-3" aria-hidden />
-                    <span className="font-medium text-ink">In its own words</span>
-                    <span className="rounded-full bg-proven-soft px-2 py-0.5 font-mono text-[11px] text-proven">
-                      {lead.quote ? "matches the page ✓" : "read from the page"}
-                    </span>
-                    <span className="font-mono text-[11px] text-ink-3">{new URL(lead.url).host}</span>
-                    <ChevronDown
-                      aria-hidden
-                      className="ml-auto size-3.5 text-ink-3 transition-transform group-open/quote:rotate-180"
-                    />
-                  </summary>
-                  <figure className="flex flex-col gap-3 border-t border-rule px-4 py-3">
-                    {lead.quote ? (
-                      <blockquote className="border-l-2 border-rule-strong pl-3 font-mono text-xs break-words text-ink-2">
-                        {lead.quote}
+              {[lead, ...rest].filter(Boolean).map((x) =>
+                x ? (
+                  <figure
+                    key={`${x.url}-${x.contentHash}`}
+                    className="flex flex-col gap-2.5 rounded-xl bg-sheet px-4 py-3 shadow-card"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <QuoteIcon className="size-4 text-ink-3" aria-hidden />
+                      <span className="font-medium text-ink">
+                        {x === lead ? "In its own words" : "Also read"}
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 font-mono text-[11px]",
+                          x.quote ? "bg-proven-soft text-proven" : "bg-sunken text-ink-3",
+                        )}
+                      >
+                        {x.quote ? "matches the page ✓" : "read from the page"}
+                      </span>
+                    </div>
+                    {x.quote ? (
+                      <blockquote className="max-h-56 overflow-auto border-l-2 border-signal/60 pl-3 font-mono text-xs break-words whitespace-pre-wrap text-ink-2">
+                        {x.quote}
                       </blockquote>
                     ) : null}
                     <figcaption className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
-                      <a href={lead.url} className="text-link hover:underline" rel="noreferrer">
-                        {label(lead.url)}
+                      <a href={x.url} className="text-link hover:underline" rel="noreferrer">
+                        {label(x.url)}
                       </a>
                       <span className="rounded-full bg-sunken px-2 py-0.5">
-                        {TRUST_BASIS[lead.trustBasis] ?? lead.trustBasis}
+                        {TRUST_BASIS[x.trustBasis] ?? x.trustBasis}
                       </span>
-                      <span className="font-mono">checked {lead.checkedAt.slice(0, 10)}</span>
-                      <span className="font-mono" title="page hash">
-                        #{lead.contentHash.slice(0, 10)}
+                      <span className="font-mono">checked {x.checkedAt.slice(0, 10)}</span>
+                      <span className="font-mono" title="The page's hash when Teire read it">
+                        #{x.contentHash.slice(0, 10)}
                       </span>
                     </figcaption>
                   </figure>
-                </details>
-              ) : null}
-              {rest.length ? (
-                <ul className="flex flex-wrap gap-1.5" aria-label="Other sources">
-                  {rest.map((x) => (
-                    <li key={`${x.url}-${x.contentHash}`}>
-                      <a
-                        href={x.url}
-                        rel="noreferrer"
-                        title={`${TRUST_BASIS[x.trustBasis] ?? x.trustBasis} · checked ${x.checkedAt.slice(0, 10)}`}
-                        className="flex items-center gap-1.5 rounded-full bg-sheet px-2.5 py-1 font-mono text-[11px] text-ink-2 shadow-tile ring-1 ring-rule hover:text-ink"
-                      >
-                        {label(x.url)}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
+                ) : null,
+              )}
             </>
           );
         })()}

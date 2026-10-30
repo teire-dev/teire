@@ -2,6 +2,7 @@ import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CallSites } from "@/components/findings/call-sites";
+import { GroupMeta, GroupSourceQuote } from "@/components/findings/group-source";
 import { GraphStrip } from "@/components/flow/mini-flow";
 import { StaticFlow } from "@/components/flow/static-flow";
 import { Mark } from "@/components/teire/mark";
@@ -138,6 +139,30 @@ function ReachChip({ group }: { group: FindingGroup }) {
   return <span className={cn("w-fit rounded-full px-2 py-0.5 font-mono text-[11px]", tone)}>{label}</span>;
 }
 
+const LINES_OPEN = 3;
+
+/** The first lines open (the proof, without a click); the rest fold beneath. */
+function Lines({ group, repo, sha }: { group: FindingGroup; repo: string; sha: string | null }) {
+  const n = group.sites.length;
+  if (!n) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <CallSites sites={group.sites} repo={repo} sha={sha} limit={LINES_OPEN} />
+      {n > LINES_OPEN ? (
+        <details className="group/sites">
+          <summary className="w-fit cursor-pointer list-none font-mono text-[11px] text-ink-3 hover:text-ink [&::-webkit-details-marker]:hidden">
+            <span className="group-open/sites:hidden">All {n} lines ›</span>
+            <span className="hidden group-open/sites:inline">Fewer lines</span>
+          </summary>
+          <div className="pt-1.5">
+            <CallSites sites={group.sites.slice(LINES_OPEN)} repo={repo} sha={sha} limit={40} />
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 export function FindingFlow(p: FindingFlowProps) {
   const { group } = p;
   const subject = subjectOfKey(group.key);
@@ -201,8 +226,10 @@ export function FindingFlow(p: FindingFlowProps) {
               label={`${group.title}: from the change to its pull request`}
             />
             <ReachChip group={group} />
+            <GroupMeta group={group} />
+            {group.source ? <GroupSourceQuote source={group.source} /> : null}
             {human && group.reason ? <p className="text-xs text-ink-3">{group.reason}</p> : null}
-            {sites ? <CallSites sites={group.sites} repo={p.repo} sha={p.sha} /> : null}
+            <Lines group={group} repo={p.repo} sha={p.sha} />
           </div>
         </details>
         {p.actions ? (
@@ -236,19 +263,10 @@ export function FindingFlow(p: FindingFlowProps) {
           {p.actions ? <div className="flex shrink-0 items-center gap-1">{p.actions}</div> : null}
         </header>
         <ReachChip group={group} />
+        <GroupMeta group={group} />
+        {group.source ? <GroupSourceQuote source={group.source} /> : null}
         {human && group.reason ? <p className="line-clamp-2 text-xs text-ink-3">{group.reason}</p> : null}
-        {sites ? (
-          <details className="group/sites">
-            <summary className="w-fit cursor-pointer list-none font-mono text-[11px] text-ink-3 hover:text-ink [&::-webkit-details-marker]:hidden">
-              <span className="group-open/sites:hidden">Show</span>
-              <span className="hidden group-open/sites:inline">Hide</span> the {sites} line
-              {sites === 1 ? "" : "s"}
-            </summary>
-            <div className="pt-2">
-              <CallSites sites={group.sites} repo={p.repo} sha={p.sha} />
-            </div>
-          </details>
-        ) : null}
+        <Lines group={group} repo={p.repo} sha={p.sha} />
       </div>
       <StaticFlow graph={graph} size="sm" label={`${group.title}: from the change to its pull request`} />
     </article>
