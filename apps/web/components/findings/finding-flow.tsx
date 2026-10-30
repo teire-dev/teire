@@ -246,17 +246,20 @@ export function FindingFlow(p: FindingFlowProps) {
       )}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <header className="flex items-start justify-between gap-3">
+        <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
           {group.changeIds[0] ? (
             <Link
               href={`/changes/${group.changeIds[0]}`}
-              className="line-clamp-2 min-w-0 text-sm font-medium text-ink hover:underline"
+              className="line-clamp-2 min-w-[14rem] flex-1 text-sm font-medium text-ink hover:underline"
               title={group.key}
             >
               {group.title}
             </Link>
           ) : (
-            <span className="line-clamp-2 min-w-0 text-sm font-medium text-ink" title={group.key}>
+            <span
+              className="line-clamp-2 min-w-[14rem] flex-1 text-sm font-medium text-ink"
+              title={group.key}
+            >
               {group.title}
             </span>
           )}

@@ -50,7 +50,8 @@ const VERDICT: Record<string, string> = {
 export function GroupMeta({ group }: { group: FindingGroup }) {
   const bits = [
     VERDICT[group.verdict] ?? group.verdict,
-    group.priority !== null ? `priority ${group.priority}` : null,
+    // P0 is the most urgent, the order Teire opens pull requests in.
+    group.priority !== null ? `P${group.priority}` : null,
     group.others ? `${group.others} more mention${group.others === 1 ? "" : "s"} checked` : null,
   ].filter(Boolean);
   return <p className="font-mono text-[11px] text-ink-3">{bits.join(" · ")}</p>;
