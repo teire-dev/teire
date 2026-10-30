@@ -185,10 +185,17 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
     const members: RustProject["members"] = [];
     const instances: DependencyInstance[] = [];
     const patches = cargoPatches(top.doc);
+    // Each member's own rust-version (`rust-version.workspace = true` is the workspace's): Cargo's
+    // MSRV-aware resolver honours the lowest (S18 review C2).
+    const memberRustVersions: (string | "workspace")[] = [];
     for (const manifest of manifests) {
       const doc = manifest === top.path ? top.doc : readToml(tree, manifest);
       if (!doc) continue;
       const pkg = (doc.package ?? {}) as Table;
+      const own = pkg["rust-version"];
+      if (typeof own === "string") memberRustVersions.push(own);
+      else if (own && typeof own === "object" && (own as Table).workspace === true)
+        memberRustVersions.push("workspace");
       const memberName = typeof pkg.name === "string" ? pkg.name : dirname(manifest);
       members.push({ name: memberName, manifest });
       const lockedMember = lock?.packages.find((p) => p.name === memberName && !p.source);
@@ -290,12 +297,18 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
     }
     const pkg = (top.doc.package ?? {}) as Table;
     const wsPkg = (ws.package ?? {}) as Table;
+    const wsRustVersion = typeof wsPkg["rust-version"] === "string" ? wsPkg["rust-version"] : null;
+    const versionKey = (v: string) => v.split(".").map((n) => Number.parseInt(n, 10) || 0);
+    const lowest = (vs: string[]) =>
+      [...vs].sort((a, b) => {
+        const [x, y] = [versionKey(a), versionKey(b)];
+        for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+        return 0;
+      })[0] ?? null;
     const rustVersion =
-      typeof pkg["rust-version"] === "string"
-        ? pkg["rust-version"]
-        : typeof wsPkg["rust-version"] === "string"
-          ? wsPkg["rust-version"]
-          : null;
+      lowest(
+        memberRustVersions.flatMap((v) => (v === "workspace" ? (wsRustVersion ? [wsRustVersion] : []) : [v])),
+      ) ?? wsRustVersion;
     // Cargo's MSRV-aware resolution: resolver 3 (edition 2024's default) falls back to versions the
     // rust-version supports; `.cargo/config.toml` can say either way.
     const configured = /^\s*incompatible-rust-versions\s*=\s*"(fallback|allow)"/m.exec(
