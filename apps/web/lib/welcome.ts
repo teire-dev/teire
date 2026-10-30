@@ -1,6 +1,6 @@
-import { and, artifacts, desc, eq, findings, inArray, repos, sql } from "@teire/db";
+import { and, artifacts, desc, eq, findings, inArray, installations, repos, sql } from "@teire/db";
 import { currentInstallation } from "./app-shell";
-import { freshAccess, refreshInstallations } from "./auth";
+import { freshAccess, githubLogin, refreshInstallations } from "./auth";
 import { myInstallations } from "./dashboard";
 import { database } from "./db";
 import { repoFixMode } from "./fix-mode";
@@ -17,14 +17,33 @@ export async function welcomeOf(userId: string, asked: number | null) {
   await freshAccess(userId);
   let all = await myInstallations(userId);
   // A brand-new installation isn't in the list read at sign-in: ask GitHub again, once.
+  let answered = true;
   if (asked !== null && !all.some((i) => i.id === asked)) {
-    await refreshInstallations(userId).catch(() => false);
+    answered = await refreshInstallations(userId).catch(() => false);
     all = await myInstallations(userId);
   }
   const installation =
     asked !== null ? (all.find((i) => i.id === asked) ?? null) : (await currentInstallation(userId)).current;
-  if (!installation && asked !== null)
-    return { state: "not-visible" as const, installation: null, repos: [] };
+  if (!installation && asked !== null) {
+    // Say which account is signed in and where the installation is, so the way on is plain: GitHub
+    // doesn't list it for this account (installed with another one), or GitHub didn't answer.
+    const [signedInAs, [on]] = await Promise.all([
+      githubLogin(userId),
+      database()
+        .select({ login: installations.accountLogin })
+        .from(installations)
+        .where(eq(installations.id, asked))
+        .limit(1),
+    ]);
+    return {
+      state: "not-visible" as const,
+      installation: null,
+      repos: [],
+      answered,
+      signedInAs,
+      installedOn: on?.login || null,
+    };
+  }
   if (!installation) return { state: "none" as const, installation: null, repos: [] };
   const db = database();
   const rows = await db
@@ -110,7 +129,12 @@ export async function welcomeOf(userId: string, asked: number | null) {
       : `https://github.com/settings/installations/${installation.id}`;
   return {
     state: "ok" as const,
-    installation: { ...installation, manage, suspended: !!installation.suspendedAt },
+    installation: {
+      ...installation,
+      createdAt: installation.createdAt.toISOString(),
+      manage,
+      suspended: !!installation.suspendedAt,
+    },
     repos: rows.map((r) => {
       // A raw query returns bigint ids as strings.
       const scan = latest.rows.find((s) => Number(s.repo_id) === r.id) ?? null;

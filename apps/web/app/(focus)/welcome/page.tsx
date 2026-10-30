@@ -56,17 +56,44 @@ async function Flow({ searchParams }: { searchParams: PageProps<"/welcome">["sea
       </Card>
     );
   const data = await welcomeOf(session.user.id, asked);
-  if (data.state === "not-visible")
+  if (data.state === "not-visible") {
+    const here = `/welcome?installation_id=${asked}`;
+    // GitHub didn't answer: nothing is known about this account yet, so the way on is to ask again.
+    if (!data.answered)
+      return (
+        <Card title="GitHub didn't answer." eyebrow="Welcome">
+          <p className="text-sm text-ink-2">Teire couldn't ask GitHub which installations you can see.</p>
+          <span className="flex flex-wrap justify-center gap-2">
+            <Button asChild>
+              <Link href={here}>Try again</Link>
+            </Button>
+            <SignInButton next={here} label="Sign in again" variant="outline" />
+          </span>
+        </Card>
+      );
     return (
-      <Card title="Not visible to you yet." eyebrow="Welcome">
+      <Card title={data.installedOn ? `Installed on ${data.installedOn}.` : "Installed on another account."}>
         <p className="text-sm text-ink-2">
-          Someone else may have installed it. Ask them to add you on GitHub.
+          {data.signedInAs ? (
+            <>
+              You're signed in as <span className="font-medium text-ink">{data.signedInAs}</span>, and GitHub
+              doesn't list this installation for that account.
+            </>
+          ) : (
+            "GitHub doesn't list this installation for the account you're signed in with."
+          )}{" "}
+          Switch to the account that installed it
+          {data.installedOn ? `, or ask an owner of ${data.installedOn} to add you` : ""}.
         </p>
-        <Button asChild>
-          <Link href="/app">Open the dashboard</Link>
-        </Button>
+        <span className="flex flex-wrap justify-center gap-2">
+          <SignInButton next={here} label="Switch GitHub account" chooseAccount variant="cta" shape="pill" />
+          <Button asChild variant="outline" shape="pill">
+            <Link href="/app">Open the dashboard</Link>
+          </Button>
+        </span>
       </Card>
     );
+  }
   if (data.state === "none")
     return (
       <Card title="Install Teire first." eyebrow="Welcome">

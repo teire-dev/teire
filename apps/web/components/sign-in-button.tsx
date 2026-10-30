@@ -9,8 +9,14 @@ import { authClient } from "@/lib/auth-client";
 export function SignInButton({
   next = "/app",
   label = "Sign in",
+  chooseAccount = false,
   ...props
-}: { next?: string; label?: string } & Omit<React.ComponentProps<typeof Button>, "onClick">) {
+}: {
+  next?: string;
+  label?: string;
+  /** Sign out of Teire first and have GitHub show its account picker (`prompt=select_account`). */
+  chooseAccount?: boolean;
+} & Omit<React.ComponentProps<typeof Button>, "onClick">) {
   const [pending, setPending] = useState(false);
   return (
     <Button
@@ -18,13 +24,16 @@ export function SignInButton({
       disabled={pending}
       onClick={() => {
         setPending(true);
-        void authClient.signIn
-          .social({
-            provider: "github",
-            callbackURL: next,
-            // A failure comes back to /signin, which says why and keeps where the person was going.
-            errorCallbackURL: `/signin?next=${encodeURIComponent(next)}`,
-          })
+        void (chooseAccount ? authClient.signOut() : Promise.resolve())
+          .then(() =>
+            authClient.signIn.social({
+              provider: "github",
+              callbackURL: next,
+              // A failure comes back to /signin, which says why and keeps where the person was going.
+              errorCallbackURL: `/signin?next=${encodeURIComponent(next)}`,
+              ...(chooseAccount ? { additionalParams: { prompt: "select_account" } } : {}),
+            }),
+          )
           .catch(() => setPending(false));
       }}
     >

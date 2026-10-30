@@ -39,6 +39,7 @@ export async function myInstallations(userId: string) {
       suspendedAt: installations.suspendedAt,
       defaultFixMode: installations.defaultFixMode,
       securityFixMode: installations.securityFixMode,
+      createdAt: installations.createdAt,
     })
     .from(userInstallations)
     .innerJoin(installations, eq(installations.id, userInstallations.installationId))

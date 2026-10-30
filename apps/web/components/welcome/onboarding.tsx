@@ -319,6 +319,24 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
     return () => clearInterval(t);
   }, [scanning.length, router]);
 
+  // A brand-new installation's repositories arrive with GitHub's webhook, seconds after the person
+  // lands here: the page reads again until they do (for up to ten minutes)…
+  const arriving =
+    data.repos.length === 0 && Date.now() - Date.parse(data.installation.createdAt) < 10 * 60_000;
+  useEffect(() => {
+    if (!arriving) return;
+    const t = setInterval(() => router.refresh(), 3000);
+    return () => clearInterval(t);
+  }, [arriving, router]);
+  // …and each one that arrives after the page opened joins the selection, as those it opened with did.
+  const [seen, setSeen] = useState(() => new Set(data.repos.map((r) => r.fullName)));
+  useEffect(() => {
+    const fresh = data.repos.filter((r) => !seen.has(r.fullName));
+    if (!fresh.length) return;
+    setSeen(new Set(data.repos.map((r) => r.fullName)));
+    setChosen((c) => new Set([...c, ...fresh.filter((r) => r.status !== "disabled").map((r) => r.fullName)]));
+  }, [data.repos, seen]);
+
   const saveMode = async () => {
     let refused = false;
     await followAction(
@@ -477,7 +495,11 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                 />
                 <span className="flex flex-col">
                   <span className="text-[15px] font-medium">{data.installation.login}</span>
-                  <span className="font-mono text-[11px] text-ink-3">{data.repos.length} repositories</span>
+                  <span className="font-mono text-[11px] text-ink-3">
+                    {arriving
+                      ? "GitHub is handing over its repositories…"
+                      : `${data.repos.length} repositories`}
+                  </span>
                 </span>
               </span>
               <a
@@ -489,6 +511,12 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
             </div>
           ) : null}
 
+          {step === 1 && arriving ? (
+            <p className="flex items-center gap-2 rounded-card bg-sunken px-3 py-2.5 text-[13px] text-ink-2">
+              <span className="size-2 animate-pulse rounded-full bg-cta" aria-hidden />
+              GitHub is handing over this installation's repositories…
+            </p>
+          ) : null}
           {step === 1 ? (
             <ul className="flex flex-col gap-1.5">
               {data.repos.length > 1 ? (
