@@ -60,6 +60,9 @@ function create() {
   });
 }
 
+/** A GitHub user token with less than this left is renewed before it's used or handed on. */
+const TOKEN_RENEW_BEFORE_MS = 60 * 60_000;
+
 let instance: ReturnType<typeof create> | null = null;
 export function auth() {
   instance ??= create();
@@ -78,6 +81,14 @@ export async function githubToken(userId: string): Promise<string | null> {
     .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
     .limit(1);
   if (!row) return null;
+  // Renewed well before it ends (Better Auth's own check waits until five seconds before): the
+  // worker reads the stored token minutes later, for a dry run or a public read (Codex walk B10, B13).
+  if (row.expires && row.expires.getTime() - Date.now() < TOKEN_RENEW_BEFORE_MS) {
+    const renewed = await auth()
+      .api.refreshToken({ body: { accountId: row.id, userId } })
+      .catch(() => null);
+    if (renewed?.accessToken) return renewed.accessToken;
+  }
   const fresh = await auth()
     .api.getAccessToken({ body: { accountId: row.id, userId } })
     .catch(() => null);

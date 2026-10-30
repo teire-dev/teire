@@ -151,8 +151,9 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       const branch: string = p.pull_request.head.ref;
       const merged: boolean = p.pull_request.merged === true;
       const artifact = await artifactByBranch(db, repo.id, branch);
-      if (!artifact) return;
-      await upsertArtifact(db, { ...artifact, state: merged ? "merged" : "closed" });
+      // The onboarding branch decides the repository's state even without its row (Codex walk B12).
+      if (!artifact && branch !== ONBOARDING_BRANCH) return;
+      if (artifact) await upsertArtifact(db, { ...artifact, state: merged ? "merged" : "closed" });
       if (branch === ONBOARDING_BRANCH) {
         if (merged) {
           await setRepo(db, repo.id, { status: "active" });
@@ -164,7 +165,7 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
         return;
       }
       // A person's close dismisses that target (D112); Teire's own closes (superseded, stale) don't.
-      if (artifact.kind === "pr" && (merged || p.sender?.login !== ctx.gh.botLogin))
+      if (artifact?.kind === "pr" && (merged || p.sender?.login !== ctx.gh.botLogin))
         await markFindings(db, repo.id, artifact.changeKey, merged ? "fixed" : "dismissed");
       return;
     }

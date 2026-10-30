@@ -30,15 +30,52 @@ import { assessCheckout, languagesOf, type WorkerContext } from "./scan";
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** The GitHub token Better Auth stored when this person signed in, if any. */
+/**
+ * The GitHub token Better Auth stored when this person signed in, if any, while it's still valid: a
+ * GitHub App's user token lasts eight hours and only the web can refresh it, so an expired one is
+ * never sent (GitHub would answer 401 and a public read would fail for nothing: Codex walk B10).
+ */
 export async function requesterToken(db: Database, userId: string | null | undefined) {
   if (!userId) return undefined;
   const [row] = await db
-    .select({ token: account.accessToken })
+    .select({ token: account.accessToken, expires: account.accessTokenExpiresAt })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
     .limit(1);
+  if (row?.expires && row.expires.getTime() < Date.now()) return undefined;
   return row?.token ?? undefined;
+}
+
+/**
+ * The GitHub login of the person who asked (Codex walk B8, B13): from their sign-in token while it
+ * works, else from the GitHub user id Better Auth recorded when they signed in, which GitHub serves
+ * publicly. The web session already proved who they are; an expired user token doesn't change that,
+ * so it never refuses an action that GitHub's own permission check then decides.
+ */
+export async function requesterLogin(db: Database, userId: string | null | undefined) {
+  if (!userId) return null;
+  const [row] = await db
+    .select({ id: account.accountId, token: account.accessToken, expires: account.accessTokenExpiresAt })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
+    .limit(1);
+  if (!row) return null;
+  const read = async (path: string, token?: string | null) => {
+    const res = await fetch(`https://api.github.com${path}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        "x-github-api-version": "2022-11-28",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => null);
+    return res?.ok ? (((await res.json()) as { login?: string }).login ?? null) : null;
+  };
+  const live = row.token && !(row.expires && row.expires.getTime() < Date.now());
+  return (
+    (live ? await read("/user", row.token) : null) ??
+    (/^\d+$/.test(row.id) ? await read(`/user/${row.id}`) : null)
+  );
 }
 
 async function githubGet<T>(path: string, token: string | undefined): Promise<T | null> {
@@ -218,6 +255,10 @@ export async function requestDryRun(
         eq(runs.kind, "dry_run"),
         eq(runs.requestedBy, requestedBy),
         gte(runs.createdAt, new Date(Date.now() - 86_400_000)),
+        sql`not (${runs.status} = 'failed' and coalesce(${runs.step}, '') in (${sql.join(
+          PUBLIC_LIMITS.unspentDryRunSteps.map((s) => sql`${s}`),
+          sql`, `,
+        )}))`,
       ),
     );
   const overLimit = count >= PUBLIC_LIMITS.dryRunsPerUserPerDay;

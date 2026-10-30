@@ -238,6 +238,11 @@ export const SCAN = {
 export const PUBLIC_LIMITS = {
   scansPerUserPerDay: 3,
   dryRunsPerUserPerDay: 1,
+  /**
+   * A dry run that ended at one of these steps never ran a fix (the worker stopped, the limit, GitHub
+   * didn't confirm it public, too large), so it doesn't use the day's dry run (Codex walk B10).
+   */
+  unspentDryRunSteps: ["interrupted", "limit", "not public", "too large"] as readonly string[],
   /** GitHub's `size` (KB) above which a public scan is refused (the same rule as fix runs). */
   maxRepoKb: SCAN.maxRepoKb,
 } as const;

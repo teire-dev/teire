@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { publicScans, sql, webhookDeliveries } from "@teire/db";
 import { PUBLIC_LIMITS } from "@teire/engine/constants";
 import { redirect } from "next/navigation";
+import { githubToken } from "@/lib/auth";
 import { database } from "@/lib/db";
 import { usageToday } from "@/lib/reports";
 import { getSession } from "@/lib/session";
@@ -58,6 +59,8 @@ export async function startDryRun(form: FormData) {
   // The worker's rule, checked before queueing (review R23): the report then shows the limit.
   if ((await usageToday(session.user.id)).dryRuns >= PUBLIC_LIMITS.dryRunsPerUserPerDay)
     redirect(`/scan/${publicScanId}`);
+  // The worker reads the stored sign-in token for this run: renewed now when it's near its end.
+  await githubToken(session.user.id).catch(() => null);
   const runId = randomUUID();
   await enqueue(`teire-dry-run-${runId}`, "teire.dry_run", {
     runId,

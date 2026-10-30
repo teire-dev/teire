@@ -12,6 +12,7 @@ import {
   scans,
   sql,
 } from "@teire/db";
+import { PUBLIC_LIMITS } from "@teire/engine/constants";
 import { database } from "./db";
 import type { FindingRow } from "./findings";
 import { stillPublic } from "./visibility";
@@ -118,29 +119,44 @@ export async function usageToday(userId: string) {
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(runs)
-      .where(and(eq(runs.requestedBy, userId), eq(runs.kind, "dry_run"), gte(runs.createdAt, since))),
+      .where(
+        and(
+          eq(runs.requestedBy, userId),
+          eq(runs.kind, "dry_run"),
+          gte(runs.createdAt, since),
+          // The worker's own rule: a dry run that never ran a fix doesn't use the day's (Codex walk B10).
+          sql`not (${runs.status} = 'failed' and coalesce(${runs.step}, '') in (${sql.join(
+            PUBLIC_LIMITS.unspentDryRunSteps.map((s) => sql`${s}`),
+            sql`, `,
+          )}))`,
+        ),
+      ),
   ]);
   return { scans: s?.n ?? 0, dryRuns: r?.n ?? 0 };
 }
 
 /** Dry runs already started from this report, so its page can link them. */
 export async function dryRunsFor(repoId: number, sinceSha: string | null) {
-  return database()
-    .select({
-      id: runs.id,
-      groupKey: runs.groupKey,
-      status: runs.status,
-      step: runs.step,
-      evidenceKind: runs.evidenceKind,
-      requestedBy: runs.requestedBy,
-      createdAt: runs.createdAt,
-    })
-    .from(runs)
-    .where(
-      and(
-        eq(runs.repoId, repoId),
-        eq(runs.kind, "dry_run"),
-        sinceSha ? eq(runs.baseSha, sinceSha) : sql`true`,
-      ),
-    );
+  return (
+    database()
+      .select({
+        id: runs.id,
+        groupKey: runs.groupKey,
+        status: runs.status,
+        step: runs.step,
+        evidenceKind: runs.evidenceKind,
+        requestedBy: runs.requestedBy,
+        createdAt: runs.createdAt,
+      })
+      .from(runs)
+      .where(
+        and(
+          eq(runs.repoId, repoId),
+          eq(runs.kind, "dry_run"),
+          sinceSha ? eq(runs.baseSha, sinceSha) : sql`true`,
+        ),
+      )
+      // Oldest first, so a group's newest dry run is the one its report shows.
+      .orderBy(runs.createdAt)
+  );
 }

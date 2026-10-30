@@ -94,6 +94,12 @@ export async function modelWorkBlocked(db: Database) {
   return null;
 }
 
+const INTERRUPTED = {
+  run: "the worker stopped during this run; it is retried automatically, or comment `@teire recreate`",
+  dryRun:
+    "the worker stopped during this dry run; it doesn't use today's dry run: start it again from the report",
+};
+
 /** Runs and scans whose worker stopped: failed with a clear reason, so they can be retried. */
 export async function reap(db: Database) {
   const staleRuns = await db
@@ -101,7 +107,8 @@ export async function reap(db: Database) {
     .set({
       status: "failed",
       step: "interrupted",
-      error: "the worker stopped during this run; it is retried automatically, or comment `@teire recreate`",
+      // A public dry run has no repository to comment on: it can be started again from its report.
+      error: sql`case when ${runs.kind} = 'dry_run' then ${INTERRUPTED.dryRun} else ${INTERRUPTED.run} end`,
       finishedAt: new Date(),
     })
     .where(and(eq(runs.status, "running"), lt(runs.heartbeatAt, new Date(Date.now() - RUNS.staleAfterMs))))

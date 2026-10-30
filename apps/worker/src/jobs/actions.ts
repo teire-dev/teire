@@ -42,7 +42,8 @@ import { canWrite, FixesOffError, fixesOffReply, runState, startRun } from "./co
 import { configPr } from "./config-pr";
 import { syncDashboard } from "./dashboard";
 import type { EventContext } from "./events";
-import { requesterToken } from "./public";
+import { resumeOnboarding } from "./onboarding";
+import { requesterLogin } from "./public";
 import { openDraftAnyway, startReverify } from "./reverify";
 
 /**
@@ -53,17 +54,6 @@ import { openDraftAnyway, startReverify } from "./reverify";
  */
 export type RepoAction = "rescan" | "pause" | "resume" | "fix" | "ignore" | "unignore";
 const ACTIONS: readonly RepoAction[] = ["rescan", "pause", "resume", "fix", "ignore", "unignore"];
-
-/** The person's GitHub login, from the token Better Auth stored when they signed in. */
-async function githubLogin(token: string | undefined) {
-  if (!token) return null;
-  const res = await fetch("https://api.github.com/user", {
-    headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" },
-    signal: AbortSignal.timeout(10_000),
-  }).catch(() => null);
-  if (!res?.ok) return null;
-  return ((await res.json()) as { login?: string }).login ?? null;
-}
 
 export async function handleRepoAction(
   ctx: EventContext,
@@ -84,7 +74,7 @@ export async function handleRepoAction(
   if (!visible) return { skipped: "no access" };
   const [owner = "", name = ""] = repo.fullName.split("/");
   const { octokit } = await ctx.gh.installation(repo.installationId);
-  const login = await githubLogin(await requesterToken(db, userId));
+  const login = await requesterLogin(db, userId);
   if (!login || !(await canWrite(octokit, owner, name, login))) return { skipped: "needs write access" };
 
   switch (action as RepoAction) {
@@ -171,8 +161,8 @@ export async function handleAction(ctx: EventContext, payload: { actionId?: stri
   const outcome: Outcome = await (async () => {
     if (!parsed.ok) return refused(parsed.error);
     await setAction(db, action.id, { status: "accepted" });
-    const login = await githubLogin(await requesterToken(db, action.requester));
-    if (!login) return refused("Teire couldn't read your GitHub account; sign in again");
+    const login = await requesterLogin(db, action.requester);
+    if (!login) return refused("GitHub didn't answer who you are; try again in a minute");
     await setAction(db, action.id, { actor: login });
     if (parsed.kind === "fix-in-all") return fixInAll(ctx, action, parsed.params, login);
     if (INSTALLATION_ACTIONS.has(parsed.kind)) return installationAction(ctx, action, parsed, login);
@@ -258,15 +248,19 @@ async function repoAction(
     case "pause":
       if (repo.status !== "paused") await setRepo(db, repo.id, { status: "paused", pausedFrom: repo.status });
       return { status: "done", result: "Paused: no scans or pull requests until it is resumed" };
-    case "resume":
-      if (repo.status === "paused")
+    case "resume": {
+      const [owner = "", name = ""] = repo.fullName.split("/");
+      // A declined or stalled onboarding comes back as a pull request to merge (Codex walk B12).
+      const onboarding = await resumeOnboarding(db, repo, octokit, owner, name);
+      if (!onboarding && repo.status === "paused")
         await setRepo(db, repo.id, {
           status: repo.pausedFrom ?? "active",
           pausedFrom: null,
           pausedReason: null,
         });
       await ctx.enqueueScan(repo.id, "manual");
-      return { status: "done", result: "Resumed; rescanning" };
+      return { status: "done", result: onboarding ?? "Resumed; rescanning" };
+    }
     case "set-fix-mode": {
       const before = await fixModeOf(db, repo);
       const mode = (params.mode ?? null) as FixMode | null;

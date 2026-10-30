@@ -511,6 +511,9 @@ export async function githubRepoNow(
       signal: AbortSignal.timeout(15_000),
     });
     if (res.status === 404) return { isPrivate: true, sizeKb: null };
+    // A sign-in token GitHub no longer takes: a public repository still reads anonymously (Codex walk B10).
+    const read = res.status === 401 && token ? await githubRepoNow(owner, name, null, null) : null;
+    if (read) return read;
     if (!res.ok) return unknown;
     const data = (await res.json()) as { private?: boolean; size?: number };
     return { isPrivate: data.private ?? null, sizeKb: data.size ?? null };
@@ -1933,11 +1936,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         .catch(() => undefined),
     RUNS.heartbeatEveryMs,
   );
-  await event("assess", "started", { group: groupKey, from: run.fromVersion, target: run.targetVersion });
-  // A dry run reads GitHub as the person who asked (their own rate limit), anonymously without it.
-  const token = installation ? await installation.token() : (requester ?? undefined);
   let dir: string | null = null;
   try {
+    // Inside the try: a throw here still reaches the finally that stops both timers (walk map gap).
+    await event("assess", "started", { group: groupKey, from: run.fromVersion, target: run.targetVersion });
+    // A dry run reads GitHub as the person who asked (their own rate limit), anonymously without it.
+    const token = installation ? await installation.token() : (requester ?? undefined);
     const baseSha = run.baseSha;
     const checkout = await withCancel(abort.signal, () =>
       fetchRepoTarball(owner, name, baseSha, token ? { token } : {}),

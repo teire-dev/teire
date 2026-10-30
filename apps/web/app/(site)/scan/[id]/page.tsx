@@ -415,11 +415,14 @@ async function DryRun({
 }: {
   publicScanId: string;
   group: FindingGroup;
-  existing?: { id: string; status: string; evidenceKind: string | null } | undefined;
+  existing?: { id: string; status: string; step: string | null; evidenceKind: string | null } | undefined;
 }) {
   // A runtime's end of life is a notice: Teire never changes the runtime a repo runs on.
   if (group.key.startsWith("runtime/")) return null;
-  if (existing)
+  // A dry run that never ran a fix (the worker stopped) can be started again (Codex walk B10).
+  const unspent =
+    existing?.status === "failed" && PUBLIC_LIMITS.unspentDryRunSteps.includes(existing.step ?? "");
+  if (existing && !unspent)
     return (
       <Button asChild size="sm" variant="outline">
         <Link href={`/runs/${existing.id}`}>
@@ -462,10 +465,16 @@ async function DryRun({
     <form action={startDryRun} className="flex items-center gap-2">
       <input type="hidden" name="publicScanId" value={publicScanId} />
       <input type="hidden" name="groupKey" value={group.key} />
-      {limit}
+      {unspent && existing ? (
+        <Link href={`/runs/${existing.id}`} className="font-mono text-[11px] text-ink-2 underline">
+          last try interrupted
+        </Link>
+      ) : (
+        limit
+      )}
       <Button type="submit" size="sm" title="Fix and verify it in a sandbox; no PR is opened">
         <FlaskConical data-icon="inline-start" />
-        Dry-run a fix
+        {unspent ? "Try the dry run again" : "Dry-run a fix"}
       </Button>
     </form>
   );

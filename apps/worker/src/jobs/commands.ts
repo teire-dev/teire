@@ -28,6 +28,7 @@ import {
   upgradeMatches,
 } from "../store";
 import type { EventContext } from "./events";
+import { resumeOnboarding } from "./onboarding";
 import { openDraftAnyway, startReverify } from "./reverify";
 
 export { matchesTarget };
@@ -179,16 +180,19 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       if (repo.status !== "paused") await setRepo(db, repo.id, { status: "paused", pausedFrom: repo.status });
       await reply("Paused: no scans or PRs until `@teire resume`.");
       return;
-    case "resume":
-      if (repo.status === "paused")
+    case "resume": {
+      // A declined or stalled onboarding comes back as a pull request to merge (Codex walk B12).
+      const onboarding = await resumeOnboarding(db, repo, octokit, owner, name);
+      if (!onboarding && repo.status === "paused")
         await setRepo(db, repo.id, {
           status: repo.pausedFrom ?? "active",
           pausedFrom: null,
           pausedReason: null,
         });
       await ctx.enqueueScan(repo.id, "command");
-      await reply("Resumed; rescanning now.");
+      await reply(onboarding ?? "Resumed; rescanning now.");
       return;
+    }
     case "pause-fixes":
     case "resume-fixes":
     case "fix-mode": {
