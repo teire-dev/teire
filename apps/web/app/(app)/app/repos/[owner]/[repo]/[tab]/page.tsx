@@ -46,7 +46,7 @@ import { bucketGroups, groupFindings } from "@/lib/findings";
 import { configCurrent } from "@/lib/fix-mode";
 import { runFlow } from "@/lib/flow/model";
 import { installOutcome, type OutcomeCoverage } from "@/lib/install-outcome";
-import { findingsByPackage, type InventoryFacts, inventoryFacts, plannedByPackage } from "@/lib/inventory";
+import { findingsByInstance, type InventoryFacts, inventoryFacts, plannedByPackage } from "@/lib/inventory";
 import { providerLogo } from "@/lib/logos";
 import { subjectMark } from "@/lib/marks";
 import { runFlowsOf } from "@/lib/run-flows";
@@ -625,13 +625,14 @@ async function Inventory({ data }: { data: Data }) {
   for (const i of data.inventory) counts.set(i.ecosystem, (counts.get(i.ecosystem) ?? 0) + 1);
   if (!data.inventory.length) return <Quiet label="No completed scan yet" />;
   const facts = data.scan ? await inventoryFacts(data.scan.id) : new Map<string, InventoryFacts>();
-  const found = findingsByPackage(data.findings);
+  const found = findingsByInstance(data.findings);
   const planned = plannedByPackage(data.scan?.upgrades as ScanUpgrade[] | null | undefined);
   return (
     <InventoryTable
       rows={data.inventory.map((i) => {
         const pkg = `${i.ecosystem}/${i.name}`;
         const f = facts.get(String(i.id));
+        const open = found(i);
         return {
           id: String(i.id),
           ecosystem: i.ecosystem,
@@ -643,8 +644,8 @@ async function Inventory({ data }: { data: Data }) {
           source: i.source,
           latest: f?.latest ?? null,
           behind: f?.behind ?? null,
-          advisories: found.get(pkg)?.advisories ?? 0,
-          findings: found.get(pkg)?.findings ?? 0,
+          advisories: open.advisories,
+          findings: open.findings,
           planned: planned.get(pkg) ?? null,
         };
       })}

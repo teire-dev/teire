@@ -137,7 +137,7 @@ The captures below come from Teire's public evaluation repositories, built to re
 
 ## Honest limits
 
-- Private repositories verify on Cloudflare Containers: Token Factory keeps a run's saved sandbox images 180 days before deleting them, with no call to delete them sooner.
+- Private repositories verify on Cloudflare Containers: Token Factory keeps a run's saved sandbox images for 180 days, after which untagged ones may be deleted, with no call to delete them sooner.
 - dependabot-core decides the dependency files in all six ecosystems on the deployed worker; real-repository PRs don't cover every package manager yet (`smoke/forks/` records each fork's result).
 - Only major upgrades get an API diff and a line search.
 - Rust, Ruby, and Java/Kotlin at scan time are searched by syntax.

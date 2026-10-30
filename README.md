@@ -298,7 +298,7 @@ pnpm typecheck && pnpm lint && pnpm test   # engine, worker and web
 
 ## Honest limits
 
-- **Private repositories verify on Cloudflare Containers, not Token Factory Sandboxes.** A run chains saved sandbox images (checkout, install, each check) and needs them only while it runs, but Token Factory keeps them 180 days before deleting them and has no call to delete them sooner. Public code is public anyway, so public repositories and dry runs verify there.
+- **Private repositories verify on Cloudflare Containers, not Token Factory Sandboxes.** A run chains saved sandbox images (checkout, install, each check) and needs them only while it runs, but Token Factory keeps them for 180 days (after that, untagged ones may be deleted) and has no call to delete them sooner. Public code is public anyway, so public repositories and dry runs verify there.
 - **Real-repository PRs don't cover every package manager yet.** dependabot-core's updater decides the dependency files in all six ecosystems on the deployed worker, and every manager passed the updater pilot; the fork files in [`smoke/forks/`](smoke/forks) record which have a PR on a real repository so far.
 - **Only major upgrades** get an API diff and a line search; minor and patch upgrades are plain bumps the sandbox decides.
 - **Ruby at scan time is matched by name,** so a site that only shares a removed method's name reads "inconclusive", and the upgrade's sandbox run decides. Rust and Java/Kotlin are resolved by type at scan time when the sandbox can build the project (rust-analyzer's index, the compiled classes); when it can't, their sites stay syntactic and never read "not affected".

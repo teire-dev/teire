@@ -24,6 +24,14 @@ export interface RunCode {
 }
 
 /**
+ * A record the run keeps as data, not a step it took: its snapshot of the lines (`assess`/`sites`,
+ * written once the outcome is known) and a PR's text read back from GitHub (`pr`/`body`). The steps,
+ * the timeline and the replay skip these; the Events tab and the evidence panels read them.
+ */
+export const isRecord = (e: { step: string; type: string }) =>
+  (e.step === "assess" && e.type === "sites") || (e.step === "pr" && e.type === "body");
+
+/**
  * The run's own snapshot of its lines (`assess`/`sites`) when its events have it, else what the first
  * load found: the poll streams events, so a run opened before it read the code shows the lines the
  * moment it does (review 2026-10-30).
@@ -185,7 +193,7 @@ export function postOf(
 ): RunPost | null {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
-    if (!e || e.step !== "pr") continue;
+    if (e?.step !== "pr") continue;
     const p = (e.payload ?? {}) as {
       title?: string;
       body?: string;

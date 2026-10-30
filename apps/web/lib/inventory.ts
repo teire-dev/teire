@@ -43,18 +43,30 @@ export function packageOfGroup(groupKey: string | null) {
   return parts.length >= 3 ? `${parts[0]}/${parts.slice(1, -1).join("/")}` : null;
 }
 
-/** Open advisories and other findings per package (`eco/name`), as this repository's Findings count them. */
-export function findingsByPackage(rows: FindingRow[]) {
-  const out = new Map<string, { advisories: Set<string>; findings: Set<string> }>();
+/**
+ * Open advisories and other findings per installed copy, as this repository's Findings count them.
+ * A finding names its copy by dependency key (`<eco>:<name>@<workspace>`): a direct dependency keeps
+ * one key across versions, and a transitive one installed at several versions adds `#<version>`
+ * (engine `assess`) where its pipeline keys them apart. So a package on a fixed version in one
+ * workspace isn't flagged for an advisory on another's.
+ */
+export function findingsByInstance(rows: FindingRow[]) {
+  // dependency key → change id → whether it is an advisory
+  const byKey = new Map<string, Map<string, boolean>>();
   for (const f of rows) {
-    if (f.state !== "open" || !AFFECTING.has(f.verdict)) continue;
-    const pkg = packageOfGroup(f.groupKey);
-    if (!pkg) continue;
-    const entry = out.get(pkg) ?? { advisories: new Set(), findings: new Set() };
-    (f.kind === "security-advisory" ? entry.advisories : entry.findings).add(f.changeId);
-    out.set(pkg, entry);
+    if (f.state !== "open" || !AFFECTING.has(f.verdict) || !f.dependencyKey) continue;
+    const changes = byKey.get(f.dependencyKey) ?? new Map<string, boolean>();
+    changes.set(f.changeId, f.kind === "security-advisory");
+    byKey.set(f.dependencyKey, changes);
   }
-  return new Map([...out].map(([k, v]) => [k, { advisories: v.advisories.size, findings: v.findings.size }]));
+  return (i: { dependencyKey: string; version: string | null }) => {
+    const open = new Map([
+      ...(byKey.get(i.dependencyKey) ?? []),
+      ...(byKey.get(`${i.dependencyKey}#${i.version ?? "unresolved"}`) ?? []),
+    ]);
+    const advisories = [...open.values()].filter(Boolean).length;
+    return { advisories, findings: open.size - advisories };
+  };
 }
 
 /** The upgrade the scan plans per package (`eco/name`): its target, and whether it fixes an advisory. */

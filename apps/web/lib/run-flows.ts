@@ -50,7 +50,12 @@ export async function runFlowsOf(scope: Scope, ids: string[]): Promise<Map<strin
         preview: sql<boolean>`${runEvents.step} = 'pr' and ${runEvents.type} = 'dry-run' and ${runEvents.payload}->>'body' is not null`,
       })
       .from(runEvents)
-      .where(inArray(runEvents.runId, kept)),
+      // Records the run keeps as data are not steps (as `isRecord` in run-evidence.ts).
+      .where(
+        sql`${inArray(runEvents.runId, kept)} and not (
+          (${runEvents.step} = 'assess' and ${runEvents.type} = 'sites')
+          or (${runEvents.step} = 'pr' and ${runEvents.type} = 'body'))`,
+      ),
     db
       .select({
         runId: llmCalls.runId,

@@ -23,7 +23,7 @@ import { type FlowTile, runFlow, TILE_OF_STEP } from "@/lib/flow/model";
 import { groupHref } from "@/lib/links";
 import { subjectMark } from "@/lib/marks";
 import { proofOfRun, STEP_DOING } from "@/lib/proof";
-import { postOf } from "@/lib/run-evidence";
+import { isRecord, postOf } from "@/lib/run-evidence";
 import type { RunSheetData, RunSheetTick } from "@/lib/run-sheet";
 import { traceOf } from "@/lib/trace";
 import { backendName } from "@/lib/utils";
@@ -100,7 +100,9 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   const { run, repo, artifact, verification } = sheet;
   const active = ACTIVE.has(run.status);
   const model = sheet.calls.find((c) => c.purpose === "fix")?.model ?? sheet.calls[0]?.model ?? null;
-  const events = sheet.events.map((e) => ({ ...e, at: new Date(e.at) }));
+  // What the run did, without the records it keeps as data (its lines, the PR text read back).
+  const steps = sheet.events.filter((e) => !isRecord(e));
+  const events = steps.map((e) => ({ ...e, at: new Date(e.at) }));
   const execs: Exec[] = sheet.execs.map((x) => ({ ...x, stderrTail: null }));
   // When work first began: a restarted run's `startedAt` is its latest start, so its first attempt
   // would fold into the wait (U2 review).
@@ -160,7 +162,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   // The run as tiles (plan revision 3.4, A2): one adapter, so the canvas, the rows and the cards agree.
   // One clock (plan revision 3.4, B5): the timeline's playhead; null rests on now / the final state.
   const [replayAt, setReplayAt] = useState<number | null>(null);
-  const moment = !active ? sheetAt(sheet.events, began, replayAt, traceEnd - 1) : null;
+  const moment = !active ? sheetAt(steps, began, replayAt, traceEnd - 1) : null;
   const attempts = new Set(sheet.calls.filter((c) => c.purpose === "fix").map((c) => c.step)).size;
   // The run as tiles (plan revision 3.4, A2): one adapter, so the canvas, the rows and the cards agree.
   const graph = runFlow({
@@ -185,7 +187,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
     backend: run.backend,
     // Model and API changes are swaps in the code; only package changes go through the updater.
     updater: !/^(models|api)\//.test(run.groupKey ?? ""),
-    lastStep: [...sheet.events].reverse().find((e) => TILE_OF_STEP[e.step])?.step ?? null,
+    lastStep: [...steps].reverse().find((e) => TILE_OF_STEP[e.step])?.step ?? null,
     preview: !!post,
     checkCount: new Set(after.map((c) => c.name)).size,
     ...(test && testBefore
@@ -430,7 +432,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
           <TabsContent value="timeline">
             {spans.length ? (
               <AgentTrace
-                onTime={canReplay(sheet.events) ? setReplayAt : undefined}
+                onTime={canReplay(steps) ? setReplayAt : undefined}
                 spans={spans}
                 duration={traceEnd}
                 runId={run.id.slice(0, 8)}

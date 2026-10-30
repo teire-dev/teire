@@ -24,6 +24,15 @@ import type { FindingRow } from "./findings";
 import { repoFixMode } from "./fix-mode";
 
 /**
+ * The source a finding leads with: the first one with a quote, so the card shows the upstream words
+ * (a change's first source can be a bare link, e.g. a deprecations index); else the first source.
+ */
+export const leadSource = sql`coalesce(
+  (select s from jsonb_array_elements(${changes.record}->'sources') s
+    where coalesce(s->>'quote', '') <> '' limit 1),
+  ${changes.record}->'sources'->0)`;
+
+/**
  * The signed-in dashboard (C3–C8): everything is scoped to the installations GitHub said this
  * person can see when they signed in (user_installations), so a page never shows another account's
  * repositories.
@@ -102,7 +111,7 @@ export async function repoDetail(userId: string, fullName: string) {
         title: changes.title,
         kind: changes.kind,
         deadline: changes.deadline,
-        source: sql`${changes.record}->'sources'->0`,
+        source: leadSource,
       })
       .from(findings)
       .leftJoin(changes, eq(changes.id, findings.changeId))

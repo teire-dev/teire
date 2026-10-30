@@ -2,8 +2,10 @@ import { RootProvider } from "fumadocs-ui/provider/next";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { AssistantProvider } from "@/components/assistant/assistant-provider";
+import { ThemeColor } from "@/components/theme-color";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { THEME_COLOR } from "@/lib/theme-color";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -26,11 +28,11 @@ export const metadata: Metadata = {
     "Teire finds the lines a package, API or model change breaks, and a Nemotron coding agent on Nebius Token Factory fixes what a plain swap can't. Your own tests run before and after, and a pull request shows the proof.",
 };
 
-// The browser chrome follows the theme: warm cream in light, graphite in dark.
+// The browser chrome before the page runs follows the device; `ThemeColor` then moves it to the site's theme.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f5ef" },
-    { media: "(prefers-color-scheme: dark)", color: "#0d0f13" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLOR.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLOR.dark },
   ],
 };
 
@@ -56,6 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             disableTransitionOnChange: true,
           }}
         >
+          <ThemeColor />
           <TooltipProvider delayDuration={200}>
             {/* Ask Teire (U4): one provider, so the panel stays open and docked across navigation. */}
             <AssistantProvider>{children}</AssistantProvider>

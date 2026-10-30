@@ -13,6 +13,7 @@ import {
   sql,
 } from "@teire/db";
 import { PUBLIC_LIMITS } from "@teire/engine/constants";
+import { leadSource } from "./dashboard";
 import { database } from "./db";
 import type { FindingRow } from "./findings";
 import { stillPublic } from "./visibility";
@@ -54,7 +55,7 @@ export async function scanFindings(repoId: number, scanId: string): Promise<Find
       title: changes.title,
       kind: changes.kind,
       deadline: changes.deadline,
-      source: sql`${changes.record}->'sources'->0`,
+      source: leadSource,
     })
     .from(findings)
     .leftJoin(changes, eq(changes.id, findings.changeId))

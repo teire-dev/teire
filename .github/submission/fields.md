@@ -80,7 +80,7 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
   - Billing setup needs a card from a supported country, and Nigeria is not supported.
   - The hackathon promo code arrived in Gmail's Promotions tab, where it was easy to miss.
 - **Token Factory Sandboxes gaps that shaped our design.**
-  - Token Factory keeps a run's saved images 180 days before deleting them and has no call to delete them sooner, so a private repository's code doesn't go there: private repositories verify on Cloudflare Containers.
+  - Token Factory keeps a run's saved images for 180 days, after which untagged ones may be deleted, and has no call to delete them sooner, so a private repository's code doesn't go there: private repositories verify on Cloudflare Containers.
   - No idempotency key on spawns, so a spawn whose response is lost can't be retried safely; Teire never retries one.
   - No egress log and no allowlist for an instance's network, so the install's network is either fully open or off.
   - CPU and memory per instance aren't documented or settable; `whoami` gives the timeout, concurrency and layer size only. We measured them from inside: 4 CPUs, 3.9 GB of memory and a 2 GB `/dev/shm`.

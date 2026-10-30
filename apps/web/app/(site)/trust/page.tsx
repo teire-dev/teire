@@ -405,7 +405,7 @@ function Code() {
         <Fact
           icon={Timer}
           title="What is kept"
-          line="A scan deletes its checkout when it ends. Token Factory keeps a run's saved sandbox images of public code for 180 days, then deletes them. Teire keeps findings, proposed diffs, run logs and receipts."
+          line="A scan deletes its checkout when it ends. Token Factory keeps a run's saved sandbox images of public code for 180 days; after that, untagged ones may be deleted. Teire keeps findings, proposed diffs, run logs and receipts."
         />
       </div>
     </section>
