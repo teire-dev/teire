@@ -22,7 +22,7 @@ export interface FindingFlowProps {
   repo: string;
   sha: string | null;
   /** The group's newest run, if any ran (on a public report, its dry run). */
-  latest?: Pick<RunRow, "id" | "status" | "proof"> | undefined;
+  latest?: (Pick<RunRow, "id" | "status" | "proof"> & { by?: string }) | undefined;
   /** A public report: the run is a dry run, so its outcome is a PR preview, never a PR. */
   preview?: boolean;
   /** Its open PR or issue on GitHub. */
@@ -41,7 +41,14 @@ const HUMAN: Record<string, string> = { needs_human: "needs a person", check_by_
 function fixTile(p: FindingFlowProps): FlowTile {
   const r = p.latest;
   if (r && ["queued", "running", "stopping"].includes(r.status))
-    return { id: "fix", entity: "fix", state: "live", label: "Fixing", href: `/runs/${r.id}` };
+    return {
+      id: "fix",
+      entity: "fix",
+      state: "live",
+      label: "Fixing",
+      ...(r.by ? { meta: r.by } : {}),
+      href: `/runs/${r.id}`,
+    };
   if (r) {
     const fixed = flowStateOf(r.proof.fixed.state);
     const proven = flowStateOf(r.proof.proven.state, { verified: r.proof.proven.state === "done" });
@@ -56,7 +63,7 @@ function fixTile(p: FindingFlowProps): FlowTile {
       state,
       label: "Fix",
       ...(r.proof.proven.detail && state !== "failed" ? { meta: shortDetail(r.proof.proven.detail) } : {}),
-      ...(caption ? { caption } : {}),
+      ...(caption ? { caption } : r.by ? { caption: r.by } : {}),
       href: `/runs/${r.id}`,
     };
   }

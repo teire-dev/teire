@@ -131,6 +131,8 @@ export async function dryRunsFor(repoId: number, sinceSha: string | null) {
       status: runs.status,
       step: runs.step,
       evidenceKind: runs.evidenceKind,
+      requestedBy: runs.requestedBy,
+      createdAt: runs.createdAt,
     })
     .from(runs)
     .where(

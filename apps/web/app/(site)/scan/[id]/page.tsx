@@ -136,16 +136,19 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
     advisoryStatus?: "complete" | "partial" | "unavailable";
     gaps?: string[];
   } | null;
-  const runs = repo ? await dryRunsFor(repo.id, sha) : [];
+  const [runs, viewer] = await Promise.all([repo ? dryRunsFor(repo.id, sha) : [], getSession()]);
   const runFor = new Map(runs.map((r) => [r.groupKey, r]));
   // Each group's dry run as the flow reads it (a dry run opens no PR, only its preview).
   const runOf = (g: FindingGroup) => {
     const run = runFor.get(g.key);
     if (!run) return undefined;
     const advisory = g.key.startsWith("advisory/") || g.changeIds.some((c) => c.includes("advisor"));
+    // Anyone's dry run of this commit shows on every report of it: say whose, and when.
+    const by = `${run.requestedBy === viewer?.user.id ? "your" : "another person's"} dry run · ${run.createdAt.toISOString().slice(11, 16)} UTC`;
     return {
       id: run.id,
       status: run.status,
+      by,
       proof: proofOfRun({
         kind: "dry_run",
         status: run.status,
