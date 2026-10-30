@@ -114,7 +114,7 @@ export function TileSquare({
   return (
     <span
       className={cn(
-        "relative flex shrink-0 items-center justify-center rounded-tile bg-sheet shadow-tile transition-shadow",
+        "relative flex shrink-0 items-center justify-center rounded-tile bg-sheet shadow-tile transition-[box-shadow,translate]",
         RING[tile.state],
         className,
       )}
@@ -229,12 +229,18 @@ export function Tile({
   );
   const aria = `${tile.label}: ${FLOW_STATE_LABEL[tile.state]}${tile.meta ? `, ${tile.meta}` : ""}${tile.caption ? `, ${tile.caption}` : ""}`;
   const cls = cn("group/tile flex flex-col items-center gap-2.5", className);
+  // A linked tile lifts on hover, so a tile that opens something looks like it does (revamp S3).
+  const linked = "[&:hover>span:first-child]:-translate-y-px [&:hover>span:first-child]:shadow-card-hover";
   if (tile.href) {
     const external = tile.href.startsWith("http");
     return external ? (
       <a
         href={tile.href}
-        className={cn(cls, "rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-signal")}
+        className={cn(
+          cls,
+          linked,
+          "rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-signal",
+        )}
         aria-label={aria}
       >
         {body}
@@ -242,7 +248,11 @@ export function Tile({
     ) : (
       <Link
         href={tile.href}
-        className={cn(cls, "rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-signal")}
+        className={cn(
+          cls,
+          linked,
+          "rounded-tile outline-none focus-visible:ring-2 focus-visible:ring-signal",
+        )}
         aria-label={aria}
       >
         {body}

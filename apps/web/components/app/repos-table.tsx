@@ -142,36 +142,33 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
         accessorKey: "affected",
         header: LABELS.affected,
         cell: ({ row }) => (
-          <Link
+          <CountLink
+            n={row.original.affected}
             href={`/app/repos/${row.original.fullName}/findings`}
-            className={`font-mono text-xs tabular-nums ${row.original.affected ? "text-ink" : "text-ink-3"}`}
-          >
-            {row.original.affected}
-          </Link>
+            tone="text-ink"
+          />
         ),
       },
       {
         accessorKey: "openPrs",
         header: LABELS.openPrs,
         cell: ({ row }) => (
-          <Link
+          <CountLink
+            n={row.original.openPrs}
             href={`/app/repos/${row.original.fullName}/prs`}
-            className={`font-mono text-xs tabular-nums ${row.original.openPrs ? "text-ink" : "text-ink-3"}`}
-          >
-            {row.original.openPrs}
-          </Link>
+            tone="text-ink"
+          />
         ),
       },
       {
         accessorKey: "needsYou",
         header: LABELS.needsYou,
         cell: ({ row }) => (
-          <Link
+          <CountLink
+            n={row.original.needsYou}
             href={`/app/runs?show=needs-you&repo=${encodeURIComponent(row.original.fullName)}`}
-            className={`font-mono text-xs tabular-nums ${row.original.needsYou ? "text-attention" : "text-ink-3"}`}
-          >
-            {row.original.needsYou}
-          </Link>
+            tone="text-attention"
+          />
         ),
       },
       {
@@ -326,5 +323,22 @@ export function ReposTable({ rows }: { rows: RepoTableRow[] }) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * A count that opens what it counts (revamp S3: a link looks like one): a non-zero count is a link
+ * with a hover underline; zero is plain text, never a link to an empty tab.
+ */
+function CountLink({ n, href, tone }: { n: number; href: string; tone: string }) {
+  return n ? (
+    <Link
+      href={href}
+      className={`rounded px-1 font-mono text-xs tabular-nums underline-offset-2 hover:bg-hover hover:underline ${tone}`}
+    >
+      {n}
+    </Link>
+  ) : (
+    <span className="px-1 font-mono text-xs text-ink-3 tabular-nums">0</span>
   );
 }

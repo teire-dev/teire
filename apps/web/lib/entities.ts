@@ -60,3 +60,75 @@ export async function packageVersions(ecosystem: string, name: string) {
   const info = row?.data as PackageInfo | undefined;
   return info?.versions ? { info, fetchedAt: row?.fetchedAt.toISOString() ?? null } : null;
 }
+
+/** The fields Teire reads from deps.dev's package response. */
+interface DepsDevPackage {
+  versions?: {
+    versionKey?: { version?: string };
+    publishedAt?: string;
+    isDefault?: boolean;
+    isDeprecated?: boolean;
+    deprecatedReason?: string;
+  }[];
+}
+
+/** deps.dev's name for each ecosystem Teire reads (the engine's `DEPS_DEV_SYSTEM`). */
+const DEPS_DEV: Record<string, string> = {
+  npm: "NPM",
+  pypi: "PYPI",
+  maven: "MAVEN",
+  go: "GO",
+  cargo: "CARGO",
+  rubygems: "RUBYGEMS",
+};
+const REGISTRY_TIMEOUT_MS = 5000;
+
+/**
+ * A public package's registry facts when the worker hasn't cached them (revamp S3: a transitive
+ * dependency gets a page too), read from deps.dev on demand and kept for hours. Public data only: a
+ * package deps.dev doesn't know (a private registry's) has no public page.
+ */
+async function registryFacts(ecosystem: string, name: string) {
+  "use cache";
+  cacheLife("hours");
+  const system = DEPS_DEV[ecosystem];
+  if (!system) return null;
+  const url = `https://api.deps.dev/v3/systems/${system}/packages/${encodeURIComponent(name)}`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS) });
+    if (res.status !== 200) return null;
+    const body = (await res.json()) as DepsDevPackage;
+    // Release order is publish order here; the worker's cache orders by each ecosystem's own scheme.
+    const versions = (body.versions ?? [])
+      .flatMap((v) =>
+        v.versionKey?.version
+          ? [
+              {
+                version: v.versionKey.version,
+                publishedAt: v.publishedAt ?? null,
+                deprecated: v.isDeprecated ? (v.deprecatedReason ?? "") : null,
+                isDefault: v.isDefault === true,
+              },
+            ]
+          : [],
+      )
+      .sort((a, b) => (a.publishedAt ?? "").localeCompare(b.publishedAt ?? ""));
+    if (!versions.length) return null;
+    const checkedAt = new Date().toISOString();
+    const info: PackageInfo = {
+      ecosystem,
+      name,
+      versions,
+      defaultVersion: versions.find((v) => v.isDefault)?.version ?? null,
+      source: { name: "deps.dev", url, checkedAt },
+    };
+    return { info, fetchedAt: checkedAt };
+  } catch {
+    return null;
+  }
+}
+
+/** A package's registry facts: the worker's cache first, then deps.dev. */
+export async function packageFacts(ecosystem: string, name: string) {
+  return (await packageVersions(ecosystem, name)) ?? (await registryFacts(ecosystem, name));
+}

@@ -20,6 +20,8 @@ import { ClassChip } from "../../changes/class-chip";
 
 export async function generateMetadata({ params }: PageProps<"/providers/[slug]">): Promise<Metadata> {
   const { slug } = await params;
+  // A missing provider is a real 404 for crawlers: metadata blocks their response (revamp S3).
+  if (!(await providerPage(slug))) notFound();
   return { title: `${providerLogo(slug).name} changes` };
 }
 

@@ -1,16 +1,17 @@
-import { ChevronDown, ExternalLink, Quote as QuoteIcon, ShieldAlert } from "lucide-react";
+import { ChevronRight, ExternalLink, Quote as QuoteIcon, ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { YourPackageReach } from "@/components/catalog/your-reach";
+import { YourPackageUse } from "@/components/catalog/your-reach";
 import { GhostFlow } from "@/components/flow/ghost-flow";
 import { TileSquare } from "@/components/flow/tile";
 import { Mark } from "@/components/teire/mark";
 import { ECOSYSTEMS } from "@/lib/brands";
 import { listChanges } from "@/lib/catalog";
-import { packageVersions } from "@/lib/entities";
+import { packageFacts } from "@/lib/entities";
+import { changeHref } from "@/lib/links";
 import { cn } from "@/lib/utils";
 import { ClassChip } from "../../../changes/class-chip";
 
@@ -52,9 +53,19 @@ function compareVersions(a: string, b: string) {
   return 0;
 }
 
+/** How many releases the reader's "Where you stand" counts back through, newest last. */
+const USE_VERSIONS = 600;
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { ecosystem, name } = await params;
-  return { title: `${decode(name)} (${ECOSYSTEMS[ecosystem]?.label ?? ecosystem})` };
+  // The existence check here too (revamp S3): metadata blocks the response for crawlers, so a missing
+  // package is a real 404, not a 200 that streams "not found" (the page's own check is in its boundary).
+  if (!ECOSYSTEMS[ecosystem]) notFound();
+  const pkg = decode(name);
+  const [facts, all] = await Promise.all([packageFacts(ecosystem, pkg), listChanges()]);
+  if (!facts && !all.some((r) => r.record.subject.ecosystem === ecosystem && r.record.subject.name === pkg))
+    notFound();
+  return { title: `${pkg} (${ECOSYSTEMS[ecosystem]?.label ?? ecosystem})` };
 }
 
 /** Where each ecosystem's registry shows a package. */
@@ -110,13 +121,15 @@ async function Package({ params }: { params: Params }) {
   const eco = ECOSYSTEMS[ecosystem];
   if (!eco) notFound();
   const name = decode(parts);
-  const [versions, all] = await Promise.all([packageVersions(ecosystem, name), listChanges()]);
+  const [versions, all] = await Promise.all([packageFacts(ecosystem, name), listChanges()]);
   const rows = all.filter((r) => r.record.subject.ecosystem === ecosystem && r.record.subject.name === name);
   if (!versions && !rows.length) notFound();
   const registry = registryUrl(ecosystem, name);
-  const listed = [...(versions?.info.versions ?? [])].reverse().slice(0, 30);
+  const releases = versions?.info.versions ?? [];
+  const latest = releases.find((v) => v.isDefault) ?? null;
   // Advisories, and what the release notes, changelogs and migration guides said, in their words (U5).
   const advisories = rows.filter((r) => r.kind === "security-advisory");
+  const computed = rows.filter((r) => r.kind !== "security-advisory");
   const notes = rows
     .flatMap((r) =>
       r.record.sources
@@ -134,70 +147,109 @@ async function Package({ params }: { params: Params }) {
     .slice(0, 6);
   // Changes per target version, newest target first.
   const byTarget = new Map<string, typeof rows>();
-  for (const r of rows) {
-    const t = r.record.applicability.toVersion ?? r.record.applicability.fixedIn?.[0] ?? "other";
+  for (const r of computed) {
+    const t = r.record.applicability.toVersion ?? "other";
     byTarget.set(t, [...(byTarget.get(t) ?? []), r]);
   }
-
-  // The rail (plan revision 3.4, V5): version tiles oldest to newest — the registry's last 16 when it
-  // is cached, and always every target with changes and every version an advisory is fixed in, so
-  // the rail stands on Teire's own data when the registry list is missing (V5–V6 review).
-  const BREAKING = new Set(["breaks-on-upgrade", "already-broken", "breaks-on-date"]);
-  // Releases only: a canary, beta or rc stays off the rail unless Teire computed changes for it.
-  // npm/Cargo/Go "-beta.1", Maven "-SNAPSHOT"/"-M2"/"-RC1", PyPI "2.0.0a1"/"rc1"/".dev3", RubyGems ".pre".
-  const PRE =
-    /[-.](alpha|beta|canary|rc|next|dev|pre|preview|insiders|experimental|snapshot|nightly|m\d+|cr\d*)|\d(a|b|rc)\d+$|\.dev\d*$/i;
-  const registryRail = [...(versions?.info.versions ?? [])]
-    .filter((v) => !PRE.test(v.version) || byTarget.has(v.version))
-    .slice(-16);
-  const meta = new Map(registryRail.map((v) => [v.version, v]));
   const fixesAt = new Map<string, string[]>();
   for (const r of advisories)
     for (const v of r.record.applicability.fixedIn) fixesAt.set(v, [...(fixesAt.get(v) ?? []), r.id]);
-  const stops = [...new Set([...registryRail.map((v) => v.version), ...byTarget.keys(), ...fixesAt.keys()])]
+  // The rail (revamp S3): only versions that carry something — computed changes or an advisory fix —
+  // so every stop is worth reading; the full list stays on the registry.
+  const BREAKING = new Set(["breaks-on-upgrade", "already-broken", "breaks-on-date"]);
+  const meta = new Map(releases.map((v) => [v.version, v]));
+  const stops = [...new Set([...byTarget.keys(), ...fixesAt.keys()])]
     .filter((v) => v !== "other")
     .sort(compareVersions)
-    .slice(-18)
+    .slice(-14)
     .map((version) => {
       const m = meta.get(version);
       const list = byTarget.get(version) ?? [];
       return {
         version,
         latest: m?.isDefault ?? false,
-        deprecated: m ? m.deprecated !== null : false,
         month: m?.publishedAt?.slice(0, 7),
         changes: list.length,
         breaking: list.filter((r) => BREAKING.has(r.class ?? "")).length,
         fixes: fixesAt.get(version) ?? [],
       };
     });
-  const rail = registryRail;
   const anchor = (v: string) => `target-${v.replace(/[^\w.-]/g, "-")}`;
 
   return (
     <>
-      <header className="flex flex-col gap-4">
+      <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <Mark brand={eco} size="lg" />
           <h1 className="heading font-mono text-3xl break-all text-ink">{name}</h1>
           <span className="rounded-full bg-sunken px-2.5 py-0.5 text-xs text-ink-2">{eco.label}</span>
+        </div>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-xs text-ink-2">
+          {latest ? (
+            <span>
+              latest <span className="text-ink">{latest.version}</span>
+              {latest.publishedAt ? (
+                <span className="text-ink-3"> · {latest.publishedAt.slice(0, 10)}</span>
+              ) : null}
+            </span>
+          ) : null}
+          {latest?.deprecated !== null && latest?.deprecated !== undefined ? (
+            <span className="rounded-full bg-attention-soft px-2 py-0.5 text-attention">deprecated</span>
+          ) : null}
           {registry ? (
-            <a href={registry} className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink">
-              {new URL(registry).host} <ExternalLink className="size-3" aria-hidden />
+            <a href={registry} className="flex items-center gap-1 text-link hover:underline">
+              {new URL(registry).host}
+              {releases.length ? ` · all ${releases.length} versions` : ""}
+              <ExternalLink className="size-3" aria-hidden />
             </a>
           ) : null}
-        </div>
-        <p className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-ink-3">
-          <span>read with</span>
-          <span className="rounded-full bg-sunken px-2 py-0.5 text-ink-2">{eco.reads}</span>
-          <span>· your code located per change · release notes for what a diff can't show</span>
         </p>
       </header>
 
-      <YourPackageReach pkg={`${ecosystem}/${name}`} brand={eco} />
+      <YourPackageUse
+        pkg={`${ecosystem}/${name}`}
+        versions={releases.slice(-USE_VERSIONS).map((v) => v.version)}
+        latest={latest?.version ?? null}
+      />
+
+      {advisories.length ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
+            <ShieldAlert className="size-4 text-broke" aria-hidden />
+            Security advisories
+            <span className="font-mono text-xs text-ink-3">{advisories.length}</span>
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {advisories.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={changeHref(r.id)}
+                  className="group flex flex-wrap items-center gap-2 rounded-xl bg-sheet px-4 py-3 shadow-card hover:shadow-card-hover"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink group-hover:underline">
+                    {r.title}
+                  </span>
+                  {r.record.applicability.affectedRange ? (
+                    <span className="rounded-full bg-broke-soft px-2 py-0.5 font-mono text-[11px] text-broke">
+                      {r.record.applicability.affectedRange}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-proven-soft px-2 py-0.5 font-mono text-[11px] text-proven">
+                    {r.record.applicability.fixedIn.length
+                      ? `fixed in ${r.record.applicability.fixedIn.join(", ")}`
+                      : "no fix yet"}
+                  </span>
+                  <ChevronRight className="size-4 text-ink-3 group-hover:text-ink" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {stops.length ? (
-        <section className="flex flex-col gap-2" aria-label="Versions">
+        <section className="flex flex-col gap-2" aria-label="Versions that change something">
+          <h2 className="text-sm font-medium text-ink">Versions that change something</h2>
           <div className="-mx-4 overflow-x-auto px-4 pb-2">
             <ol className="flex min-w-max items-start gap-3 pt-3">
               {stops.map((v) => {
@@ -205,15 +257,13 @@ async function Package({ params }: { params: Params }) {
                   ? "ring-broke/40"
                   : v.latest
                     ? "ring-proven/50"
-                    : v.changes
-                      ? "ring-signal/40"
-                      : "ring-rule";
+                    : "ring-signal/40";
                 const body = (
                   <span
                     className={cn(
-                      "flex w-36 flex-col gap-1.5 rounded-xl bg-sheet p-3 shadow-card ring-1 transition-shadow",
+                      "flex w-36 flex-col gap-1.5 rounded-xl bg-sheet p-3 ring-1",
                       tone,
-                      v.changes && "hover:shadow-card-hover",
+                      v.changes ? "shadow-card transition-shadow hover:shadow-card-hover" : "",
                     )}
                   >
                     <span className="flex items-center justify-between gap-1">
@@ -221,10 +271,6 @@ async function Package({ params }: { params: Params }) {
                       {v.latest ? (
                         <span className="rounded-full bg-proven-soft px-1.5 font-mono text-[11px] text-proven">
                           latest
-                        </span>
-                      ) : v.deprecated ? (
-                        <span className="rounded-full bg-attention-soft px-1.5 font-mono text-[11px] text-attention">
-                          deprecated
                         </span>
                       ) : null}
                     </span>
@@ -255,13 +301,7 @@ async function Package({ params }: { params: Params }) {
                       aria-hidden
                       className={cn(
                         "relative size-2.5 rounded-full ring-4 ring-canvas",
-                        v.fixes.length
-                          ? "bg-broke"
-                          : v.latest
-                            ? "bg-proven"
-                            : v.changes
-                              ? "bg-signal"
-                              : "bg-rule-strong",
+                        v.fixes.length ? "bg-broke" : v.latest ? "bg-proven" : "bg-signal",
                       )}
                     />
                     {v.changes ? (
@@ -276,58 +316,18 @@ async function Package({ params }: { params: Params }) {
               })}
             </ol>
           </div>
-          <p className="font-mono text-[11px] text-ink-3">
-            {versions
-              ? `${versions.info.source.name} · read ${versions.fetchedAt?.slice(0, 10)}`
-              : "from Teire's own changes; the registry's list isn't cached yet"}
-          </p>
         </section>
       ) : null}
 
-      {advisories.length ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
-            <ShieldAlert className="size-4 text-broke" aria-hidden />
-            Security advisories
-            <span className="font-mono text-xs text-ink-3">{advisories.length}</span>
-          </h2>
-          <ul className="flex flex-col gap-2">
-            {advisories.map((r) => (
-              <li key={r.id}>
-                <Link
-                  href={`/changes/${r.id}`}
-                  className="flex flex-wrap items-center gap-2 rounded-xl bg-sheet px-4 py-3 shadow-card hover:shadow-card-hover"
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{r.title}</span>
-                  {r.record.applicability.affectedRange ? (
-                    <span className="rounded-full bg-broke-soft px-2 py-0.5 font-mono text-[11px] text-broke">
-                      {r.record.applicability.affectedRange}
-                    </span>
-                  ) : null}
-                  <span className="rounded-full bg-proven-soft px-2 py-0.5 font-mono text-[11px] text-proven">
-                    {r.record.applicability.fixedIn.length
-                      ? `fixed in ${r.record.applicability.fixedIn.join(", ")}`
-                      : "no fix yet"}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-ink">
-          Changes Teire computed <span className="font-mono text-xs text-ink-3">{rows.length}</span>
-        </h2>
-        {rows.length ? (
-          // One row per kind of change, its target versions as chips (V7 final review: the same five
-          // kinds under every target read as a grey list). Each chip is that change, with its figure.
+      {computed.length ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-medium text-ink">What each upgrade changes in its API</h2>
+          {/* One row per kind of change, its target versions as chips; each chip is that change. */}
           <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
             {(() => {
               const anchored = new Set<string>();
               const byKind = new Map<string, typeof rows>();
-              for (const r of rows) byKind.set(r.kind, [...(byKind.get(r.kind) ?? []), r]);
+              for (const r of computed) byKind.set(r.kind, [...(byKind.get(r.kind) ?? []), r]);
               return [...byKind].map(([kind, list]) => (
                 <li key={kind} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
                   <span className="flex min-w-0 items-center gap-2 sm:w-80 sm:shrink-0">
@@ -340,13 +340,12 @@ async function Package({ params }: { params: Params }) {
                     {[...list]
                       .sort((x, y) =>
                         compareVersions(
-                          x.record.applicability.toVersion ?? x.record.applicability.fixedIn?.[0] ?? "",
-                          y.record.applicability.toVersion ?? y.record.applicability.fixedIn?.[0] ?? "",
+                          x.record.applicability.toVersion ?? "",
+                          y.record.applicability.toVersion ?? "",
                         ),
                       )
                       .map((r) => {
-                        const target =
-                          r.record.applicability.toVersion ?? r.record.applicability.fixedIn?.[0] ?? "";
+                        const target = r.record.applicability.toVersion ?? "";
                         const figure = /(\d[\d,]*)/.exec(r.title.split(": ").slice(1).join(": "))?.[1];
                         const id = target && !anchored.has(target) ? anchor(target) : undefined;
                         if (id) anchored.add(target);
@@ -354,7 +353,7 @@ async function Package({ params }: { params: Params }) {
                           <Link
                             key={r.id}
                             id={id}
-                            href={`/changes/${r.id}`}
+                            href={changeHref(r.id)}
                             title={r.title}
                             className="flex scroll-mt-24 items-center gap-1.5 rounded-full bg-sunken px-2.5 py-1 font-mono text-[11px] text-ink-2 ring-1 ring-rule ring-inset hover:text-ink hover:ring-rule-strong"
                           >
@@ -368,13 +367,8 @@ async function Package({ params }: { params: Params }) {
               ));
             })()}
           </ul>
-        ) : (
-          <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
-            <TileSquare tile={{ entity: "update", state: "pending", label: "" }} size="sm" />
-            <span className="text-sm text-ink-2">Diffed when a scanned repository could upgrade</span>
-          </div>
-        )}
-      </section>
+        </section>
+      ) : null}
 
       {notes.length ? (
         <section className="flex flex-col gap-2">
@@ -384,53 +378,39 @@ async function Package({ params }: { params: Params }) {
           </h2>
           <ul className="flex flex-col gap-2">
             {notes.map((n) => (
-              <li key={`${n.changeId}-${n.url}`}>
-                {/* Two lines of the notes' own words; More opens the rest (plan revision 3.4, V5). */}
-                <details className="group/note rounded-xl bg-sheet shadow-card">
-                  <summary className="flex cursor-pointer list-none flex-col gap-1.5 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                    <span className="flex items-center gap-2 text-xs text-ink-2">
-                      {n.version ? <span className="font-mono text-ink">{n.version}</span> : null}
-                      <span>{n.host}</span>
-                      <span className="font-mono text-ink-3">{n.checkedAt.slice(0, 10)}</span>
-                    </span>
-                    <blockquote className="line-clamp-2 border-l-2 border-rule-strong pl-3 text-sm break-words text-ink-2 group-open/note:line-clamp-none">
-                      “{n.quote.length > 480 ? `${n.quote.slice(0, 480)}…` : n.quote}”
-                    </blockquote>
-                    <span className="flex items-center gap-1 text-[11px] text-ink-3 group-open/note:hidden">
-                      More <ChevronDown aria-hidden className="size-3" />
-                    </span>
-                  </summary>
-                  <Link
-                    href={`/changes/${n.changeId}`}
-                    className="mx-4 mb-3 block w-fit text-xs text-ink-3 hover:text-ink"
+              <li
+                key={`${n.changeId}-${n.url}`}
+                className="flex flex-col gap-1.5 rounded-xl bg-sheet px-4 py-3 shadow-card"
+              >
+                <span className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-3">
+                  {n.version ? <span className="text-ink">{n.version}</span> : null}
+                  <a
+                    href={n.url}
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1 text-link hover:underline"
                   >
+                    {n.host}
+                    <ExternalLink className="size-3" aria-hidden />
+                  </a>
+                  <span>checked {n.checkedAt.slice(0, 10)}</span>
+                  <Link href={changeHref(n.changeId)} className="ml-auto text-ink-2 hover:text-ink">
                     The change ›
                   </Link>
-                </details>
+                </span>
+                <blockquote className="max-h-40 overflow-auto border-l-2 border-signal/60 pl-3 text-sm break-words whitespace-pre-wrap text-ink-2">
+                  {n.quote.length > 900 ? `${n.quote.slice(0, 900)}…` : n.quote}
+                </blockquote>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
 
-      {listed.length > rail.length ? (
-        <details className="group/all rounded-xl bg-sheet shadow-card">
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
-            All versions <span className="font-mono text-xs text-ink-3">{listed.length}</span>
-            <ChevronDown
-              aria-hidden
-              className="ml-auto size-3.5 transition-transform group-open/all:rotate-180"
-            />
-          </summary>
-          <ul className="grid grid-cols-2 gap-x-6 gap-y-1 border-t border-rule px-4 py-3 font-mono text-xs sm:grid-cols-3">
-            {listed.map((v) => (
-              <li key={v.version} className="flex justify-between gap-2">
-                <span className="text-ink">{v.version}</span>
-                <span className="text-ink-3">{v.publishedAt?.slice(0, 10) ?? "—"}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
+      {!advisories.length && !computed.length ? (
+        <p className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 text-sm text-ink-2 shadow-card">
+          <TileSquare tile={{ entity: "update", state: "pending", label: "" }} size="sm" />
+          No advisories, and no upgrade a scanned repository could make has been diffed yet.
+        </p>
       ) : null}
     </>
   );

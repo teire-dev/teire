@@ -45,6 +45,7 @@ import { repoDetailCached } from "@/lib/dashboard";
 import { bucketGroups, groupFindings } from "@/lib/findings";
 import { configCurrent } from "@/lib/fix-mode";
 import { runFlow } from "@/lib/flow/model";
+import { findingsByPackage, type InventoryFacts, inventoryFacts, plannedByPackage } from "@/lib/inventory";
 import { providerLogo } from "@/lib/logos";
 import { subjectMark } from "@/lib/marks";
 import { runFlowsOf } from "@/lib/run-flows";
@@ -592,24 +593,36 @@ async function Runs({ data, userId }: { data: Data; userId: string }) {
   );
 }
 
-function Inventory({ data }: { data: Data }) {
+async function Inventory({ data }: { data: Data }) {
   const counts = new Map<string, number>();
   for (const i of data.inventory) counts.set(i.ecosystem, (counts.get(i.ecosystem) ?? 0) + 1);
-  return data.inventory.length ? (
+  if (!data.inventory.length) return <Quiet label="No completed scan yet" />;
+  const facts = data.scan ? await inventoryFacts(data.scan.id) : new Map<string, InventoryFacts>();
+  const found = findingsByPackage(data.findings);
+  const planned = plannedByPackage(data.scan?.upgrades as ScanUpgrade[] | null | undefined);
+  return (
     <InventoryTable
-      rows={data.inventory.map((i) => ({
-        id: String(i.id),
-        ecosystem: i.ecosystem,
-        name: i.name,
-        version: i.version,
-        scope: i.scope,
-        workspace: i.workspace,
-        direct: i.direct,
-      }))}
+      rows={data.inventory.map((i) => {
+        const pkg = `${i.ecosystem}/${i.name}`;
+        const f = facts.get(String(i.id));
+        return {
+          id: String(i.id),
+          ecosystem: i.ecosystem,
+          name: i.name,
+          version: i.version,
+          workspace: i.workspace,
+          manifest: i.manifestPath,
+          direct: i.direct,
+          source: i.source,
+          latest: f?.latest ?? null,
+          behind: f?.behind ?? null,
+          advisories: found.get(pkg)?.advisories ?? 0,
+          findings: found.get(pkg)?.findings ?? 0,
+          planned: planned.get(pkg) ?? null,
+        };
+      })}
       ecosystems={[...counts].map(([key, count]) => ({ key, label: ecosystemOf(key)?.label ?? key, count }))}
     />
-  ) : (
-    <Quiet label="No completed scan yet" />
   );
 }
 

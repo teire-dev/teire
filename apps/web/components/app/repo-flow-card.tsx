@@ -57,7 +57,7 @@ export function RepoFlowCard({
   ].filter((o) => o.n);
   const name = fullName.split("/")[1] ?? fullName;
   return (
-    <article className="flex flex-col gap-4 rounded-xl bg-sheet p-4 shadow-card transition-shadow hover:shadow-card-hover">
+    <article className="flex flex-col gap-4 rounded-xl bg-sheet p-4 shadow-card">
       <header className="flex items-center justify-between gap-2">
         <Link
           href={`/app/repos/${fullName}`}
@@ -75,7 +75,7 @@ export function RepoFlowCard({
       </header>
       <Link
         href={`/app/repos/${fullName}/findings`}
-        className="flex items-center"
+        className="-m-1.5 flex items-center rounded-lg p-1.5 transition-colors hover:bg-hover"
         aria-label={`${name}: ${sources.length ? `${sources.reduce((n, s) => n + s.n, 0)} changes reaching it` : "nothing reaching it"}${outs.length ? `, ${outs.map((o) => `${o.n} ${o.said}`).join(", ")}` : ""}`}
       >
         <span className="flex flex-col" style={{ gap: GAP }}>

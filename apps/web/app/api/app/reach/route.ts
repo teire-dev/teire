@@ -13,6 +13,7 @@ import { changesFor, scopeRaw } from "@/lib/workspace";
  * change page's fan). Signed out, nothing.
  */
 const none = { headers: { "cache-control": "private, no-store" } };
+const USES_SHOWN = 60;
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -28,7 +29,41 @@ export async function GET(request: Request) {
       where ${scopeRaw(mine.scope, "r", "i")} and f.group_key like ${prefix} and f.state = 'open'
         and f.verdict in ('affected', 'needs_human', 'check_by_hand')
       group by r.full_name order by r.full_name`);
-    return Response.json({ repos: rows.map((r) => ({ repo: r.full_name, groups: r.groups })) }, none);
+    const repos = rows.map((r) => ({ repo: r.full_name, groups: r.groups }));
+    if (new URL(request.url).searchParams.get("uses") !== "1") return Response.json({ repos }, none);
+    // With `uses=1` (revamp S3, the package page's "Where you stand"): each of the person's
+    // repositories that installs it, at its latest completed scan: version, direct or not, manifest.
+    const slash = pkg.indexOf("/");
+    const { rows: uses } = await database().execute<{
+      full_name: string;
+      version: string | null;
+      direct: boolean;
+      manifest_path: string;
+      workspace: string;
+    }>(sql`
+      select r.full_name, di.version, di.direct, di.manifest_path, di.workspace
+      from dependency_instances di
+      join repos r on r.id = di.repo_id
+      join installations i on i.id = r.installation_id
+      join lateral (select s.id from scans s where s.repo_id = r.id and s.status = 'done'
+        order by s.created_at desc limit 1) ls on ls.id = di.scan_id
+      where ${scopeRaw(mine.scope, "r", "i")}
+        and di.ecosystem = ${pkg.slice(0, slash)} and di.name = ${pkg.slice(slash + 1)}
+      order by r.full_name, di.direct desc, di.manifest_path
+      limit ${USES_SHOWN}`);
+    return Response.json(
+      {
+        repos,
+        uses: uses.map((u) => ({
+          repo: u.full_name,
+          version: u.version,
+          direct: u.direct,
+          manifest: u.manifest_path,
+          workspace: u.workspace,
+        })),
+      },
+      none,
+    );
   }
   const changes = await changesFor(mine.scope);
   // With `change=<id>`: where that change reaches, each with what Fix now would do (the change page's fan).

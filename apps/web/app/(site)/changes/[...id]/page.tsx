@@ -26,7 +26,8 @@ import { ClassChip } from "../class-chip";
 export async function generateMetadata({ params }: PageProps<"/changes/[...id]">): Promise<Metadata> {
   const { id } = await params;
   const record = await getChange(id.map(decodeURIComponent).join("/"));
-  if (!record) return { title: "Change" };
+  // A missing change is a real 404 for crawlers: metadata blocks their response (revamp S3).
+  if (!record) notFound();
   const image = `/og/change/${id.join("/")}`;
   return {
     title: record.title,
