@@ -3,13 +3,13 @@
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.png" />
       <source media="(prefers-color-scheme: light)" srcset=".github/assets/banner-light.png" />
-      <img src=".github/assets/banner-dark.png" width="960" alt="Teire 手入れ. When a package, API or model changes, Teire fixes your code. Beside it, a real Teire pull request: Replace retired model gpt-4.1-nano with gpt-5.6-luna, verified, tests 1/3 before and 3/3 after." />
+      <img src=".github/assets/banner-dark.png" width="960" alt="Teire 手入れ. When upstream breaks, Teire fixes your code. Found, fixed by Nemotron, proven by your own tests. Beside it, the live run of a real Teire fix: zod 3.25.76 to 4.6.6 in teire-dev/examples, PR #30, proven with typecheck and 4 of 4 tests passing before and after." />
     </picture>
   </a>
 </p>
 
 <h1 align="center">Teire · 手入れ</h1>
-<p align="center"><b>When a package, API or model changes, Teire fixes your code.</b></p>
+<p align="center"><b>When upstream breaks, Teire fixes your code.</b><br />When a package, an API or an AI model your code depends on changes, Teire finds the lines that break, fixes them, and proves the fix with your own tests.</p>
 
 <p align="center">
   <a href="https://teire.vercel.app"><b>Open the app</b></a>

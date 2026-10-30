@@ -14,7 +14,7 @@ Today's tools stop short. Dependabot and Renovate open a pull request that bumps
 
 ## What it does
 
-**When a package, API or model changes, Teire fixes your code.** Teire finds the lines that break, and a Nemotron coding agent on Nebius Token Factory fixes what a plain swap can't. Your own tests run before and after, and a pull request shows the proof.
+**When upstream breaks, Teire fixes your code.** When a package, an API or an AI model your code depends on changes, Teire finds the lines that break, and a Nemotron coding agent on Nebius Token Factory fixes what a plain swap can't. Your own tests run before and after, and a pull request shows the proof.
 
 Teire watches every dependency and API a repository uses:
 

@@ -1,7 +1,7 @@
 {
   "name": "teire-monorepo",
   "private": true,
-  "description": "When a package, API or model changes, Teire fixes your code.",
+  "description": "When upstream breaks, Teire fixes your code.",
   "license": "MIT",
   "packageManager": "pnpm@11.24.0",
   "engines": {

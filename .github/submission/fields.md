@@ -6,9 +6,9 @@ Ready-to-paste text for each field of the Nebius x NVIDIA Global AI Hackathon fo
 
 Teire
 
-## Elevator pitch (189 characters)
+## Elevator pitch (182 characters)
 
-When a package, API or model changes, Teire fixes your code: a Nemotron agent on Nebius Token Factory edits what a swap can't, your own tests run before and after, and a PR shows the proof.
+When upstream breaks (a package, an API or an AI model), Teire fixes your code: a Nemotron agent on Nebius Token Factory edits what a swap can't, and your own tests prove it in a PR.
 
 ## Track
 
@@ -36,7 +36,7 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
 
 | # | File | Caption |
 |---|---|---|
-| 1 | `banner-dark.png` | When a package, API or model changes, Teire fixes your code. Beside the line, a real Teire PR replacing a retired OpenAI model, verified 1/3 → 3/3. |
+| 1 | `banner-dark.png` | When upstream breaks, Teire fixes your code. Beside the line, the live run of a real Teire fix: zod 3.25.76 → 4.6.6 in teire-dev/examples, proven 4/4 → 4/4. |
 | 2 | `captures/report-wrapped-models-desktop.png` | A public scan: Groq retired two Llama models; Nemotron traced the IDs through a tier registry to the request. |
 | 3 | `captures/dryrun-go-timeline-desktop.png` | A live run: Teire upgrades golang-jwt v4 → v5, the checks fail, and Nemotron 3 Ultra reads, searches and edits until they pass. |
 | 4 | `captures/dryrun-go-pr-desktop.png` | The pull request Teire composed: why this repo, what changed upstream (quoted), changes, verification, receipt. |
