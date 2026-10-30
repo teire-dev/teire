@@ -24,7 +24,7 @@ import { declaredPackageNotes, gatherNpmNotes, githubRepoOf } from "../notes/sou
 import { getNpmVersion, npmDistTag, supplyChainSignals } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
-import { comparable, lookupPackage } from "../registry/private";
+import { applyPrivateClaims, comparable, lookupPackage } from "../registry/private";
 import {
   beyondRange,
   chooseTarget,
@@ -93,6 +93,8 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
   const assessments: Assessment[] = [];
   const diffOf = options.surfaceDiff ?? ((name, from, to) => npmSurfaceDiff(name, from, to, options));
   for (const project of projects) {
+    // What a private registry the repo names serves is read there, or not compared (S18 review S1).
+    applyPrivateClaims(project.instances, "npm", options);
     const policy = readJsUpgradePolicy(tree, project);
     // Libraries widen, apps bump (S18.5): each importer's package.json on its own.
     project.widen = await widenedManifests(
@@ -164,7 +166,8 @@ export async function assessJsRepo(repoDir: string, tree: RepoTree, options: Ass
       }
       const floor = instance.resolvedBy === "range-floor";
       // A dist-tag the repo follows for this package (D-43) is the ceiling in place of `latest`.
-      const tag = options.distTags?.[instance.name];
+      // A dist-tag is npm's own; a private package's tags live in its registry (S18 review S13).
+      const tag = declared.source === "registry" ? options.distTags?.[instance.name] : undefined;
       const followTag = tag ? await npmDistTag(instance.name, tag).catch(() => null) : null;
       if (tag && !followTag) options.coverage?.notes.push(`${instance.name}: no "${tag}" dist-tag on npm`);
       const chosen = chooseTarget(

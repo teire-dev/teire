@@ -124,9 +124,8 @@ export function mergeScip(
   const refs = scip.refs.filter((r) => r.version === input.version);
   const hits: Hit[] = lexical.hits.filter((h) => h.declKey?.startsWith("feature:"));
   for (const r of refs) {
-    const key = keys.find(
-      (k) => k.crate === r.crate && k.name === r.name && (!k.owner || !r.owner || k.owner === r.owner),
-    );
+    // The same item: crate, name and owner (a free item has none on either side), S19 review.
+    const key = keys.find((k) => k.crate === r.crate && k.name === r.name && k.owner === r.owner);
     if (!key) continue;
     const file = `${prefix}${r.file}`;
     if (hits.some((h) => h.file === file && h.line === r.line && h.declKey === key.key)) continue;
@@ -141,9 +140,11 @@ export function mergeScip(
       declKey: key.key,
     });
   }
-  const referenced = new Set(refs.map((r) => `${prefix}${r.file}:${r.line}`));
+  // A textual site is settled only by a SCIP reference to that same item on its line: another
+  // item of the crate there doesn't say this one isn't used (S19 review).
+  const typed = new Set(hits.map((h) => `${h.file}:${h.line}:${h.declKey}`));
   const unresolved = lexical.hits.filter(
-    (h) => !h.declKey?.startsWith("feature:") && !referenced.has(`${h.file}:${h.line}`),
+    (h) => !h.declKey?.startsWith("feature:") && !typed.has(`${h.file}:${h.line}:${h.declKey}`),
   ).length;
   const unindexed = input.sourceFiles.filter((f) => !scip.files.has(f.slice(prefix.length)));
   return {

@@ -40,7 +40,7 @@ export function newScanCoverage(): ScanCoverage {
 const SOURCE_REASON: Record<string, string> = {
   git: "a git source: Teire compares registry versions",
   path: "a local path",
-  "private-index": "a private registry Teire has no access to",
+  "private-index": "a private registry with no saved credential: add one in Settings → Private registries",
 };
 
 /**
@@ -52,20 +52,26 @@ export function outcomesOf(
   assessments: { instance: DependencyInstance; decision: TargetDecision | null }[],
   coverage: ScanCoverage,
 ) {
-  const key = (i: { ecosystem: string; name: string }) => `${i.ecosystem}:${i.name}`;
-  const failed = new Set(coverage.lookupsFailed.map(key));
-  const decided = new Map(assessments.filter((a) => a.decision).map((a) => [key(a.instance), a.decision]));
+  // A package at one version: a copy decided anywhere is decided (the JVM assesses an artifact once
+  // across modules), and a copy at another version, or one undecided in another workspace, is
+  // reported on its own (S18 review: outcomes).
+  const name = (i: { ecosystem: string; name: string }) => `${i.ecosystem}:${i.name}`;
+  const key = (i: DependencyInstance) => `${name(i)}@${i.version ?? i.declaredRange ?? ""}`;
+  const failed = new Set(coverage.lookupsFailed.map(name));
+  const decided = new Set(assessments.filter((a) => a.decision).map((a) => key(a.instance)));
   const notCompared = new Map<string, { ecosystem: string; name: string; reason: string }>();
   for (const i of projects.flatMap((p) => p.instances)) {
-    if (!i.direct || i.source === "workspace" || decided.has(key(i)) || failed.has(key(i))) continue;
+    if (!i.direct || i.source === "workspace" || decided.has(key(i)) || failed.has(name(i))) continue;
     const reason =
       i.source !== "registry"
         ? `${SOURCE_REASON[i.source] ?? i.unresolvedReason ?? "its source isn't a registry"}${i.sourceRef && i.source !== "unknown" ? ` (${i.sourceRef})` : ""}`
-        : i.version === null
-          ? (i.unresolvedReason ?? "no version stated")
-          : null;
+        : (i.unresolvedReason ?? (i.version === null ? "no version stated" : null));
     if (reason && !notCompared.has(key(i)))
-      notCompared.set(key(i), { ecosystem: i.ecosystem, name: i.name, reason });
+      notCompared.set(key(i), {
+        ecosystem: i.ecosystem,
+        name: i.version ? `${i.name}@${i.version}` : i.name,
+        reason,
+      });
   }
   const held = new Map<string, { ecosystem: string; name: string; reason: string }>();
   for (const a of assessments)

@@ -144,6 +144,7 @@ export function dependabotCredentials(
     url: string;
     host: string;
     scope?: string;
+    replacesBase?: boolean;
     secret?: { kind: "token" | "basic"; username: string | null; value: string };
   }[],
 ): DependabotCredential[] {
@@ -157,7 +158,10 @@ export function dependabotCredentials(
       case "npm":
         return [{ type: "npm_registry", registry: pathOf, url: r.url, ...auth }];
       case "pypi":
-        return [{ type: "python_index", "index-url": r.url, "replaces-base": false, ...auth }];
+        // An index the repo names in place of pypi.org replaces it in the updater too (S18 review S6).
+        return [
+          { type: "python_index", "index-url": r.url, "replaces-base": r.replacesBase === true, ...auth },
+        ];
       case "maven":
         return [{ type: "maven_repository", url: r.url, ...auth }];
       case "cargo":

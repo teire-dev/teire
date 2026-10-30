@@ -225,14 +225,27 @@ const PUBLIC: Record<DiscoveredRegistry["ecosystem"], readonly string[]> = {
   go: ["proxy.golang.org", "goproxy.io", "goproxy.cn", "proxy.golang.com.cn"],
 };
 
-/** `https://user:secret@host/path` → `https://host/path`; null when not an http(s) URL. */
-function cleanUrl(raw: string) {
+/**
+ * A path segment that is a credential, not a name (Cloudsmith's entitlement token, Gemfury's push
+ * token, an environment reference): long and mixing letters and digits, or `${NAME}`.
+ */
+const tokenSegment = (s: string) =>
+  /^\$\{?\w+\}?$/.test(s) || (s.length >= 16 && /\d/.test(s) && /[A-Za-z]/.test(s) && !s.includes("."));
+
+/**
+ * A registry URL as Teire stores and shows it (S18 review S3): userinfo, query and fragment dropped,
+ * and a token-shaped path segment replaced with three stars, so a scan's record and Settings never
+ * carry a credential a repository put in a URL. Null when not an http(s) URL.
+ */
+export function cleanUrl(raw: string) {
   try {
     const u = new URL(raw.replace(/^sparse\+/, "").replace(/^\$\{?[A-Z_]+\}?/, ""));
     if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-    u.username = "";
-    u.password = "";
-    return u.toString().replace(/\/$/, "");
+    const path = u.pathname
+      .split("/")
+      .map((seg) => (tokenSegment(decodeURIComponent(seg)) ? "***" : seg))
+      .join("/");
+    return `${u.protocol}//${u.host}${path}`.replace(/\/$/, "");
   } catch {
     return null;
   }
@@ -247,12 +260,31 @@ function cleanUrl(raw: string) {
  */
 export function discoverRegistries(tree: RepoTree): DiscoveredRegistry[] {
   const out = new Map<string, DiscoveredRegistry>();
-  const add = (ecosystem: DiscoveredRegistry["ecosystem"], raw: string, file: string, scope?: string) => {
+  const add = (
+    ecosystem: DiscoveredRegistry["ecosystem"],
+    raw: string,
+    file: string,
+    scope?: string,
+    replacesBase?: boolean,
+  ) => {
     const url = cleanUrl(raw.trim());
     const host = url ? hostOf(url) : null;
     if (!url || !host || PUBLIC[ecosystem].some((p) => host === p || host.endsWith(`.${p}`))) return;
     const key = `${ecosystem}|${url}|${scope ?? ""}`;
-    if (!out.has(key)) out.set(key, { ecosystem, url, host, ...(scope ? { scope } : {}), file });
+    const known = out.get(key);
+    if (known) {
+      // Named as the primary index anywhere, it replaces the public one.
+      if (replacesBase) known.replacesBase = true;
+      return;
+    }
+    out.set(key, {
+      ecosystem,
+      url,
+      host,
+      ...(scope ? { scope } : {}),
+      ...(replacesBase !== undefined ? { replacesBase } : {}),
+      file,
+    });
   };
   const name = (f: string) => f.slice(f.lastIndexOf("/") + 1);
   for (const file of tree.files()) {
@@ -282,13 +314,31 @@ export function discoverRegistries(tree: RepoTree): DiscoveredRegistry[] {
       const scopes = /^\s*\[install\.scopes\]\s*\n([\s\S]*?)(?:^\s*\[|$(?![\s\S]))/m.exec(text)?.[1] ?? "";
       for (const m of scopes.matchAll(/^\s*"?(@?[\w.-]+)"?\s*=\s*(?:\{[^}]*url\s*=\s*)?["']([^"']+)/gm))
         add("npm", m[2] as string, file, (m[1] as string).startsWith("@") ? (m[1] as string) : `@${m[1]}`);
-    } else if (/^pip\.(?:conf|ini)$/.test(base)) for (const u of pipConf(read())) add("pypi", u, file);
+    } else if (/^pip\.(?:conf|ini)$/.test(base))
+      // `index-url` replaces PyPI; `extra-index-url` and `find-links` add to it (S18 review S6).
+      for (const m of read().matchAll(/^\s*(index-url|extra-index-url|find-links)\s*=\s*(\S+)/gm))
+        add("pypi", m[2] as string, file, undefined, m[1] === "index-url");
     else if (/^requirements.*\.(?:txt|in)$|\.in$/.test(base))
-      for (const m of read().matchAll(/^\s*(?:--index-url|--extra-index-url|-i)[\s=]+(\S+)/gm))
-        add("pypi", m[1] as string, file);
-    else if (base === "pyproject.toml" || base === "Pipfile" || base === "uv.toml")
-      for (const m of read().matchAll(/^\s*url\s*=\s*["'](https?:\/\/[^"']+)/gm))
-        add("pypi", m[1] as string, file);
+      for (const m of read().matchAll(/^\s*(--index-url|--extra-index-url|-i)[\s=]+(\S+)/gm))
+        add("pypi", m[2] as string, file, undefined, m[1] !== "--extra-index-url");
+    else if (base === "pyproject.toml" || base === "uv.toml") {
+      // uv's `[[tool.uv.index]]` (default = true replaces PyPI) and Poetry's sources (priority
+      // primary or default replaces it).
+      for (const block of read()
+        .split(/^\s*\[\[/m)
+        .slice(1)) {
+        const url = /^\s*url\s*=\s*["'](https?:\/\/[^"']+)/m.exec(block)?.[1];
+        if (!url) continue;
+        const primary =
+          /^\s*default\s*=\s*true/m.test(block) ||
+          /^\s*priority\s*=\s*["'](?:primary|default)["']/m.test(block);
+        add("pypi", url, file, undefined, primary);
+      }
+    } else if (base === "Pipfile")
+      // Pipenv's first `[[source]]` is the index it resolves from.
+      [...read().matchAll(/^\s*url\s*=\s*["'](https?:\/\/[^"']+)/gm)].forEach((m, i) => {
+        add("pypi", m[1] as string, file, undefined, i === 0);
+      });
     else if (/^\.cargo\/config(?:\.toml)?$/.test(file) || /\/\.cargo\/config(?:\.toml)?$/.test(file))
       for (const m of read().matchAll(
         /^\s*\[registries\.([\w-]+)\]\s*\n(?:[^[]*?\n)?\s*index\s*=\s*["']([^"']+)/gm,

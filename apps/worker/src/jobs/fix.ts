@@ -1064,6 +1064,7 @@ async function packageOutcome(
     ...upgradeOptions(config, readDependabotConfig(tree)),
     ...(common.options.registries ? { registries: common.options.registries } : {}),
     ...(common.options.goPrivate ? { goPrivate: common.options.goPrivate } : {}),
+    ...(common.options.discovered ? { discovered: common.options.discovered } : {}),
     onlyPackage: packageName,
     ...(cap ? { targetMax: { name: packageName, version: cap.version, reason: cap.reason } } : {}),
     ...(cap?.floor ? { targetFloor: { name: packageName, version: cap.version } } : {}),
@@ -1989,6 +1990,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         context7Key: process.env.CONTEXT7_API_KEY,
         ...(registries.length ? { registries } : {}),
         goPrivate: goPrivatePatterns(tree),
+        discovered: discoverRegistries(tree),
       },
       // Fire-and-forget, so it never throws: a lost lease is noted and the next fenced write stops the run.
       onEvent: (e: { step: string }) => {

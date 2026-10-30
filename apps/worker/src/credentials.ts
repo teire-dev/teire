@@ -35,6 +35,18 @@ export async function authorizedRegistries(
   for (const d of discovered) {
     const row = rows.find((r) => r.host === d.host && r.ecosystem === d.ecosystem);
     if (!row) continue;
+    // A URL the repo wrote with a token in it is redacted: only a saved full URL can be used.
+    if (!row.url && d.url.includes("***")) {
+      notes.push(
+        `${d.host}: the repository's registry URL holds a token; save the full URL with the credential`,
+      );
+      continue;
+    }
+    // A saved URL on another host (only possible before the save check existed) is never used.
+    if (row.url && new URL(row.url).hostname !== row.host) {
+      notes.push(`the saved credential for ${row.host} names another host's URL: save it again`);
+      continue;
+    }
     try {
       const secret = openSecret(key, row.sealed, credentialContext(installationId, row.host));
       // Cargo sends its token as the header itself; everything else as Bearer or Basic.
@@ -47,6 +59,7 @@ export async function authorizedRegistries(
         url: row.url ?? d.url,
         host: d.host,
         ...(d.scope ? { scope: d.scope } : {}),
+        ...(d.replacesBase !== undefined ? { replacesBase: d.replacesBase } : {}),
         authorization,
         secret: { kind: row.kind, username: row.username, value: secret },
       });

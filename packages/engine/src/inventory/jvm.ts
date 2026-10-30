@@ -322,9 +322,10 @@ function readMaven(tree: RepoTree): JvmProject[] {
       }
     }
     const wrapperPath = at(".mvn/wrapper/maven-wrapper.properties");
-    const maven = /^distributionUrl=.*\/apache-maven\/([^/\s]+)\/apache-maven-[^/\s]+\.zip\s*$/m.exec(
-      tree.read(wrapperPath) ?? "",
-    )?.[1];
+    const maven =
+      /^distributionUrl=.*\/apache-maven\/([^/\s]+)\/apache-maven-[^/\s]+\.(?:zip|tar\.gz)\s*$/m.exec(
+        tree.read(wrapperPath) ?? "",
+      )?.[1];
     if (top && maven) {
       const parsed = dependencyInstance.safeParse({
         ecosystem: "maven",

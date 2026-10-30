@@ -17,7 +17,7 @@ import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { remoteManaged } from "../registry/maven-pom";
 import { mavenFlavor } from "../registry/maven-version";
-import { comparable, lookupPackage } from "../registry/private";
+import { applyPrivateClaims, comparable, lookupPackage } from "../registry/private";
 import { mavenSignals } from "../registry/supply-chain";
 import {
   beyondRange,
@@ -141,7 +141,12 @@ async function applyRemoteManaged(project: JvmProject, options: JvmAssessOptions
       if (!version || !VERSION.test(version)) continue;
       i.version = version;
       i.resolvedBy = "toolchain";
-      i.managedBy = property ? `${by} ${mod.remote.parent?.split(":")[2]} (property)` : managed?.by;
+      i.managedBy =
+        property && mod.remote.parent
+          ? `${by} ${mod.remote.parent.split(":")[2]} (property)`
+          : property
+            ? "a property this repository's POMs define"
+            : managed?.by;
       delete i.unresolvedReason;
     }
   }
@@ -170,6 +175,8 @@ export async function assessJvmRepo(repoDir: string, tree: RepoTree, options: Jv
       ],
     });
   for (const project of projects) {
+    // What a private registry the repo names serves is read there, or not compared (S18 review S1).
+    applyPrivateClaims(project.instances, "maven", options);
     const seen = new Set<string>();
     for (const declared of project.instances) {
       if (!declared.direct || !comparable("maven", declared, options)) continue;

@@ -15,7 +15,7 @@ import { declaredPackageNotes, gatherCargoNotes } from "../notes/sources";
 import { cratesIndexLines } from "../registry/cargo";
 import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
-import { comparable, lookupPackage } from "../registry/private";
+import { applyPrivateClaims, comparable, lookupPackage } from "../registry/private";
 import { crateSignals } from "../registry/supply-chain";
 import {
   beyondRange,
@@ -99,6 +99,8 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
   const assessments: Assessment<RustProject>[] = [];
   const diffOf = options.surfaceDiff ?? cargoSurfaceDiff;
   for (const project of projects) {
+    // What a private registry the repo names serves is read there, or not compared (S18 review S1).
+    applyPrivateClaims(project.instances, "cargo", options);
     for (const declared of project.instances) {
       if (!declared.direct || !comparable("cargo", declared, options)) continue;
       if (options.onlyPackage && declared.name !== options.onlyPackage) continue;

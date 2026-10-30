@@ -14,7 +14,7 @@ import { declaredPackageNotes, gatherRubyNotes } from "../notes/sources";
 import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange, rubygemsYankChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
-import { comparable, lookupPackage } from "../registry/private";
+import { applyPrivateClaims, comparable, lookupPackage } from "../registry/private";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
 import { gemSignals, snapshotOwners } from "../registry/supply-chain";
 import {
@@ -95,6 +95,8 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
   const assessments: Assessment<RubyProject>[] = [];
   const diffOf = options.surfaceDiff ?? rubySurfaceDiff;
   for (const project of projects) {
+    // What a private registry the repo names serves is read there, or not compared (S18 review S1).
+    applyPrivateClaims(project.instances, "rubygems", options);
     // A published gem's own requirements widen; the Gemfile's bump (S18.5).
     project.widen = await widenedManifests(
       "rubygems",
@@ -137,7 +139,10 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
           options.coverage?.lookupsFailed.push({ ecosystem: "rubygems", name: declared.name });
           return null;
         }),
-        gemVersions(declared.name).catch(() => [] as GemVersion[]),
+        // rubygems.org's list says nothing about a private gem (its Ruby needs, its yanks): S18 review S13.
+        declared.source === "registry"
+          ? gemVersions(declared.name).catch(() => [] as GemVersion[])
+          : Promise.resolve([] as GemVersion[]),
       ]);
       if (!info) {
         assessments.push(base);

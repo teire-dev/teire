@@ -266,8 +266,9 @@ export async function assessCheckout(
   const dependabot = readDependabotConfig(tree);
   coverage.notes.push(...dependabot.problems);
   // Private registries this repo names and its installation saved a credential for (S18.7).
+  const discovered = discoverRegistries(tree);
   const registries = input.installationId
-    ? await authorizedRegistries(db, input.installationId, discoverRegistries(tree), coverage.notes)
+    ? await authorizedRegistries(db, input.installationId, discovered, coverage.notes)
     : [];
   const goPrivate = goPrivatePatterns(tree);
   // The sandbox for scan-time type resolution (S19: rust-analyzer's index, the JVM's compiled
@@ -296,6 +297,7 @@ export async function assessCheckout(
         ...upgradeOptions(config, dependabot),
         registries,
         goPrivate,
+        discovered,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "npm", n, f, t, { cache }),
       });
@@ -306,6 +308,7 @@ export async function assessCheckout(
         ...upgradeOptions(config, dependabot),
         registries,
         goPrivate,
+        discovered,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "pypi", n, f, t, { cache }),
       });
@@ -316,6 +319,7 @@ export async function assessCheckout(
         ...upgradeOptions(config, dependabot),
         registries,
         goPrivate,
+        discovered,
         ...auth,
         surfaceDiff: (oldPath, f, newPath, t) =>
           cachedSurfaceDiff(db, "go", oldPath, f, t, { cache }, () => goSurfaceDiff(oldPath, f, newPath, t)),
@@ -327,6 +331,7 @@ export async function assessCheckout(
         ...upgradeOptions(config, dependabot),
         registries,
         goPrivate,
+        discovered,
         ...auth,
         surfaceDiff: (n, f, t) =>
           cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
@@ -341,6 +346,7 @@ export async function assessCheckout(
         ...upgradeOptions(config, dependabot),
         registries,
         goPrivate,
+        discovered,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "rubygems", n, f, t, { cache }),
       });
@@ -351,6 +357,7 @@ export async function assessCheckout(
         ...upgradeOptions(config, dependabot),
         registries,
         goPrivate,
+        discovered,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
         bytecode: await sandboxProbe(),

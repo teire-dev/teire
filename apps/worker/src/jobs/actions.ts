@@ -481,6 +481,11 @@ async function saveRegistryCredential(
   }
   const blocked = await privateHostReason(host);
   if (blocked) return refused(`${blocked}: Teire sends credentials only to public registries`);
+  // The registry's URL, when given, is HTTPS on that same host, with nothing in it but the path: the
+  // credential goes nowhere else (S18 review S7).
+  const url = typeof params.url === "string" && params.url ? new URL(params.url) : null;
+  if (url && (url.protocol !== "https:" || url.hostname !== host || url.username || url.password))
+    return refused(`The registry URL must be https://${host}/…, without a username or password in it`);
   const values = {
     url: (params.url as string | null) ?? null,
     kind: params.kind as "token" | "basic",
@@ -501,11 +506,6 @@ async function saveRegistryCredential(
       target: [registryCredentials.installationId, registryCredentials.ecosystem, registryCredentials.host],
       set: values,
     });
-  // The record keeps what was asked, not the sealed value.
-  await ctx.db
-    .update(actions)
-    .set({ params: { ...params, sealed: "(stored)" } })
-    .where(eq(actions.id, action.id));
   return {
     status: "done",
     result: `Saved: Teire sends it to ${host} for installs, version lookups and Dependabot's jobs, never to a repository's code`,
@@ -519,6 +519,13 @@ async function installationAction(
   login: string,
 ): Promise<Outcome> {
   const { db } = ctx;
+  // A credential's sealed value leaves the action's record at once, whatever the outcome (S18
+  // review S9); the worker keeps it only in memory while it checks and stores it.
+  if (parsed.kind === "set-registry-credential")
+    await db
+      .update(actions)
+      .set({ params: { ...parsed.params, sealed: "(received)" } })
+      .where(eq(actions.id, action.id));
   if (!action.installationId || !(await sees(db, action.requester, action.installationId)))
     return refused("You no longer have access to this installation");
   const [inst] = await db

@@ -41,6 +41,8 @@ export function bumpRange(range: string, target: string): string {
  */
 export function widenRange(range: string, target: string): string {
   const trimmed = range.trim();
+  // An exact pin moves to the target, as Dependabot's widen does (S18 review C4).
+  if (semver.valid(trimmed)) return target;
   if (semver.validRange(trimmed) && semver.satisfies(target, trimmed)) return trimmed;
   return trimmed ? `${trimmed} || ^${target}` : `^${target}`;
 }

@@ -93,11 +93,11 @@ function expandMembers(tree: RepoTree, root: string, patterns: string[], exclude
   const manifests = allFiles(tree).filter((f) => f.endsWith("/Cargo.toml") || f === "Cargo.toml");
   const out = new Set<string>();
   for (const pattern of patterns) {
-    // `*` is one folder, `**` any depth (D-24).
+    // `*` is one folder, `**` any depth, none included (D-24): `crates/**` covers `crates` itself.
     const body = (prefix + pattern.replace(/\/$/, ""))
-      .split("**")
+      .split("/**")
       .map((part) => part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]+"))
-      .join(".+");
+      .join("(?:/.+)?");
     const re = new RegExp(`^${body}/Cargo\\.toml$`);
     for (const m of manifests) if (re.test(m)) out.add(m);
   }
@@ -301,7 +301,9 @@ export function readRustInventory(tree: RepoTree): RustProject[] {
     const configured = /^\s*incompatible-rust-versions\s*=\s*"(fallback|allow)"/m.exec(
       tree.read(join(root, ".cargo/config.toml")) ?? tree.read(join(root, ".cargo/config")) ?? "",
     )?.[1] as "fallback" | "allow" | undefined;
-    const resolver = String(ws.resolver ?? pkg.resolver ?? (pkg.edition === "2024" ? "3" : ""));
+    // Edition 2024, the package's own or the workspace's inherited one, defaults to resolver 3 (S18 review C2).
+    const edition = pkg.edition ?? wsPkg.edition;
+    const resolver = String(ws.resolver ?? pkg.resolver ?? (edition === "2024" ? "3" : ""));
     const msrvPolicy = configured ?? (resolver === "3" ? "fallback" : "allow");
     if (patches.size) notes.push(`patched: ${[...patches].map(([c, w]) => `${c} (${w})`).join(", ")}`);
     projects.push({

@@ -1,6 +1,6 @@
 # Devpost submission: Teire
 
-Prepared against the owner's live Nebius x NVIDIA Global AI Hackathon form on 2026-10-30. The form allows 200 characters for the elevator pitch, up to 25 Built with tags, 15 gallery images (JPG/PNG/GIF, 5 MB each), and a YouTube or Vimeo demo URL. The long story is in [story.md](story.md); the organizer answers are in [additional-info.md](additional-info.md). The project details page saved the story, tags, and links as a draft; the video and gallery remain open.
+Prepared against the owner's live Nebius x NVIDIA Global AI Hackathon form on 2026-10-30. The form allows 200 characters for the elevator pitch, up to 25 Built with tags, 15 gallery images (JPG/PNG/GIF, 5 MB each), and a YouTube or Vimeo demo URL. The long story is in [story.md](story.md); the organizer answers are in [additional-info.md](additional-info.md). The project details page saved the story, tags, links, and the first six captioned gallery images as a draft. The video URL and thumbnail are still missing; diagrams are embedded in the story but not uploaded to the gallery. The draft has not been submitted.
 
 ## Project name
 

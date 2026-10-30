@@ -47,8 +47,8 @@ interface EgressProps {
   tarball?: { url: string; token?: string };
   /**
    * Private registries (S18.7): the install phase may read from each host, and its credential's
-   * header is added here, outside the container. `follow` are the hosts they redirected to
-   * (package downloads), read without the header.
+   * header is added here, outside the container. `follow` are the exact URLs they redirected to
+   * (a package's download), each readable once, without the header.
    */
   registries?: { host: string; authorization: string }[];
   follow?: string[];
@@ -60,6 +60,34 @@ export interface EgressEvent {
   method: string;
   host: string;
   path: string;
+}
+
+/**
+ * A redirect target a registry may not open (S18 review): an IP literal in a private, loopback or
+ * link-local range, or a local name. Hostnames are resolved by Cloudflare, which reaches no private
+ * network; literals and local names are refused here as well.
+ */
+function privateHostname(host: string) {
+  const h = host.replace(/^\[|\]$/g, "").toLowerCase();
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal"))
+    return true;
+  const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(h);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return (
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) ||
+      (a === 100 && b >= 64 && b <= 127)
+    );
+  }
+  return (
+    h.includes(":") &&
+    (h === "::1" || h === "::" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80"))
+  );
 }
 
 /** Every outbound request from the container arrives here. */
@@ -82,13 +110,15 @@ export class Egress extends WorkerEntrypoint<Env, EgressProps> {
       const headers = new Headers(request.headers);
       headers.set("authorization", registry.authorization);
       // A redirect goes back to the client, so the header never follows it to another host; the
-      // host it names may be read (without it) for the rest of the install.
+      // exact URL it names may be read once (without it).
       const response = await fetch(request.url, { method: request.method, headers, redirect: "manual" });
       const location = response.headers.get("location");
       if (response.status >= 300 && response.status < 400 && location) {
         const next = new URL(location, request.url);
-        // Allowed before the answer leaves: the client follows the redirect at once.
-        if (next.protocol === "https:") await sandboxStub(this.env, sid).allowRedirect(next.hostname);
+        // Allowed before the answer leaves (the client follows the redirect at once), and only that
+        // URL: a whole host would let install scripts reach anything on a shared blob host.
+        if (next.protocol === "https:" && !privateHostname(next.hostname))
+          await sandboxStub(this.env, sid).allowRedirect(next.toString());
       }
       return response;
     }
@@ -100,9 +130,11 @@ export class Egress extends WorkerEntrypoint<Env, EgressProps> {
       phase === "install" &&
       read &&
       url.protocol === "https:" &&
-      this.ctx.props.follow?.includes(url.hostname)
-    )
+      this.ctx.props.follow?.includes(request.url)
+    ) {
+      await sandboxStub(this.env, sid).followed(request.url);
       return fetch(request);
+    }
 
     const event: EgressEvent = {
       at: Date.now(),
@@ -212,6 +244,7 @@ export class VerifySandbox extends DurableObject<Env> {
       .slice(0, 20);
     await this.ctx.storage.put("registries", registries);
     await this.ctx.storage.put("follow", []);
+    if (registries.length) await this.#ensureAlarm();
 
     // Backup traffic must be routed before the catch-all intercept (DirectoryBackup docs).
     await this.#backups.intercept();
@@ -240,11 +273,24 @@ export class VerifySandbox extends DurableObject<Env> {
     return { sid, instance, startMs: Date.now() - started, fetchMs };
   }
 
-  /** A host a private registry redirected to (its package downloads): readable in the install phase. */
-  async allowRedirect(host: string) {
+  /** A URL a private registry redirected to (a package's download): readable once in the install phase. */
+  async allowRedirect(url: string) {
     const follow = (await this.ctx.storage.get<string[]>("follow")) ?? [];
-    if (follow.includes(host) || follow.length >= 20) return;
-    await this.ctx.storage.put("follow", [...follow, host]);
+    if (follow.includes(url)) return;
+    // The newest 200: an install redirects once per package.
+    await this.ctx.storage.put("follow", [...follow, url].slice(-200));
+    const phase = (await this.ctx.storage.get<Phase>("phase")) ?? "install";
+    if (phase === "install") await this.#routeEgress(await this.#sid(), "install");
+  }
+
+  /** A redirect target, read: not readable again. */
+  async followed(url: string) {
+    const follow = (await this.ctx.storage.get<string[]>("follow")) ?? [];
+    if (!follow.includes(url)) return;
+    await this.ctx.storage.put(
+      "follow",
+      follow.filter((u) => u !== url),
+    );
     const phase = (await this.ctx.storage.get<Phase>("phase")) ?? "install";
     if (phase === "install") await this.#routeEgress(await this.#sid(), "install");
   }
@@ -253,8 +299,11 @@ export class VerifySandbox extends DurableObject<Env> {
   async setPhase(phase: Phase) {
     const sid = await this.#sid();
     // The checks run as the unprivileged user: hand it the checkout and the caches the install filled.
-    if (phase === "check")
+    if (phase === "check") {
       await this.#run(["chown", "-R", `${CHECK_USER}:${CHECK_USER}`, WORK_DIR, CHECK_HOME], {});
+      // Installs are over: the registries' headers leave storage (S18 review S5).
+      await this.ctx.storage.delete(["registries", "follow"]);
+    }
     await this.#routeEgress(sid, phase);
     await this.ctx.storage.put("phase", phase);
     return { phase };
@@ -424,7 +473,11 @@ export class VerifySandbox extends DurableObject<Env> {
 
   /** Keeps the instance alive while jobs run, and forgets jobs that ended. */
   async alarm() {
-    if (!this.#container.running) return;
+    // A stopped container keeps no registry headers, whatever ended it (S18 review S5).
+    if (!this.#container.running) {
+      await this.ctx.storage.delete(["registries", "follow"]);
+      return;
+    }
     const jobs = await this.ctx.storage.list<{ startedAt: number }>({ prefix: "job:" });
     let active = false;
     for (const key of jobs.keys()) {
@@ -432,7 +485,10 @@ export class VerifySandbox extends DurableObject<Env> {
       if (status.state === "running" || status.state === "starting") active = true;
       else await this.ctx.storage.delete(key);
     }
-    if (active) await this.ctx.storage.setAlarm(Date.now() + ALARM_MS);
+    // Kept while a registry header is stored, so a container that dies mid-install still has it
+    // cleared once it has stopped.
+    const held = ((await this.ctx.storage.get<unknown[]>("registries")) ?? []).length > 0;
+    if (active || held) await this.ctx.storage.setAlarm(Date.now() + ALARM_MS);
   }
 
   async #ensureAlarm() {

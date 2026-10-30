@@ -154,7 +154,11 @@ export async function remoteManaged(
       if (isBomImport(d)) imports.push({ coordinate: `${g}:${a}:${v}`, by: parentLabel });
       else if (!dependencies.has(`${g}:${a}`)) dependencies.set(`${g}:${a}`, { version: v, by: parentLabel });
     }
-    for (const pl of asPomArray(pom.build?.pluginManagement?.plugins?.plugin)) {
+    // Plugin versions a parent sets in pluginManagement or in its own build plugins (S18 review C7).
+    for (const pl of [
+      ...asPomArray(pom.build?.pluginManagement?.plugins?.plugin),
+      ...asPomArray(pom.build?.plugins?.plugin),
+    ]) {
       if (!pl.artifactId || !pl.version) continue;
       const key = `${interpolateWith(props, pl.groupId ?? MAVEN_PLUGIN_GROUP)}:${interpolateWith(props, pl.artifactId)}`;
       if (!plugins.has(key))

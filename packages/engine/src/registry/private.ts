@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { REGISTRY } from "../constants";
 import type { DependencyInstance, Ecosystem } from "../contract";
 import type { DiscoveredRegistry } from "../credentials";
@@ -44,6 +45,23 @@ export function claimingRegistry(
   registries: AuthorizedRegistry[],
   goPrivatePatterns: string[] = [],
 ): AuthorizedRegistry | null {
+  // A PyPI package is private only once the repo's own index claimed it (applyPrivateClaims).
+  if (ecosystem === "pypi" && instance.source !== "private-index") return null;
+  return namedRegistry(ecosystem, instance, registries, goPrivatePatterns);
+}
+
+/**
+ * The registry a repository names for a dependency, credential or not (S18 review S1): its npm scope
+ * or a registry-wide npm registry, a PyPI index (one that replaces pypi.org claims every package;
+ * an extra one may serve any of them), the Cargo registry or Gem source it names, a Go module its CI
+ * marks private.
+ */
+function namedRegistry<R extends { ecosystem: string; host: string; scope?: string }>(
+  ecosystem: Ecosystem,
+  instance: Pick<DependencyInstance, "name" | "source" | "sourceRef">,
+  registries: R[],
+  goPrivatePatterns: string[],
+): R | null {
   const own = registries.filter((r) => r.ecosystem === ecosystem);
   if (!own.length) return null;
   switch (ecosystem) {
@@ -51,6 +69,8 @@ export function claimingRegistry(
       const scope = instance.name.startsWith("@") ? instance.name.split("/")[0] : null;
       return own.find((r) => r.scope && r.scope === scope) ?? own.find((r) => !r.scope) ?? null;
     }
+    case "pypi":
+      return own[0] ?? null;
     case "cargo":
       return instance.source === "private-index"
         ? (own.find((r) => r.scope === instance.sourceRef) ?? null)
@@ -61,10 +81,29 @@ export function claimingRegistry(
         : null;
     case "go":
       return goPrivate(goPrivatePatterns, instance.name) ? (own[0] ?? null) : null;
-    case "pypi":
-      return instance.source === "private-index" ? (own[0] ?? null) : null;
     default:
       return null;
+  }
+}
+
+/**
+ * Marks each dependency a repository's private registry serves (S18 review S1), before any lookup:
+ * it is read there with a saved credential, and without one it is not compared, saying which
+ * registry, never looked up on the public registry, where a package of the same name would be
+ * someone else's.
+ */
+export function applyPrivateClaims(
+  instances: DependencyInstance[],
+  ecosystem: Ecosystem,
+  options: Pick<RegistryOptions, "discovered" | "goPrivate">,
+) {
+  for (const i of instances) {
+    if (i.source !== "registry" && i.source !== "private-index") continue;
+    const named = namedRegistry(ecosystem, i, options.discovered ?? [], options.goPrivate ?? []);
+    if (!named) continue;
+    i.source = "private-index";
+    // Cargo's registry name is how a claim finds its credential; elsewhere the host.
+    if (ecosystem !== "cargo" || !i.sourceRef) i.sourceRef = named.host;
   }
 }
 
@@ -77,7 +116,8 @@ const memo = new Map<string, Promise<PackageInfo | null>>();
  * cached answer could reach an installation without that access).
  */
 export function fromPrivateRegistry(registry: AuthorizedRegistry, name: string, now = new Date()) {
-  const key = `${registry.ecosystem}|${registry.url}|${registry.authorization.slice(-12)}|${name}`;
+  // Keyed by the whole credential's hash, never a tail two credentials could share (S18 review S8).
+  const key = `${registry.ecosystem}|${registry.url}|${createHash("sha256").update(registry.authorization).digest("hex")}|${name}`;
   const known = memo.get(key);
   if (known) return known;
   const pending = readPrivate(registry, name, now);
@@ -258,14 +298,20 @@ export async function lookupPackage(
 ): Promise<PackageInfo | null> {
   const registries = options.registries ?? [];
   const claimed = claimingRegistry(ecosystem, instance, registries, options.goPrivate);
-  if (claimed) return fromPrivateRegistry(claimed, instance.name, options.now);
-  const info = await getPackageInfo(ecosystem, instance.name, options);
-  if (info || ecosystem !== "maven") return info;
-  for (const r of registries.filter((x) => x.ecosystem === "maven")) {
-    const found = await fromPrivateRegistry(r, instance.name, options.now).catch(() => null);
-    if (found) return found;
+  if (claimed) {
+    const found = await fromPrivateRegistry(claimed, instance.name, options.now);
+    // An extra PyPI index adds to pypi.org: pip takes a package from either.
+    if (found || !(ecosystem === "pypi" && claimed.replacesBase === false)) return found;
+    return getPackageInfo(ecosystem, instance.name, options);
   }
-  return null;
+  // Maven reads the repositories a build declares before Central (S18 review S2): a credentialed
+  // private repository answers first, the public ones after.
+  if (ecosystem === "maven")
+    for (const r of registries.filter((x) => x.ecosystem === "maven")) {
+      const found = await fromPrivateRegistry(r, instance.name, options.now).catch(() => null);
+      if (found) return found;
+    }
+  return getPackageInfo(ecosystem, instance.name, options);
 }
 
 /** Whether a pipeline can compare this dependency: a public registry's, or a private one Teire can read. */

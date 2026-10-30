@@ -57,6 +57,8 @@ export interface DiscoveredRegistry {
   host: string;
   /** The npm scope (`@acme`) or Cargo registry name it serves, when it serves only that. */
   scope?: string;
+  /** A PyPI index that replaces pypi.org (`--index-url`) rather than adding to it (`--extra-index-url`). */
+  replacesBase?: boolean;
   /** The file that names it. */
   file: string;
 }

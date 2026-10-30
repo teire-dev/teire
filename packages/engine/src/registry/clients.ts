@@ -1,6 +1,7 @@
 import { sha256 } from "../catalog/source";
 import { REGISTRY } from "../constants";
 import type { Ecosystem } from "../contract";
+import type { DiscoveredRegistry } from "../credentials";
 import { guardedFetch } from "../net/fetch";
 import type { DependabotScan } from "../resolver/scan-policy";
 import { fromNativeRegistry } from "./native";
@@ -215,6 +216,8 @@ export interface RegistryOptions {
   /** Private registries with their saved credentials (S18.7), and the Go modules marked private. */
   registries?: AuthorizedRegistry[];
   goPrivate?: string[];
+  /** Every private registry the repository names, credential or not (S18 review S1). */
+  discovered?: DiscoveredRegistry[];
 }
 
 /** The version an npm dist-tag points at (`next` → `5.0.0-rc.2`), from npm's own tag endpoint. */

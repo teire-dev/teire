@@ -16,7 +16,7 @@ import { declaredPackageNotes, gatherPypiNotes, githubRepoOf } from "../notes/so
 import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
-import { comparable, lookupPackage } from "../registry/private";
+import { applyPrivateClaims, comparable, lookupPackage } from "../registry/private";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
 import { pypiSignals, snapshotOwners } from "../registry/supply-chain";
 import {
@@ -113,6 +113,8 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
   const assessments: Assessment<PyProject>[] = [];
   const diffOf = options.surfaceDiff ?? ((name, from, to) => pypiSurfaceDiff(name, from, to, options));
   for (const project of projects) {
+    // What a private registry the repo names serves is read there, or not compared (S18 review S1).
+    applyPrivateClaims(project.instances, "pypi", options);
     const python = pythonFor(tree, project.root)?.version ?? DEFAULT_PYTHON;
     // A published library's pyproject ranges widen; an app's bump (S18.5).
     const pyproject = project.root === "." ? "pyproject.toml" : `${project.root}/pyproject.toml`;

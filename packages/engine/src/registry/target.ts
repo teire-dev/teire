@@ -160,7 +160,11 @@ function reasonFor(
         ? `newer than ${defaultVersion}, the "${policy.followTag.tag}" dist-tag this repo follows`
         : `newer than the registry's default version ${defaultVersion}`,
     };
-  if (policy.publishedBefore && v.publishedAt && v.publishedAt > policy.publishedBefore.date)
+  if (
+    policy.publishedBefore &&
+    v.publishedAt &&
+    Date.parse(v.publishedAt) > Date.parse(policy.publishedBefore.date)
+  )
     return {
       reason: "pinned",
       detail: `published after ${policy.publishedBefore.date.slice(0, 10)} (${policy.publishedBefore.source})`,
@@ -337,8 +341,10 @@ export function rangeFloor(
 ): string | null {
   if (!range || !scheme.isRange(range)) return null;
   return (
-    info.versions.find((v) => !scheme.isPrerelease(v.version) && scheme.satisfies(v.version, range))
-      ?.version ?? null
+    // A yanked or deprecated floor is one no fresh install can get (S18 review C3).
+    info.versions.find(
+      (v) => !scheme.isPrerelease(v.version) && v.deprecated === null && scheme.satisfies(v.version, range),
+    )?.version ?? null
   );
 }
 

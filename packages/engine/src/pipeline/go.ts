@@ -27,6 +27,7 @@ import {
   type Retractions,
   retractionOf,
 } from "../registry/go";
+import { applyPrivateClaims, comparable } from "../registry/private";
 import { GO_SUPPLY_CHAIN_NOTE } from "../registry/supply-chain";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { goScheme } from "../registry/versions";
@@ -105,8 +106,10 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
   const assessments: GoAssessment[] = [];
   const diffOf = options.surfaceDiff ?? goSurfaceDiff;
   for (const project of projects) {
+    // What a private registry the repo names serves is read there, or not compared (S18 review S1).
+    applyPrivateClaims(project.instances, "go", options);
     for (const instance of project.instances) {
-      if (!instance.direct || instance.source !== "registry") continue;
+      if (!instance.direct || !comparable("go", instance, options)) continue;
       if (options.onlyPackage && instance.name !== options.onlyPackage) continue;
       const base: GoAssessment = {
         purpose: "upgrade",
@@ -123,8 +126,13 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
         priority: null,
         targetPath: null,
       };
-      // Pseudo-versions pin a commit, not a release: there is no release line to move along.
+      // Pseudo-versions pin a commit, not a release: there is no release line to move along. Said
+      // in the scan's coverage, never dropped (S18 review: outcomes).
       if (!instance.version || goScheme.isPrerelease(instance.version)) {
+        if (instance.version)
+          instance.unresolvedReason ??= /^v\d+\.\d+\.\d+-(?:0\.)?\d{14}-[0-9a-f]{12}/.test(instance.version)
+            ? "a pseudo-version (a commit, not a release): no release line to compare"
+            : "a pre-release: compared only when teire.yml opts into pre-releases";
         assessments.push(base);
         continue;
       }

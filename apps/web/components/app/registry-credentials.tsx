@@ -66,7 +66,9 @@ function CredentialDialog({
   const [open, setOpen] = useState(false);
   const [ecosystem, setEcosystem] = useState<Ecosystem>(row?.ecosystem ?? "npm");
   const [host, setHost] = useState(row?.host ?? "");
-  const [url, setUrl] = useState(row?.url ?? "");
+  // A URL the repo wrote with a token in it is shown redacted; the full one is asked for.
+  const redacted = !!row?.url?.includes("***");
+  const [url, setUrl] = useState(redacted ? "" : (row?.url ?? ""));
   const [kind, setKind] = useState<"token" | "basic">(row?.ecosystem === "maven" ? "basic" : "token");
   const [username, setUsername] = useState("");
   const [secret, setSecret] = useState("");
@@ -118,9 +120,13 @@ function CredentialDialog({
               />
             </div>
           )}
-          {row ? null : (
+          {row && !redacted ? null : (
             <div className="flex flex-col gap-1.5">
-              <label htmlFor={ids.url}>Registry URL, if it has a path (optional)</label>
+              <label htmlFor={ids.url}>
+                {redacted
+                  ? `Registry URL: the repository's has a token in it (${row?.url}), so enter the full one`
+                  : "Registry URL, if it has a path (optional)"}
+              </label>
               <Input
                 id={ids.url}
                 placeholder="https://pkgs.dev.azure.com/acme/_packaging/feed/npm/registry"
@@ -182,7 +188,7 @@ function CredentialDialog({
                   params: {
                     ecosystem: row?.ecosystem ?? ecosystem,
                     host: (row?.host ?? host).trim().toLowerCase(),
-                    url: (row?.url ?? url.trim()) || null,
+                    url: (redacted || !row ? url.trim() : row.url) || null,
                     kind,
                     username: kind === "basic" ? username.trim() : null,
                     secret,
