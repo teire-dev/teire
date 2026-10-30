@@ -13,7 +13,7 @@ export const TOKENFACTORY = {
   unhealthyForMs: 10 * 60_000,
 } as const;
 
-/** NVIDIA Nemotron settings from the Nemotron 3 Super model card. */
+/** NVIDIA Nemotron settings from the Nemotron 3 Super model card (Ultra and 3.5 Super take the same). */
 export const NEMOTRON = {
   temperature: 1.0,
   topP: 0.95,
@@ -23,7 +23,9 @@ export const NEMOTRON = {
  * Model per job, chosen on results, not price (scripts/compare-models.ts, 2026-10-24):
  * agent  — writes and repairs code (Ultra: 3/3 correct fixes vs Super 2/3);
  * reader — extraction and triage, reasoning on (Ultra: 29/29 records on every run);
- * failover — used only while the other model is unavailable (Super).
+ * failover — used only while the other model is unavailable: Nemotron 3.5 Super, which replaced
+ *   Nemotron 3 Super when Token Factory retired it on 2026-11-09 (same price; function calling and the
+ *   same chat-template flags, checked live on 2026-10-30).
  * assistant — Ask Teire's chat (plan revision 3.3, D120), thinking off, chosen for speed. Measured on
  *   Token Factory on 2026-10-29: Ultra answered in 0.4–0.7 s per call and Super in 6–10 s, so chat
  *   runs on Ultra (about $0.01 a reply) and fails over to Super (assistantFailover), per role.
@@ -40,9 +42,9 @@ export const MODEL_ENV = {
 export const MODEL_DEFAULTS: Record<keyof typeof MODEL_ENV, string> = {
   agent: "nvidia/Nemotron-3-Ultra-550b-a55b",
   reader: "nvidia/Nemotron-3-Ultra-550b-a55b",
-  failover: "nvidia/nemotron-3-super-120b-a12b",
+  failover: "nvidia/Nemotron-3.5-Super-VL",
   assistant: "nvidia/Nemotron-3-Ultra-550b-a55b",
-  assistantFailover: "nvidia/nemotron-3-super-120b-a12b",
+  assistantFailover: "nvidia/Nemotron-3.5-Super-VL",
 };
 
 /** Ask Teire's limits (plan revision 3.3, U4, D127): per reply, per person per day, all of it per day. */
@@ -58,6 +60,8 @@ export const DAILY_COST_CAP_DEFAULT_USD = 10;
  */
 export const FALLBACK_PRICES: Record<string, { input: number; cachedInput: number; output: number }> = {
   "nvidia/Nemotron-3-Ultra-550b-a55b": { input: 1, cachedInput: 0.12, output: 3 },
+  "nvidia/Nemotron-3.5-Super-VL": { input: 0.3, cachedInput: 0.06, output: 0.9 },
+  // Retired 2026-11-09; kept so calls made before then still price.
   "nvidia/nemotron-3-super-120b-a12b": { input: 0.3, cachedInput: 0.06, output: 0.9 },
 };
 

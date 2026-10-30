@@ -48,11 +48,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * The client's fetch (plan S10): retries 429/5xx and dropped connections with backoff (honouring
  * Retry-After); turns a 402 credit error into `CreditsExhaustedError`; and when a model still fails
  * after its retries, marks it unhealthy for a while and sends that request, and the next ones, to
- * the failover model (Nemotron 3 Super), so a run continues instead of dying.
+ * the failover model (Nemotron 3.5 Super), so a run continues instead of dying.
  */
 export function tokenFactoryFetch(config: TokenFactoryConfig, base: typeof fetch = fetch): typeof fetch {
   // Per role (plan revision 3.3): the assistant's model fails over to its own failover (Ultra);
-  // every other model to the shared failover (Super).
+  // every other model to the shared failover (3.5 Super).
   const failoverOf = (model: string | undefined) =>
     model && model === config.models.assistant ? config.models.assistantFailover : config.models.failover;
   const withModel = (body: RequestInit["body"], model: string) => {
@@ -142,7 +142,7 @@ export type TokenFactory = ReturnType<typeof createTokenFactory>;
 interface NemotronFlags {
   /** Reasoning on (model default) or off. Off for extraction and triage. */
   thinking: boolean;
-  /** Nemotron 3 Super only: cheaper reasoning for planning and routine steps. */
+  /** Nemotron Super only: cheaper reasoning for planning and routine steps. */
   lowEffort?: boolean;
   /** NVIDIA's model card: add force_nonempty_content for coding agents. */
   coding?: boolean;

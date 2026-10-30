@@ -16,7 +16,7 @@ Coding and Agentic Engineering Track
 
 ## Built with
 
-Nebius, nebius-token-factory, token-factory-sandboxes, nvidia-nemotron, nemotron-3-ultra, nemotron-3-super, tavily, typescript, next.js, react, postgresql, pg-boss, drizzle, github-apps, dependabot-core, gvisor, ast-grep, cloudflare-containers, vercel, coolify, node.js, mcp
+Nebius, nebius-token-factory, token-factory-sandboxes, nvidia-nemotron, nemotron-3-ultra, nemotron-3-super, nemotron-3.5-super, tavily, typescript, next.js, react, postgresql, pg-boss, drizzle, github-apps, dependabot-core, gvisor, ast-grep, cloudflare-containers, vercel, coolify, node.js, mcp
 
 ## Try it out
 
@@ -59,7 +59,7 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
 **What we used them for.**
 - Every model call in Teire goes to Token Factory.
 - Nemotron 3 Ultra (`nvidia/Nemotron-3-Ultra-550b-a55b`) is the coding agent and the reader: release notes, provider deprecation pages, tracing wrapped model IDs, and reviewing fixes.
-- Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) is the failover.
+- Nemotron 3.5 Super (`nvidia/Nemotron-3.5-Super-VL`) is the failover; it replaced Nemotron 3 Super, which Token Factory retires on 2026-11-09.
 - Token Factory Sandboxes verifies public repositories' upgrades and dry runs (Cloudflare Containers when Token Factory isn't available to the worker). Teire builds its six sandbox images inside Token Factory from its own Dockerfiles, then runs the install and each check as microVMs.
 
 **What worked well.**

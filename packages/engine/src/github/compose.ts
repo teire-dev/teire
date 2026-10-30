@@ -31,6 +31,7 @@ const ECOSYSTEM_LABEL: Partial<Record<DependencyInstance["ecosystem"], string>> 
  */
 const MODEL_NAMES: [RegExp, string][] = [
   [/nemotron-3-ultra/i, "NVIDIA Nemotron 3 Ultra"],
+  [/nemotron-3\.5-super/i, "NVIDIA Nemotron 3.5 Super"],
   [/nemotron-3-super/i, "NVIDIA Nemotron 3 Super"],
 ];
 

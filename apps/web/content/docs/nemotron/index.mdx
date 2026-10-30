@@ -12,7 +12,7 @@ Teire calls NVIDIA Nemotron through Nebius Token Factory's OpenAI-compatible API
 |---|---|---|
 | agent | `nvidia/Nemotron-3-Ultra-550b-a55b` | `TEIRE_MODEL_AGENT` |
 | reader | `nvidia/Nemotron-3-Ultra-550b-a55b` | `TEIRE_MODEL_READER` |
-| failover | `nvidia/nemotron-3-super-120b-a12b` | `TEIRE_MODEL_FAILOVER` |
+| failover | `nvidia/Nemotron-3.5-Super-VL` | `TEIRE_MODEL_FAILOVER` |
 
 ## What Nemotron does
 
@@ -55,8 +55,8 @@ The agent then gets one more attempt to address them.
 ## Failover
 
 - Each request is tried up to 4 times on rate limits, server errors and dropped connections, backing off from 2 seconds and honouring `Retry-After` up to 30 seconds.
-- A model that keeps failing with a server error is marked unhealthy for 10 minutes. Its role moves to the failover model, Nemotron 3 Super.
-- If Ultra fails mid-attempt, the whole attempt reruns on Super from the same working copy.
+- A model that keeps failing with a server error is marked unhealthy for 10 minutes. Its role moves to the failover model, Nemotron 3.5 Super (Nemotron 3 Super until Token Factory retired it; [measured](/docs/nemotron/evaluation#the-failover-since-2026-10-30-nemotron-35-super)).
+- If Ultra fails mid-attempt, the whole attempt reruns on 3.5 Super from the same working copy.
 - The [trust page](/trust) shows which model is answering.
 
 ## Why Ultra

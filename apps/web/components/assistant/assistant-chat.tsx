@@ -102,7 +102,9 @@ function modelName(id: string | undefined) {
   return /ultra/i.test(id)
     ? "Nemotron 3 Ultra"
     : /super/i.test(id)
-      ? "Nemotron 3 Super"
+      ? /3\.5/.test(id)
+        ? "Nemotron 3.5 Super"
+        : "Nemotron 3 Super"
       : id.split("/").pop();
 }
 

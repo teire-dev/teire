@@ -40,7 +40,7 @@ https://teire.vercel.app
 
 ## Which model(s) did you use, and why did you choose that size/variant?
 
-Teire runs NVIDIA Nemotron 3 Ultra (`nvidia/Nemotron-3-Ultra-550b-a55b`) through Nebius Token Factory for code repair, reading release and deprecation notes, tracing model IDs through code, and reviewing the final diff. Those tasks need multi-step reasoning and tool use. Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) is the failover when Ultra is unavailable. In our controlled evaluation both verified the fixes, but Ultra needed fewer attempts on the Kotlin and wrapped-model cases; Super was 3–7 times cheaper and once passed a test by bypassing the model call. That is why Ultra is the main coding model and Super is the availability fallback. Every model call in the product uses Token Factory.
+Teire runs NVIDIA Nemotron 3 Ultra (`nvidia/Nemotron-3-Ultra-550b-a55b`) through Nebius Token Factory for code repair, reading release and deprecation notes, tracing model IDs through code, and reviewing the final diff. Those tasks need multi-step reasoning and tool use. Nemotron 3.5 Super (`nvidia/Nemotron-3.5-Super-VL`) is the failover when Ultra is unavailable; it replaced Nemotron 3 Super, which Token Factory retires on 2026-11-09. In our controlled evaluation Ultra and 3 Super both verified the fixes, but Ultra needed fewer attempts on the Kotlin and wrapped-model cases; 3 Super was 3–7 times cheaper and once passed a test by bypassing the model call. That is why Ultra is the main coding model and Super is the availability fallback. 3.5 Super passed the fix job 3 of 3 times but paraphrased quotes more often when reading, which Teire's quote gate catches. Every model call in the product uses Token Factory.
 
 ## How would you rate Nemotron's output quality for your use case? (1 = Poor, 10 = Excellent)
 
@@ -52,7 +52,7 @@ No fine-tuning. We prompt-engineered five bounded roles: a coding agent with `re
 
 ## How did Nemotron's performance compare to other models you've used for similar tasks?
 
-We ran a matched Teire evaluation of Nemotron 3 Ultra and Nemotron 3 Super, rather than a controlled comparison with an outside model. Both verified the evaluated fixes. Ultra used fewer attempts for the Kotlin upgrade and wrapped-model retirement; Super cost 3–7 times less per run, but one Super fix passed tests by replacing the model call with a keyword rule. Ultra was the better primary coding agent for this workload; Super is a useful failover. We do not claim a model-to-model latency or quality ranking beyond these runs.
+We ran a matched Teire evaluation of Nemotron 3 Ultra and Nemotron 3 Super, rather than a controlled comparison with an outside model. Both verified the evaluated fixes. Ultra used fewer attempts for the Kotlin upgrade and wrapped-model retirement; Super cost 3–7 times less per run, but one Super fix passed tests by replacing the model call with a keyword rule. Ultra was the better primary coding agent for this workload; Super is a useful failover. Its successor, Nemotron 3.5 Super, now fills that role: on the same fix job it passed 3 of 3 runs (3 Super: 2 of 3). We do not claim a model-to-model latency or quality ranking beyond these runs.
 
 ## Which Nebius platform capabilities were most valuable to your project and how?
 

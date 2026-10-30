@@ -4,7 +4,8 @@
  *      2026-10-23) where the model ID sits behind a config wrapper, next to decoys it must not touch;
  *   2. extract: turn a real deprecations table (OpenAI, 2026-04-22 section) into typed records.
  * Run: pnpm --filter @teire/engine exec tsx --env-file=../../.env.local scripts/compare-models.ts <src>
- * where <src> is a local copy of developers.openai.com/api/docs/deprecations.md.
+ * where <src> is a local copy of developers.openai.com/api/docs/deprecations.md
+ * (fixtures/catalog/openai-deprecations.excerpt.md holds the section it reads). ONLY=super35 runs one.
  */
 import { readFileSync } from "node:fs";
 import { generateText, isStepCount, Output, tool } from "ai";
@@ -19,7 +20,10 @@ import {
 
 const MODELS = {
   ultra: "nvidia/Nemotron-3-Ultra-550b-a55b",
+  // Measured 2026-10-24; Token Factory retires it on 2026-11-09.
   super: "nvidia/nemotron-3-super-120b-a12b",
+  // Its replacement, Teire's failover since 2026-10-30.
+  super35: "nvidia/Nemotron-3.5-Super-VL",
   lightning: "nvidia/Nemotron-3_5-Lightning",
 };
 const FIX_RUNS = process.env.JOBS === "extract" ? 0 : 3;
@@ -191,7 +195,9 @@ const section = source.slice(
 );
 const expected = expectedRows(section);
 
+const only = process.env.ONLY?.split(",");
 for (const [name, id] of Object.entries(MODELS)) {
+  if (only && !only.includes(name)) continue;
   if (name !== "lightning") {
     for (let i = 0; i < FIX_RUNS; i++) {
       const r = await fixRun(id).catch((e: Error) => ({ error: e.message.slice(0, 200) }));

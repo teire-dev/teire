@@ -87,7 +87,7 @@ The captures below come from Teire's public evaluation repositories, built to re
   - **Tracing model IDs kept in registries.** The cited line must exist and name a model.
   - **Reviewing each passing diff.** It looks for weakened tests or widened validators.
 
-  Nemotron 3 Super is the failover. Prices from Token Factory's public `models_info` give every PR an exact receipt, and a daily budget pauses model work instead of overspending.
+  Nemotron 3.5 Super is the failover (it replaced Nemotron 3 Super, which Token Factory retires on 2026-11-09). Prices from Token Factory's public `models_info` give every PR an exact receipt, and a daily budget pauses model work instead of overspending.
 - **Finding the lines.** Each ecosystem uses its own tools:
   - **npm:** TypeScript declarations and the TypeScript type checker.
   - **PyPI:** griffe and jedi.

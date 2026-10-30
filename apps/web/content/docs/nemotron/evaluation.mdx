@@ -81,4 +81,17 @@ The plan set the bar as "Ultra ≥ Super on fixes, and the false-positive rate i
 - **Super:** every fix verified, one rejected on reading.
 - **False positives:** none, across six clean repositories.
 
-Super costs 3 to 7 times less per run and stays the failover.
+Super costs 3 to 7 times less per run and was the failover.
+
+## The failover since 2026-10-30: Nemotron 3.5 Super
+
+Token Factory retires Nemotron 3 Super on 2026-11-09 and names `nvidia/Nemotron-3.5-Super-VL` as its replacement, at the same price. Teire switched on 2026-10-30. The twelve cases above were not rerun on it. It was measured on the model-comparison jobs (`scripts/compare-models.ts`), with the same prompts and settings as production (reasoning off for extraction):
+
+| Job | Nemotron 3 Ultra | Nemotron 3 Super | Nemotron 3.5 Super |
+|---|---|---|---|
+| Fix a wrapped model ID next to decoys | 3 of 3 | 2 of 3 | 3 of 3, 6 to 8 steps, under $0.01 each |
+| Extract a deprecations table: records found | 33/33, 29/33 | 29/33, 29/33 | 29/33, 33/33, 29/33, 29/33 |
+| Same runs: quotes copied verbatim | 34/34, 29/30 | 29/29, 26/29 | 0/29, 29/29, 2/34, 6/29 |
+| Same runs: no answer that parses | 0 of 2 | 0 of 2 | 2 of 6 |
+
+3.5 Super writes fixes as well as Ultra, but often paraphrases its quotes when it reads. It reads only while Ultra is down; then Teire's quote gate holds back every record whose quote isn't on the page, so a paraphrase is never stored as fact.

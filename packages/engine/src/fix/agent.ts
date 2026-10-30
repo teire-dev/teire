@@ -11,7 +11,7 @@ import { type ModelPrice, nemotronOptions, nemotronSampling, receiptFor, type To
  * It edits only files the findings located or the compiler names; it never touches manifests,
  * lockfiles, CI or config (the upgrade transaction owns those); `run_check` writes the edits into
  * the after sandbox and runs the repo's own checks with the network off. Tool output is fenced as
- * data. Super takes over when Ultra is unavailable.
+ * data. Nemotron 3.5 Super takes over when Ultra is unavailable.
  */
 export interface AgentWorkspace {
   repoDir: string;
@@ -274,7 +274,7 @@ export async function runAgent(input: {
   } catch (error) {
     // A cancelled run stops here; an aborted request is not an outage to fail over from.
     if (cancelSignal()?.aborted) throw new RunCancelledError();
-    // Ultra unavailable (5xx, 429, network): Super continues from the same working copy.
+    // Ultra unavailable (5xx, 429, network): 3.5 Super continues from the same working copy.
     const retryable =
       (APICallError.isInstance(error) &&
         (error.statusCode === undefined || error.statusCode >= 500 || error.statusCode === 429)) ||

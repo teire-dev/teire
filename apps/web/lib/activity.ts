@@ -167,7 +167,7 @@ function lineOf(e: Event): string | null {
 export function modelLabel(model: string | null | undefined) {
   if (!model) return null;
   const id = model.replace(/^[\w.-]+\//, "");
-  const nemotron = /^Nemotron-(\d+)-(Ultra|Super|Nano)\b/i.exec(id);
+  const nemotron = /^Nemotron-(\d+(?:\.\d+)?)-(Ultra|Super|Nano)\b/i.exec(id);
   return nemotron ? `Nemotron ${nemotron[1]} ${nemotron[2]}` : id;
 }
 

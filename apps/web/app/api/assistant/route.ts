@@ -38,7 +38,7 @@ import { searchDocs } from "@/lib/docs-search";
 import { runSheet } from "@/lib/run-sheet";
 
 /**
- * Ask Teire's reply (plan revision 3.3, U4): Nemotron 3 Super on Token Factory, streamed with its tool
+ * Ask Teire's reply (plan revision 3.3, U4): Nemotron 3 Ultra on Token Factory (3.5 Super as failover), streamed with its tool
  * steps. Stop (or a closed tab) aborts the model through the request's signal, and the partial reply
  * is still stored, marked interrupted (`consumeSseStream`). Each reply is reserved against the
  * assistant's own budget before the model runs and settled to its real cost after.
