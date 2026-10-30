@@ -1,0 +1,74 @@
+---
+title: The life of a Teire PR
+description: What happens to a Teire pull request after it opens. The base moves, CI fails, a newer version ships, someone pushes a commit or closes it. Each event, what Teire does, and the words it posts.
+icon: GitBranch
+---
+
+<Diagram
+  name="pr-lifecycle"
+  alt="A scan finds a change, the fix run upgrades and adapts, checks run before and after, and a ready PR, draft or issue opens. While it's open: the base moves and Teire rebases, CI fails and Teire makes one repair, a newer version replaces it. It ends when you merge it, you close it, or Teire closes it because it's no longer needed."
+  caption="A Teire PR is never left to go stale: Teire keeps it true while it's open, and says why whenever it closes one."
+/>
+
+[Anatomy of a Teire PR](/docs/guide/anatomy-of-a-pr) shows what a PR says when it opens. This page covers what happens after.
+
+## It opens
+
+The evidence decides what opens:
+
+| The run's evidence | What opens |
+|---|---|
+| Verified: your checks pass before and after | A ready PR, with a green **Teire** check run |
+| Typecheck only, checks already failing, needs live access or a local service, environment differs | A draft PR, labelled with the reason (`typecheck-only`, …), and a neutral check run |
+| A regression, unverified, or out of time | A **Teire needs a human** issue, never a PR |
+
+The branch is `teire/<group>`. One call-site annotation lands on each line the change reaches. When you started the run with a comment, Teire's reply updates when it ends: "Done: … (verified)."
+
+## While it's open
+
+| What happens | What Teire does |
+|---|---|
+| **A push to the default branch** that touches a manifest or lockfile, or leaves the PR conflicting | Starts a **rebase** run: the change is rebuilt on the new base and verified again, and the same PR updates. Once per base commit. Rebases are never held by the PR limits |
+| **Fixes are Off** and the base moves | Adds the `stale-evidence` label and comments once: "The base branch moved … `@teire reverify` checks it merged into the base as it is now." |
+| **The PR's CI fails** (a check suite that isn't Teire's) | Reads up to 3 failing checks and their logs, comments "CI failed on this PR (…). Teire is making one repair attempt from those logs", and runs that repair. Once per base commit |
+| **A newer version ships**, in Automatic | Opens a new PR for it, then closes the old one: "Superseded by #N, which moves to a newer version (`X`)." The old one doesn't count against the open limit |
+| **A newer version ships**, in Ask first | Leaves the PR and comments once: "**Newer version available:** `X`. … comment `@teire fix <group>`, or tick it under Upgrades available in the Dashboard issue." |
+| **Someone pushes a commit** to Teire's branch | Teire never overwrites it. The next update stops: "Teire stopped updating this branch: … has 1 commit(s) by others. Your commits stay; comment `@teire recreate` to start over from the current base, which replaces this branch and those commits with Teire's fix." CI repair leaves the PR alone too |
+| **Dependabot has a PR open** for the same package | Teire's PR says "**Supersedes Dependabot's #N**". Teire doesn't touch Dependabot's PR; Dependabot closes its own once the dependency is updated |
+
+## How it ends
+
+| How | What Teire does |
+|---|---|
+| **You merge it** | Its findings become fixed everywhere. The merge push rescans, and other open Teire PRs rebase if dependency files moved |
+| **You close it** | That version's findings are dismissed and it never comes back. A newer version is a new PR. `@teire recreate` brings this one back |
+| **It's no longer needed** | Each scan closes it with the reason: "Closing: `pkg` is no longer a dependency on `main` (`abc1234`)", "… is at 2.1.0 on `main` now, so this upgrade to 2.0.0 no longer applies", or "… no longer finds code this change affects". Only when every lookup answered |
+| **You ignore it** | `@teire ignore <target>` closes its PRs: "Closed: @you ignored `<target>`." `@teire ignore <package> major` closes the PR it's posted on, and other updates still come |
+
+Teire never closes a PR just because it's old.
+
+## Commands on an open PR
+
+| Comment | What it does |
+|---|---|
+| `@teire rebase` | Rebuild on the current base, verify again, update the same PR |
+| `@teire recreate` | Run the fix again from scratch, even on a closed PR; replaces commits by others on the branch |
+| `@teire reverify` | Check it as GitHub would merge it into the base now, before and after; a draft turns ready when it's verified |
+| `@teire explain` | The evidence behind the PR |
+| `@teire ignore …` / `unignore …` | Stop or restart reporting it |
+| `@teire pause` / `resume` | Hold everything for the repository: no scans, PRs, rebases or repairs; queued runs wait and start again on resume |
+
+Every command needs write access to the repository. The full list is in [Commands](/docs/guide/commands).
+
+## How many open at once
+
+`pullRequests.limit` (default 5 open) and `pullRequests.perHour` (default 2 new an hour) in [teire.yml](/docs/guide/configuration) cap new PRs, as Dependabot's `open-pull-requests-limit` does. A run over the cap waits and tries again each hour. It shows "waiting for the PR limit" on Runs and in the Dashboard issue's In progress section. Security fixes go first.
+
+## When Teire looks again
+
+- A push to the default branch that touches dependencies, `teire.yml` or code.
+- The schedule: daily by default, or weekly, on push only, or off (`schedule:`).
+- A provider changes something your code uses.
+- Installing, `@teire rescan`, and resuming.
+
+Every scan re-checks the open PRs: it closes the ones no longer needed, and either notes or replaces the ones a newer version supersedes.

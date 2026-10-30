@@ -648,6 +648,44 @@ export async function scanRepo(
     // A teire.yml on the default branch activates, whether the onboarding PR or a person put it there.
     if ((status === "detected" || status === "onboarding") && config.present) status = "active";
     if (status === "detected" && nothingReadable) return { status, nothingReadable: true };
+    // One run per group, best first (D70 queue: provider changes that already broke the repo outrank
+    // majors); the fix job applies the PR caps. Kept on the scan before onboarding ends, so setup can
+    // show what Automatic would start (walk-fix review M1).
+    const queue = [
+      ...fixCandidates(assessments, config).flatMap((a) => {
+        const groupKey = groupKeyOf(a);
+        return groupKey && a.decision?.kind === "upgrade"
+          ? [
+              {
+                groupKey,
+                lineage: lineageKey(groupKey, a.purpose === "security" ? "security" : "version"),
+                priority: a.priority ?? 9,
+                from: a.instance.version,
+                to: a.decision.to,
+                security: a.purpose === "security",
+              },
+            ]
+          : [];
+      }),
+      ...apiCandidates(api.findings, config),
+      // Security fixes first, then by priority: the queue runs in this order (Codex walk B14).
+    ].sort(
+      (x, y) =>
+        Number(!("security" in x && x.security)) - Number(!("security" in y && y.security)) ||
+        x.priority - y.priority,
+    );
+    // Kept on the scan: Ask first and Off list these as "Upgrades available" (D125).
+    await setScanUpgrades(
+      db,
+      scan.id,
+      queue.map((c) => ({
+        groupKey: c.groupKey,
+        from: c.from || null,
+        to: c.to,
+        security: "security" in c && c.security === true,
+        priority: c.priority,
+      })),
+    );
     const onboarding = () =>
       composeOnboarding({
         repo: { owner, repo: name, baseSha: sha },
@@ -751,43 +789,6 @@ export async function scanRepo(
           }),
         ),
       ).catch((error) => console.error(`[scan] ${repo.fullName}: stale PRs: ${error}`));
-    // Active: enqueue one run per group, best first (D70 queue: provider changes that already broke
-    // the repo outrank majors); the fix job applies the PR caps.
-    const queue = [
-      ...fixCandidates(assessments, config).flatMap((a) => {
-        const groupKey = groupKeyOf(a);
-        return groupKey && a.decision?.kind === "upgrade"
-          ? [
-              {
-                groupKey,
-                lineage: lineageKey(groupKey, a.purpose === "security" ? "security" : "version"),
-                priority: a.priority ?? 9,
-                from: a.instance.version,
-                to: a.decision.to,
-                security: a.purpose === "security",
-              },
-            ]
-          : [];
-      }),
-      ...apiCandidates(api.findings, config),
-      // Security fixes first, then by priority: the queue runs in this order (Codex walk B14).
-    ].sort(
-      (x, y) =>
-        Number(!("security" in x && x.security)) - Number(!("security" in y && y.security)) ||
-        x.priority - y.priority,
-    );
-    // Kept on the scan: Ask first and Off list these as "Upgrades available" (D125).
-    await setScanUpgrades(
-      db,
-      scan.id,
-      queue.map((c) => ({
-        groupKey: c.groupKey,
-        from: c.from || null,
-        to: c.to,
-        security: "security" in c && c.security === true,
-        priority: c.priority,
-      })),
-    );
     if (mode.mode === "off") {
       await syncDashboard(ctx, repoId).catch((error) =>
         console.error(`[scan] ${repo.fullName}: dashboard: ${error}`),

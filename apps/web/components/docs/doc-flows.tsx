@@ -23,6 +23,65 @@ function lane(title: string, tiles: FlowTile[], labels: (string | undefined)[] =
 }
 
 export const DOC_FLOWS: Record<string, DocLane[]> = {
+  // The life of a Teire pull request (S20.7): how it opens, what moves it, how it ends.
+  "pr-lifecycle": [
+    lane(
+      "It opens with its evidence",
+      [
+        {
+          id: "s",
+          entity: "review",
+          state: "done",
+          label: "A scan",
+          meta: "push · schedule · you",
+          brand: TEIRE,
+        },
+        { id: "r", entity: "fix", state: "done", label: "The fix run", meta: "your checks before" },
+        { id: "k", entity: "check", state: "proven", label: "Checks after", meta: "in the sandbox" },
+        {
+          id: "p",
+          entity: "outcome",
+          state: "done",
+          label: "Ready, draft or issue",
+          meta: "by the evidence",
+          brand: SPONSORS.github,
+        },
+      ],
+      ["finds a change", "upgrades, adapts", "proves it", undefined],
+    ),
+    lane(
+      "While it's open, Teire keeps it true",
+      [
+        { id: "b", entity: "change", state: "done", label: "Base moved", meta: "a dependency push" },
+        { id: "rb", entity: "fix", state: "done", label: "Rebased", meta: "verified again" },
+        {
+          id: "c",
+          entity: "check",
+          state: "done",
+          label: "CI failed",
+          meta: "one repair",
+          brand: SPONSORS.github,
+        },
+        { id: "n", entity: "update", state: "done", label: "Newer version", meta: "a new PR replaces it" },
+      ],
+      ["rebuilds it", "then", "then"],
+    ),
+    lane(
+      "How it ends",
+      [
+        { id: "m", entity: "outcome", state: "proven", label: "You merge it", meta: "findings fixed" },
+        { id: "x", entity: "review", state: "done", label: "You close it", meta: "that version stays away" },
+        {
+          id: "g",
+          entity: "repository",
+          state: "done",
+          label: "No longer needed",
+          meta: "Teire closes it, says why",
+        },
+      ],
+      ["or", "or"],
+    ),
+  ],
   "fix-loop": [
     lane(
       "Checks pass after the upgrade",

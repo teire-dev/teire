@@ -542,12 +542,16 @@ export async function parkQueued(db: Database, repoId: number) {
   return rows.length;
 }
 
-/** Which of these runs already have a fix job waiting or running in pg-boss (walk-fix review #2). */
-export async function pendingFixJobs(db: Database, runIds: string[]) {
+/**
+ * Which of these runs already have a fix job waiting or running in pg-boss (walk-fix review #2);
+ * with `dueNow`, only a job that may start now, not one held for later (the PR limit's hour).
+ */
+export async function pendingFixJobs(db: Database, runIds: string[], options: { dueNow?: boolean } = {}) {
   if (!runIds.length) return new Set<string>();
   const { rows } = await db.execute<{ run_id: string }>(sql`
     select distinct data->>'runId' as run_id from pgboss.job
     where name = 'fix' and state in ('created', 'retry', 'active')
+      ${options.dueNow ? sql`and start_after <= now()` : sql``}
       and data->>'runId' in (${sql.join(
         runIds.map((id) => sql`${id}`),
         sql`, `,

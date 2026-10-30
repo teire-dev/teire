@@ -28,3 +28,4 @@ coverage/
 
 # local tool caches (21st-scout)
 apps/web/.cache/
+smoke/results/

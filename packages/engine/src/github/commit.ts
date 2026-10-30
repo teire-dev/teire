@@ -62,9 +62,12 @@ async function ownedHead(
   branch: string,
   baseSha: string,
   botLogin: string,
+  /** `@teire recreate`: a person with write access asked to start over, their commits included. */
+  replaceOthers = false,
 ) {
   const { data: ref } = await octokit.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
   const head = ref.object.sha;
+  if (replaceOthers) return head;
   const { data } = await octokit.rest.repos.compareCommits({ owner, repo, base: baseSha, head });
   const foreign = data.commits.filter((c) => c.author?.login !== botLogin);
   if (foreign.length) throw new HumanCommitsError(`${branch} has ${foreign.length} commit(s) by others`);
@@ -79,6 +82,7 @@ async function startBranch(
   branch: string,
   baseSha: string,
   botLogin: string,
+  replaceOthers = false,
 ) {
   try {
     await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: baseSha });
@@ -86,7 +90,7 @@ async function startBranch(
   } catch (error) {
     if (status(error) !== 422) throw error;
   }
-  return ownedHead(octokit, owner, repo, branch, baseSha, botLogin);
+  return ownedHead(octokit, owner, repo, branch, baseSha, botLogin, replaceOthers);
 }
 
 const UPDATE_REFS = `mutation($input: UpdateRefsInput!) { updateRefs(input: $input) { clientMutationId } }`;
@@ -99,7 +103,14 @@ const UPDATE_REFS = `mutation($input: UpdateRefsInput!) { updateRefs(input: $inp
  */
 async function swapBranch(
   octokit: Octokit,
-  input: { owner: string; repo: string; branch: string; baseSha: string; botLogin: string },
+  input: {
+    owner: string;
+    repo: string;
+    branch: string;
+    baseSha: string;
+    botLogin: string;
+    replaceOthers?: boolean;
+  },
   expected: string,
   sha: string,
 ) {
@@ -122,6 +133,7 @@ async function swapBranch(
         input.branch,
         input.baseSha,
         input.botLogin,
+        input.replaceOthers,
       );
       if (now === before) throw error;
       before = now;
@@ -140,9 +152,22 @@ export async function commitToBranch(input: {
   headline: string;
   body: string;
   files: FileWrite[];
+  /**
+   * Replace commits by others on the branch: only for `@teire recreate`, which a person with write
+   * access asks for to start over (PR lifecycle review: without it, recreate stopped again at them).
+   */
+  replaceOthers?: boolean;
 }): Promise<{ oid: string; url: string }> {
   const { octokit, owner, repo, branch, baseSha } = input;
-  const existingHead = await startBranch(octokit, owner, repo, branch, baseSha, input.botLogin);
+  const existingHead = await startBranch(
+    octokit,
+    owner,
+    repo,
+    branch,
+    baseSha,
+    input.botLogin,
+    input.replaceOthers,
+  );
   const created = existingHead === null;
   const additions = input.files
     .filter((f) => f.content !== null)
@@ -203,7 +228,14 @@ export async function commitToBranch(input: {
   else
     await swapBranch(
       octokit,
-      { owner, repo, branch, baseSha, botLogin: input.botLogin },
+      {
+        owner,
+        repo,
+        branch,
+        baseSha,
+        botLogin: input.botLogin,
+        ...(input.replaceOthers ? { replaceOthers: true } : {}),
+      },
       existingHead,
       commit.sha,
     );

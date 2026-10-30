@@ -46,6 +46,8 @@ export interface ScanResult {
   /** Ecosystems with manifests that could not be read on this machine (the reason is in `notes`). */
   skipped: string[];
   findings: FindingDraft[];
+  /** Every upgrade the scan would make, breaking or not (the worker's "Upgrades available"). */
+  upgrades: { ecosystem: string; name: string; from: string | null; to: string; security: boolean }[];
   records: Map<string, ChangeV2>;
   providers: string[];
   notes: string[];
@@ -292,6 +294,15 @@ export async function scanPath(
         };
       }),
     findings,
+    upgrades: assessments
+      .filter((a) => a.decision?.kind === "upgrade" && a.instance.direct)
+      .map((a) => ({
+        ecosystem: a.instance.ecosystem,
+        name: a.instance.name,
+        from: a.instance.version,
+        to: a.decision?.kind === "upgrade" ? a.decision.to : "",
+        security: a.purpose === "security",
+      })),
     records,
     providers,
     notes: [...new Set(notes.map(plainNote))],

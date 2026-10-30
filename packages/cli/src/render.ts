@@ -236,6 +236,7 @@ export function scanJson(scan: ScanResult) {
         callSites: f.callSites.map((s) => ({ ...s, file: shownPath(scan.root, s.file) })),
       })),
     })),
+    upgrades: scan.upgrades,
     changes: Object.fromEntries(scan.records),
     coverage: { advisories: advisoryStatus(scan.coverage), gaps: coverageLines(scan.coverage) },
     notes: scan.notes,

@@ -1,0 +1,61 @@
+name: Smoke
+
+# The smoke suite's fork layer (plan S21.1): every fork in smoke/forks/ scanned with the built CLI and
+# held to what its file says Teire must find. Nightly, and whenever what it depends on changes: the
+# sandbox images, the CLI, the engine, or the resolver's pinned updater images.
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/sandbox/images/**"
+      - "apps/resolver/host/images.json"
+      - "packages/cli/**"
+      - "packages/engine/src/**"
+      - "smoke/forks/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke
+  cancel-in-progress: true
+
+jobs:
+  forks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The toolchains the CLI reads each ecosystem with (Python's helper runs through uv).
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.13.5"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: pnpm --filter ./packages/cli build
+      - name: Every fork against its file
+        env:
+          # Public forks only; the token lifts GitHub's anonymous rate limit for downloads and notes.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm --filter @teire/engine smoke:forks
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-forks
+          path: smoke/results/forks-latest.json

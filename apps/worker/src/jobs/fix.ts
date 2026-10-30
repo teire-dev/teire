@@ -1868,7 +1868,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // so a routine run that comes up while a security fix waits behind it goes to the back, once per
   // turn, until the security fix has run. Only a security run with a job of its own is waited for.
   if (!dry && !run.lineageKey?.endsWith("#security")) {
-    const waiting = await pendingFixJobs(db, await queuedSecurityRuns(db, repo.id, runId));
+    // Only a security fix that can start now: one held an hour for the PR limit doesn't make every
+    // routine run circle the queue for that hour (walk-fix review, Fable H1).
+    const waiting = await pendingFixJobs(db, await queuedSecurityRuns(db, repo.id, runId), { dueNow: true });
     if (waiting.size) {
       await update({ status: "queued", step: "waiting: security fixes go first", workerId: null });
       await ctx.enqueueFix(runId, repo.id);
@@ -2423,6 +2425,8 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       branch,
       baseSha: run.baseSha,
       botLogin: gh.botLogin,
+      // `@teire recreate`: the person asked to start over, so commits by others on the branch go.
+      ...(run.requestedBy?.startsWith("recreate:") ? { replaceOthers: true } : {}),
       headline,
       // The trailer ends with a newline: fetch-metadata's pattern needs one after `...` (S19 review B7).
       body: `${[
@@ -2682,7 +2686,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
             owner,
             repo: name,
             issue_number: open.number,
-            body: `Teire stopped updating this branch: ${forGitHub(error.message)}. Your commits stay; comment \`@teire recreate\` to start over from the current base.`,
+            body: `Teire stopped updating this branch: ${forGitHub(error.message)}. Your commits stay; comment \`@teire recreate\` to start over from the current base, which replaces this branch and those commits with Teire's fix.`,
           })
           .catch(() => undefined);
     }

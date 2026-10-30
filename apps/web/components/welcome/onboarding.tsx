@@ -808,13 +808,21 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                           ? !r.scan || r.scan.status === "running" || r.scan.status === "queued"
                             ? { label: "Scanning", tone: "bg-sunken text-ink-2" }
                             : { label: "Active", tone: "bg-proven-soft text-proven" }
-                          : r.onboarding?.state === "open"
+                          : r.status === "paused" && r.pausedReason === "opted_out"
                             ? {
-                                label: `Needs one action: merge #${r.onboarding.number}`,
+                                label: "Declined: comment @teire resume on its PR",
                                 tone: "bg-attention-soft text-attention",
-                                href: r.onboarding.url,
+                                ...(r.onboarding?.url ? { href: r.onboarding.url } : {}),
                               }
-                            : { label: "Waiting for GitHub", tone: "bg-sunken text-ink-2" };
+                            : results[r.fullName] && !done(results[r.fullName])
+                              ? { label: "Turning on…", tone: "bg-sunken text-ink-2" }
+                              : r.onboarding?.state === "open"
+                                ? {
+                                    label: `Needs one action: merge #${r.onboarding.number}`,
+                                    tone: "bg-attention-soft text-attention",
+                                    href: r.onboarding.url,
+                                  }
+                                : { label: "Waiting for GitHub", tone: "bg-sunken text-ink-2" };
                     return (
                       <li
                         key={r.fullName}
