@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PRIORITY, REGISTRY, RUST } from "../constants";
+import { PRIORITY, REGISTRY, RUST, VERIFY } from "../constants";
 import type { DependencyInstance } from "../contract";
 import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
@@ -32,7 +32,7 @@ import type { SurfaceDiff } from "../surface/types";
 import type { VerifyBackend } from "../verify/backend";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectRustChecks } from "../verify/rust-commands";
-import { scanProbe } from "../verify/scan-probe";
+import { overBudget, type ScanProbeTarget, scanProbe } from "../verify/scan-probe";
 import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -56,7 +56,7 @@ export interface RustAssessOptions extends RegistryOptions {
    * The sandbox and the commit's tarball, for rust-analyzer's type-resolved index at scan time
    * (S19); without them Rust sites stay syntactic, never "not affected".
    */
-  scip?: { backend: VerifyBackend; tarball: { url: string; token?: string }; id: string };
+  scip?: () => Promise<ScanProbeTarget>;
 }
 
 /**
@@ -223,9 +223,16 @@ async function typeResolved(
   assessments: Assessment<RustProject>[],
   options: RustAssessOptions,
 ) {
-  const scip = options.scip;
   const needs = assessments.filter((a) => a.project === project && a.located && a.records.length);
-  if (!scip || !needs.length) return;
+  if (!options.scip || !needs.length) return;
+  // Opened only now, when a project needs it (S19 review B4).
+  const scip = await options.scip();
+  const label = project.root === "." ? "Rust" : project.root;
+  const skip = overBudget(scip, VERIFY.installTimeoutSec + RUST.scipTimeoutSec);
+  if (skip) {
+    options.coverage?.notes.push(`${label}: rust-analyzer's index ${skip}; Rust sites stay syntactic`);
+    return;
+  }
   options.onProgress?.(`${project.root}: rust-analyzer index for type-resolved sites`);
   const plan = detectRustChecks(tree, project);
   const out = "/tmp/teire-index.scip";
@@ -240,6 +247,7 @@ async function typeResolved(
       `CARGO_NET_OFFLINE=true cargo metadata --offline --locked --format-version 1 >/dev/null && rust-analyzer scip . --output ${out}`,
     ],
     output: out,
+    installTimeoutSec: VERIFY.installTimeoutSec,
     timeoutSec: RUST.scipTimeoutSec,
   }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }));
   if ("error" in probed) {

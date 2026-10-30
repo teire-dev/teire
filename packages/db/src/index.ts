@@ -4,7 +4,7 @@ import pg from "pg";
 import * as authSchema from "./auth-schema";
 import * as schema from "./schema";
 
-export { and, asc, desc, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
+export { and, asc, desc, eq, gt, gte, inArray, isNull, lt, ne, or, type SQL, sql } from "drizzle-orm";
 export * from "./auth-schema";
 export * from "./schema";
 export { authSchema, schema };

@@ -17,8 +17,8 @@ import { PUBLIC_LIMITS } from "@teire/engine/constants";
 import { lineageKey } from "@teire/engine/contract";
 import { directoryTree, fetchRepoTarball, scopedTree } from "@teire/engine/inventory";
 import { advisoryStatus, coverageLines } from "@teire/engine/pipeline";
-import { modelWorkBlocked } from "../reliability";
-import { claimRun, finishScan, setRepo, startScan } from "../store";
+import { modelWorkBlocked, RELIABILITY } from "../reliability";
+import { claimRun, finishScan, heartbeatScan, setRepo, startScan } from "../store";
 import { revalidateWeb } from "../web";
 import { assessCheckout, languagesOf, type WorkerContext } from "./scan";
 
@@ -118,6 +118,12 @@ export async function publicScan(ctx: WorkerContext, publicScanId: string) {
     .where(eq(publicScans.id, publicScanId));
 
   const [owner = "", name = ""] = meta.full_name.split("/");
+  const startedAt = Date.now();
+  const beat = setInterval(
+    () => void heartbeatScan(db, scan.id).catch(() => undefined),
+    RELIABILITY.scanHeartbeatMs,
+  );
+  beat.unref?.();
   let dir: string | null = null;
   try {
     const checkout = await fetchRepoTarball(owner, name, head.sha, token ? { token } : {});
@@ -134,6 +140,9 @@ export async function publicScan(ctx: WorkerContext, publicScanId: string) {
       config,
       sha: head.sha,
       ...(token ? { token } : {}),
+      // GitHub said public just above; the probe re-reads it before any Token Factory upload (S19 review B12).
+      isPrivate: false,
+      startedAt,
       blocked,
       // The report's live flow follows the scan (V5–V6 review).
       onStep: (step) => db.update(publicScans).set({ step }).where(eq(publicScans.id, publicScanId)),
@@ -163,6 +172,7 @@ export async function publicScan(ctx: WorkerContext, publicScanId: string) {
     await settle("failed", message.slice(0, 500));
     throw error;
   } finally {
+    clearInterval(beat);
     if (dir) await rm(dir, { recursive: true, force: true });
   }
 }

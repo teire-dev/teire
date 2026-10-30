@@ -51,7 +51,7 @@ The web app's own requests travel the same outbox as synthetic events: public sc
 A ticker runs every 60 seconds. It:
 
 - writes the worker's heartbeat,
-- fails runs whose heartbeat stopped for 10 minutes (runs beat every 15 seconds) and scans running over 45 minutes,
+- fails runs whose heartbeat stopped for 10 minutes (runs beat every 15 seconds) and scans silent for 10 minutes (scans beat every minute),
 - publishes which models are healthy,
 - re-checks Token Factory credits every 15 minutes,
 - starts scheduled rescans (`schedule: daily | weekly`),

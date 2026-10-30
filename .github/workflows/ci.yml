@@ -36,6 +36,20 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm --filter @teire/engine test
       - run: pnpm --filter @teire/engine catalog:validate
+        if: github.event_name != 'pull_request'
+      # On a pull request, each contributed record it adds or changes is its author's and passes the
+      # quote gate against the pages it cites (S19 review B3, B14).
+      - name: catalog:validate (this pull request's records)
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TEIRE_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          TEIRE_PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          TEIRE_PR_FILES="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json files --jq '.files[].path')"
+          export TEIRE_PR_FILES
+          pnpm --filter @teire/engine catalog:validate
       # The worker ships as one ESM bundle: it must parse (a duplicate import once crashed a deploy).
       - run: pnpm --filter @teire/worker build && node --check apps/worker/dist/bundle/main.mjs
       - run: pnpm --filter @teire/web build

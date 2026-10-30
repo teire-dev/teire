@@ -46,12 +46,15 @@ Most of Teire's catalog is generated: diffs of package versions, advisories, and
 
 ## A change Teire missed
 
-`catalog/changes/<subject>/<id>.json` is one change record in Teire's contract (`catalog/schema/change-v2.schema.json`). A contributed record says it was contributed and who added it:
+`catalog/changes/<subject>/<id>.json` is one change record in Teire's contract (`catalog/schema/change-v2.schema.json`): `<subject>` is the provider's slug or the package's name, and the id starts with `contrib-`, so it can never be one of Teire's generated records. A contributed record says it was contributed, who added it and in which pull request:
 
 ```json title="provenance"
 {
   "method": "catalog",
-  "contributor": { "login": "your-github-login" },
+  "contributor": {
+    "login": "your-github-login",
+    "pullRequest": "https://github.com/teire-dev/teire/pull/123"
+  },
   "confidence": { "overall": 1 }
 }
 ```
@@ -64,7 +67,8 @@ Every source keeps its quote and the page it came from, as Teire's own records d
 
 - each provider and change file against the schema;
 - a provider file named after its slug;
-- a contributed change marked `"method": "catalog"`, with a contributor, public, and an id no other record uses;
+- a contributed change marked `"method": "catalog"`, public, in its subject's folder, with a `contrib-` id no other record uses;
+- for each record the pull request adds or changes: the contributor is the pull request's author and names this pull request, and every source passes the gate Teire's own records pass: on the provider's own domains, fetched by CI, with its quote really on the page;
 - `catalog/contributed.json`, the bundle the worker reads, up to date (`catalog:validate --write` rebuilds it).
 
 A record that fails any of these fails the pull request. Once merged, the worker merges every contributed record when it next starts, and its change page shows **added by @login**, linked to the pull request when the record names it.

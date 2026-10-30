@@ -425,6 +425,8 @@ export function updatedDependenciesTrailer(
   instance: Pick<DependencyInstance, "name" | "direct" | "scope" | "version" | "ecosystem">,
   target: string,
   moved: { name: string; from: string | null; to: string | null; removed?: boolean }[] = [],
+  /** The project's own declarations: a co-moved package it names directly is typed as Dependabot types it. */
+  declared: Pick<DependencyInstance, "name" | "direct" | "scope">[] = [],
 ) {
   const scheme = versionScheme(instance.ecosystem);
   const updateType = (from: string | null, to: string) => {
@@ -433,9 +435,11 @@ export function updatedDependenciesTrailer(
     const minor = (v: string) => v.replace(/^v/, "").split(/[.+-]/).slice(0, 2).join(".");
     return minor(from) === minor(to) ? "version-update:semver-patch" : "version-update:semver-minor";
   };
-  const type = instance.direct
-    ? `direct:${instance.scope === "dev" || instance.scope === "test" ? "development" : "production"}`
-    : "indirect";
+  const typeOf = (i: Pick<DependencyInstance, "direct" | "scope">) =>
+    i.direct
+      ? `direct:${i.scope === "dev" || i.scope === "test" ? "development" : "production"}`
+      : "indirect";
+  const type = typeOf(instance);
   const entries = [
     { name: instance.name, to: target, type, update: updateType(instance.version, target) },
     ...moved
@@ -443,7 +447,10 @@ export function updatedDependenciesTrailer(
       .map((m) => ({
         name: m.name,
         to: m.to as string,
-        type: "indirect",
+        type: (() => {
+          const own = declared.find((d) => d.name === m.name && d.direct);
+          return own ? typeOf(own) : "indirect";
+        })(),
         update: updateType(m.from, m.to as string),
       })),
   ];
@@ -465,13 +472,48 @@ export function updatedDependenciesTrailer(
  * recent subjects → `chore(deps): ` (`chore(deps-dev): ` for a development dependency), or the
  * type the repo itself uses for dependency commits (`build(deps): `); otherwise none.
  */
-export function inferredCommitPrefix(subjects: string[], development: boolean) {
-  const conventional = subjects.filter((s) => /^[a-z]+(?:\([^)]*\))?!?: /.test(s));
-  if (subjects.length < 5 || conventional.length < subjects.length / 2) return "";
-  const depsType = subjects
-    .map((s) => /^([a-z]+)\(deps(?:-dev)?\)!?: /.exec(s)?.[1])
-    .find((t): t is string => Boolean(t));
-  return `${depsType ?? "chore"}(deps${development ? "-dev" : ""}): `;
+export function inferredCommitPrefix(
+  commits: (string | { subject: string; bot?: boolean })[],
+  development: boolean,
+) {
+  // As Dependabot reads them (S19 review B9): a person's commits, not merges or bots', and a style
+  // that over 30% of them follow.
+  const subjects = commits
+    .map((c) => (typeof c === "string" ? { subject: c } : c))
+    .filter((c) => !c.bot && !c.subject.startsWith("Merge "))
+    .map((c) => c.subject);
+  if (!subjects.length) return "";
+  const share = (re: RegExp) => subjects.filter((s) => re.test(s)).length / subjects.length;
+  if (share(/^[a-z]+(?:\([^)]*\))?!?: /) > 0.3) {
+    const depsType = subjects
+      .map((s) => /^([a-z]+)\(deps(?:-dev)?\)!?: /.exec(s)?.[1])
+      .find((t): t is string => Boolean(t));
+    const types = new Set(subjects.map((s) => /^([a-z]+)[(!:]/.exec(s)?.[1]));
+    const type = depsType ?? (types.has("chore") && !types.has("build") ? "chore" : "build");
+    return `${type}(deps${development ? "-dev" : ""}): `;
+  }
+  if (share(/^(?:Breaking|Build|Chore|Docs|Fix|New|Update|Upgrade): /) > 0.3) return "Upgrade: ";
+  if (share(/^(?:\p{Extended_Pictographic}|:[a-z0-9_+-]+:)/u) > 0.3) return "⬆️ ";
+  return "";
+}
+
+/**
+ * A commit message prefix as Dependabot writes an explicit one (S19 review B8): `(deps)` or
+ * `(deps-dev)` when dependabot.yml says `include: scope`, a colon after a word, a bracket or a
+ * parenthesis, then a space.
+ */
+export function formattedCommitPrefix(prefix: string, scope?: "deps" | "deps-dev") {
+  if (!prefix) return "";
+  let out = scope ? `${prefix}(${scope})` : prefix;
+  if (/[A-Za-z0-9)\]]$/.test(out)) out += ":";
+  return out.endsWith(" ") ? out : `${out} `;
+}
+
+/** The headline after its prefix: lowercase after a lowercase prefix, as Dependabot's (S19 review B6). */
+export function prefixedHeadline(prefix: string, title: string) {
+  return /^[a-z]/.test(prefix.trim())
+    ? `${prefix}${title.charAt(0).toLowerCase()}${title.slice(1)}`
+    : `${prefix}${title}`;
 }
 
 /** The version a PR moves from: the locked one, or the declared range when none is locked (D-37). */

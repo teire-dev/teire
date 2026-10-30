@@ -344,7 +344,7 @@ export const GO = {
   commandTimeoutMs: 180_000,
   helperTimeoutMs: 600_000,
   /** Bump when packages/helpers/go changes, so development rebuilds the cached binary. */
-  helperVersion: "5",
+  helperVersion: "6",
   /** Highest major probed above the installed one (`/v5`, `/v6`, …) on the proxy. */
   maxMajorProbe: 6,
   /** govulncheck for advisory reachability (research go.md Job 9: v1.8.0 tested). */
@@ -366,7 +366,7 @@ export const RUST = {
   userAgent: "TeireBot/0.1 (+https://teire.vercel.app; dependency upgrades)",
   semverChecksVersion: "0.51.0",
   /** rust-analyzer's SCIP index of one project at scan time (fetch, metadata guard, index). */
-  scipTimeoutSec: 900,
+  scipTimeoutSec: 600,
   /** rustdoc JSON format versions cargo-semver-checks 0.51.0 reads ("supported formats are v57, v60, v61"). */
   rustdocFormats: [57, 60, 61] as number[],
   maxRustdocBytes: 256 * 1024 * 1024,
@@ -530,6 +530,8 @@ export const VERIFY = {
    * Token Factory (live walk, explain-error-plugin), too close to the default.
    */
   jvmInstallTimeoutSec: 1_200,
+  /** The scan-time compile and `teire-jvm refs` once the warm-up is done (S19). */
+  jvmProbeTimeoutSec: 600,
   checkTimeoutSec: 300,
   /**
    * JVM test suites can be slow by design: a Jenkins plugin's JenkinsRule suite ran past 300 s on the

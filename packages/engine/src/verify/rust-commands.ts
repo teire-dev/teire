@@ -88,7 +88,8 @@ export function detectRustChecks(tree: RepoTree, project: RustProject, sandboxRo
       "sh",
       "-c",
       toolchain
-        ? `rustup toolchain install ${toolchain.version} --profile minimal || exit $?; ${FETCH}`
+        ? // rust-src too: rust-analyzer's index resolves std through it (S19 review B13).
+          `rustup toolchain install ${toolchain.version} --profile minimal --component rust-src || exit $?; ${FETCH}`
         : FETCH,
     ],
     installEnv: { CARGO_TERM_COLOR: "never", RUSTUP_AUTO_INSTALL: "0", ...HOMES, ...rustPath },

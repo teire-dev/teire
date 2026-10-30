@@ -1,6 +1,25 @@
 import type { VerifyBackend } from "./backend";
 import type { CheckPlan } from "./commands";
 
+/** Where a scan's probes run (S19): the sandbox, the commit's tarball, and when the scan must end. */
+export interface ScanProbeTarget {
+  backend: VerifyBackend;
+  tarball: { url: string; token?: string };
+  id: string;
+  /**
+   * Epoch ms the scan's probes must finish by (S19 review B4): the queue gives a scan an hour, and a
+   * probe that can't finish before this is skipped and said, not started.
+   */
+  deadline?: number;
+}
+
+/** Why a probe of this length is skipped for the scan's time budget, or null when it fits. */
+export function overBudget(target: ScanProbeTarget, seconds: number, now = Date.now()) {
+  if (!target.deadline || now + seconds * 1000 <= target.deadline) return null;
+  const left = Math.max(0, Math.round((target.deadline - now) / 60_000));
+  return `skipped: it can take ${Math.round(seconds / 60)} min and the scan has ${left} min left`;
+}
+
 /**
  * A repository probed in the sandbox at scan time (S19): its dependencies installed with the
  * network, then one command with the network off whose output file is read back. The probe runs
@@ -16,6 +35,8 @@ export async function scanProbe(
     probe: string[];
     /** The file the probe writes, read back when it succeeds. */
     output: string;
+    /** The install's limit, then the probe's. */
+    installTimeoutSec: number;
     timeoutSec: number;
   },
 ): Promise<{ bytes: Uint8Array; ms: number } | { error: string }> {
@@ -31,7 +52,7 @@ export async function scanProbe(
       const installed = await session.run(`${input.id}-install`, input.plan.install, {
         cwd: input.plan.cwd,
         ...(input.plan.installEnv ? { env: input.plan.installEnv } : {}),
-        timeoutSec: input.timeoutSec,
+        timeoutSec: input.installTimeoutSec,
       });
       if (installed.exitCode !== 0)
         return { error: `install exit ${installed.exitCode}: ${tail(installed)}` };

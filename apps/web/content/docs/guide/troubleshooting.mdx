@@ -43,7 +43,7 @@ Active repositories are rescanned daily by default, and on every push to the def
 Common causes:
 
 - the repository tarball is over 200 MB or 20,000 files,
-- a scan running longer than 45 minutes, which is stopped.
+- a scan silent for 10 minutes (a running scan says it is alive every minute), which is stopped.
 
 Go modules that only resolve privately don't fail the scan. Teire reads the public Go proxy only, so their versions come from `go.mod` as written, and the report notes it.
 

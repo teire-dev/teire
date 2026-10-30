@@ -51,7 +51,8 @@ describe("rust-analyzer's SCIP index as type-resolved sites (S19)", () => {
       "semver::VersionReq::matches src/main.rs:6 type",
     ]);
     expect(merged.coverage).toMatchObject({ resolutionLevel: "type", unresolvedSites: 0 });
-    // Another version of the crate in the index is not this one.
+    // An index of another version of the crate says nothing about this one: the lexical result
+    // stands, with why, and never reads as no use (S19 review B5).
     const other = mergeScip(lexical, readScipIndex(bytes, "semver"), {
       projectRoot: ".",
       version: "1.0.0",
@@ -59,6 +60,11 @@ describe("rust-analyzer's SCIP index as type-resolved sites (S19)", () => {
       sourceFiles: ["src/main.rs"],
       lineOf: () => "",
     });
-    expect(other.hits).toEqual([]);
+    expect(other.hits).toEqual(lexical.hits);
+    expect(other.coverage.resolutionLevel).toBe(lexical.coverage.resolutionLevel);
+    expect(other.coverage.unresolvedSites).toBeGreaterThan(0);
+    expect(other.coverage.filesSkipped.at(-1)?.reason).toBe(
+      "rust-analyzer indexed 1.0.23, not the compared 1.0.0",
+    );
   });
 });

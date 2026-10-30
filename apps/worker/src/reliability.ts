@@ -12,8 +12,12 @@ import { createTokenFactory, modelHealth, ping, tokenFactoryConfigFromEnv } from
  */
 export const RELIABILITY = {
   tickMs: 60_000,
-  /** A scan stuck in "running" this long was cut off with its worker. */
-  scanStaleAfterMs: 45 * 60_000,
+  /** A running scan silent this long (no heartbeat) was cut off with its worker. */
+  scanStaleAfterMs: 10 * 60_000,
+  /** How often a running scan says it's alive. */
+  scanHeartbeatMs: 60_000,
+  /** A scan's sandbox probes must end this long after it starts: the queue expires a scan job at an hour. */
+  scanProbeDeadlineMs: 50 * 60_000,
   /** How often a 402 state is re-checked with a ping. */
   creditsRecheckMs: 15 * 60_000,
   redeliveryEveryMs: 10 * 60_000,
@@ -154,7 +158,10 @@ export async function reap(db: Database) {
     .where(
       and(
         eq(scans.status, "running"),
-        lt(scans.startedAt, new Date(Date.now() - RELIABILITY.scanStaleAfterMs)),
+        lt(
+          sql`coalesce(${scans.heartbeatAt}, ${scans.startedAt})`,
+          new Date(Date.now() - RELIABILITY.scanStaleAfterMs),
+        ),
       ),
     )
     .returning({ id: scans.id });

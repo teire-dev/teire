@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/parser"
+	"go/token"
 	"go/types"
 	"os"
 	"os/exec"
@@ -390,6 +392,29 @@ func runLocate(args []string) error {
 			files[f] = true
 		}
 	}
+	// Files this platform's build constraints leave out (`//go:build windows`, cgo): the type
+	// checker never reads them, so one that imports a target is a site it couldn't resolve (S19
+	// review B16), never "not used".
+	constrained := 0
+	ignored := map[string]bool{}
+	for _, p := range pkgs {
+		for _, f := range p.IgnoredFiles {
+			if ignored[f] || files[f] || !strings.HasSuffix(f, ".go") {
+				continue
+			}
+			ignored[f] = true
+			parsed, err := parser.ParseFile(token.NewFileSet(), f, nil, parser.ImportsOnly)
+			if err != nil {
+				continue
+			}
+			for _, spec := range parsed.Imports {
+				if path, err := strconv.Unquote(spec.Path.Value); err == nil && targetPath(path) {
+					constrained++
+					break
+				}
+			}
+		}
+	}
 	if len(errs) > 20 {
 		errs = errs[:20]
 	}
@@ -399,5 +424,6 @@ func runLocate(args []string) error {
 		"errors":        errs,
 		"unresolved":    unresolved,
 		"errorPackages": errorPackages,
+		"constrained":   constrained,
 	})
 }

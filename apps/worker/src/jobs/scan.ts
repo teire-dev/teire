@@ -48,15 +48,10 @@ import {
 import { versionScheme } from "@teire/engine/registry";
 import { readDependabotConfig } from "@teire/engine/resolver";
 import { cargoSurfaceDiff, goSurfaceDiff } from "@teire/engine/surface";
-import {
-  discoverRegistries,
-  goPrivatePatterns,
-  selectBackend,
-  type VerifyBackend,
-} from "@teire/engine/verify";
+import { discoverRegistries, goPrivatePatterns, selectBackend, withRegistries } from "@teire/engine/verify";
 import { cachedSurfaceDiff, postgresRegistryCache } from "../caches";
 import { authorizedRegistries } from "../credentials";
-import { modelWorkBlocked } from "../reliability";
+import { modelWorkBlocked, RELIABILITY } from "../reliability";
 import {
   changeHash,
   claimRun,
@@ -65,6 +60,7 @@ import {
   fixModeOf,
   getArtifact,
   getRepo,
+  heartbeatScan,
   openArtifacts,
   openLineages,
   recentlySettled,
@@ -84,6 +80,7 @@ import {
 import { revalidateWeb } from "../web";
 import { matchesTarget, readOrgConfig } from "./commands";
 import { syncDashboard, syncHumanIssues } from "./dashboard";
+import { githubRepoNow } from "./fix";
 import { pageReader, storedProviderChanges } from "./providers";
 
 export interface WorkerContext {
@@ -253,6 +250,8 @@ export async function assessCheckout(
     onProviderChanges?: (slugs: string[]) => Promise<void>;
     /** Where the scan is, for a public report's live flow: the packages, the providers, the findings. */
     onStep?: (step: "deps" | "providers" | "lines") => Promise<unknown>;
+    /** When the scan's job started (epoch ms): its sandbox probes must end within the queue's hour. */
+    startedAt?: number;
   },
 ) {
   const { repoId, scanId, fullName, dir, tree, config, sha, blocked } = input;
@@ -272,21 +271,34 @@ export async function assessCheckout(
     : [];
   const goPrivate = goPrivatePatterns(tree);
   // The sandbox for scan-time type resolution (S19: rust-analyzer's index, the JVM's compiled
-  // classes), where the repository's privacy allows; chosen once, when a pipeline first needs it.
-  let probe: Promise<{
-    backend: VerifyBackend;
-    tarball: { url: string; token?: string };
-    id: string;
-  }> | null = null;
-  const sandboxProbe = () =>
-    (probe ??= selectBackend(process.env, { isPrivate: input.isPrivate ?? true }).then((s) => ({
-      backend: s.backend,
+  // classes), where the repository's privacy allows; chosen once, when a pipeline first needs it
+  // (S19 review B4, B12). Its installs reach the private registries the fix path's do, and a public
+  // repository is re-read from GitHub before each Token Factory upload, as a fix run's is.
+  let reading: Promise<boolean> | null = null;
+  const stillPublic = () => {
+    reading ??= githubRepoNow(owner, name, null, input.token ?? null)
+      .then((r) => r.isPrivate === false)
+      .finally(() => {
+        reading = null;
+      });
+    return reading;
+  };
+  const deadline = (input.startedAt ?? Date.now()) + RELIABILITY.scanProbeDeadlineMs;
+  let probe: ReturnType<typeof openProbe> | null = null;
+  const openProbe = () =>
+    selectBackend(process.env, { isPrivate: input.isPrivate ?? true, stillPublic }).then((s) => ({
+      backend: withRegistries(s.backend, registries),
       tarball: {
         url: `https://api.github.com/repos/${fullName}/tarball/${input.sha}`,
         ...(input.token ? { token: input.token } : {}),
       },
       id: `scan-${input.scanId}`,
-    })));
+      deadline,
+    }));
+  const sandboxProbe = () => {
+    probe ??= openProbe();
+    return probe;
+  };
   const on = config.ecosystems;
   const none = { projects: [], assessments: [] };
   const cache = postgresRegistryCache(db);
@@ -337,7 +349,7 @@ export async function assessCheckout(
           cachedSurfaceDiff(db, "cargo", n, f, t, { cache }, async () =>
             cargoSurfaceDiff(n, f, t, { backend: (await selectBackend()).backend }),
           ),
-        scip: await sandboxProbe(),
+        scip: sandboxProbe,
       });
   const ruby = !on.rubygems
     ? none
@@ -360,7 +372,7 @@ export async function assessCheckout(
         discovered,
         ...auth,
         surfaceDiff: (n, f, t) => cachedSurfaceDiff(db, "maven", n, f, t, { cache }),
-        bytecode: await sandboxProbe(),
+        bytecode: sandboxProbe,
       });
   const projects: AssessedProject[] = [
     ...js.projects,
@@ -544,6 +556,13 @@ export async function scanRepo(
   const sha = branch.commit.sha;
   if (meta.archived) return outcome("archived", sha);
   const scan = await startScan(db, repoId, trigger);
+  const startedAt = Date.now();
+  // The reaper measures a scan's silence, not its age (S19 review B4): a long scan keeps beating.
+  const beat = setInterval(
+    () => void heartbeatScan(db, scan.id).catch(() => undefined),
+    RELIABILITY.scanHeartbeatMs,
+  );
+  beat.unref?.();
   let dir: string | null = null;
   try {
     const checkout = await fetchRepoTarball(owner, name, sha, { token });
@@ -582,6 +601,7 @@ export async function scanRepo(
       token,
       installationId: repo.installationId,
       isPrivate: meta.private,
+      startedAt,
       blocked,
       onProviderChanges: (slugs) => fanOutProviderChanges(ctx, repoId, slugs),
     });
@@ -819,6 +839,7 @@ export async function scanRepo(
     });
     throw error;
   } finally {
+    clearInterval(beat);
     if (dir) await rm(dir, { recursive: true, force: true });
   }
 }

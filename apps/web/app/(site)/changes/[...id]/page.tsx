@@ -114,10 +114,14 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
           <YourReach changeId={record.id} />
           {record.provenance.contributor ? (
             // Contributed to the catalog through a pull request (C13): who added it, linked.
+            // Only a GitHub pull request URL becomes the link (S19 review B14).
             <a
               href={
-                record.provenance.contributor.pullRequest ??
-                `https://github.com/${record.provenance.contributor.login}`
+                /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/.test(
+                  record.provenance.contributor.pullRequest ?? "",
+                )
+                  ? record.provenance.contributor.pullRequest
+                  : `https://github.com/${record.provenance.contributor.login}`
               }
               className="font-mono text-[11px] text-ink-3 hover:text-ink"
             >

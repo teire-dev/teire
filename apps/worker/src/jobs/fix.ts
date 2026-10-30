@@ -30,10 +30,12 @@ import {
   commitToBranch,
   composeHumanIssue,
   forGitHub,
+  formattedCommitPrefix,
   HumanCommitsError,
   inferredCommitPrefix,
   modelName,
   openOrUpdatePullRequest,
+  prefixedHeadline,
   publishCheckRun,
   updatedDependenciesTrailer,
 } from "@teire/engine/github";
@@ -333,7 +335,7 @@ async function commitPrefix(
           repo: string;
           sha: string;
           per_page: number;
-        }) => Promise<{ data: { commit: { message: string } }[] }>;
+        }) => Promise<{ data: { commit: { message: string }; author: { type?: string } | null }[] }>;
       };
     };
   },
@@ -345,16 +347,22 @@ async function commitPrefix(
   commit: Outcome["commit"],
 ) {
   const own = config?.pullRequests?.commitMessage?.prefix;
-  if (own) return own;
+  if (own) return formattedCommitPrefix(own);
   if (!commit) return "";
   const dependabot = dependabotEntry(tree, commit)?.commitMessage;
   const set = commit.development ? (dependabot?.prefixDevelopment ?? dependabot?.prefix) : dependabot?.prefix;
-  if (set) return /[:\s]$/.test(set) ? set : `${set}: `;
-  const subjects = await octokit.rest.repos
-    .listCommits({ owner, repo, sha, per_page: 30 })
-    .then((r) => r.data.map((c) => c.commit.message.split("\n")[0] ?? ""))
-    .catch(() => [] as string[]);
-  return inferredCommitPrefix(subjects, commit.development);
+  if (set)
+    return formattedCommitPrefix(
+      set,
+      dependabot?.includeScope ? (commit.development ? "deps-dev" : "deps") : undefined,
+    );
+  const recent = await octokit.rest.repos
+    .listCommits({ owner, repo, sha, per_page: 100 })
+    .then((r) =>
+      r.data.map((c) => ({ subject: c.commit.message.split("\n")[0] ?? "", bot: c.author?.type === "Bot" })),
+    )
+    .catch(() => []);
+  return inferredCommitPrefix(recent, commit.development);
 }
 
 /** Dependabot's language label per package ecosystem (S20.2): stable across Teire's PRs. */
@@ -1373,7 +1381,12 @@ async function packageOutcome(
   return {
     ...(fallback ? { fallback } : {}),
     commit: {
-      trailer: updatedDependenciesTrailer(assessment.instance, result.run.target, result.run.moved ?? []),
+      trailer: updatedDependenciesTrailer(
+        assessment.instance,
+        result.run.target,
+        result.run.moved ?? [],
+        assessment.project.instances,
+      ),
       development: assessment.instance.scope === "dev" || assessment.instance.scope === "test",
       ecosystem,
       manager: assessment.project.manager,
@@ -2353,6 +2366,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
     }));
     await beforePublish();
     published = true;
+    // The commit headline and the PR title, as Dependabot writes both: teire.yml's prefix, else
+    // dependabot.yml's, else the style the repository's own commits use.
+    const headline = prefixedHeadline(
+      await commitPrefix(installation.octokit, owner, name, run.baseSha, config, tree, outcome.commit),
+      composed.title,
+    );
     const commit = await commitToBranch({
       octokit: installation.octokit,
       owner,
@@ -2360,12 +2379,12 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       branch,
       baseSha: run.baseSha,
       botLogin: gh.botLogin,
-      // teire.yml's prefix, else dependabot.yml's, else the style the repository's own commits use.
-      headline: `${await commitPrefix(installation.octokit, owner, name, run.baseSha, config, tree, outcome.commit)}${composed.title}`,
-      body: [
+      headline,
+      // The trailer ends with a newline: fetch-metadata's pattern needs one after `...` (S19 review B7).
+      body: `${[
         `${fix.evidence.kind === "verified" ? "Verified" : "Draft"}: ${saidOnGitHub(fix.evidence.reasons)}`,
         ...(outcome.commit ? [outcome.commit.trailer] : []),
-      ].join("\n\n"),
+      ].join("\n\n")}\n`,
       files,
     });
     await beforePublish();
@@ -2375,7 +2394,7 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       repo: name,
       branch,
       base: config?.pullRequests?.targetBranch || repo.defaultBranch,
-      title: composed.title,
+      title: headline,
       body: composed.body,
       draft: prMode === "draft",
       labels: [

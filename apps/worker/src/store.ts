@@ -19,6 +19,7 @@ import {
   repos,
   runs,
   type ScanUpgrade,
+  type SQL,
   sandboxExecs,
   scans,
   sql,
@@ -108,6 +109,11 @@ export async function startScan(
     .returning();
   if (!row) throw new Error("scan insert failed");
   return row;
+}
+
+/** A running scan is alive (S19 review B4). */
+export async function heartbeatScan(db: Database, id: string) {
+  await db.update(scans).set({ heartbeatAt: new Date() }).where(eq(scans.id, id));
 }
 
 export async function finishScan(
@@ -263,7 +269,15 @@ export function changeHash(record: ChangeV2) {
   return sha256(JSON.stringify({ ...record, sources: record.sources.map(({ checkedAt: _, ...s }) => s) }));
 }
 
-export async function upsertChange(db: Database, record: ChangeV2) {
+/**
+ * A contributed catalog record (C13) merged at boot: it replaces only a contributed row, never a
+ * generated one with the same id (S19 review B2; the validator also keeps ids in `contrib-…`).
+ */
+export async function upsertContributedChange(db: Database, record: ChangeV2) {
+  return upsertChange(db, record, sql`${changes.record}->'provenance'->>'method' = 'catalog'`);
+}
+
+export async function upsertChange(db: Database, record: ChangeV2, onlyWhere?: SQL) {
   const contentHash = changeHash(record);
   const values = {
     schemaVersion: 2,
@@ -288,7 +302,9 @@ export async function upsertChange(db: Database, record: ChangeV2) {
     .onConflictDoUpdate({
       target: changes.id,
       set: values,
-      setWhere: sql`${changes.contentHash} <> ${contentHash}`,
+      setWhere: onlyWhere
+        ? sql`${changes.contentHash} <> ${contentHash} and ${onlyWhere}`
+        : sql`${changes.contentHash} <> ${contentHash}`,
     });
   return contentHash;
 }

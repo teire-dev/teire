@@ -14,7 +14,7 @@ import { scanRepo } from "./jobs/scan";
 import { startOutbox } from "./outbox";
 import { ensureQueues, QUEUES } from "./queues";
 import { markCreditsExhausted, startTicker } from "./reliability";
-import { getRun, upsertChange } from "./store";
+import { getRun, upsertContributedChange } from "./store";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const databaseUrl = process.env.DATABASE_URL;
@@ -76,7 +76,7 @@ async function main() {
   await runMigrations(db, migrationsDir);
   console.log("[worker] migrations applied");
   // Contributed catalog records (C13) are merged on every deploy; an unchanged one writes nothing.
-  for (const record of CONTRIBUTED) await upsertChange(db, record);
+  for (const record of CONTRIBUTED) await upsertContributedChange(db, record);
   if (CONTRIBUTED.length) console.log(`[worker] ${CONTRIBUTED.length} contributed catalog record(s) merged`);
   const booted = new Date();
   await boss.start();

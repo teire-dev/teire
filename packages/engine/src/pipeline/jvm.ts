@@ -35,7 +35,7 @@ import type { SurfaceDiff } from "../surface/types";
 import type { VerifyBackend } from "../verify/backend";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectJvmChecks } from "../verify/jvm-commands";
-import { scanProbe } from "../verify/scan-probe";
+import { overBudget, type ScanProbeTarget, scanProbe } from "../verify/scan-probe";
 import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -60,7 +60,7 @@ export interface JvmAssessOptions extends RegistryOptions {
    * The sandbox and the commit's tarball, for the repo's own compiled classes at scan time (S19):
    * a compile, then the exact references; without them JVM sites stay syntactic.
    */
-  bytecode?: { backend: VerifyBackend; tarball: { url: string; token?: string }; id: string };
+  bytecode?: () => Promise<ScanProbeTarget>;
 }
 
 function jvmPolicy(instance: DependencyInstance, options: JvmAssessOptions): TargetPolicy {
@@ -304,11 +304,10 @@ async function scanTimeBytecode(
   assessments: Assessment<JvmProject>[],
   options: JvmAssessOptions,
 ) {
-  const probe = options.bytecode;
   const majors = assessments.filter(
     (a) => a.project === project && a.located && a.diff && !a.instance.role && a.decision?.kind === "upgrade",
   );
-  if (!probe || !majors.length) return;
+  if (!options.bytecode || !majors.length) return;
   const keysOf = (a: Assessment<JvmProject>) => locateTargets(a.records).declKeys;
   const prefixes = [
     ...new Set(majors.flatMap((a) => packagesOf(keysOf(a)).map((p) => p.replace(/\./g, "/")))),
@@ -316,6 +315,15 @@ async function scanTimeBytecode(
   const plan = detectJvmChecks(tree, project);
   const typecheck = plan.checks.find((c) => c.name === "typecheck")?.argv;
   if (!prefixes.length || !typecheck) return;
+  // Opened only now, when a project needs it (S19 review B4).
+  const probe = await options.bytecode();
+  const skip = overBudget(probe, VERIFY.jvmInstallTimeoutSec + VERIFY.jvmProbeTimeoutSec);
+  if (skip) {
+    options.coverage?.notes.push(
+      `${project.root === "." ? "JVM" : project.root}: the scan-time compile ${skip}; JVM sites stay syntactic`,
+    );
+    return;
+  }
   options.onProgress?.(`${project.root}: compiling for exact references`);
   const out = "/tmp/teire-refs.tsv";
   const probed = await scanProbe(probe.backend, {
@@ -324,7 +332,8 @@ async function scanTimeBytecode(
     plan,
     probe: ["sh", "-c", `${typecheck.join(" ")} && teire-jvm refs ${prefixes.join(",")} > ${out}`],
     output: out,
-    timeoutSec: VERIFY.jvmInstallTimeoutSec,
+    installTimeoutSec: VERIFY.jvmInstallTimeoutSec,
+    timeoutSec: VERIFY.jvmProbeTimeoutSec,
   }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }));
   if ("error" in probed) {
     const note = `${project.root === "." ? "JVM" : project.root}: the scan-time compile failed (${probed.error.slice(0, 200)}); JVM sites stay syntactic`;

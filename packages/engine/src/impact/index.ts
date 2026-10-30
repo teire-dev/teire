@@ -276,6 +276,18 @@ export function assess(input: ImpactInput): FindingDraft[] {
       };
     }
     const clean = locate.coverage.resolutionLevel === "type" && locate.coverage.unresolvedSites === 0;
+    // An advisory's function may be called by another dependency, or by the package itself from an
+    // entry point the repo does call: "not affected" needs the dependencies' code analysed too
+    // (govulncheck's call graph does), not only the repo's (S19 review B1).
+    if (clean && record.applicability.class === "security" && !locate.coverage.transitiveAnalysed)
+      return {
+        ...base,
+        verdict: "inconclusive",
+        reachability: "reachability-unknown",
+        priority: null,
+        callSites: [],
+        reason: `not called from your code (${locate.coverage.filesScanned} file(s), every reference resolved by type), but calls from other dependencies aren't analysed, so it can't be ruled out`,
+      };
     return {
       ...base,
       verdict: clean ? "not_affected" : "inconclusive",

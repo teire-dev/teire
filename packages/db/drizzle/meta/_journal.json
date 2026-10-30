@@ -190,6 +190,13 @@
       "when": 1793580000000,
       "tag": "0026_s18_registry_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793670000000,
+      "tag": "0027_scan_heartbeat",
+      "breakpoints": true
     }
   ]
 }

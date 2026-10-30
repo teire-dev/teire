@@ -55,6 +55,8 @@ export async function locateGo(input: {
       errors: string[];
       unresolved?: number;
       errorPackages?: number;
+      /** Files build constraints leave out on the worker's platform that import a target. */
+      constrained?: number;
     }>("locate", ["-dir", dir, "-targets", input.modulePath, "-modfile", join(scratch, "go.mod")], dir, home);
     const hits: Hit[] = [];
     const lines = new Map<string, string[]>();
@@ -101,11 +103,14 @@ export async function locateGo(input: {
               ]
             : []),
           ...(errors.length ? [{ reason: "type errors while loading", count: errors.length }] : []),
+          ...(result.constrained
+            ? [{ reason: "files other platforms' build constraints select", count: result.constrained }]
+            : []),
         ],
         languages: ["go"],
         resolutionLevel: "type",
         // What the type checker couldn't resolve keeps the verdict from "not affected" (S19).
-        unresolvedSites: (result.unresolved ?? 0) + (result.errorPackages ?? 0),
+        unresolvedSites: (result.unresolved ?? 0) + (result.errorPackages ?? 0) + (result.constrained ?? 0),
         transitiveAnalysed: false,
       },
     };

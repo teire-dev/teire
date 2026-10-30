@@ -121,7 +121,30 @@ export function mergeScip(
   const keys = [...input.declKeys]
     .filter((k) => !k.startsWith("feature:"))
     .map((k) => ({ key: k, ...keyParts(k) }));
+  const crates = new Set(keys.map((k) => k.crate));
   const refs = scip.refs.filter((r) => r.version === input.version);
+  // An index that saw the crate only at another version (a lock Cargo rewrote, a second copy in the
+  // lock) says nothing about this one: the lexical result stands, and why (S19 review B5).
+  const elsewhere = [
+    ...new Set(
+      scip.refs.filter((r) => crates.has(r.crate) && r.version !== input.version).map((r) => r.version),
+    ),
+  ];
+  if (!refs.some((r) => crates.has(r.crate)) && elsewhere.length)
+    return {
+      ...lexical,
+      coverage: {
+        ...lexical.coverage,
+        filesSkipped: [
+          ...lexical.coverage.filesSkipped,
+          {
+            reason: `rust-analyzer indexed ${elsewhere.join(", ")}, not the compared ${input.version}`,
+            count: input.sourceFiles.length,
+          },
+        ],
+        unresolvedSites: Math.max(lexical.coverage.unresolvedSites, 1),
+      },
+    };
   const hits: Hit[] = lexical.hits.filter((h) => h.declKey?.startsWith("feature:"));
   for (const r of refs) {
     // The same item: crate, name and owner (a free item has none on either side), S19 review.

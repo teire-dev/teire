@@ -93,17 +93,24 @@ export function locateBytecode(input: {
   // The source files that compiled, from TeireRefs' one "class" row per scanned class.
   const compiled = new Set<string>();
   let classRows = 0;
+  // Classes compiled without a SourceFile attribute (`javac -g:none`): their uses can't be placed,
+  // so they're counted, never read as no use (S19 review B10).
+  let sourceless = 0;
   for (const row of input.probe.split("\n")) {
     const [cls, src, lineText0, kind, ownerInternal, member, desc] = row.split("\t");
-    if (cls && src && kind === "class") {
+    if (cls && kind === "class") {
+      if (!src) {
+        sourceless++;
+        continue;
+      }
       classRows++;
       const file = resolve(cls, src);
       if (file) compiled.add(file);
       continue;
     }
-    if (!cls || !src || !kind || !ownerInternal) continue;
+    if (!cls || !kind || !ownerInternal) continue;
     const owner = ownerInternal.replace(/\//g, ".");
-    const kotlin = src.endsWith(".kt");
+    const kotlin = !!src?.endsWith(".kt");
     const memberKey = member ? `${owner}#${member}` : null;
     const candidates = [
       ...(memberKey ? [memberKey] : []),
@@ -122,7 +129,7 @@ export function locateBytecode(input: {
       if (!removed.some((p) => p.length === params.length && p.every((t, i) => simple(t) === params[i])))
         continue;
     }
-    const file = resolve(cls, src);
+    const file = src ? resolve(cls, src) : null;
     if (!file) {
       unresolved++;
       continue;
@@ -184,10 +191,13 @@ export function locateBytecode(input: {
               },
             ]
           : []),
+        ...(sourceless
+          ? [{ reason: "classes compiled without source file names (-g:none)", count: sourceless }]
+          : []),
       ],
       languages: ["java", "kotlin"],
       resolutionLevel: "type",
-      unresolvedSites: unresolved + uncompiled.length,
+      unresolvedSites: unresolved + uncompiled.length + sourceless,
       transitiveAnalysed: false,
     },
   };

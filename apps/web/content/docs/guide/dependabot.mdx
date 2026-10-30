@@ -15,7 +15,9 @@ If your repository already has `.github/dependabot.yml`, Teire reads it on every
 | `cooldown` | Waits that many days per update type (`semver-major-days`, …), with its `include` and `exclude` lists |
 | `versioning-strategy` | `widen` and `increase` as Teire's `upgrades.versioning`; `lockfile-only` keeps every target inside your range |
 | `open-pull-requests-limit: 0` | Version updates off for that ecosystem; security fixes still open |
-| `groups`, `vendor`, `exclude-paths`, `commit-message`, `insecure-external-code-execution` | Passed to dependabot-core's updater, which Teire runs for the dependency-file change |
+| `commit-message` | The prefix on Teire's commit and pull request title (`prefix-development` for a development dependency), with `(deps)` or `(deps-dev)` when `include: scope` is set; after a lowercase prefix the title starts lowercase, `chore(deps): upgrade zod from 3.23.8 to 4.1.0` |
+| `labels` | The labels on Teire's pull request, for the entry that covers its directory |
+| `groups`, `vendor`, `exclude-paths`, `insecure-external-code-execution` | Passed to dependabot-core's updater, which Teire runs for the dependency-file change |
 | `registries` | Read with the credentials saved in [Private registries](/docs/guide/private-registries) |
 
 ## When teire.yml says otherwise
@@ -27,6 +29,18 @@ cooldown: teire.yml's upgrades.cooldownDays is used, not .github/dependabot.yml'
 ```
 
 Settings Teire doesn't apply are listed too, in the scan's coverage, never dropped silently: `multi-ecosystem-groups` (Teire opens one pull request per package), `assignees`, `reviewers`, `milestone` and `pull-request-branch-name`.
+
+## Commit messages
+
+With no prefix in `teire.yml` or `dependabot.yml`, Teire follows the style of your repository's last 100 commits by people (merges and bots left out), as Dependabot does:
+
+| Over 30% of them look like | Teire's prefix |
+|---|---|
+| Conventional Commits (`feat: …`, `fix(api): …`) | The type your own dependency commits use, else `build(deps): `, or `chore(deps): ` when you use `chore` and never `build` |
+| ESLint style (`Fix: …`, `Update: …`) | `Upgrade: ` |
+| gitmoji (`✨ …`, `:bug: …`) | `⬆️ ` |
+
+Every commit ends with the `updated-dependencies` block that `dependabot/fetch-metadata` reads, so auto-merge workflows built on it work with Teire's pull requests too. fetch-metadata checks the author by default; set `skip-verification: true` for Teire's.
 
 ## Dependabot's own pull requests
 

@@ -111,6 +111,49 @@ function listSources(root: string, skipped: Map<string, number>) {
   return out;
 }
 
+const CONFIG_FILE =
+  /^(?:\.(?:eslint|babel|prettier|stylelint|swc|postcss|lintstaged|mocha|nyc|commitlint|remark|browserslist)rc(?:\..+)?|.+\.(?:json|jsonc|ya?ml|toml))$/;
+const NOT_CONFIG =
+  /^(?:package(?:-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|composer\.lock)$/;
+
+/**
+ * Config files that load the package by name (S19 review B11): an ESLint plugin (`plugin:react/…`
+ * for `eslint-plugin-react`), a Babel preset, a PostCSS or Prettier plugin. A use there isn't in the
+ * source the type checker reads, so each file that names it is a site Teire can't resolve.
+ */
+function configMentions(root: string, packageName: string) {
+  const eslint = /^(?:(@[^/]+)\/)?eslint-plugin(?:-(.+))?$/.exec(packageName);
+  const short = eslint
+    ? eslint[1] && eslint[2]
+      ? `${eslint[1]}/${eslint[2]}`
+      : (eslint[1] ?? eslint[2])
+    : null;
+  const babel = /^@babel\/(preset|plugin)-(.+)$/.exec(packageName);
+  const names = [
+    packageName,
+    ...(short ? [`plugin:${short}/`] : []),
+    ...(babel ? [`@babel/${babel[2]}`] : []),
+  ];
+  const re = new RegExp(
+    `["'\\s:](?:${names.map((n) => `${escapeRegExp(n)}${n.endsWith("/") ? "" : `(?:["'/\\s,]|$)`}`).join("|")})`,
+    "m",
+  );
+  let count = 0;
+  const walk = (dir: string, depth: number) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isSymbolicLink()) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (depth < 4 && !SKIP_DIRS.has(entry.name)) walk(full, depth + 1);
+      } else if (entry.isFile() && CONFIG_FILE.test(entry.name) && !NOT_CONFIG.test(entry.name)) {
+        if (lstatSync(full).size <= MAX_FILE_BYTES && re.test(readFileSync(full, "utf8"))) count++;
+      }
+    }
+  };
+  walk(root, 0);
+  return count;
+}
+
 function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -369,6 +412,13 @@ export function locateTs(input: LocateInput): LocateResult {
     if (!found && quoted.test(sf.getFullText())) mentions++;
   }
   unresolved += importsTotal - importsResolved + mentions;
+  if (!hits.length && importsTotal === 0 && mentions === 0) {
+    const configs = configMentions(projectDir, input.packageName);
+    if (configs) {
+      unresolved += configs;
+      skipped.set("config files that load it by name", configs);
+    }
+  }
   return {
     hits,
     imports,

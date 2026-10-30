@@ -212,6 +212,8 @@ export const scans = pgTable(
     upgrades: jsonb("upgrades").$type<ScanUpgrade[]>(),
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }),
+    /** A running scan's last sign of life: the reaper measures silence, not age (S19 review B4). */
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
