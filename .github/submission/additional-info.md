@@ -4,11 +4,11 @@ Prepared against the live Devpost form on 2026-10-30. The ratings are proposed a
 
 ## Submitter Type
 
-Owner confirmation pending.
+Individual (confirmed by the owner on 2026-10-30).
 
 ## Organization Name (if applicable)
 
-N/A if submitted as an individual or an unincorporated team; use the actual registered name only if submitting as an organization.
+N/A (individual entry).
 
 ## Submitter Country of Residence
 
@@ -80,7 +80,7 @@ Yes (already selected). Teire calls Tavily Search to find a discovered provider'
 
 ## Builders & Brews - IRL Events City
 
-The form currently says London. Keep it only if the owner attended the London event; otherwise clear it.
+Clear London. The owner confirmed they did not attend that event on 2026-10-30.
 
 ## Age of majority and Promotion Entities declarations
 

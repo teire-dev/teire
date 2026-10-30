@@ -3,7 +3,9 @@
 useDefault = true
 
 [allowlist]
-description = "Published checksums and Go pseudo-versions, not secrets"
+description = "Published checksums, Go pseudo-versions and test fixtures' fake credentials, not secrets"
+# Fake credentials that test the redactor and registry URL cleaning; never real ones.
+paths = ['''packages/engine/test/(redact|private-registries)\.test\.ts''']
 regexTarget = "line"
 regexes = [
   # japicmp's jar SHA-1, as Maven Central publishes it (Dockerfile ARG and the engine constant).

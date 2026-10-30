@@ -61,6 +61,13 @@
           "type": "string"
         }
       }
+    },
+    "role": {
+      "type": "string",
+      "enum": ["parent", "bom", "plugin", "extension", "wrapper"]
+    },
+    "managedBy": {
+      "type": "string"
     }
   },
   "required": [
