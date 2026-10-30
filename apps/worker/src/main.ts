@@ -168,8 +168,13 @@ async function main() {
         }, RUNS.dashboardSyncMs),
       );
     };
-    shutdownHooks.push(async () => {
+    // A deploy runs what is pending instead of dropping it: an hour later the same state wouldn't
+    // schedule it again. After the queue stops, so the runs it lets finish are in it too.
+    drainHooks.push(async () => {
+      const pending = [...dashboardTimers.keys()];
       for (const t of dashboardTimers.values()) clearTimeout(t);
+      dashboardTimers.clear();
+      await Promise.allSettled(pending.map((repoId) => syncDashboard(ctx, repoId)));
     });
     // key_strict_fifo holds a repo's queue behind a failed job, so these handlers never throw:
     // failures live on the scan and run rows.
@@ -200,6 +205,8 @@ async function main() {
             // and boot sweep bring it back the same way.
             const before = await getRun(db, job.data.runId);
             const kind = before?.kind;
+            // Once it is running the issue says "Fixing…"; the debounce folds a short run into one edit.
+            if (before && kind !== "dry_run") dashboardSoon(before.repoId);
             const result =
               kind === "reverify"
                 ? await reverifyRun(ctx, job.data.runId)
@@ -268,12 +275,15 @@ async function main() {
 }
 
 const shutdownHooks: (() => Promise<void>)[] = [];
+/** Run once the queue has stopped (its last jobs done), before the database closes. */
+const drainHooks: (() => Promise<void>)[] = [];
 
 async function shutdown(signal: string) {
   console.log(`[worker] ${signal}: stopping`);
   server.close();
   for (const hook of shutdownHooks) await hook().catch(() => undefined);
   await boss.stop({ graceful: true, timeout: 30_000 });
+  for (const hook of drainHooks) await hook().catch(() => undefined);
   await pool.end();
   process.exit(0);
 }

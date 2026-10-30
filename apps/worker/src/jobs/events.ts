@@ -183,7 +183,11 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       // Detected too: a repository whose scan found it empty, or found nothing Teire reads, is scanned
       // again when that changes (its first commits, a manifest added), and its onboarding PR follows.
       if (!repo || !["active", "onboarding", "detected"].includes(repo.status)) return;
-      if (p.ref !== `refs/heads/${repo.defaultBranch}`) return;
+      // The default branch as this push reports it: an empty repository's first push makes its branch
+      // the default, whatever the scan of the empty repository stored.
+      const defaultBranch: string = p.repository?.default_branch ?? repo.defaultBranch;
+      if (defaultBranch !== repo.defaultBranch) await setRepo(db, repo.id, { defaultBranch });
+      if (p.ref !== `refs/heads/${defaultBranch}`) return;
       const touched = (
         (p.commits ?? []) as { added?: string[]; modified?: string[]; removed?: string[] }[]
       ).some((c) =>

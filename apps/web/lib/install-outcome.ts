@@ -15,6 +15,7 @@ export function installOutcome(
   coverage: OutcomeCoverage | null | undefined,
   repo: { status: string; pausedReason: string | null },
 ) {
+  if (repo.status === "disabled") return null;
   if ((repo.status === "paused" && repo.pausedReason === "archived") || coverage?.skipped === "archived")
     return {
       label: "Archived on GitHub",

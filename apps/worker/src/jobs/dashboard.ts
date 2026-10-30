@@ -368,7 +368,11 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
     scanId: latest[0]?.id ?? null,
   });
   if (existing?.number && existing.state === "open") {
-    await octokit.rest.issues.update({ owner, repo: name, issue_number: existing.number, body });
+    // Unchanged: no edit, so no API write and no `issues.edited` back to Teire. A person's tick
+    // changed the body on GitHub, so after one the reset still goes out.
+    const { data: now } = await octokit.rest.issues.get({ owner, repo: name, issue_number: existing.number });
+    if (now.body !== body)
+      await octokit.rest.issues.update({ owner, repo: name, issue_number: existing.number, body });
     return existing.number;
   }
   // A repo with Issues turned off keeps its Dashboard on the Teire dashboard only (card C1).

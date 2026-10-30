@@ -51,6 +51,7 @@ export function runStateLabel(status: string, step: string | null) {
   if (step?.includes("PR limit")) return "Waiting · PR limit";
   if (step?.startsWith("paused")) return "Held · paused";
   if (step?.includes("security")) return "Waiting · security first";
+  if (step?.includes("model budget")) return "Waiting · model budget";
   return "Queued";
 }
 
