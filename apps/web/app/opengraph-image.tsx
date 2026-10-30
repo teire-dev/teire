@@ -6,7 +6,7 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 /**
- * The site's link preview (plan revision 3.4, V1/B12): the hero's navy band, the promise, and the real
+ * The site's link preview (plan revision 3.4, V1/B12): the hero's graphite band, the promise, and the real
  * run's stations as tiles with their figures, from the committed snapshot.
  */
 const STATIONS = [

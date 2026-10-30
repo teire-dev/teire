@@ -63,8 +63,8 @@ const NAV = [
 ] as const;
 
 /**
- * The section you are in: navy text on a raised sheet with a chartreuse marker bar at its edge (plan
- * revision 3.4, V4); the olive hairline keeps the chartreuse visible on white.
+ * The section you are in: ink text on a raised sheet with a lime marker bar at its edge (plan
+ * revision 3.4, V4); the olive hairline keeps the lime visible on white.
  */
 const ACTIVE =
   "relative before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-cta before:opacity-0 before:shadow-[0_0_0_1px_var(--cta-edge)] before:transition-opacity data-[active=true]:bg-sheet data-[active=true]:font-medium data-[active=true]:text-ink data-[active=true]:shadow-tile data-[active=true]:before:opacity-100";

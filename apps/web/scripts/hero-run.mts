@@ -43,7 +43,7 @@ interface Sheet {
     }[];
     after?: { name: string; exitCode: number | null; counts: { passed: number; collected: number } | null }[];
   } | null;
-  events: { seq: number; at: string; step: string; type: string }[];
+  events: { seq: number; at: string; step: string; type: string; payload: unknown }[];
   calls: { purpose: string; model: string; costUsd: string }[];
   reach: { sites: number | null; advisory: boolean };
 }
@@ -75,6 +75,18 @@ const heroPr = await pr(sheet.repo.fullName, sheet.artifact.number as number);
 const advisory = heroPr.body?.match(
   /\[(GHSA-[\w-]+)\]\([^)]*\)[^\n]*\((critical|high|moderate|medium|low)\)/i,
 );
+
+// The first checks after the upgrade, before the agent touched the code: "after: typecheck exit 2 in
+// 3715 ms (4 TS errors)", "after: test exit 1 in 1910 ms (1/4 passed)".
+const firstAgent = sheet.events.find((e) => e.step === "agent")?.seq ?? Number.POSITIVE_INFINITY;
+const broke: Record<string, { exit: number; said: string | null }> = {};
+for (const e of sheet.events) {
+  if (e.seq > firstAgent || e.step !== "check") continue;
+  const said = (e.payload as { detail?: string } | null)?.detail ?? "";
+  const m = /^after: (\w+) exit (\d+) in \d+ ms(?: \((.+)\))?/.exec(said);
+  if (m?.[1] && m[2] !== "0" && !broke[m[1]]) broke[m[1]] = { exit: Number(m[2]), said: m[3] ?? null };
+}
+if (!broke.typecheck && !broke.test) throw new Error("the hero run must show what the upgrade broke");
 
 // The updater: from its first event to the first install/baseline event after it.
 const at = (step: string) => sheet.events.find((e) => e.step === step)?.at;
@@ -191,6 +203,9 @@ const snapshot = {
     srcRemoved,
     peek,
   },
+  // What the upgrade broke before the fix (the hero card's red column): the first failing "after:"
+  // check lines, logged before the agent's first step.
+  broke,
   checks: {
     tests: { before: tests("baseline"), after: tests("after") },
     typecheck: {

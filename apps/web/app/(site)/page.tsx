@@ -9,6 +9,7 @@ import { Connector } from "@/components/flow/static-flow";
 import { TileLabel, TileSquare } from "@/components/flow/tile";
 import { GithubMark } from "@/components/icons";
 import { CopyCommand } from "@/components/landing/copy-command";
+import { ProofCard } from "@/components/landing/proof-card";
 import { Reveal, ScrollSpine } from "@/components/landing/scroll-flow";
 import { Button } from "@/components/ui/button";
 import { ECOSYSTEMS, SPONSORS, STACK } from "@/lib/brands";
@@ -66,49 +67,54 @@ export default function Home() {
       <section data-hero className="relative isolate -mt-16 overflow-hidden bg-hero pt-16 text-hero-ink">
         <HeroShader className="absolute inset-0 -z-10" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-b from-transparent to-hero-2/30" />
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-center gap-4 px-4 pt-5 pb-[4.5rem] text-center sm:min-h-[min(50vh,476px)] sm:gap-5 sm:pt-8 sm:pb-16">
-          <Link
-            href={hero.run.href}
-            className="group inline-flex items-center gap-2 rounded-full bg-white/8 py-1 pr-3 pl-1 text-[13px] text-hero-ink-2 shadow-[inset_0_0_0_1px_var(--hero-rule)] backdrop-blur transition-colors hover:text-hero-ink"
-          >
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-hero-ink">
-              <span className="size-1.5 rounded-full bg-hero-proven" />
-              Live proof
-            </span>
-            {hero.repo} · PR #{hero.pr.number}
-            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-          <h1 className="display max-w-4xl text-[34px] text-hero-ink sm:text-6xl md:text-[64px]">
-            When upstream breaks, Teire fixes your code.
-          </h1>
-          <p className="max-w-xl text-[15px] text-hero-ink-2 sm:text-[17px]">
-            Found, fixed by Nemotron, proven by your own tests.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button asChild variant="cta" size="xl" shape="pill">
-              <a href={INSTALL_URL}>
-                <GithubMark className="size-4" />
-                Install on GitHub
-              </a>
-            </Button>
-            <Button asChild variant="hero" size="xl" shape="pill">
-              <Link href="/scan">
-                Scan a repo
-                <ArrowRight data-icon="inline-end" />
-              </Link>
-            </Button>
-          </div>
-          <div className="hidden flex-wrap items-center justify-center gap-4 sm:flex">
-            <CopyCommand command="npx teire-cli scan" tone="hero" />
-            <a
-              href={NPM_URL}
-              className="inline-flex items-center gap-2 text-sm text-hero-ink-2 transition-colors hover:text-hero-ink"
+        {/* The thumbnail the owner chose (revamp S4): the promise on the left, the real run's proof on
+            the right, the pen's ring on what passed. */}
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-10 px-4 pt-6 pb-[4.5rem] sm:pt-10 sm:pb-20 lg:grid-cols-[minmax(0,1fr)_480px] lg:gap-6">
+          <div className="flex flex-col items-center gap-5 text-center lg:items-start lg:text-left">
+            <Link
+              href={hero.run.href}
+              className="group inline-flex items-center gap-2 rounded-full bg-white/8 py-1 pr-3 pl-1 text-[13px] text-hero-ink-2 shadow-[inset_0_0_0_1px_var(--hero-rule)] backdrop-blur transition-colors hover:text-hero-ink"
             >
-              <BrandLogo light={ECOSYSTEMS.npm.light} alt="" className="h-4" />
-              View teire-cli on npm
-              <ArrowUpRight className="size-3.5" />
-            </a>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-hero-ink">
+                <span className="size-1.5 rounded-full bg-hero-proven" />
+                Live proof
+              </span>
+              {hero.repo} · PR #{hero.pr.number}
+              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <h1 className="display max-w-2xl text-[34px] leading-[1.02] text-hero-ink min-[400px]:text-[40px] sm:text-6xl lg:text-[68px]">
+              When upstream breaks, <em className="font-normal text-cta italic">Teire fixes your code.</em>
+            </h1>
+            <p className="max-w-xl text-[15px] text-hero-ink-2 sm:text-[17px]">
+              Dependabot bumps the version. Teire fixes the code it breaks, and proves it with your own tests.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+              <Button asChild variant="cta" size="xl" shape="pill">
+                <a href={INSTALL_URL}>
+                  <GithubMark className="size-4" />
+                  Install on GitHub
+                </a>
+              </Button>
+              <Button asChild variant="hero" size="xl" shape="pill">
+                <Link href="/scan">
+                  Scan a repo
+                  <ArrowRight data-icon="inline-end" />
+                </Link>
+              </Button>
+            </div>
+            <div className="hidden flex-wrap items-center gap-4 sm:flex">
+              <CopyCommand command="npx teire-cli scan" tone="hero" />
+              <a
+                href={NPM_URL}
+                className="inline-flex items-center gap-2 text-sm text-hero-ink-2 transition-colors hover:text-hero-ink"
+              >
+                <BrandLogo light={ECOSYSTEMS.npm.dark} alt="" className="h-4" />
+                View teire-cli on npm
+                <ArrowUpRight className="size-3.5" />
+              </a>
+            </div>
           </div>
+          <ProofCard className="mx-auto" />
         </div>
       </section>
 

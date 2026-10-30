@@ -5,8 +5,8 @@ import type * as React from "react";
 
 /**
  * Buttons on the 3.4 tokens. Two primaries with separate jobs (plan 3.4, A5/B8):
- * - `default` is navy: every action inside the app, calm in dense screens;
- * - `cta` is the chartreuse pill with its olive edge, only at CTA size (`lg`/`xl`): Install, Scan,
+ * - `default` is ink: every action inside the app, calm in dense screens;
+ * - `cta` is the lime pill with its olive edge, only at CTA size (`lg`/`xl`): Install, Scan,
  *   Sign in, Continue. Its label carries the contrast (11.7:1), its edge the 3:1 boundary.
  * Focus is one signal ring with an offset on every variant.
  */
@@ -24,7 +24,7 @@ const buttonVariants = cva(
         destructive:
           "bg-broke-soft text-broke hover:bg-[color-mix(in_oklab,var(--broke-soft),var(--broke)_10%)] focus-visible:ring-broke",
         link: "text-link underline-offset-4 hover:underline",
-        // On the navy hero band: ice-white ghost pill.
+        // On the graphite hero band: a light ghost pill.
         hero: "bg-white/8 text-hero-ink shadow-[inset_0_0_0_1px_var(--hero-rule)] hover:bg-white/14",
       },
       shape: {

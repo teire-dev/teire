@@ -29,7 +29,7 @@ const STEPS = [
 ] as const;
 
 /**
- * Scan a public repository (plan revision 3.4, V5): the form on the navy band with its limits as
+ * Scan a public repository (plan revision 3.4, V5): the form on the graphite band with its limits as
  * chips, what a scan does as a flow, and recent reports as cards.
  */
 export default function ScanPage() {

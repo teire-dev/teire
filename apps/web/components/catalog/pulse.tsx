@@ -80,7 +80,7 @@ export function watchedOf(
   return [...fromPages, ...fromCatalog].sort((a, b) => (b.checked ?? "").localeCompare(a.checked ?? ""));
 }
 
-/** The navy band: what Teire watches, each source's last check, and the catalog in three figures. */
+/** The graphite band: what Teire watches, each source's last check, and the catalog in three figures. */
 export function WatchBand({
   watched,
   total,

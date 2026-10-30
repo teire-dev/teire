@@ -2,7 +2,7 @@ import type { BaseLayoutProps, LinkItemType } from "fumadocs-ui/layouts/shared";
 import { LogoMark } from "@/components/logo";
 import { SOURCE_URL } from "./site";
 
-/** The one filled action in the docs bar: the site's chartreuse call to action. */
+/** The one filled action in the docs bar: the site's lime call to action. */
 const openApp: LinkItemType = {
   type: "custom",
   secondary: true,

@@ -4,8 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 /**
- * Marks `<html data-over-hero>` while a navy hero band (`[data-hero]`) sits under the floating header,
- * so the header turns transparent with ice-white ink there and back to its white pill after it.
+ * Marks `<html data-over-hero>` while the graphite hero band (`[data-hero]`) sits under the floating header,
+ * so the header turns to dark glass with light ink there and back to its sheet pill after it.
  */
 export function HeaderTone() {
   const path = usePathname();

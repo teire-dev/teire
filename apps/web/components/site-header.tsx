@@ -21,7 +21,7 @@ import { NAV } from "@/lib/site";
 
 /**
  * The floating pill bar on every page (plan revision 3.4, V1): home, the public sections, theme and
- * the person's menu. Over a navy hero band it turns transparent with ice-white ink (`over-hero`); on
+ * the person's menu. Over the graphite hero band it turns to dark glass with light ink (`over-hero`); on
  * phones the sections move into a sheet.
  */
 export function SiteHeader() {

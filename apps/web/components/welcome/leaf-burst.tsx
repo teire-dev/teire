@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Onboarding's finish (plan revision 3.4, V2 step 6: "the mark draws its leaf, a short burst"): the
- * check stroke draws, the leaf grows from its stem, then eight chartreuse sparks fly out once and
+ * check stroke draws, the leaf grows from its stem, then eight lime sparks fly out once and
  * fade. Under reduced motion it is the still mark.
  */
 const SPARKS = Array.from({ length: 8 }, (_, i) => (i / 8) * Math.PI * 2);

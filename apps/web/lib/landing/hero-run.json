@@ -1,5 +1,5 @@
 {
-  "takenAt": "2026-10-29T12:07:42.451Z",
+  "takenAt": "2026-10-30T14:17:09.223Z",
   "run": {
     "id": "d1b0c4d8-a46e-4e9d-b057-30b6d12be23b",
     "href": "/runs/d1b0c4d8-a46e-4e9d-b057-30b6d12be23b",
@@ -70,6 +70,16 @@
           "text": ""
         }
       ]
+    }
+  },
+  "broke": {
+    "typecheck": {
+      "exit": 2,
+      "said": "4 TS errors"
+    },
+    "test": {
+      "exit": 1,
+      "said": "1/4 passed"
     }
   },
   "checks": {

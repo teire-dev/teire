@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /**
  * A beam between two elements (21st.dev "Animated Beam", dillionverma, id 919, Magic UI). Adapted for
  * Teire (plan revision 3.4): `motion/react` instead of framer-motion, a fixed duration (the original's
- * random default breaks hydration), the signal → chartreuse gradient from the tokens, and a still path
+ * random default breaks hydration), the signal → lime gradient from the tokens, and a still path
  * under reduced motion. For two-to-four-party connections only (sign-in, the install gate, empties).
  */
 export function AnimatedBeam({

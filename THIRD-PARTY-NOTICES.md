@@ -29,3 +29,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Virgil
+
+The hand-drawn note on the landing page's proof card uses the Virgil font by Ellinor Rapp (Excalidraw),
+https://github.com/excalidraw/virgil, unmodified at `apps/web/app/fonts/Virgil.woff2`, under the SIL
+Open Font License 1.1. Its licence, with the copyright notice, is at `apps/web/app/fonts/Virgil-OFL.md`.
+
+## Rough.js
+
+The proof card's pen strokes (`apps/web/lib/landing/pen.json`) were drawn once with Rough.js by Preet
+Shihn, https://github.com/rough-stuff/rough (MIT); the page ships only the resulting SVG paths.

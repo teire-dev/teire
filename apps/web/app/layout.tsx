@@ -9,7 +9,12 @@ import "./globals.css";
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 // The display serif (plan 3.4: Antimetal's Ivar Text role), only on public headlines at 32px and up.
-const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], display: "swap" });
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.BETTER_AUTH_URL ?? "https://teire.vercel.app"),

@@ -2,7 +2,7 @@ import { generateOGImage } from "fumadocs-ui/og";
 import { notFound } from "next/navigation";
 import { getPageImage, source } from "@/lib/source";
 
-/** A docs page's link preview: its title and description on the hero navy, the chartreuse accent (3.4). */
+/** A docs page's link preview: its title and description on the hero graphite, the lime accent (3.4). */
 export async function GET(_req: Request, { params }: RouteContext<"/og/docs/[...slug]">) {
   const { slug } = await params;
   const page = source.getPage(slug.slice(0, -1));

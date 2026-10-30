@@ -367,7 +367,7 @@
 
 /*
  * The docs sidebar's active page as the app's sidebar marks it (plan revision 3.4, B8 and V6): a sheet
- * row in ink with the chartreuse bar on its left edge, not a tinted row in blue.
+ * row in ink with the lime bar on its left edge, not a tinted row in blue.
  */
 :is(#nd-sidebar, #nd-sidebar-mobile) a[data-active="true"] {
   position: relative;
