@@ -1,0 +1,21 @@
+# Install journeys (plan item 14): repositories Teire can't onboard the usual way, each with what it
+# must do. Teire Bot is installed on all of teire-dev, so each is picked up the moment it exists.
+# Built 2026-10-30; sources in the hackathon folder's journeys/ until they're published.
+journeys:
+  - repo: teire-dev/journey-empty
+    contents: nothing, no commit
+    expected: a stored scan with outcome "empty"; no onboarding PR (card C1)
+  - repo: teire-dev/journey-archived
+    contents: a small npm project (zod 4.6.7, lockfile, two tests), archived right after its first push
+    expected: a stored scan with outcome "archived"; no onboarding PR, since an archived repository is read-only (card C1)
+    note: if Teire's scan ran before the archive, its onboarding PR exists and can't be merged; record which happened
+  - repo: teire-dev/journey-clean
+    contents: zod 4.6.7 (the latest), a lockfile, two passing tests
+    expected: an onboarding PR with the inventory and no upgrades to open
+  - repo: teire-dev/journey-unsupported
+    contents: a plain C program and a Makefile
+    expected: no onboarding PR; the scan says nothing it reads is here and lists what it searched for (`nothingReadable`)
+  - repo: teire-dev/demo-android
+    contents: an Android library on OkHttp 3.14.9 (AGP 9.5, Kotlin), created after the install
+    expected: picked up without a click, onboarding PR, then the OkHttp fix verified in the Android image
+    observed_2026_10_30: "onboarding PR #1 opened on its own (OkHttp 3.14.9 → 5.5.1, 13 call sites); merged by the owner"
