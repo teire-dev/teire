@@ -1,0 +1,35 @@
+name: Uptime
+
+# The uptime monitor (plan S21.4): every 15 minutes, the three parts judges and users reach answer.
+# A failed scheduled run is GitHub's own email to the repository's owner.
+#  - the web: /api/health (Token Factory configured; no model call);
+#  - the worker: /trust shows "Worker running" only while its heartbeat is fresh;
+#  - the sandbox Worker: answers at all (any status below 500).
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Web
+        run: |
+          body=$(curl -fsS --max-time 30 https://teire.vercel.app/api/health)
+          echo "$body"
+          echo "$body" | grep -q '"ok":true'
+      - name: Worker heartbeat
+        run: |
+          curl -fsS --max-time 30 https://teire.vercel.app/trust | grep -q "Worker running" \
+            || { echo "/trust doesn't show the worker running: its heartbeat is stale"; exit 1; }
+      - name: Sandbox
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://teire-sandbox.kakure-price-relay.workers.dev/)
+          echo "sandbox answered $code"
+          [ "$code" -lt 500 ]
