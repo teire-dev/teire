@@ -42,6 +42,18 @@ export type ActionStatus =
   | "unknown";
 export const TERMINAL: ReadonlySet<ActionStatus> = new Set(["done", "refused", "failed"]);
 
+/**
+ * What a waiting or running fix is doing, in two words: the web's Findings button and the Dashboard
+ * issue's row both say it, in place of a "Fix now" that would only ask again.
+ */
+export function runStateLabel(status: string, step: string | null) {
+  if (status !== "queued") return "Fixing…";
+  if (step?.includes("PR limit")) return "Waiting · PR limit";
+  if (step?.startsWith("paused")) return "Held · paused";
+  if (step?.includes("security")) return "Waiting · security first";
+  return "Queued";
+}
+
 /** Actions on a whole installation rather than one repository (D126: an org admin or the owner). */
 export const INSTALLATION_ACTIONS: ReadonlySet<ActionKind> = new Set([
   "set-installation-fix-mode",

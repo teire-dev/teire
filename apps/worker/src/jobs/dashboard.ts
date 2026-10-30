@@ -1,4 +1,5 @@
 import { type ScanUpgrade, sql } from "@teire/db";
+import { runStateLabel } from "@teire/engine/actions";
 import { describeFixMode, type EffectiveFixMode } from "@teire/engine/config";
 import { PULL_REQUESTS } from "@teire/engine/constants";
 import { type ChangeV2, type Coverage, lineageKey } from "@teire/engine/contract";
@@ -67,7 +68,12 @@ export interface DashboardInput {
   /** The latest scan, whose flow image the issue opens with. */
   scanId?: string | null;
   /** Runs in progress: what's running, and how many wait and why (Codex walk B14). */
-  queue?: { running: string[]; waiting: { why: string; n: number }[] };
+  queue?: {
+    running: string[];
+    waiting: { why: string; n: number }[];
+    /** Each in-flight change's state in two words (`runStateLabel`), keyed by its group. */
+    states?: Record<string, string>;
+  };
 }
 
 export function composeDashboard(d: DashboardInput) {
@@ -127,7 +133,15 @@ export function composeDashboard(d: DashboardInput) {
   // While fixes are Off a fix can't start, so its row offers no box to tick. Under Ask first the box
   // is how a person asks.
   const off = d.fixMode?.mode === "off";
-  const fixRow = (key: string, text: string) => (off ? `- ${text}` : box("fix", key, text));
+  // A change whose fix is already queued or running says what that fix is doing instead: a tick
+  // would only ask for it twice (the web's Findings button reads the same).
+  const states = d.queue?.states ?? {};
+  const fixRow = (key: string, verb: string, text: string) =>
+    states[key]
+      ? `- ${text} · _${states[key]}_`
+      : off
+        ? `- ${verb}: ${text}`
+        : box("fix", key, `${verb}: ${text}`);
   const sha = d.sha ? `\`${d.sha.slice(0, 7)}\`` : "—";
   const lines = [
     MARKER,
@@ -155,7 +169,7 @@ export function composeDashboard(d: DashboardInput) {
     for (const [k, list] of affected
       .sort((a, b) => (a[1][0]?.priority ?? 9) - (b[1][0]?.priority ?? 9))
       .slice(0, 40))
-      lines.push(fixRow(k, `Fix now: ${label(k, list)}`));
+      lines.push(fixRow(k, "Fix now", label(k, list)));
   else lines.push("Nothing affected right now.");
   lines.push("");
   if (undecided.length) {
@@ -169,7 +183,8 @@ export function composeDashboard(d: DashboardInput) {
       lines.push(
         fixRow(
           k,
-          `Upgrade and check: ${label(k, list)}${list[0]?.reason ? `: ${list[0].reason.slice(0, 160)}` : ""}`,
+          "Upgrade and check",
+          `${label(k, list)}${list[0]?.reason ? `: ${list[0].reason.slice(0, 160)}` : ""}`,
         ),
       );
     lines.push("");
@@ -199,7 +214,8 @@ export function composeDashboard(d: DashboardInput) {
       lines.push(
         fixRow(
           u.groupKey,
-          `Upgrade: ${upgradeLabel(u)}${u.security ? " · security" : ""}${open ? ` · newer than [#${open.number}](${open.url})` : ""}`,
+          "Upgrade",
+          `${upgradeLabel(u)}${u.security ? " · security" : ""}${open ? ` · newer than [#${open.number}](${open.url})` : ""}`,
         ),
       );
     }
@@ -326,10 +342,15 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
           : r.step;
     waitingWhy.set(why, (waitingWhy.get(why) ?? 0) + 1);
   }
+  // A running run's state wins over a queued one's for the same change.
+  const states: Record<string, string> = {};
+  for (const r of [...inFlight].sort((a, b) => Number(a.status !== "queued") - Number(b.status !== "queued")))
+    states[r.group_key] = runStateLabel(r.status, r.step);
   const body = composeDashboard({
     queue: {
       running: inFlight.filter((r) => r.status !== "queued").map((r) => r.group_key),
       waiting: [...waitingWhy].map(([why, n]) => ({ why, n })),
+      states,
     },
     fullName: repo.fullName,
     sha: repo.lastScannedSha,

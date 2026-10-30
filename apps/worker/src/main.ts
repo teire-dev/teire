@@ -1,11 +1,13 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { createDb, createLocalDb, runMigrations, sql, tlsOptions } from "@teire/db";
+import { runStateLabel } from "@teire/engine/actions";
 import { CONTRIBUTED } from "@teire/engine/catalog";
 import { RUNS } from "@teire/engine/constants";
 import { createGitHubApp, githubAppConfigFromEnv } from "@teire/engine/github";
 import { CreditsExhaustedError } from "@teire/engine/llm";
 import { PgBoss } from "pg-boss";
+import { syncDashboard } from "./jobs/dashboard";
 import { handleDelivery, reconcileInstallation } from "./jobs/events";
 import { fixRun } from "./jobs/fix";
 import { publicScan } from "./jobs/public";
@@ -36,6 +38,10 @@ const boss = new PgBoss({
 boss.on("error", (error) => console.error("[pg-boss]", error));
 
 const startedAt = new Date();
+
+const IN_FLIGHT = new Set(["queued", "running", "stopping"]);
+const runState = (r: { status: string; step: string | null }) =>
+  IN_FLIGHT.has(r.status) ? runStateLabel(r.status, r.step) : r.status;
 
 /** /live: the process answers (Coolify container health). /health: dependencies answer. */
 const server = createServer(async (req, res) => {
@@ -177,12 +183,18 @@ async function main() {
           try {
             // A re-verify (U2) shares the fix queue: one job per repository at a time, and the reaper
             // and boot sweep bring it back the same way.
-            const kind = (await getRun(db, job.data.runId))?.kind;
+            const before = await getRun(db, job.data.runId);
+            const kind = before?.kind;
             const result =
               kind === "reverify"
                 ? await reverifyRun(ctx, job.data.runId)
                 : await fixRun(ctx, job.data.runId);
             console.log(kind === "reverify" ? "[reverify]" : "[fix]", job.data.runId, JSON.stringify(result));
+            // The Dashboard issue says what each fix is doing, so it follows the run when that changes:
+            // now waiting for the PR limit, or ended without a PR (its row offers "Fix now" again).
+            const after = await getRun(db, job.data.runId);
+            if (before && after && kind !== "dry_run" && runState(before) !== runState(after))
+              await syncDashboard(ctx, after.repoId).catch(() => undefined);
           } catch (error) {
             console.error("[fix] failed", job.data.runId, error);
           }

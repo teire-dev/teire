@@ -119,6 +119,23 @@ describe("Dashboard issue", () => {
     expect(body).not.toContain("teire:fix=models/openai");
   });
 
+  it("says what a queued or running fix is doing instead of offering Fix now again", () => {
+    const body = composeDashboard({
+      ...base,
+      findings: [finding({})],
+      artifacts: [],
+      queue: {
+        running: [],
+        waiting: [{ why: "waiting for the PR limit", n: 1 }],
+        states: { "npm/openai/5.23.2": "Waiting · PR limit" },
+      },
+    });
+    expect(body).toContain(
+      "- **openai 5.23.2 removes 3 API(s)** — 1 site · priority 2 · _Waiting · PR limit_",
+    );
+    expect(body).not.toContain("teire:fix=npm/openai/5.23.2");
+  });
+
   it("acts only on boxes that went from empty to ticked", () => {
     const before =
       "- [ ] <!-- teire:rescan=now --> Rescan now\n- [x] <!-- teire:fix=npm/a/2.0.0 --> Fix now\n- [ ] <!-- teire:unignore=b --> Unignore";

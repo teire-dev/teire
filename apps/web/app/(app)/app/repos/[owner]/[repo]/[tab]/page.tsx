@@ -1,6 +1,6 @@
 import type { ScanUpgrade } from "@teire/db";
 import { inArray, runs } from "@teire/db";
-import { type ActionKind, describeAction } from "@teire/engine/actions";
+import { type ActionKind, describeAction, runStateLabel } from "@teire/engine/actions";
 import { CONFIG_PR_KEYS } from "@teire/engine/config-keys";
 import { lineageKey } from "@teire/engine/contract";
 import {
@@ -243,7 +243,7 @@ async function Findings({
             ) : run && ["queued", "running", "stopping"].includes(run.status) ? (
               // Already on its way: the button says where, never "Fix now" over a waiting run.
               <Button asChild size="sm" variant="outline" title={run.step ?? undefined}>
-                <Link href={`/runs/${run.id}`}>{runButtonLabel(run.status, run.step)}</Link>
+                <Link href={`/runs/${run.id}`}>{runStateLabel(run.status, run.step)}</Link>
               </Button>
             ) : g.key.startsWith("runtime/") ? null : (
               <ActionButton
@@ -856,13 +856,4 @@ function Activity({ data }: { data: Data }) {
       ) : null}
     </div>
   );
-}
-
-/** What a finding's waiting or running run is doing, in two words. */
-function runButtonLabel(status: string, step: string | null) {
-  if (status !== "queued") return "Fixing…";
-  if (step?.includes("PR limit")) return "Waiting · PR limit";
-  if (step?.startsWith("paused")) return "Held · paused";
-  if (step?.includes("security")) return "Waiting · security first";
-  return "Queued";
 }
