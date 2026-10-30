@@ -10,19 +10,20 @@
 @source "../node_modules/streamdown/dist/*.js";
 
 /*
- * Teire tokens (plan revision 3.4, "show, don't tell"; reference lock: Antimetal, n8n's canvas).
- * Daylight product on a cool canvas, navy ink at every level (never black), one dark band at most per
- * page. Colour has one job each:
- *   cta        the primary action's fill (CTA-size buttons only), navy text on it, a 3:1 olive edge;
- *   signal     Teire is acting: a live tile, the dot travelling an edge, progress, the assistant, focus;
+ * Teire tokens (revamp 2026-10-30: graphite + lime, from the demo film; reference lock: ClickHouse for
+ * dark, Travelperk for light). Warm cream and warm ink on light, graphite on dark, one accent. Colour
+ * has one job each:
+ *   cta        the primary action's lime fill (CTA-size buttons only), ink text on it, an olive edge;
+ *   signal     Teire is acting: a live tile, the dot travelling an edge, progress, the assistant, focus,
+ *              links (olive on light, where lime can't be text; lime on dark);
  *   proven     verified evidence;   attention  a draft, a person needed, a deadline;
  *   broke      a regression or a failure.
- * Logos carry identity, colour carries state. Switches, checkboxes and selected items are navy.
+ * Logos carry identity, colour carries state. Switches, checkboxes and selected items are ink.
  * shadcn's and the earlier status names alias onto these so Fumadocs and every primitive keep working.
  */
 /* Dark inside `.dark`, except inside a region pinned `.light` within it (the kit's side-by-side boards). */
 @custom-variant dark (&:where(.dark, .dark *):not(:where(.dark .light, .dark .light *)));
-/* The site header while it floats over a navy hero band (set by components/header-tone.tsx). */
+/* The site header while it floats over the graphite hero band (set by components/header-tone.tsx). */
 @custom-variant over-hero (&:where(html[data-over-hero] *));
 
 @theme inline {
@@ -43,8 +44,8 @@
   --color-attention-soft: var(--attention-soft);
   --color-broke: var(--broke);
   --color-broke-soft: var(--broke-soft);
-  /* The mark's navy: the same in both themes, like any logo. */
-  --color-brand: #1b2540;
+  /* The mark's graphite: the same in both themes, like any logo. */
+  --color-brand: #17191e;
   --color-cta: var(--cta);
   --color-cta-ink: var(--cta-ink);
   --color-cta-hover: var(--cta-hover);
@@ -54,6 +55,7 @@
   --color-hero-ink: var(--hero-ink);
   --color-hero-ink-2: var(--hero-ink-2);
   --color-hero-proven: var(--hero-proven);
+  --color-hero-broke: var(--hero-broke);
   --color-hero-rule: var(--hero-rule);
   --color-console: var(--console);
   --color-console-2: var(--console-2);
@@ -198,96 +200,116 @@
 .light {
   /* 10px controls; 16px cards, panels and tiles; 20px feature cards; pills for buttons and chips. */
   --radius: 0.625rem;
-  --canvas: #f8f9fc;
+  /* Warm cream ground, white cards, warm near-black ink: warm greys only, never a blue cast. */
+  --canvas: #f5f5ef;
   --sheet: #ffffff;
-  --sunken: #f1f4f9;
-  --ink: #1b2540;
-  --ink-2: #4a5470;
-  --ink-3: #5e677f;
-  --rule: #e3e7f0;
-  --rule-strong: #cdd4e2;
-  --hover: #eef1f7;
+  --sunken: #efefe7;
+  --ink: #14140f;
+  --ink-2: #55554c;
+  --ink-3: #6e6e64;
+  --rule: #e2e2d8;
+  --rule-strong: #d2d2c8;
+  --hover: #ecece3;
   /* Series colours for charts only (usage by purpose): never a state, so no green, amber or red. */
-  --chart-1: #0047e0;
-  --chart-2: #7b93f5;
-  --chart-3: #0e9aa7;
-  --chart-4: #a463d6;
-  --chart-5: #94a0bb;
-  --signal: #0047e0;
-  --signal-soft: #e8efff;
-  --proven: #0b7a4b;
-  --proven-soft: #e5f5ee;
-  --attention: #a65200;
-  --attention-soft: #fdf2e2;
+  --chart-1: #5b6e00;
+  --chart-2: #0e7c86;
+  --chart-3: #6d4ad6;
+  --chart-4: #b06a00;
+  --chart-5: #8a8a80;
+  /* Teire acting, on light: the lime's own olive, which holds as text, a ring or a dot (5.7:1 on white). */
+  --signal: #5b6e00;
+  --signal-soft: #eef8c4;
+  --proven: #137a3f;
+  --proven-soft: #e3f3e8;
+  --attention: #9a5b00;
+  --attention-soft: #fbf0dc;
   --broke: #c8283a;
-  --broke-soft: #fdecee;
-  --cta: #d0f100;
-  --cta-ink: #1b2540;
-  --cta-hover: #c4e400;
-  /* 3.46:1 against white, 3.28:1 against the canvas: the button's boundary (WCAG 1.4.11). */
-  --cta-edge: #7f9300;
+  --broke-soft: #fbe9eb;
+  /* The lime is a fill, never text on light; its text is ink. */
+  --cta: #d4f53c;
+  --cta-ink: #14140f;
+  --cta-hover: #c8ec1a;
+  /* 4.4:1 against white: the button's boundary (WCAG 1.4.11). */
+  --cta-edge: #6b7f00;
   --cta-shadow:
-    0 0 0 1px var(--cta-edge), inset 0 1px 0 rgb(255 255 255 / 0.55), 0 1px 2px rgb(24 37 66 / 0.24),
-    0 10px 20px -10px rgb(24 37 66 / 0.45);
-  --hero: #001033;
-  --hero-2: #0a2a8a;
-  --hero-ink: #fafeff;
-  --hero-ink-2: #b9c8e8;
-  --hero-proven: #3ddc97;
-  --hero-rule: rgb(224 246 255 / 0.16);
-  --console: #0b1226;
-  --console-2: #121b36;
-  --console-ink: #dce6ff;
-  --console-ink-2: #8b9bc4;
-  --console-rule: #1f2a4a;
-  --console-add: #3ddc97;
-  --console-del: #ff6b76;
+    0 0 0 1px var(--cta-edge), inset 0 1px 0 rgb(255 255 255 / 0.55), 0 1px 2px rgb(20 20 15 / 0.2),
+    0 10px 20px -10px rgb(20 20 15 / 0.35);
+  /* The brand band stays graphite in both themes, with the lime's glow (the film and the thumbnail). */
+  --hero: #0d0f13;
+  --hero-2: #1c2210;
+  --hero-ink: #f1f3f6;
+  --hero-ink-2: #aab0bb;
+  --hero-proven: #4ade80;
+  --hero-broke: #ff8a8a;
+  --hero-rule: rgb(255 255 255 / 0.12);
+  /* Logs and code wells follow the page: paper on light, graphite on dark. */
+  --console: #fafaf5;
+  --console-2: #efefe7;
+  --console-ink: #14140f;
+  --console-ink-2: #55554c;
+  --console-rule: #e2e2d8;
+  --console-add: #137a3f;
+  --console-del: #c8283a;
   /* App cards are flat with a 1px ring; elevation belongs to tiles and floating layers (B8). */
-  --card-shadow: 0 0 0 1px rgb(0 39 80 / 0.08);
-  --card-shadow-hover: 0 0 0 1px rgb(0 39 80 / 0.14), 0 4px 12px -6px rgb(0 39 80 / 0.12);
+  --card-shadow: 0 0 0 1px rgb(20 20 15 / 0.08);
+  --card-shadow-hover: 0 0 0 1px rgb(20 20 15 / 0.14), 0 4px 12px -6px rgb(20 20 15 / 0.12);
   --tile-shadow:
-    0 0 0 1px rgb(0 39 80 / 0.07), 0 6px 12px -3px rgb(0 39 80 / 0.06), 0 24px 32px -16px rgb(0 39 80 / 0.07);
+    0 0 0 1px rgb(20 20 15 / 0.08), 0 6px 12px -3px rgb(20 20 15 / 0.05),
+    0 24px 32px -16px rgb(20 20 15 / 0.07);
   --float-shadow:
-    0 0 0 1px rgb(0 39 80 / 0.07), 0 6px 12px -3px rgb(0 39 80 / 0.07), 0 32px 32px -16px rgb(0 39 80 / 0.07),
-    0 56px 72px -16px rgb(0 39 80 / 0.08);
-  --overlay: rgb(6 11 26 / 0.32);
+    0 0 0 1px rgb(20 20 15 / 0.08), 0 6px 12px -3px rgb(20 20 15 / 0.06), 0 32px 32px -16px rgb(
+      20 20 15 / 0.07
+    ),
+    0 56px 72px -16px rgb(20 20 15 / 0.08);
+  --overlay: rgb(20 20 15 / 0.32);
 }
 
 .dark {
-  /* Night navy: the same hues, deep. */
-  --canvas: #060b1a;
-  --sheet: #0c1326;
-  --sunken: #091022;
-  --ink: #e8edfb;
-  --ink-2: #aab4cd;
-  --ink-3: #8c96b0;
-  --rule: #1a2440;
-  --rule-strong: #283456;
-  --hover: #121b33;
-  --chart-1: #6b97ff;
-  --chart-2: #a6b7ff;
-  --chart-3: #3cc3cf;
-  --chart-4: #c995f0;
-  --chart-5: #6f7a96;
-  --signal: #6b97ff;
-  --signal-soft: #0e1b3d;
-  --proven: #3ddc97;
-  --proven-soft: #0b2a1e;
-  --attention: #fbbf24;
-  --attention-soft: #2a1e08;
-  --broke: #ff6b76;
-  --broke-soft: #2c1116;
-  --cta: #d0f100;
-  --cta-ink: #0a1024;
-  --cta-hover: #ddff2a;
-  --cta-edge: #d0f100;
-  --cta-shadow: 0 0 0 1px var(--cta-edge), 0 10px 24px -12px rgb(208 241 0 / 0.35);
-  --console: #050a18;
-  --console-2: #0b1428;
-  --console-rule: #1a2440;
+  /* Graphite with one neon lime: depth from value, not shadow (the demo film's board). */
+  --canvas: #0d0f13;
+  --sheet: #15181e;
+  --sunken: #101318;
+  --ink: #eef0f3;
+  --ink-2: #a9afbb;
+  --ink-3: #7d8494;
+  --rule: #232831;
+  --rule-strong: #323844;
+  --hover: #1b1f27;
+  --chart-1: #d4f53c;
+  --chart-2: #4fd1c5;
+  --chart-3: #c4a1ff;
+  --chart-4: #f5b041;
+  --chart-5: #6b7280;
+  --signal: #d4f53c;
+  --signal-soft: #20260d;
+  --proven: #4ade80;
+  --proven-soft: #0f2a1b;
+  --attention: #f5b041;
+  --attention-soft: #2a1f0a;
+  --broke: #ff6b6b;
+  --broke-soft: #2e1214;
+  --cta: #d4f53c;
+  --cta-ink: #0d0f13;
+  --cta-hover: #e2ff5a;
+  --cta-edge: #d4f53c;
+  --cta-shadow: 0 0 0 1px var(--cta-edge), 0 10px 24px -12px rgb(212 245 60 / 0.35);
+  --hero: #0d0f13;
+  --hero-2: #1c2210;
+  --hero-ink: #f1f3f6;
+  --hero-ink-2: #aab0bb;
+  --hero-proven: #4ade80;
+  --hero-broke: #ff8a8a;
+  --hero-rule: rgb(255 255 255 / 0.12);
+  --console: #0b0d10;
+  --console-2: #13161b;
+  --console-ink: #e6e8eb;
+  --console-ink-2: #8a919e;
+  --console-rule: #23272f;
+  --console-add: #4ade80;
+  --console-del: #ff6b6b;
   --card-shadow: 0 0 0 1px var(--rule);
   --card-shadow-hover: 0 0 0 1px var(--rule-strong);
-  --tile-shadow: 0 0 0 1px #1f2a4a, 0 12px 28px -12px rgb(0 0 0 / 0.6);
+  --tile-shadow: 0 0 0 1px #262b35, 0 12px 28px -12px rgb(0 0 0 / 0.6);
   --float-shadow: 0 0 0 1px var(--rule-strong), 0 18px 40px -12px rgb(0 0 0 / 0.7);
   --overlay: rgb(0 0 0 / 0.55);
 }
@@ -302,7 +324,7 @@
   --card-foreground: var(--ink);
   --popover: var(--sheet);
   --popover-foreground: var(--ink);
-  /* `primary` is navy: shadcn's checked, selected and filled states. The CTA fill is `cta` (A5). */
+  /* `primary` is ink: shadcn's checked, selected and filled states. The CTA fill is `cta` (A5). */
   --primary: var(--ink);
   --primary-foreground: var(--sheet);
   --secondary: var(--sunken);

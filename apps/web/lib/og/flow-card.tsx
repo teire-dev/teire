@@ -3,20 +3,20 @@ import type { FlowGraph, FlowState } from "@/lib/flow/model";
 
 /**
  * Link previews that draw a flow (plan revision 3.4, V6 and B12): the run, a change and a scan report
- * as Teire's tiles on the hero navy, each tile in its state's colour with its logo, under the thing's
+ * as Teire's tiles on the graphite hero band, each tile in its state's colour with its logo, under the thing's
  * own name. Satori draws it (`next/og`), so it is plain flexbox and inline styles; logos are fetched
  * from the site and inlined.
  */
 export const OG_SIZE = { width: 1200, height: 630 };
 
 const RING: Record<FlowState, string> = {
-  pending: "#8e98b3",
-  live: "#6b97ff",
-  done: "#c9d0e0",
-  proven: "#3ddc97",
-  not_proven: "#f2b33d",
+  pending: "#7d8494",
+  live: "#d4f53c",
+  done: "#c4c8cf",
+  proven: "#4ade80",
+  not_proven: "#f5b041",
   failed: "#ff6b6b",
-  skipped: "#5e677f",
+  skipped: "#6e6e64",
 };
 
 /** A result's mark, drawn (the image font has no ✓ or ◐), so colour is never the only signal. */
@@ -95,22 +95,14 @@ export async function flowCard({
         flexDirection: "column",
         justifyContent: "space-between",
         padding: 64,
-        background: "radial-gradient(120% 90% at 50% 0%, #0a2a8a 0%, #001033 60%, #000a24 100%)",
-        color: "#fafeff",
+        background: "radial-gradient(120% 90% at 50% 0%, #1c2210 0%, #0d0f13 60%, #090a0d 100%)",
+        color: "#f1f3f6",
         fontFamily: "sans-serif",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 24, color: "#c9d0e0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 24, color: "#c4c8cf" }}>
         <svg width="40" height="40" viewBox="0 0 32 32" role="img" aria-label="Teire">
-          <rect
-            x="0.5"
-            y="0.5"
-            width="31"
-            height="31"
-            rx="8"
-            fill="#1b2540"
-            stroke="rgba(250,254,255,0.35)"
-          />
+          <rect x="0.5" y="0.5" width="31" height="31" rx="8" fill="#17191e" stroke="rgba(241,243,246,0.3)" />
           <path
             d="M8.6 16.9 13.6 21.6"
             fill="none"
@@ -118,16 +110,16 @@ export async function flowCard({
             strokeWidth="2.8"
             strokeLinecap="round"
           />
-          <path d="M12.6 20.7C14.5 14.2 19.1 10.2 24.6 9.1 24.4 14.6 20.6 20.4 14.7 22.6Z" fill="#d0f100" />
+          <path d="M12.6 20.7C14.5 14.2 19.1 10.2 24.6 9.1 24.4 14.6 20.6 20.4 14.7 22.6Z" fill="#d4f53c" />
           <path
             d="M14.3 20.9 21.9 12.3"
             fill="none"
-            stroke="#1b2540"
+            stroke="#17191e"
             strokeWidth="0.9"
             strokeLinecap="round"
           />
         </svg>
-        <span style={{ color: "#fafeff", fontWeight: 600 }}>Teire</span>
+        <span style={{ color: "#f1f3f6", fontWeight: 600 }}>Teire</span>
         <span>·</span>
         <span>{clip(eyebrow, 60)}</span>
       </div>
@@ -157,7 +149,7 @@ export async function flowCard({
                   padding: "14px 14px",
                   borderRadius: 16,
                   background: "#ffffff",
-                  color: "#1b2540",
+                  color: "#14140f",
                   border: `4px ${t.state === "pending" || t.state === "skipped" ? "dashed" : "solid"} ${RING[t.state]}`,
                 }}
               >
@@ -178,14 +170,14 @@ export async function flowCard({
                   <Glyph state={t.state} />
                 </div>
                 <div style={{ fontSize: 19, fontWeight: 600 }}>{clip(t.label, 16)}</div>
-                <div style={{ fontSize: 15, color: "#5e677f" }}>
+                <div style={{ fontSize: 15, color: "#6e6e64" }}>
                   {clip(t.meta ?? t.caption ?? "", 18) || " "}
                 </div>
               </div>
             </div>
           ))}
         </div>
-        {footer ? <div style={{ fontSize: 20, color: "#8e98b3" }}>{clip(footer, 100)}</div> : null}
+        {footer ? <div style={{ fontSize: 20, color: "#7d8494" }}>{clip(footer, 100)}</div> : null}
       </div>
     </div>,
     {

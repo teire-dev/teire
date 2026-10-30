@@ -52,7 +52,7 @@ const RING: Record<FlowState, string> = {
 
 const BADGE: Record<FlowState, string> = {
   pending: "bg-sheet text-ink-3 ring-1 ring-ink-3/60",
-  live: "bg-signal text-white",
+  live: "bg-signal text-white dark:text-sheet",
   done: "bg-ink text-sheet",
   proven: "bg-proven text-white dark:text-sheet",
   not_proven: "bg-attention text-white dark:text-sheet",
@@ -81,7 +81,7 @@ function Badge({ state, size }: { state: FlowState; size: TileSize }) {
       ) : state === "failed" ? (
         <X className={glyph} strokeWidth={3.25} />
       ) : state === "live" ? (
-        <span className="size-1.5 rounded-full bg-white" />
+        <span className="size-1.5 rounded-full bg-white dark:bg-sheet" />
       ) : state === "not_proven" ? (
         <span className="font-mono text-[10px] leading-none">◐</span>
       ) : (

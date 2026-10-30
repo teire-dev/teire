@@ -754,7 +754,7 @@ export function AgentTrace({
             onClick={togglePlay}
             aria-label={playing ? "Pause replay" : "Play replay"}
             className={cn(
-              "bg-signal text-signal-foreground focus-visible:ring-ring/50 relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full",
+              "bg-signal text-white dark:text-sheet focus-visible:ring-ring/50 relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full",
               "shadow-sm transition-[transform,box-shadow] duration-150 outline-none hover:shadow-md focus-visible:ring-[3px] active:scale-[0.98]",
               // The disc stays 36px; the touch target is 44px, per accessibility.md.
               "before:absolute before:-inset-1 before:content-['']",

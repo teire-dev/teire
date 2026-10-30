@@ -1,5 +1,5 @@
 import { RootProvider } from "fumadocs-ui/provider/next";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { AssistantProvider } from "@/components/assistant/assistant-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -19,6 +19,14 @@ export const metadata: Metadata = {
   },
   description:
     "Teire finds the lines a package, API or model change breaks, and a Nemotron coding agent on Nebius Token Factory fixes what a plain swap can't. Your own tests run before and after, and a pull request shows the proof.",
+};
+
+// The browser chrome follows the theme: warm cream in light, graphite in dark.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f5ef" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0f13" },
+  ],
 };
 
 /**

@@ -388,7 +388,7 @@ export function AppShell({
         {current?.suspendedAt ? (
           // Said on every page (U4 review): nothing runs while the installation is suspended.
           <div className="flex items-center gap-3 border-b border-broke/20 bg-broke-soft px-4 py-2 md:px-8">
-            <span className="flex size-6 items-center justify-center rounded-md bg-broke text-white">
+            <span className="flex size-6 items-center justify-center rounded-md bg-broke text-white dark:text-sheet">
               <Pause className="size-3.5" aria-hidden />
             </span>
             <span className="text-sm font-medium text-broke">Suspended on GitHub</span>

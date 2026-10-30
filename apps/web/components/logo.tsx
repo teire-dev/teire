@@ -3,13 +3,26 @@ import { cn } from "@/lib/utils";
 
 /**
  * Teire's mark. 手入れ (teire) is tending: the care a gardener gives a tree. The mark is a check
- * whose long stroke is a leaf, tended and proven in one shape: a white check, a chartreuse leaf, on
- * a navy tile (the favicon drops the white for two colours that hold at 16px).
+ * whose long stroke is a leaf, tended and proven in one shape: a white check, a lime leaf, on a
+ * graphite tile (the favicon drops the white for two colours that hold at 16px). A hairline ring keeps
+ * the tile's edge on the graphite canvas in dark mode.
  */
 export function LogoMark({ className, tone = "brand" }: { className?: string; tone?: "brand" | "hero" }) {
   return (
     <svg viewBox="0 0 32 32" className={cn("size-6 shrink-0", className)} aria-hidden>
       <rect width="32" height="32" rx="8" className={tone === "hero" ? "fill-hero-ink" : "fill-brand"} />
+      {tone === "brand" ? (
+        <rect
+          x=".5"
+          y=".5"
+          width="31"
+          height="31"
+          rx="7.5"
+          fill="none"
+          strokeWidth="1"
+          className="stroke-white/14"
+        />
+      ) : null}
       <path
         d="M8.6 16.9 13.6 21.6"
         className={tone === "hero" ? "stroke-hero" : "stroke-white"}

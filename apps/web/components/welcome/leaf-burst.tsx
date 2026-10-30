@@ -18,6 +18,16 @@ export function LeafBurst({ className }: { className?: string }) {
     <span className={cn("relative inline-flex size-14", className)} aria-hidden>
       <svg viewBox="0 0 32 32" className="size-14 overflow-visible" aria-hidden>
         <rect width="32" height="32" rx="8" className="fill-brand" />
+        <rect
+          x=".5"
+          y=".5"
+          width="31"
+          height="31"
+          rx="7.5"
+          fill="none"
+          strokeWidth="1"
+          className="stroke-white/14"
+        />
         <motion.path
           d="M8.6 16.9 13.6 21.6"
           className="stroke-white"

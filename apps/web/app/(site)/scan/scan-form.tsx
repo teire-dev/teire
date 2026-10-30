@@ -52,7 +52,7 @@ export function ScanForm() {
         </Button>
       </div>
       {state.error ? (
-        <p id="repo-error" role="alert" className="text-sm text-[#ff9aa4]">
+        <p id="repo-error" role="alert" className="text-sm text-hero-broke">
           {state.error}
         </p>
       ) : null}

@@ -58,7 +58,7 @@ function TileNode({ data }: NodeProps<TileNodeT>) {
       {tile.draggable ? (
         <span
           aria-hidden
-          className="absolute -top-2 -left-2 flex size-5 items-center justify-center rounded-full bg-signal text-white shadow-card"
+          className="absolute -top-2 -left-2 flex size-5 items-center justify-center rounded-full bg-signal text-white shadow-card dark:text-sheet"
         >
           <GripVertical className="size-3" />
         </span>

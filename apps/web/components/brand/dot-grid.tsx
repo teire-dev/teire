@@ -291,14 +291,14 @@ void main() {
 
 const UNIFORMS = {
   colors: [
-    [0.0, 0.062745, 0.2],
-    [0.039216, 0.164706, 0.541176],
-    [0.0, 0.313725, 0.972549],
-    [0.611765, 0.760784, 1.0],
-    [0.611765, 0.760784, 1.0],
-    [0.611765, 0.760784, 1.0],
-    [0.611765, 0.760784, 1.0],
-    [0.611765, 0.760784, 1.0],
+    [0.05098, 0.058824, 0.07451],
+    [0.109804, 0.133333, 0.062745],
+    [0.356863, 0.431373, 0.0],
+    [0.831373, 0.960784, 0.235294],
+    [0.831373, 0.960784, 0.235294],
+    [0.831373, 0.960784, 0.235294],
+    [0.831373, 0.960784, 0.235294],
+    [0.831373, 0.960784, 0.235294],
   ] as [number, number, number][],
   colorCount: 4,
   scale: 1.26,
@@ -585,8 +585,8 @@ export function HeroShader({ className }: { className?: string }) {
   }, []);
   return (
     <div aria-hidden className={className}>
-      <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_0%,var(--hero-2)_0%,var(--hero)_55%,#000a24_100%)]" />
-      {/* The dots fade behind the headline so the words sit on calm navy. */}
+      <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_0%,var(--hero-2)_0%,var(--hero)_55%,#090a0d_100%)]" />
+      {/* The dots fade behind the headline so the words sit on calm graphite. */}
       {on ? (
         <ShaderBackground className="absolute inset-0 opacity-55 mix-blend-screen [mask-image:radial-gradient(70%_60%_at_50%_45%,transparent_15%,black_75%)]" />
       ) : null}

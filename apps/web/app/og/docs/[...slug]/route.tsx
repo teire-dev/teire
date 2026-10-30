@@ -11,8 +11,8 @@ export async function GET(_req: Request, { params }: RouteContext<"/og/docs/[...
     title: page.data.title,
     description: page.data.description,
     site: "Teire docs",
-    primaryColor: "rgba(0, 80, 248, 0.45)",
-    primaryTextColor: "#d0f100",
+    primaryColor: "rgba(212, 245, 60, 0.32)",
+    primaryTextColor: "#d4f53c",
   });
 }
 

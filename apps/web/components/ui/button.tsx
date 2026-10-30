@@ -25,7 +25,7 @@ const buttonVariants = cva(
           "bg-broke-soft text-broke hover:bg-[color-mix(in_oklab,var(--broke-soft),var(--broke)_10%)] focus-visible:ring-broke",
         link: "text-link underline-offset-4 hover:underline",
         // On the navy hero band: ice-white ghost pill.
-        hero: "bg-[rgb(224_246_255/0.08)] text-hero-ink shadow-[inset_0_0_0_1px_var(--hero-rule)] hover:bg-[rgb(224_246_255/0.14)]",
+        hero: "bg-white/8 text-hero-ink shadow-[inset_0_0_0_1px_var(--hero-rule)] hover:bg-white/14",
       },
       shape: {
         default: "",

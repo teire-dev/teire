@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="512" height="512" role="img" aria-label="Teire">
   <title>Teire</title>
-  <rect width="32" height="32" rx="8" fill="#1b2540"/>
+  <rect width="32" height="32" rx="8" fill="#17191e"/>
   <path d="M8.6 16.9 13.6 21.6" fill="none" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round"/>
-  <path d="M12.6 20.7C14.5 14.2 19.1 10.2 24.6 9.1 24.4 14.6 20.6 20.4 14.7 22.6Z" fill="#d0f100"/>
-  <path d="M14.3 20.9 21.9 12.3" fill="none" stroke="#1b2540" stroke-width=".9" stroke-linecap="round"/>
+  <path d="M12.6 20.7C14.5 14.2 19.1 10.2 24.6 9.1 24.4 14.6 20.6 20.4 14.7 22.6Z" fill="#d4f53c"/>
+  <path d="M14.3 20.9 21.9 12.3" fill="none" stroke="#17191e" stroke-width=".9" stroke-linecap="round"/>
 </svg>
