@@ -84,13 +84,11 @@ Groq shut down `llama-3.1-8b-instant` and `llama-3.3-70b-versatile` on 2026-08-1
 5. **Pull request.** Evidence `verified` means a ready PR that opens with **Verified.** This run is from Teire's evaluation, through the same code path an installed repository takes; PRs on real installed repositories are linked under Proof as they open.
 
 <p align="center">
-  <a href="https://teire.vercel.app/providers/groq-com">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/captures/groq-dark.png" />
-      <source media="(prefers-color-scheme: light)" srcset=".github/assets/captures/groq-light.png" />
-      <img src=".github/assets/captures/groq-light.png" width="960" alt="Groq's provider page on teire.vercel.app: discovered in code, its three pages read by Nemotron with every quote checked, 43 changes, the pages it watches with their status, and the retirement timeline." />
-    </picture>
-  </a>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/captures/wrapped-models-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/captures/wrapped-models-light.png" />
+    <img src=".github/assets/captures/wrapped-models-light.png" width="960" alt="The public report for teire-dev/demo-wrapped-models: 64 dependencies read, 2 changes reaching this code; the llama-3.1-8b-instant shutdown quoted from console.groq.com and traced to src/models.ts:7 and :9, and Node.js 20's end of life at package.json:8 from endoflife.date." />
+  </picture>
 </p>
 
 Every model fix and every package fix follows the same loop. The [Go major](https://teire.vercel.app/docs/guide/anatomy-of-a-pr) (`golang-jwt/jwt` v4 → v5) is a second worked example: the agent moved `StandardClaims` to `RegisteredClaims` and the expiry check to `errors.Is(err, jwt.ErrTokenExpired)`, then verified 4/4 for $0.181.
