@@ -55,4 +55,4 @@ Nothing is sent to a host on a private network: the check runs when the credenti
 
 ## When something is missing
 
-A repository whose registry has no credential is still scanned. Its packages from that registry are listed in the scan's coverage as not compared, with the reason, and its install fails in the sandbox with the registry's own refusal. Go modules marked private need a credential for the module proxy your `GOPROXY` names; Teire doesn't fetch modules from git.
+A repository whose registry has no credential is still scanned. Its packages from that registry are listed in the scan's coverage as not compared, with the reason, and its install fails in the sandbox with the registry's own refusal. Go modules your `GOPRIVATE` marks private are read through the module proxy your `GOPROXY` names, with its saved credential: every module goes there first, then to proxy.golang.org, as your CI does. Without a credential they're never asked of a public proxy or the checksum database: they're listed as private modules, not compared, and the rest of the module is read as usual. Teire doesn't fetch modules from git.

@@ -15,7 +15,9 @@ icon: Coffee
 
 ## What Teire reads
 
-Maven versions come from literal `<version>` tags, properties (5 levels deep) and local parents.
+Maven versions come from literal `<version>` tags, properties (5 levels deep), local parents, and the parents and BOMs outside the repository. Those POMs are read from a repository your build names that has a credential saved in [Private registries](/docs/guide/private-registries) first, then Maven Central, Google Maven and the Gradle Plugin Portal, then the other repositories your build names.
+
+A profile's dependencies and plugins count when a build here switches it on: `activeByDefault`, `-P` in `.mvn/maven.config` or on a CI workflow's `mvn` line, or a `!property` activation. A profile switched on only by a JDK, an OS, a file or a property is listed with that condition and not compared.
 
 Gradle declarations are read from:
 
@@ -62,5 +64,5 @@ The JDK follows your CI's `setup-java`, `.java-version`, `.sdkmanrc`, `.tool-ver
 | demo-jvm-clean | `guava` 19.0 → 33.7.2-jre | inconclusive at scan time, upgrade verified as a plain bump |
 
 <Callout type="warn" title="Limits">
-  Android projects aren't supported: there is no Android SDK or Android Gradle Plugin in the sandbox. Maven has no lockfile, so transitive dependencies and versions managed by a remote parent or BOM aren't read. Versions computed with `$` interpolation in Gradle scripts are unresolved.
+  Android projects aren't supported: there is no Android SDK or Android Gradle Plugin in the sandbox. Maven has no lockfile, so transitive dependencies aren't read. Versions computed with `$` interpolation in Gradle scripts are unresolved.
 </Callout>
