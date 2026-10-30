@@ -44,6 +44,16 @@ allprojects { p ->
       void afterTest(TestDescriptor d, TestResult r) {}
     })
   }
+  // The checks' own tasks (S20.1), for builds with Android modules: a plain JVM module's testClasses
+  // and test, an Android module's debug variants' unit-test compile and unit tests (an Android module
+  // has no testClasses, and its `test` runs every variant). Instrumented tests need a device.
+  def android = { p.plugins.findPlugin("com.android.base") != null || p.extensions.findByName("android") != null }
+  p.tasks.register("teireTypecheck") { t ->
+    t.dependsOn(p.tasks.matching { android() ? it.name ==~ /compile\w*DebugUnitTestSources/ : it.name == "testClasses" })
+  }
+  p.tasks.register("teireTest") { t ->
+    t.dependsOn(p.tasks.matching { android() ? it.name ==~ /test\w*DebugUnitTest/ : (it.name == "test" && it instanceof Test) })
+  }
   p.tasks.register("teireResolveAll") {
     notCompatibleWithConfigurationCache("resolves configurations at execution time")
     doLast {

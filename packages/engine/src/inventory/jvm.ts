@@ -40,8 +40,17 @@ export interface JvmProject {
   wrapper: boolean;
   /** Version catalog, when Gradle has one. */
   catalog: string | null;
+  /** A module applies the Android Gradle Plugin (S20.1): it builds in the Android image. */
+  android?: boolean;
   notes: string[];
 }
+
+/**
+ * The Android Gradle Plugin's ids, in a build file (`id("com.android.application")`, `apply plugin:
+ * 'com.android.library'`) or the version catalog a build file's `alias(libs.plugins.…)` reads.
+ */
+const ANDROID_PLUGIN =
+  /["']com\.android\.(?:application|library|test|dynamic-feature|kotlin\.multiplatform\.library)["']/;
 
 const xml = new XMLParser({ ignoreAttributes: true, parseTagValue: false, trimValues: true });
 const asArray = <T>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
@@ -840,6 +849,13 @@ function readGradle(tree: RepoTree): JvmProject[] {
     }
     if (!modules.some((m) => m.lockfile))
       notes.push("no gradle.lockfile: declared versions are the floor (conflict resolution can raise them)");
+    const android = [
+      ...modules.map((m) => tree.read(m.manifest) ?? ""),
+      tree.read(settings) ?? "",
+      catalogText ?? "",
+    ].some((text) => ANDROID_PLUGIN.test(text));
+    if (android)
+      notes.push("Android Gradle Plugin: checks run in the Android image (SDK platforms 35 and 36)");
     projects.push({
       root,
       manager: "gradle",
@@ -849,6 +865,7 @@ function readGradle(tree: RepoTree): JvmProject[] {
       instances,
       wrapper: tree.read(at("gradlew")) !== null,
       catalog: catalogText !== null ? catalogPath : null,
+      ...(android ? { android } : {}),
       notes,
     });
   }

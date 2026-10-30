@@ -83,8 +83,31 @@ export function detectJvmChecks(tree: RepoTree, project: JvmProject, sandboxRoot
     // Every installed JDK is visible to Gradle toolchains; nothing is downloaded at check time.
     ORG_GRADLE_PROJECT_org_gradle_java_installations_auto_download: "false",
   };
-  const checks: PlannedCheck[] =
-    project.manager === "maven"
+  // Android (S20.1): the SDK the image carries (exec doesn't pass an image's ENV), and the init
+  // script's own tasks, since an Android module has no testClasses: its debug variants' unit-test
+  // compile and unit tests, beside any plain JVM module's testClasses and test.
+  if (project.android) {
+    Object.assign(env, {
+      ANDROID_HOME: "/opt/android-sdk",
+      ANDROID_SDK_ROOT: "/opt/android-sdk",
+      ANDROID_USER_HOME: "/home/teire/.android",
+    });
+    notes.push("Android: debug unit tests (instrumented tests need a device and don't run)");
+  }
+  const checks: PlannedCheck[] = project.android
+    ? [
+        {
+          name: "typecheck",
+          argv: ["teire-jvm", "gradle", "--offline", "teireTypecheck"],
+          source: "default",
+        },
+        {
+          name: "test",
+          argv: ["teire-jvm", "gradle", "--offline", "--continue", "teireTest"],
+          source: "default",
+        },
+      ]
+    : project.manager === "maven"
       ? [
           { name: "typecheck", argv: ["teire-jvm", "maven", "-o", "test-compile"], source: "default" },
           { name: "test", argv: ["teire-jvm", "maven", "-o", "verify"], source: "default" },
@@ -99,7 +122,7 @@ export function detectJvmChecks(tree: RepoTree, project: JvmProject, sandboxRoot
         ];
   return {
     manager: project.manager,
-    image: "jvm",
+    image: project.android ? "android" : "jvm",
     instance: "standard-3",
     cwd: project.root === "." ? sandboxRoot : join(sandboxRoot, project.root),
     install: ["teire-jvm", "warmup", project.manager],

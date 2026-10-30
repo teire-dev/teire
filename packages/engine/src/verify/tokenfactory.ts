@@ -539,7 +539,11 @@ export class TokenFactorySandboxes {
  * image is built once. Cloudflare's shim (COPY --from=shim) has no role here and is skipped; a
  * COPY from another image stage is not supported and stops the build with its line.
  */
-export function imageRecipe(dockerfileDir: string) {
+export function imageRecipe(
+  dockerfileDir: string,
+  /** Where COPY reads from: the Dockerfile's folder unless the image names another (wrangler's build_context). */
+  contextDir = dockerfileDir,
+) {
   const dockerfile = readFileSync(join(dockerfileDir, "Dockerfile"), "utf8").replace(/\\\n/g, " ");
   const lines = dockerfile
     .split("\n")
@@ -601,7 +605,7 @@ export function imageRecipe(dockerfileDir: string) {
         const to = parts.at(-1) ?? "";
         for (const from of parts.slice(0, -1))
           copies.push({
-            from: join(dockerfileDir, from),
+            from: join(contextDir, from),
             to: to.endsWith("/") ? `${to}${from.split("/").at(-1)}` : to,
           });
         break;
@@ -635,8 +639,11 @@ async function baseImage(client: TokenFactorySandboxes, ref: string) {
   return uuid;
 }
 
+/** Images built from another image's folder (wrangler.jsonc `build_context`): Android from the JVM's. */
+export const IMAGE_CONTEXT: Record<string, string> = { android: "jvm" };
+
 export function ensureImage(client: TokenFactorySandboxes, name: string, dockerfileDir: string) {
-  const recipe = imageRecipe(dockerfileDir);
+  const recipe = imageRecipe(dockerfileDir, join(dockerfileDir, "..", IMAGE_CONTEXT[name] ?? name));
   const key = `teire-${name}:${recipe.hash}`;
   const pending = building.get(key);
   if (pending) return pending;

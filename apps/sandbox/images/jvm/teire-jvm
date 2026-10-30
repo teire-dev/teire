@@ -97,7 +97,8 @@ case "${1:-}" in
     # References in the compiled classes (after the baseline's checks built them).
     prefixes="${2:?prefixes}"
     [[ "$prefixes" =~ ^[A-Za-z0-9_/$,.-]+$ ]] || { echo "teire-jvm: bad prefixes"; exit 2; }
-    mapfile -t dirs < <(find . -type d \( -path "*/target/classes" -o -path "*/target/test-classes" -o -path "*/build/classes/*/main" -o -path "*/build/classes/*/test" \) 2>/dev/null)
+    # Android modules compile to build/intermediates/javac/<variant>/…/classes and build/tmp/kotlin-classes/<variant>.
+    mapfile -t dirs < <(find . -type d \( -path "*/target/classes" -o -path "*/target/test-classes" -o -path "*/build/classes/*/main" -o -path "*/build/classes/*/test" -o -path "*/build/intermediates/javac/*Debug*/classes" -o -path "*/build/intermediates/javac/debug*/classes" -o -path "*/build/tmp/kotlin-classes/*ebug*" \) -not -path "*/kotlin-classes/*/*" 2>/dev/null)
     [ "${#dirs[@]}" -gt 0 ] || { echo "teire-jvm: no compiled classes" >&2; exit 0; }
     /opt/jdk/25/bin/java /usr/local/share/teire/TeireRefs.java "$prefixes" "${dirs[@]}"
     ;;

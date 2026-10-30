@@ -11,14 +11,16 @@
     {
       "class_name": "VerifySandbox",
       "scheduling_policy": "durable_object",
-      // One image per toolchain set (plan D60): Node (S02a), Python (S03), Go (S05), Rust (S06), Ruby (S07), JVM (S08).
+      // One image per toolchain set (plan D60): Node (S02a), Python (S03), Go (S05), Rust (S06), Ruby (S07), JVM (S08),
+      // Android (S20.1: the JVM image's folder as its build context, so both share teire-jvm and the init script).
       "images": {
         "node": { "dockerfile": "./images/node/Dockerfile" },
         "python": { "dockerfile": "./images/python/Dockerfile" },
         "go": { "dockerfile": "./images/go/Dockerfile" },
         "rust": { "dockerfile": "./images/rust/Dockerfile" },
         "ruby": { "dockerfile": "./images/ruby/Dockerfile" },
-        "jvm": { "dockerfile": "./images/jvm/Dockerfile" }
+        "jvm": { "dockerfile": "./images/jvm/Dockerfile" },
+        "android": { "dockerfile": "./images/android/Dockerfile", "build_context": "./images/jvm" }
       }
     }
   ],
