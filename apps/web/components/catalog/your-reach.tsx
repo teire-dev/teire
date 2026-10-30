@@ -89,6 +89,8 @@ interface PackageUse {
   direct: boolean;
   manifest: string;
   workspace: string;
+  /** The upgrade that repository's latest scan plans for it. */
+  planned: { to: string; security: boolean } | null;
 }
 
 /**
@@ -107,9 +109,10 @@ export function YourPackageUse({
   versions: string[];
   latest: string | null;
 }) {
-  const [data, setData] = useState<{ uses: PackageUse[]; repos: { repo: string; groups: number }[] } | null>(
-    null,
-  );
+  const [data, setData] = useState<{
+    uses: PackageUse[];
+    repos: { repo: string; groups: number; advisories: number; others: number }[];
+  } | null>(null);
   useEffect(() => {
     let alive = true;
     fetch(`/api/app/reach?package=${encodeURIComponent(pkg)}&uses=1`, { cache: "no-store" })
@@ -123,7 +126,7 @@ export function YourPackageUse({
   if (!data?.uses.length) return null;
   const at = new Map(versions.map((v, i) => [v, i]));
   const top = latest ? at.get(latest) : undefined;
-  const groups = new Map(data.repos.map((r) => [r.repo, r.groups]));
+  const counts = new Map(data.repos.map((r) => [r.repo, r]));
   return (
     <section className="flex flex-col gap-2" aria-label="Where you stand">
       <h2 className="eyebrow">Where you stand</h2>
@@ -131,7 +134,9 @@ export function YourPackageUse({
         {data.uses.map((u) => {
           const i = u.version ? at.get(u.version) : undefined;
           const behind = i !== undefined && top !== undefined ? Math.max(0, top - i) : null;
-          const open = groups.get(u.repo) ?? 0;
+          const open = counts.get(u.repo)?.groups ?? 0;
+          const advisories = counts.get(u.repo)?.advisories ?? 0;
+          const others = counts.get(u.repo)?.others ?? 0;
           return (
             <li key={`${u.repo}:${u.manifest}:${u.version}`}>
               <Link
@@ -159,10 +164,21 @@ export function YourPackageUse({
                     <span className="text-ink-3">—</span>
                   )}
                 </span>
-                <span className="justify-self-end font-mono text-[11px]">
-                  {open ? (
+                <span className="flex flex-wrap items-center justify-self-end gap-1 font-mono text-[11px]">
+                  {/* What applies to the version installed there: its advisories, other findings, the planned upgrade. */}
+                  {advisories ? (
                     <span className="rounded-full bg-broke-soft px-1.5 text-broke">
-                      {open} finding{open === 1 ? "" : "s"}
+                      {advisories} advisor{advisories === 1 ? "y" : "ies"}
+                    </span>
+                  ) : null}
+                  {others ? (
+                    <span className="rounded-full bg-attention-soft px-1.5 text-attention">
+                      {others} finding{others === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                  {u.planned ? (
+                    <span className={u.planned.security ? "text-broke" : "text-ink-2"}>
+                      → {u.planned.to} planned
                     </span>
                   ) : null}
                 </span>
