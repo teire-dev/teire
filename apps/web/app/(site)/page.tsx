@@ -17,7 +17,7 @@ import hero from "@/lib/landing/hero-run.json";
 import { CURATED, providerLogo } from "@/lib/logos";
 import { subjectMark } from "@/lib/marks";
 import type { Proof } from "@/lib/proof";
-import { INSTALL_URL } from "@/lib/site";
+import { INSTALL_URL, NPM_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 export const metadata = {
@@ -98,7 +98,17 @@ export default function Home() {
               </Link>
             </Button>
           </div>
-          <CopyCommand command="npx teire-cli scan" tone="hero" className="hidden sm:flex" />
+          <div className="hidden flex-wrap items-center justify-center gap-4 sm:flex">
+            <CopyCommand command="npx teire-cli scan" tone="hero" />
+            <a
+              href={NPM_URL}
+              className="inline-flex items-center gap-2 text-sm text-hero-ink-2 transition-colors hover:text-hero-ink"
+            >
+              <BrandLogo light={ECOSYSTEMS.npm.light} alt="" className="h-4" />
+              View teire-cli on npm
+              <ArrowUpRight className="size-3.5" />
+            </a>
+          </div>
         </div>
       </section>
 
@@ -400,6 +410,10 @@ export default function Home() {
             </Button>
           </div>
           <CopyCommand command="npx teire-cli scan" />
+          <a href={NPM_URL} className="inline-flex items-center gap-2 text-sm text-link hover:underline">
+            <BrandLogo light={ECOSYSTEMS.npm.light} alt="" className="h-4" />
+            Get teire-cli on npm <ArrowUpRight className="size-3.5" />
+          </a>
           <nav aria-label="How Teire runs" className="flex flex-wrap justify-center gap-2 pt-2">
             {[
               ["What Teire can touch", "/trust#permissions"],

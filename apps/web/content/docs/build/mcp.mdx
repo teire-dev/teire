@@ -6,6 +6,8 @@ icon: Plug
 
 `teire mcp` serves Teire's tools over stdio. The protocol uses stdout, and logs go to stderr.
 
+If your agent uses skills, you can also [install the Teire Agent Skill](/docs/build/agent-skill) with `npx skills add teire-dev/teire --skill teire-cli`. The skill teaches the CLI workflow; connecting MCP gives the agent Teire's live tools.
+
 <Tabs items={["Claude Code", "Other clients"]}>
 <Tab value="Claude Code">
 
@@ -32,7 +34,7 @@ Cursor, Windsurf and other clients take the same command in their MCP config:
 | `scan_path` | `path` (a folder, or a public GitHub repository as `owner/name` or its URL), optional `fresh` | The groups that need action, one per pull request Teire would open: verdict, priority, deadline, the version or model to move to and the first call sites. The rest are counted. Results are kept 5 minutes per path, unless `fresh` |
 | `explain_finding` | `path`, `key` (a group key, change ID or package name) | One group in full: its change records with summary, replacement, migration notes and quoted sources, and up to 50 call sites with their code, product code first |
 | `list_changes` | optional `provider`, `ecosystem`, `kind`, `subject` | Changes from the public catalog, or read on the spot from a provider's pages when the catalog doesn't hold them yet: ID, title, kind, class, date and replacement, 60 at a time |
-| `get_change` | `id` | One full change record |
+| `get_change` | `id` | One full catalog change record. For a package change computed during a scan, use `explain_finding` instead |
 
 Every tool is marked read-only. None of them writes to the repository or to GitHub. A large repository takes a minute or two to scan; when the client asks for progress, each step is sent as a progress notification, which also keeps clients that reset their timeout on progress from giving up.
 

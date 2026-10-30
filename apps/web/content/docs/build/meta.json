@@ -12,6 +12,7 @@
     "contributing-to-the-catalog",
     "---Tools---",
     "cli",
-    "mcp"
+    "mcp",
+    "agent-skill"
   ]
 }

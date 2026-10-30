@@ -1,8 +1,29 @@
-# teire-cli
+<p align="center">
+  <a href="https://teire.vercel.app">
+    <img src="https://raw.githubusercontent.com/teire-dev/teire/main/.github/assets/banner-dark.png" width="960" alt="Teire. When upstream breaks, Teire fixes your code. A real Teire fix runs from an upstream change to a tested pull request." />
+  </a>
+</p>
 
-Teire from the terminal. `teire scan` checks a repository for the dependency and API changes that affect it. It covers every package across npm, PyPI, Go, Cargo, RubyGems and Maven/Gradle, the API hosts and model IDs the code calls, and the Node.js and Python versions it runs on. It reports each change with the exact lines it reaches. `teire check` turns the result into a CI gate, and `teire mcp` gives coding agents the same tools.
+<h1 align="center">Teire · 手入れ</h1>
+<p align="center"><b>When upstream breaks, Teire fixes your code.</b></p>
 
-The scan uses the same engine calls as the Teire GitHub App, so the findings match the dashboard.
+<p align="center">
+  <a href="https://teire.vercel.app"><b>App</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://teire.vercel.app/docs/build/cli"><b>CLI docs</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://teire.vercel.app/docs/build/mcp"><b>MCP docs</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://teire.vercel.app/docs/build/agent-skill"><b>Agent Skill</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/teire-dev/teire"><b>Source</b></a>
+</p>
+
+## Teire in your terminal
+
+Teire from the terminal. `teire scan` checks a repository for dependency and API changes that affect it. It compares pinned packages across npm, PyPI, Go, Cargo, RubyGems and Maven/Gradle, checks the API hosts and model IDs the code calls, and reads the Node.js and Python versions it pins. Findings show the call sites Teire can locate; skipped checks and uncertain results are listed as gaps. `teire check` turns the result into a CI gate, and `teire mcp` gives coding agents the same read-only tools.
+
+The scan uses the same engine calls as the Teire GitHub App. A configured GitHub App can also propose fixes and open pull requests; the CLI reports and gates.
 
 ```bash
 npx teire-cli scan
@@ -42,13 +63,13 @@ Affected (2)
 
 ## Commands
 
-| Command                                                                          | What it does                                                                                                                                                                                    |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `teire scan [target] [--json] [--all]`                                           | Scans a folder (default: the current one) or a public GitHub repository (`owner/name` or its URL). `--all` also lists the changes that don't reach your code.                                   |
-| `teire check [target] [--fail-on affected\|deadline\|any] [--within 90]`         | Exits 1 when the gate fails. `affected`: any change reaches your code. `deadline`: an affected change has a shutdown date within `--within` days. `any`: anything affected or left for a human. |
-| `teire explain <change-id> [--json]`                                             | Shows one change record: summary, replacement, migration notes, and the quoted sources it was confirmed against.                                                                                |
-| `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | Lists Teire's public catalog of confirmed changes, or reads a provider's own pages when the catalog doesn't hold them yet.                                                                      |
-| `teire mcp`                                                                      | Serves `scan_path`, `explain_finding`, `list_changes` and `get_change` to coding agents over stdio.                                                                                             |
+| Command                                                                          | What it does                                                                                                                                                                           |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `teire scan [target] [--json] [--all]`                                           | Scans a folder (default: the current one) or a public GitHub repository (`owner/name` or its URL). `--all` also lists the changes that don't reach your code.                          |
+| `teire check [target] [--fail-on affected\|deadline\|any] [--within 90]`         | Exits 1 when the gate fails. `affected`: any change reaches your code. `deadline`: an affected change has a date within `--within` days. `any`: anything affected or left for a human. |
+| `teire explain <change-id> [target] [--json]`                                    | Shows one change record: summary, replacement, migration notes, and the quoted sources it was confirmed against. Use the scanned target for a package-computed ID.                     |
+| `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | Lists Teire's public catalog of confirmed changes, or reads a provider's own pages when the catalog doesn't hold them yet.                                                             |
+| `teire mcp`                                                                      | Serves `scan_path`, `explain_finding`, `list_changes` and `get_change` to coding agents over stdio.                                                                                    |
 
 ## In CI
 
@@ -60,7 +81,15 @@ Affected (2)
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-## For coding agents (MCP)
+## For coding agents
+
+Install the [Teire Agent Skill](https://teire.vercel.app/docs/build/agent-skill) to teach a coding agent when and how to run the CLI:
+
+```bash
+npx skills add teire-dev/teire --skill teire-cli
+```
+
+The Skills CLI needs Node.js 22.20 or newer. The skill is instructions for the agent. The CLI runs the scan; the MCP server gives agents the same read-only scan and catalog tools over stdio. To connect MCP directly:
 
 Claude Code:
 

@@ -1,0 +1,32 @@
+---
+title: Agent Skill
+description: Give a coding agent Teire's scan workflow, then let the CLI or MCP server show the upstream changes that reach its code.
+icon: Bot
+---
+
+The [Teire Agent Skill](https://github.com/teire-dev/teire/tree/main/skills/teire-cli) tells a coding agent when to scan a repository, how to inspect a finding, and which gaps remain unresolved. Install it from the Teire repository:
+
+```bash
+npx skills add teire-dev/teire --skill teire-cli
+```
+
+The [Skills CLI](https://github.com/vercel-labs/skills/blob/main/docs/commands.md) installs the instructions into your agent's skill directory. Choose an agent during the prompt, or add `-a codex` for Codex. The Skills CLI needs Node.js 22.20 or newer; `teire-cli` itself needs Node.js 22 or newer.
+
+## Skill, CLI, and MCP
+
+| Part | What it gives the agent | Setup |
+|---|---|---|
+| Agent Skill | A workflow for deciding when to scan, explaining affected changes, and reading coverage gaps | `npx skills add teire-dev/teire --skill teire-cli` |
+| [CLI](/docs/build/cli) | The scan, change records, quoted sources, call sites, and CI gate | `npx -y teire-cli scan` or `npm install -g teire-cli` |
+| [MCP server](/docs/build/mcp) | The same read-only scan and catalog capabilities as tools over stdio | `npx -y teire-cli mcp` in your MCP client |
+
+The skill does not install the npm package or start an MCP server. When it is used, the agent runs the CLI with `npx` unless MCP is already connected.
+
+## A typical investigation
+
+1. Scan the repository with `npx -y teire-cli scan`, or call MCP `scan_path`.
+2. Read affected findings, their call sites, and the scan's coverage gaps.
+3. Use `npx -y teire-cli explain <change-id> [target]`, or MCP `explain_finding`, to inspect the replacement and quoted source before editing.
+4. If asked to gate CI, run `npx -y teire-cli check --fail-on deadline --within 60`. Exit code 1 means the gate failed; 2 means the scan or usage errored.
+
+The CLI and MCP tools report findings; they do not apply a fix or open a pull request. Teire's GitHub App and [public dry run](/docs/guide/public-scan#dry-run-a-fix) are the paths for a Teire-generated fix. A package without a pinned version, a missing toolchain, or a source Teire could not reach remains an explicit gap.

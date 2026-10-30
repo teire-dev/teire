@@ -8,7 +8,7 @@ icon: SquareTerminal
 npx teire-cli scan
 ```
 
-The package is [`teire-cli`](https://www.npmjs.com/package/teire-cli) on npm. Installed globally, the command is `teire`:
+The package is [`teire-cli`](https://www.npmjs.com/package/teire-cli) on npm. Run it with `npx` without installing it globally, or install it once and use the `teire` command:
 
 ```bash
 npm install -g teire-cli
@@ -60,6 +60,8 @@ The scan makes the same engine calls as the Teire worker. Its findings match the
 | `teire explain <change-id> [target] [--json]` | One change: summary, replacement, migration notes and the quoted sources. A package change ID is read from a scan of `target` |
 | `teire changes [--provider p] [--ecosystem e] [--kind k] [--subject s] [--json]` | The public catalog. For a provider with a built-in reader whose changes the catalog doesn't hold yet, its pages are read on the spot |
 | `teire mcp` | Serve the same tools to coding agents over stdio. See [MCP](/docs/build/mcp) |
+
+For coding agents, [install the Teire Agent Skill](/docs/build/agent-skill) with `npx skills add teire-dev/teire --skill teire-cli`. It guides the CLI workflow; the [MCP server](/docs/build/mcp) exposes Teire's read-only scan and catalog tools directly to an agent.
 
 ## Gating CI
 
