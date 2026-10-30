@@ -8,8 +8,8 @@ import {
   Check,
   ExternalLink,
   LayoutGrid,
+  MessageCircleQuestion,
   RotateCcw,
-  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -891,7 +891,7 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   disabled={!available}
                   className="flex flex-col items-center gap-2 rounded-card bg-sunken p-3 text-center text-[13px] hover:bg-hover disabled:opacity-50"
                 >
-                  <Sparkles className="size-5 text-ink-2" aria-hidden />
+                  <MessageCircleQuestion className="size-5 text-ink-2" aria-hidden />
                   Ask Teire
                 </button>
               </nav>

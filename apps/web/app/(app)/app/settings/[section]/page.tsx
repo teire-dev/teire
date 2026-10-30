@@ -1,5 +1,5 @@
 import { CONFIG_PR_KEYS } from "@teire/engine/config-keys";
-import { ExternalLink, Plus, Sparkles } from "lucide-react";
+import { ExternalLink, MessageCircleQuestion, Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -268,7 +268,7 @@ async function Body({ params }: PageProps<"/app/settings/[section]">) {
           ) : null}
           {/* Ask Teire has its own budget, apart from fix runs (D127): chatting never stops a fix. */}
           <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-3 shadow-card">
-            <Sparkles className="size-4 shrink-0 text-ink-2" aria-hidden />
+            <MessageCircleQuestion className="size-4 shrink-0 text-ink-2" aria-hidden />
             <span className="text-sm text-ink-2">Ask Teire today</span>
             <span className="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-sunken" aria-hidden>
               <span

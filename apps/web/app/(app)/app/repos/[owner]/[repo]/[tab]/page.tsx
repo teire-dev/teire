@@ -159,9 +159,14 @@ async function Findings({
   const { repo, scan, fixMode } = data;
   // Each group's proof chain: its newest run (plan revision 3.3, "the proof chain on every finding").
   const mine = { scope: repoScope(data, userId) };
-  // The runs behind the latest 25 and behind every PR or issue, so an older PR still shows its proof.
+  // The runs behind the latest 25, every PR or issue, and each change's own latest run (queued ones
+  // included), so every finding shows the run it really has.
   const ids = [
-    ...new Set([...data.runs.map((x) => x.id), ...data.artifacts.flatMap((a) => (a.runId ? [a.runId] : []))]),
+    ...new Set([
+      ...data.runs.map((x) => x.id),
+      ...data.artifacts.flatMap((a) => (a.runId ? [a.runId] : [])),
+      ...data.groupRunIds,
+    ]),
   ];
   const rows = ids.length ? await rowsOf(mine.scope, inArray(runs.id, ids), ids.length) : [];
   const byRun = new Map(rows.map((r) => [r.id, r]));
@@ -235,6 +240,11 @@ async function Findings({
               <Button asChild size="sm" variant="outline">
                 <a href={pr.url}>PR #{pr.number}</a>
               </Button>
+            ) : run && ["queued", "running", "stopping"].includes(run.status) ? (
+              // Already on its way: the button says where, never "Fix now" over a waiting run.
+              <Button asChild size="sm" variant="outline" title={run.step ?? undefined}>
+                <Link href={`/runs/${run.id}`}>{runButtonLabel(run.status, run.step)}</Link>
+              </Button>
             ) : g.key.startsWith("runtime/") ? null : (
               <ActionButton
                 kind="fix"
@@ -248,7 +258,11 @@ async function Findings({
                     : undefined
                 }
               >
-                {undecided ? "Upgrade and check" : "Fix now"}
+                {run && (run.status === "failed" || run.status === "cancelled")
+                  ? "Try again"
+                  : undecided
+                    ? "Upgrade and check"
+                    : "Fix now"}
               </ActionButton>
             )}
             <IgnoreMenu repo={fullName} group={g.key} />
@@ -842,4 +856,13 @@ function Activity({ data }: { data: Data }) {
       ) : null}
     </div>
   );
+}
+
+/** What a finding's waiting or running run is doing, in two words. */
+function runButtonLabel(status: string, step: string | null) {
+  if (status !== "queued") return "Fixing…";
+  if (step?.includes("PR limit")) return "Waiting · PR limit";
+  if (step?.startsWith("paused")) return "Held · paused";
+  if (step?.includes("security")) return "Waiting · security first";
+  return "Queued";
 }

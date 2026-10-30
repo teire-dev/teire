@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { MessageCircleQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AssistantContext } from "@/lib/assistant/message";
 import { useAssistant } from "./assistant-provider";
@@ -34,7 +34,7 @@ export function AskButton({
       title={typeof children === "string" ? children : "Explain"}
       onClick={() => ask(question, context)}
     >
-      <Sparkles aria-hidden />
+      <MessageCircleQuestion aria-hidden />
     </Button>
   ) : (
     <Button type="button" size="sm" variant={variant} onClick={() => ask(question, context)}>

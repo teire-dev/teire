@@ -85,7 +85,7 @@ export async function repoDetail(userId: string, fullName: string) {
       .orderBy(desc(scans.createdAt))
       .limit(1),
   ]);
-  const [rows, inventory, prs, recent] = await Promise.all([
+  const [rows, inventory, prs, recent, groupRuns] = await Promise.all([
     db
       .select({
         id: findings.id,
@@ -121,6 +121,17 @@ export async function repoDetail(userId: string, fullName: string) {
       .where(and(eq(artifacts.repoId, repo.id), sql`${artifacts.kind} <> 'dashboard'`))
       .orderBy(desc(artifacts.updatedAt)),
     db.select().from(runs).where(eq(runs.repoId, repo.id)).orderBy(desc(runs.createdAt)).limit(25),
+    // Each change's own latest run and every run waiting or going, however many the repository has:
+    // past the 25 above, a queued finding read "Fix now" though its run was already waiting.
+    db.execute<{ id: string }>(sql`
+      select id from (
+        select distinct on (group_key) id from runs
+        where repo_id = ${repo.id} and group_key is not null
+        order by group_key, created_at desc
+      ) latest
+      union
+      select id from runs where repo_id = ${repo.id} and status in ('queued', 'running', 'stopping')
+    `),
   ]);
   const [[inst], activity, providerRows] = await Promise.all([
     db
@@ -153,6 +164,7 @@ export async function repoDetail(userId: string, fullName: string) {
     inventory,
     artifacts: prs,
     runs: recent,
+    groupRunIds: groupRuns.rows.map((r) => r.id),
     // The effective fix mode and where it was set (D118), as the worker reads it.
     fixMode: repoFixMode(repo, inst ?? null),
   };

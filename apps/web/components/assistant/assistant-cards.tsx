@@ -12,8 +12,8 @@ import {
   Hand,
   Loader2,
   type LucideIcon,
+  MessageCircleQuestion,
   Play,
-  Sparkles,
   X,
   Zap,
 } from "lucide-react";
@@ -967,7 +967,7 @@ export function UsageCard({ o }: { o: Out<"get_usage"> }) {
           {
             label: "Ask Teire",
             value: `$${o.assistant.monthUsd.toFixed(2)}`,
-            icon: Sparkles,
+            icon: MessageCircleQuestion,
             tone: "signal",
             zero: !o.assistant.monthUsd,
           },
