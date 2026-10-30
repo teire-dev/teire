@@ -96,7 +96,7 @@ Every model fix and every package fix follows the same loop. The [Go major](http
     <img src=".github/assets/demo-cover.png" width="960" alt="Watch the demo: Dependabot bumps. Teire fixes. Beside it, the zod 3 → 4 run: typecheck exit 2 and tests exit 1 after the upgrade, then pass and 4/4 after Nemotron's fix. Nemotron on Nebius Token Factory." />
   </a>
 </p>
-<p align="center"><a href="https://teire.vercel.app/demo"><b>Watch the 2:43 demo</b></a> · <a href="https://youtu.be/03-D16dkLf4">youtu.be/03-D16dkLf4</a></p>
+<p align="center"><a href="https://teire.vercel.app/demo"><b>Watch the 2:50 demo</b></a> · <a href="https://youtu.be/s3VyWZnEVqc">youtu.be/s3VyWZnEVqc</a></p>
 
 Follow the proof yourself on [teire.vercel.app](https://teire.vercel.app):
 1. **Scan.** On [/scan](https://teire.vercel.app/scan), sign in with GitHub and paste `teire-dev/examples`. In a few minutes the report shows every example's findings; among them, OpenAI's `gpt-4.1-nano` shutdown reaching `ai-web/src/summarize.ts:13`.

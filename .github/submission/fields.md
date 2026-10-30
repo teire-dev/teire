@@ -1,6 +1,6 @@
 # Devpost submission: Teire
 
-Prepared against the owner's live Nebius x NVIDIA Global AI Hackathon form on 2026-10-30. The form allows 200 characters for the elevator pitch, up to 25 Built with tags, 15 gallery images (JPG/PNG/GIF, 5 MB each), and a YouTube or Vimeo demo URL. The long story is in [story.md](story.md); the organizer answers are in [additional-info.md](additional-info.md). The project details page saved the story, tags, links, all 13 captioned gallery images in the order below, and the Teire banner as thumbnail. The demo video is https://youtu.be/03-D16dkLf4 (also https://teire.vercel.app/demo). The draft has not been submitted.
+Prepared against the owner's live Nebius x NVIDIA Global AI Hackathon form on 2026-10-30. The form allows 200 characters for the elevator pitch, up to 25 Built with tags, 15 gallery images (JPG/PNG/GIF, 5 MB each), and a YouTube or Vimeo demo URL. The long story is in [story.md](story.md); the organizer answers are in [additional-info.md](additional-info.md). The project details page saved the story, tags, links, all 13 captioned gallery images in the order below, and the Teire banner as thumbnail. The demo video is https://youtu.be/s3VyWZnEVqc (also https://teire.vercel.app/demo). The draft has not been submitted.
 
 ## Project name
 
@@ -28,7 +28,7 @@ Nebius, nebius-token-factory, token-factory-sandboxes, nvidia-nemotron, nemotron
 
 ## Video
 
-https://youtu.be/03-D16dkLf4 (2:43, public). Short link: https://teire.vercel.app/demo. Paste the YouTube URL into the Devpost video field.
+https://youtu.be/s3VyWZnEVqc (2:50, public). Short link: https://teire.vercel.app/demo. Paste the YouTube URL into the Devpost video field.
 
 The current [official rules](https://nebiusglobalaihackathon.devpost.com/rules) give a 2026-10-30 10:00 PDT submission deadline (18:00 WAT) and a judging period ending 2026-12-23. Keep the working demo free and unrestricted through that date. The older local hackathon context still says 2026-12-15 and needs updating before relying on it for access planning.
 
