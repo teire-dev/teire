@@ -211,6 +211,11 @@ export const RUNS = {
   fixConcurrency: 3,
   /** The run page polls this often while a run is active. */
   pollEveryMs: 1000,
+  /**
+   * A repository's Dashboard issue follows its runs at most this often: forty runs deferred at once
+   * after a scan are one edit, not forty (GitHub's secondary limits, and an `issues.edited` each).
+   */
+  dashboardSyncMs: 30 * 1000,
 } as const;
 
 export const SCAN = {

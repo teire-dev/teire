@@ -156,6 +156,21 @@ async function main() {
         await boss.send(QUEUES.public, { publicScanId }, { singletonKey: publicScanId });
       },
     };
+    // One Dashboard refresh per repository per `RUNS.dashboardSyncMs`, however many runs changed.
+    const dashboardTimers = new Map<number, NodeJS.Timeout>();
+    const dashboardSoon = (repoId: number) => {
+      if (dashboardTimers.has(repoId)) return;
+      dashboardTimers.set(
+        repoId,
+        setTimeout(() => {
+          dashboardTimers.delete(repoId);
+          void syncDashboard(ctx, repoId).catch(() => undefined);
+        }, RUNS.dashboardSyncMs),
+      );
+    };
+    shutdownHooks.push(async () => {
+      for (const t of dashboardTimers.values()) clearTimeout(t);
+    });
     // key_strict_fifo holds a repo's queue behind a failed job, so these handlers never throw:
     // failures live on the scan and run rows.
     await boss.work<{ repoId: number; trigger: "install" | "push" | "command" | "manual" | "catalog" }>(
@@ -194,7 +209,7 @@ async function main() {
             // now waiting for the PR limit, or ended without a PR (its row offers "Fix now" again).
             const after = await getRun(db, job.data.runId);
             if (before && after && kind !== "dry_run" && runState(before) !== runState(after))
-              await syncDashboard(ctx, after.repoId).catch(() => undefined);
+              dashboardSoon(after.repoId);
           } catch (error) {
             console.error("[fix] failed", job.data.runId, error);
           }
