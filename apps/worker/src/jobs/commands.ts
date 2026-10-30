@@ -30,6 +30,7 @@ import {
   unparkQueued,
   upgradeMatches,
 } from "../store";
+import { syncDashboard } from "./dashboard";
 import type { EventContext } from "./events";
 import { resumeOnboarding } from "./onboarding";
 import { openDraftAnyway, startReverify } from "./reverify";
@@ -185,6 +186,7 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       await reply(
         `Paused: no scans or PRs until \`@teire resume\`${held ? `; ${held} queued run(s) are held and start again then` : ""}.`,
       );
+      await syncDashboard(ctx, repo.id).catch(() => undefined);
       return;
     }
     case "resume": {
@@ -205,6 +207,7 @@ export async function handleComment(ctx: EventContext, p: Payload) {
         onboarding ??
           `Resumed; rescanning now${held.length ? `, and ${held.length} held run(s) are back in the queue` : ""}.`,
       );
+      await syncDashboard(ctx, repo.id).catch(() => undefined);
       return;
     }
     case "pause-fixes":

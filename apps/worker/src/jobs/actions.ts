@@ -86,14 +86,25 @@ export async function handleRepoAction(
       if (repo.status === "paused") return { skipped: "paused" };
       await ctx.enqueueScan(repo.id, "manual");
       return { rescan: repo.fullName };
+    // The same pause and resume as the dashboard's and the comments' (Fable L4).
     case "pause":
       if (repo.status !== "paused") await setRepo(db, repo.id, { status: "paused", pausedFrom: repo.status });
+      await parkQueued(db, repo.id);
       break;
-    case "resume":
-      if (repo.status === "paused")
-        await setRepo(db, repo.id, { status: repo.pausedFrom ?? "active", pausedFrom: null });
+    case "resume": {
+      const onboarding = await resumeOnboarding(db, repo, octokit, owner, name);
+      if (!onboarding && repo.status === "paused")
+        await setRepo(db, repo.id, {
+          status: repo.pausedFrom ?? "active",
+          pausedFrom: null,
+          pausedReason: null,
+        });
+      const held = await unparkQueued(db, repo.id);
+      const pending = await pendingFixJobs(db, held);
+      for (const runId of held) if (!pending.has(runId)) await ctx.enqueueFix(runId, repo.id);
       await ctx.enqueueScan(repo.id, "manual");
       break;
+    }
     case "ignore":
     case "unignore": {
       if (!target) return { skipped: "no target" };

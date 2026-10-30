@@ -267,7 +267,7 @@ export function assistantTools(viewer: Viewer) {
             filter === "needs_you"
               ? r.needsYou > 0 || r.lastScanFailed
               : filter === "live"
-                ? r.live
+                ? r.live || r.waiting > 0
                 : filter === "paused"
                   ? r.status === "paused"
                   : filter === "not_automatic"

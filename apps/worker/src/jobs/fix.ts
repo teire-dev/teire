@@ -1703,6 +1703,10 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // A run the reaper failed (its worker stopped) is retried by its queue: it starts over cleanly.
   // Any other failure stays failed until someone asks again (`@teire recreate`).
   if (run.status === "failed" && run.step !== "interrupted") return { skipped: true };
+  // An interrupted dry run is started again from its report, by the person, never by a job retry
+  // as well: two would run for one person's daily dry run (walk-fix review, Fable L1).
+  if (run.status === "failed" && run.kind === "dry_run")
+    return { skipped: "dry run: start it again from the report" };
   // Another worker is on this run now: it finishes it. Its own job brings the run back if that
   // worker dies (the boot sweep and the reaper), so nothing is queued here; a deferral queued under
   // the repository's singleton key could be dropped silently (stage R review).
@@ -1796,12 +1800,9 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   // Held, not cancelled: resuming the repository puts it back in the queue (Codex walk B14).
   if (!dry && repo.status === "paused") {
     await update({ status: "queued", step: PAUSED_STEP, workerId: null });
+    // The action asking for it stays open: it hasn't started, and settles when the run ends (Fable L2).
     await appendEvent(db, runId, "queue", "held", {
       reason: "the repository is paused; it starts on resume",
-    });
-    await settleRunActions(db, runId, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
-      status: "started",
-      result: "Queued: the repository is paused, and this starts when it's resumed",
     });
     return { held: "paused" };
   }
