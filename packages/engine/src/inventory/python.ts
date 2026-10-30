@@ -31,11 +31,16 @@ interface HelperProject extends Omit<PyProject, "instances" | "excludeNewer" | "
 
 /** Folders the helper treats as Python projects, each with the Python the sandbox runs for it. */
 function pythonsByRoot(tree: RepoTree) {
+  // The helper's own project folders: a pyproject, Pipfile, setup.py/.cfg or requirements file's
+  // folder, and a `requirements/` folder's parent (S18 review R4).
+  const parent = (f: string) => (f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : ".");
   const roots = new Set(
-    tree
-      .files()
-      .filter((f) => /(^|\/)(pyproject\.toml|Pipfile|requirements[^/]*\.(txt|in))$/.test(f))
-      .map((f) => (f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : ".")),
+    tree.files().flatMap((f) => {
+      if (/(^|\/)requirements\/[^/]+\.(txt|in)$/.test(f)) return [parent(parent(f))];
+      return /(^|\/)(pyproject\.toml|Pipfile|setup\.py|setup\.cfg|requirements[^/]*\.(txt|in))$/.test(f)
+        ? [parent(f)]
+        : [];
+    }),
   );
   const out: Record<string, string> = {};
   for (const root of roots) {

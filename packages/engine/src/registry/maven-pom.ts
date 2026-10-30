@@ -13,23 +13,30 @@ import type { RegistryOptions } from "./clients";
 import { mavenRepositories } from "./native";
 
 /**
- * A published POM, from the repository its group lives in. A released POM never changes, so it is
- * cached for good under `pom:group:artifact:version`.
+ * A published POM (Codex S18 review #11), from where the repository's own build reads it: a Maven
+ * repository it names with a saved credential first (never cached: the answer is that
+ * installation's), then the public repository its group lives in, then a repository it names that
+ * needs no credential. A released POM never changes, so a public one is cached for good under
+ * `pom:group:artifact:version` and a named repository's under its URL too.
  */
-export async function fetchPom(coordinate: string, { cache, now = new Date() }: RegistryOptions) {
+export async function fetchPom(
+  coordinate: string,
+  { cache, now = new Date(), registries = [], discovered = [] }: RegistryOptions,
+) {
   const [group, artifact, version] = coordinate.split(":");
   if (!group || !artifact || !version) return null;
-  const key = `pom:${coordinate}`;
-  const cached = await cache.get("maven", key);
-  if (cached) return parsePom(cached.data as string);
-  for (const repo of mavenRepositories(group)) {
-    const res = await guardedFetch(
-      `${repo.url}/${group.replaceAll(".", "/")}/${artifact}/${version}/${artifact}-${version}.pom`,
-      { allowHosts: [...repo.hosts], maxBytes: REGISTRY.maxPomBytes },
-    );
-    if (res.status === 404) continue;
-    if (res.status !== 200) throw new Error(`${repo.name} ${res.status} for ${coordinate}`);
-    const text = res.text();
+  const path = `${group.replaceAll(".", "/")}/${artifact}/${version}/${artifact}-${version}.pom`;
+  const read = async (url: string, hosts: string[], headers?: Record<string, string>) => {
+    const res = await guardedFetch(`${url.replace(/\/+$/, "")}/${path}`, {
+      allowHosts: hosts,
+      maxBytes: REGISTRY.maxPomBytes,
+      ...(headers ? { headers } : {}),
+    });
+    if (res.status === 404) return null;
+    if (res.status !== 200) throw new Error(`${hosts[0]} ${res.status} for ${coordinate}`);
+    return res.text();
+  };
+  const remember = async (key: string, text: string) => {
     await cache.put("maven", key, {
       etag: null,
       lastModified: null,
@@ -38,6 +45,28 @@ export async function fetchPom(coordinate: string, { cache, now = new Date() }: 
       fetchedAt: now.toISOString(),
     });
     return parsePom(text);
+  };
+  const authorized = registries.filter((r) => r.ecosystem === "maven");
+  for (const repo of authorized) {
+    // A credentialed repository that fails stops the read: the public namesake isn't its POM.
+    const text = await read(repo.url, [repo.host], { authorization: repo.authorization });
+    if (text !== null) return parsePom(text);
+  }
+  const key = `pom:${coordinate}`;
+  const cached = await cache.get("maven", key);
+  if (cached) return parsePom(cached.data as string);
+  for (const repo of mavenRepositories(group)) {
+    const text = await read(repo.url, [...repo.hosts]);
+    if (text !== null) return remember(key, text);
+  }
+  for (const repo of discovered.filter(
+    (d) => d.ecosystem === "maven" && !authorized.some((a) => a.url === d.url),
+  )) {
+    const named = `pom:${repo.url}|${coordinate}`;
+    const hit = await cache.get("maven", named);
+    if (hit) return parsePom(hit.data as string);
+    const text = await read(repo.url, [repo.host]).catch(() => null);
+    if (text !== null) return remember(named, text);
   }
   return null;
 }
@@ -72,7 +101,9 @@ async function chainOf(start: string, options: RegistryOptions, budget: { left: 
     }
     const pom: Pom | null = await fetchPom(next, options).catch(() => null);
     if (!pom) {
-      notes.push(`${label(next)}: POM not found on Maven Central, Google Maven or the Plugin Portal`);
+      notes.push(
+        `${label(next)}: POM not found in the repository's Maven repositories, Maven Central, Google Maven or the Plugin Portal`,
+      );
       break;
     }
     chain.push({ coordinate: next, pom });

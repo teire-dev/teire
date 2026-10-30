@@ -1,8 +1,10 @@
-import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, normalize } from "node:path";
 import { type DependencyInstance, dependencyInstance } from "../contract";
-import { runGo, scratchHome } from "../golang/toolchain";
+import { type GoAccess, goAuthEnv, goPrivateEnv, runGo, scratchHome } from "../golang/toolchain";
+import { goPrivate } from "../registry/private";
+import { goPrivatePatterns } from "../verify/private-registry";
 import type { RepoTree } from "./tree";
 
 /**
@@ -88,43 +90,88 @@ interface WorkEditJson {
 
 /**
  * Each `go.work` workspace (S18.4): the modules it uses and the versions it selects for all of
- * them together (`go list -m all` in workspace mode), keyed by module folder.
+ * them together (`go list -m all` in workspace mode), keyed by module folder. Read on a scratch
+ * copy of every go.work, go.mod and go.sum (S18 review C6): workspace mode may write go.work.sum,
+ * and a fix's diff starts from an untouched checkout. Private modules Teire can't read are dropped
+ * from the copy, as in module mode.
  */
-async function readWorkspaces(repoDir: string, tree: RepoTree, home: string, notes: string[]) {
+async function readWorkspaces(
+  repoDir: string,
+  tree: RepoTree,
+  home: string,
+  notes: string[],
+  env: Record<string, string>,
+  unreadable: (path: string) => boolean,
+) {
   const out = new Map<string, { work: NonNullable<GoProject["work"]>; selected: Map<string, ListModule> }>();
-  for (const file of tree
-    .files()
-    .filter((f) => (f === "go.work" || f.endsWith("/go.work")) && !SKIP.test(f))) {
-    const root = dirname(file);
-    const dir = join(repoDir, root);
-    try {
-      const edit = JSON.parse(
-        (await runGo(["work", "edit", "-json", join(repoDir, file)], dir, home)).stdout,
-      ) as WorkEditJson;
-      const selected = new Map<string, ListModule>();
-      const { stdout } = await runGo(["list", "-m", "-json", "all"], dir, home, undefined, {
-        GOWORK: join(repoDir, file),
-        GOFLAGS: "-modcacherw",
-      });
-      for (const m of parseStream<ListModule>(stdout)) if (!m.Main) selected.set(m.Path, m);
-      const work = { file, root, vendored: tree.read(join(root, "vendor", "modules.txt")) !== null };
-      for (const use of edit.Use ?? []) out.set(normalize(join(root, use.DiskPath)), { work, selected });
-    } catch (error) {
-      notes.push(
-        `${file}: not read (${(error instanceof Error ? error.message : String(error)).slice(0, 200)})`,
-      );
+  const works = tree.files().filter((f) => (f === "go.work" || f.endsWith("/go.work")) && !SKIP.test(f));
+  if (!works.length) return out;
+  const scratch = await mkdtemp(join(tmpdir(), "teire-gowork-"));
+  try {
+    for (const f of tree
+      .files()
+      .filter((f) => /(?:^|\/)go\.(?:mod|sum|work|work\.sum)$/.test(f) && !SKIP.test(f))) {
+      await mkdir(dirname(join(scratch, f)), { recursive: true });
+      await copyFile(join(repoDir, f), join(scratch, f));
     }
+    for (const file of works) {
+      const root = dirname(file);
+      const dir = join(scratch, root);
+      try {
+        const edit = JSON.parse(
+          (await runGo(["work", "edit", "-json", join(scratch, file)], dir, home)).stdout,
+        ) as WorkEditJson;
+        const members = new Map<string, ModEditJson>();
+        for (const use of edit.Use ?? []) {
+          const mod = join(dir, use.DiskPath, "go.mod");
+          members.set(
+            mod,
+            JSON.parse((await runGo(["mod", "edit", "-json", mod], dir, home)).stdout) as ModEditJson,
+          );
+        }
+        const own = new Set([...members.values()].map((m) => m.Module?.Path));
+        for (const [mod, doc] of members) {
+          const drop = (doc.Require ?? []).map((r) => r.Path).filter((p) => !own.has(p) && unreadable(p));
+          if (drop.length)
+            await runGo(["mod", "edit", ...drop.map((p) => `-droprequire=${p}`), mod], dir, home);
+        }
+        const selected = new Map<string, ListModule>();
+        const { stdout } = await runGo(["list", "-m", "-json", "all"], dir, home, undefined, {
+          ...env,
+          GOWORK: join(scratch, file),
+          GOFLAGS: "-modcacherw",
+        });
+        for (const m of parseStream<ListModule>(stdout)) if (!m.Main) selected.set(m.Path, m);
+        const work = { file, root, vendored: tree.read(join(root, "vendor", "modules.txt")) !== null };
+        for (const use of edit.Use ?? []) out.set(normalize(join(root, use.DiskPath)), { work, selected });
+      } catch (error) {
+        notes.push(
+          `${file}: not read (${(error instanceof Error ? error.message : String(error)).slice(0, 200)})`,
+        );
+      }
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
   }
   return out;
 }
 
-export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<GoProject[]> {
+export async function readGoInventory(
+  repoDir: string,
+  tree: RepoTree,
+  /** The repository's private modules and authorized proxies; without it, its patterns, failing closed. */
+  access: GoAccess = { patterns: goPrivatePatterns(tree), proxies: [] },
+): Promise<GoProject[]> {
   const mods = tree.files().filter((f) => (f === "go.mod" || f.endsWith("/go.mod")) && !SKIP.test(f));
   const projects: GoProject[] = [];
   const home = await scratchHome();
   const workNotes: string[] = [];
   try {
-    const workspaces = await readWorkspaces(repoDir, tree, home, workNotes);
+    // Private modules go through the repository's own authorized proxy, or are never asked of a
+    // public one (Codex S18 review #4): with no proxy they're left out of `go list` and said.
+    const env = { ...goPrivateEnv(access), ...(await goAuthEnv(home, access)) };
+    const closed = (path: string) => !access.proxies.length && goPrivate(access.patterns, path);
+    const workspaces = await readWorkspaces(repoDir, tree, home, workNotes, env, closed);
     for (const manifest of mods) {
       const root = dirname(manifest);
       const dir = join(repoDir, root);
@@ -144,6 +191,9 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
       const undotted = (edit.Require ?? [])
         .map((r) => r.Path)
         .filter((path) => !(path.split("/")[0] ?? "").includes(".") && !local.some((r) => r.old === path));
+      const unread = (edit.Require ?? [])
+        .map((r) => r.Path)
+        .filter((path) => closed(path) && !undotted.includes(path) && !replaces.some((r) => r.old === path));
       const sum = tree.read(join(root, "go.sum")) !== null ? join(root, "go.sum") : null;
 
       // Selected versions from the toolchain, on a scratch copy of go.mod and go.sum; in a workspace,
@@ -157,9 +207,10 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
         try {
           await copyFile(join(dir, "go.mod"), join(scratch, "go.mod"));
           if (sum) await copyFile(join(repoDir, sum), join(scratch, "go.sum"));
-          if (undotted.length)
+          const dropped = [...undotted, ...unread];
+          if (dropped.length)
             await runGo(
-              ["mod", "edit", ...undotted.map((path) => `-droprequire=${path}`), join(scratch, "go.mod")],
+              ["mod", "edit", ...dropped.map((path) => `-droprequire=${path}`), join(scratch, "go.mod")],
               dir,
               home,
             );
@@ -167,6 +218,8 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
             ["list", "-m", "-json", `-modfile=${join(scratch, "go.mod")}`, "all"],
             dir,
             home,
+            undefined,
+            env,
           );
           for (const m of parseStream<ListModule>(stdout)) if (!m.Main) selected.set(m.Path, m);
         } catch (error) {
@@ -186,11 +239,13 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
         const replaced = replaces.find((r) => r.old === req.Path);
         const chosen = selected.get(req.Path);
         const isUndotted = undotted.includes(req.Path);
-        const version = isUndotted
-          ? null
-          : replaced
-            ? (replaced.version ?? null)
-            : (chosen?.Version ?? req.Version);
+        const isUnread = unread.includes(req.Path);
+        const version =
+          isUndotted || isUnread
+            ? null
+            : replaced
+              ? (replaced.version ?? null)
+              : (chosen?.Version ?? req.Version);
         const parsed = dependencyInstance.safeParse({
           ecosystem: "go",
           name: replaced?.version ? replaced.new : req.Path,
@@ -203,14 +258,22 @@ export async function readGoInventory(repoDir: string, tree: RepoTree): Promise<
           workspace: root,
           manifestPath: manifest,
           ...(sum ? { lockfilePath: sum } : {}),
-          source: isUndotted ? "unknown" : replaced && !replaced.version ? "path" : "registry",
+          source: isUndotted
+            ? "unknown"
+            : isUnread
+              ? "private-index"
+              : replaced && !replaced.version
+                ? "path"
+                : "registry",
           ...(replaced && !replaced.version ? { sourceRef: replaced.new } : {}),
           resolvedBy: version === null ? "unresolved" : chosen || replaced ? "toolchain" : "lockfile",
           ...(version === null
             ? {
                 unresolvedReason: isUndotted
                   ? "a module path with no dot in its first element: a local or private module, not on a proxy"
-                  : `replaced by the local directory ${replaced?.new}`,
+                  : isUnread
+                    ? "a private module (GOPRIVATE): read only through the repository's GOPROXY, with a credential saved in Settings → Private registries"
+                    : `replaced by the local directory ${replaced?.new}`,
               }
             : {}),
         });

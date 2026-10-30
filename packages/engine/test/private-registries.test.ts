@@ -2,7 +2,13 @@ import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { credentialContext, openSecret, sealSecret } from "../src/credentials";
 import { memoryTree } from "../src/inventory/tree";
-import { type AuthorizedRegistry, claimingRegistry, fromPrivateRegistry } from "../src/registry/private";
+import {
+  type AuthorizedRegistry,
+  claimingRegistry,
+  compactIndexVersions,
+  fromPrivateRegistry,
+  simpleIndexHtml,
+} from "../src/registry/private";
 import { dependabotCredentials } from "../src/resolver/job";
 import { discoverRegistries, goPrivatePatterns } from "../src/verify/private-registry";
 
@@ -128,4 +134,27 @@ describe("a private registry's own protocol (D-35, live on public registries tha
     const go = await fromPrivateRegistry(at("go", "https://proxy.golang.org"), "github.com/google/uuid");
     expect(go?.versions.some((v) => v.version === "v1.6.0")).toBe(true);
   }, 120_000);
+});
+
+describe("private indexes that serve only the older formats (S18 review S10, S11)", () => {
+  it("reads a PEP 503 HTML page, yanked files included", () => {
+    const page = simpleIndexHtml(`<!DOCTYPE html><html><body>
+<a href="../../packages/acme_core-1.2.0.tar.gz#sha256=ab">acme_core-1.2.0.tar.gz</a>
+<a href="../../packages/acme_core-1.3.0-py3-none-any.whl#sha256=cd" data-requires-python="&gt;=3.9" data-yanked="broken &amp; pulled">acme_core-1.3.0-py3-none-any.whl</a>
+<a href="../../packages/acme_core-1.4.0-py3-none-any.whl" data-yanked>acme_core-1.4.0-py3-none-any.whl</a>
+</body></html>`);
+    expect(page.files).toEqual([
+      { filename: "acme_core-1.2.0.tar.gz" },
+      { filename: "acme_core-1.3.0-py3-none-any.whl", yanked: "broken & pulled" },
+      { filename: "acme_core-1.4.0-py3-none-any.whl", yanked: true },
+    ]);
+  });
+
+  it("reads a compact index file's versions, platform builds folded", () => {
+    expect(
+      compactIndexVersions(
+        "---\n1.15.0 mini_portile2:~> 2.8|checksum:aa,ruby:>= 2.7\n1.16.0-x86_64-linux racc:~> 1.4|checksum:bb\n1.16.0 racc:~> 1.4|checksum:cc\n",
+      ),
+    ).toEqual(["1.15.0", "1.16.0", "1.16.0"]);
+  });
 });

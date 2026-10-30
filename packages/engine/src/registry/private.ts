@@ -18,7 +18,7 @@ export interface AuthorizedRegistry extends Omit<DiscoveredRegistry, "file" | "e
 }
 
 /** Go module path patterns (`GOPRIVATE`): `github.com/acme/*` covers `github.com/acme/x/y`. */
-function goPrivate(patterns: string[], path: string) {
+export function goPrivate(patterns: string[], path: string) {
   return patterns.some((p) => {
     const parts = p.split("/");
     const head = path.split("/").slice(0, parts.length);
@@ -127,6 +127,47 @@ export function fromPrivateRegistry(registry: AuthorizedRegistry, name: string, 
   return pending;
 }
 
+interface SimpleIndexPage {
+  versions?: string[];
+  files?: { filename: string; "upload-time"?: string; yanked?: boolean | string }[];
+}
+
+const entity = (s: string) =>
+  s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+
+/**
+ * A PEP 503 project page as the PEP 691 JSON shape: one anchor per file, its text the filename,
+ * `data-yanked` (PEP 592) present when the file is yanked, with the reason as its value.
+ */
+export function simpleIndexHtml(html: string): SimpleIndexPage {
+  const files: NonNullable<SimpleIndexPage["files"]> = [];
+  for (const m of html.matchAll(/<a\b([^>]*)>([^<]+)<\/a>/gi)) {
+    const attrs = m[1] ?? "";
+    const yanked = /\bdata-yanked(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/i.exec(attrs);
+    const reason = yanked ? entity(yanked[1] ?? yanked[2] ?? yanked[3] ?? "") : null;
+    files.push({
+      filename: entity((m[2] ?? "").trim()),
+      ...(yanked ? { yanked: reason || true } : {}),
+    });
+  }
+  return { files };
+}
+
+/** The versions a compact index `/info/<gem>` file lists, each platform build folded into its version. */
+export function compactIndexVersions(body: string) {
+  const [, list = ""] = body.split(/^---\s*$/m);
+  return list
+    .split("\n")
+    .map((line) => line.trim().split(" ")[0] ?? "")
+    .filter(Boolean)
+    .map((token) => token.split("-")[0] as string);
+}
+
 async function readPrivate(
   registry: AuthorizedRegistry,
   name: string,
@@ -151,14 +192,18 @@ async function readPrivate(
     case "pypi": {
       const normal = name.toLowerCase().replace(/[-_.]+/g, "-");
       const url = `${base}/${normal}/`;
-      const res = await get(url, "application/vnd.pypi.simple.v1+json");
+      // PEP 691 content negotiation: JSON where the index serves it, else PEP 503's HTML page,
+      // which is all Artifactory, Nexus, CodeArtifact and GitLab serve (S18 review S10).
+      const res = await get(
+        url,
+        "application/vnd.pypi.simple.v1+json, application/vnd.pypi.simple.v1+html;q=0.2, text/html;q=0.01",
+      );
       if (res.status === 404) return null;
       if (res.status !== 200) throw new Error(`${registry.host} ${res.status} for ${name}`);
       const body = res.text();
-      const doc = JSON.parse(body) as {
-        versions?: string[];
-        files?: { filename: string; "upload-time"?: string; yanked?: boolean | string }[];
-      };
+      const doc = /json/.test(res.headers.get("content-type") ?? "")
+        ? (JSON.parse(body) as SimpleIndexPage)
+        : simpleIndexHtml(body);
       const versionOf = (file: string) =>
         new RegExp(`^${normal.replace(/-/g, "[-_.]")}-([^-]+?)(?:-|\\.tar|\\.zip)`, "i").exec(file)?.[1] ??
         null;
@@ -236,8 +281,26 @@ async function readPrivate(
     case "rubygems": {
       const url = `${base}/api/v1/versions/${encodeURIComponent(name)}.json`;
       const res = await get(url, "application/json");
-      if (res.status === 404) return null;
-      if (res.status !== 200) throw new Error(`${registry.host} ${res.status} for ${name}`);
+      if (res.status !== 200 || !/json/.test(res.headers.get("content-type") ?? "")) {
+        // Bundler's compact index, which every gem server speaks where the REST API isn't served
+        // (S18 review S11): `VERSION[-PLATFORM] deps|reqs` lines, yanked versions left out, no dates.
+        const info = `${base}/info/${encodeURIComponent(name)}`;
+        const compact = await get(info);
+        if (compact.status === 404) return null;
+        if (compact.status !== 200) throw new Error(`${registry.host} ${compact.status} for ${name}`);
+        const body = compact.text();
+        const versions = [...new Set(compactIndexVersions(body))].map((version) => ({
+          version,
+          publishedAt: null,
+          deprecated: null,
+          isDefault: false,
+        }));
+        return packageInfoOf("rubygems", name, versions, newestStable("rubygems", versions), {
+          ...source,
+          url: info,
+          body,
+        });
+      }
       const body = res.text();
       const listed = JSON.parse(body) as { number: string; created_at?: string }[];
       const byNumber = new Map<string, string | null>();

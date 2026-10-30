@@ -247,6 +247,12 @@ export function gemfileGems(text: string): Map<string, GemfileGem> {
       });
       continue;
     }
+    // `git "…" do`, `github "…" do`, `path "…" do`: every gem inside comes from there (S18 review R3).
+    const fromBlock = /^\s*(git|github|gist|bitbucket|path)\s*\(?\s*["'][^"']+["'][^#]*?\s+do\b/.exec(line);
+    if (fromBlock?.[1]) {
+      stack.push({ groups: [], source: fromBlock[1] === "path" ? "path" : "git" });
+      continue;
+    }
     if (/^\s*end\b/.test(line)) {
       stack.pop();
       continue;
@@ -254,17 +260,19 @@ export function gemfileGems(text: string): Map<string, GemfileGem> {
     const gem = /^\s*gem\s*\(?\s*["']([^"']+)["'](.*)$/.exec(line);
     if (gem?.[1]) {
       const rest = gem[2] ?? "";
-      // Positional strings before the first keyword argument are requirements.
-      const positional = rest.split(/,\s*\w+:/)[0] ?? "";
+      // Positional strings before the first keyword argument (`key:` or `:key =>`) are requirements.
+      const positional = rest.split(/,\s*(?:\w+:|:\w+\s*=>)/)[0] ?? "";
       const requirements = [...positional.matchAll(/["']([^"']+)["']/g)]
         .map((m) => (m[1] ?? "").trim())
         .filter((r) => /^(?:[~><=!]+\s*)?\d/.test(r));
-      const inline = /\bgroups?:\s*(\[[^\]]*\]|:\w+)/.exec(rest)?.[1];
-      const own: GemfileGem["source"] = /\b(?:git|github|gist|bitbucket):/.test(rest)
+      // Keyword arguments in either syntax: `git: "…"` or `:git => "…"`.
+      const key = (k: string) => `(?:\\b(?:${k}):|:(?:${k})\\s*=>)`;
+      const inline = new RegExp(`${key("groups?")}\\s*(\\[[^\\]]*\\]|:\\w+)`).exec(rest)?.[1];
+      const own: GemfileGem["source"] = new RegExp(key("git|github|gist|bitbucket")).test(rest)
         ? "git"
-        : /\bpath:/.test(rest)
+        : new RegExp(key("path")).test(rest)
           ? "path"
-          : /\bsource:\s*["'](?![^"']*rubygems\.org)/.test(rest)
+          : new RegExp(`${key("source")}\\s*["'](?![^"']*rubygems\\.org)`).test(rest)
             ? "private-index"
             : undefined;
       const source = own ?? stack.findLast((b) => b.source)?.source;

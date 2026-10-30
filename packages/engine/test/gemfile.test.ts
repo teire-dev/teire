@@ -49,6 +49,24 @@ describe("a Gemfile read as text (D-18, D-25)", () => {
     expect(gems.get("sidekiq")?.groups).toEqual([]);
   });
 
+  it("reads git and path blocks and hash-rocket options (S18 review R3)", () => {
+    const more = gemfileGems(`git "https://github.com/rails/rails.git" do
+  gem "activesupport"
+end
+path "components" do
+  gem "admin_ui"
+end
+gem "kaminari", "~> 1.2", :git => "https://github.com/kaminari/kaminari"
+gem "rubocop", "~> 1.60", :group => :development
+gem "nokogiri", ">= 1.16"
+`);
+    expect(more.get("activesupport")?.source).toBe("git");
+    expect(more.get("admin_ui")?.source).toBe("path");
+    expect(more.get("kaminari")).toMatchObject({ requirement: "~> 1.2", source: "git" });
+    expect(more.get("rubocop")).toEqual({ groups: ["development"], requirement: "~> 1.60" });
+    expect(more.get("nokogiri")).toEqual({ groups: [], requirement: ">= 1.16" });
+  });
+
   it("gives a lockless Gemfile's gems their declared ranges", () => {
     const tree: RepoTree = { files: () => ["Gemfile"], read: (p) => (p === "Gemfile" ? GEMFILE : null) };
     const [project] = readRubyInventory(tree);

@@ -1,8 +1,10 @@
 import { join } from "node:path";
 import YAML from "yaml";
+import { type GoAccess, goPrivateEnv } from "../golang/toolchain";
 import type { GoProject } from "../inventory/go";
 import type { RepoTree } from "../inventory/tree";
 import type { CheckPlan, PlannedCheck } from "./commands";
+import { goPrivatePatterns } from "./private-registry";
 
 /**
  * What to run for a Go module (plan S05, research go.md Job 8): `go mod download` online, then
@@ -45,8 +47,18 @@ function ciTestArgs(tree: RepoTree, notes: string[]) {
   return args;
 }
 
-export function detectGoChecks(tree: RepoTree, project: GoProject, sandboxRoot = "/work"): CheckPlan {
+export function detectGoChecks(
+  tree: RepoTree,
+  project: GoProject,
+  sandboxRoot = "/work",
+  /** The repository's private modules; without it, its own patterns, failing closed. */
+  access: GoAccess = { patterns: goPrivatePatterns(tree), proxies: [] },
+): CheckPlan {
   const notes: string[] = [...project.notes];
+  // Installs (and a fix's go get) reach private modules through the repository's own proxy, whose
+  // credential the sandbox's egress adds; offline checks keep them out of the checksum database.
+  const offlinePrivate = goPrivateEnv({ patterns: access.patterns, proxies: [] });
+  const installPrivate = goPrivateEnv({ ...access, proxies: access.proxies.map((p) => ({ url: p.url })) });
   const prefix = project.root === "." ? "" : `${project.root}/`;
   const hasTests = tree
     .files()
@@ -73,9 +85,10 @@ export function detectGoChecks(tree: RepoTree, project: GoProject, sandboxRoot =
           const gowork = join(sandboxRoot, project.work.file);
           return {
             install: ["go", "mod", "download"],
-            installEnv: { GOTOOLCHAIN: "auto", GOFLAGS: "-modcacherw", GOWORK: gowork },
+            installEnv: { GOTOOLCHAIN: "auto", GOFLAGS: "-modcacherw", GOWORK: gowork, ...installPrivate },
             env: {
               ...OFFLINE_ENV,
+              ...offlinePrivate,
               GOWORK: gowork,
               GOFLAGS: project.work.vendored ? "-mod=vendor" : "-mod=readonly -modcacherw",
             },
@@ -83,8 +96,17 @@ export function detectGoChecks(tree: RepoTree, project: GoProject, sandboxRoot =
         })()
       : {
           install: project.vendored ? ["go", "mod", "verify"] : ["go", "mod", "download"],
-          installEnv: { GOTOOLCHAIN: "auto", GOFLAGS: "-mod=mod -modcacherw", GOWORK: "off" },
-          env: project.vendored ? { ...OFFLINE_ENV, GOFLAGS: "-mod=vendor" } : OFFLINE_ENV,
+          installEnv: {
+            GOTOOLCHAIN: "auto",
+            GOFLAGS: "-mod=mod -modcacherw",
+            GOWORK: "off",
+            ...installPrivate,
+          },
+          env: {
+            ...OFFLINE_ENV,
+            ...offlinePrivate,
+            ...(project.vendored ? { GOFLAGS: "-mod=vendor" } : {}),
+          },
         }),
     checks,
     provenOffline: true,

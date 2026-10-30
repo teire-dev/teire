@@ -1,6 +1,6 @@
 # Devpost submission: Teire
 
-Prepared against the owner's live Nebius x NVIDIA Global AI Hackathon form on 2026-10-30. The form allows 200 characters for the elevator pitch, up to 25 Built with tags, 15 gallery images (JPG/PNG/GIF, 5 MB each), and a YouTube or Vimeo demo URL. The long story is in [story.md](story.md); the organizer answers are in [additional-info.md](additional-info.md). The project details page saved the story, tags, links, and the first six captioned gallery images as a draft. The video URL and thumbnail are still missing; diagrams are embedded in the story but not uploaded to the gallery. The draft has not been submitted.
+Prepared against the owner's live Nebius x NVIDIA Global AI Hackathon form on 2026-10-30. The form allows 200 characters for the elevator pitch, up to 25 Built with tags, 15 gallery images (JPG/PNG/GIF, 5 MB each), and a YouTube or Vimeo demo URL. The long story is in [story.md](story.md); the organizer answers are in [additional-info.md](additional-info.md). The project details page saved the story, tags, links, all 13 captioned gallery images in the order below, and the Teire banner as thumbnail. The demo video URL is still missing. The draft has not been submitted.
 
 ## Project name
 
@@ -38,19 +38,19 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
 
 | # | File | Caption |
 |---|---|---|
-| 1 | `banner-dark.png` | When upstream breaks, Teire fixes your code. Beside the line, the live run of a real Teire fix: zod 3.25.76 → 4.6.6 in teire-dev/examples, proven 4/4 → 4/4. |
-| 2 | `captures/report-wrapped-models-desktop.png` | A public scan: Groq retired two Llama models; Nemotron traced the IDs through a tier registry to the request. |
-| 3 | `captures/dryrun-go-timeline-desktop.png` | A live run: Teire upgrades golang-jwt v4 → v5, the checks fail, and Nemotron 3 Ultra reads, searches and edits until they pass. |
-| 4 | `captures/dryrun-go-pr-desktop.png` | The pull request Teire composed: why this repo, what changed upstream (quoted), changes, verification, receipt. |
-| 5 | `captures/dryrun-go-verification-desktop.png` | Build, typecheck and 4/4 tests pass before and after the Go fix. This captured run verified on Cloudflare Containers. |
-| 6 | `captures/dryrun-go-receipt-desktop.png` | Every Nemotron call on Token Factory, with tokens and $0.1807 model cost; the verification sandbox was Cloudflare Containers. |
-| 7 | `model-retirement-dark.png` | The model-retirement journey, numbered, with the real values of the run. |
-| 8 | `fix-loop-dark.png` | The fix loop: a deterministic change and checks first, then Nemotron's tools and repeated checks, final review, and the evidence-gated PR. |
+| 1 | `banner-dark.png` | When upstream breaks, Teire fixes your code. A real zod upgrade in teire-dev/examples, proven by 4 of 4 tests. |
+| 2 | `captures/report-wrapped-models-desktop.png` | Public scan: Groq retired two Llama models; Nemotron traced the IDs through a tier registry to the request. |
+| 3 | `captures/dryrun-go-timeline-desktop.png` | Live run: Teire upgrades golang-jwt v4 to v5; checks fail, then Nemotron 3 Ultra edits until they pass. |
+| 4 | `captures/dryrun-go-pr-desktop.png` | The pull request Teire composed: upstream change, code changes, verification, and model receipt. |
+| 5 | `captures/dryrun-go-verification-desktop.png` | Build, typecheck and 4 of 4 tests pass before and after the Go fix on Cloudflare Containers. |
+| 6 | `captures/dryrun-go-receipt-desktop.png` | Every Nemotron call on Token Factory, with tokens and $0.1807 model cost for this captured run. |
+| 7 | `model-retirement-dark.png` | The model retirement journey, numbered, with the real values from the Groq run. |
+| 8 | `fix-loop-dark.png` | The fix loop: deterministic change and checks first, then Nemotron tools and repeated checks, final review, and an evidence-gated PR. |
 | 9 | `system-light.png` | The system: GitHub, web app, Postgres outbox, worker, Nemotron on Token Factory, dependency sources, and verification backends. |
-| 10 | `captures/dashboard-desktop.png` | The dashboard as one map: the changes reaching your code, your repositories and what is open now; drag a change onto a repository to fix it there. |
-| 11 | `captures/repo-prs-desktop.png` | Every pull request as a breadcrumb trail of its run: the package, dependabot-core, Token Factory, your checks before → after, the review and the PR. |
-| 12 | `captures/changes-desktop.png` | The public catalog, live: every source Teire watches with its last check, what is new, and 30 days of pickups. |
-| 13 | `captures/trust-desktop.png` | Live status from production: the worker's heartbeat, Token Factory credits and which Nemotron model is answering. |
+| 10 | `captures/dashboard-desktop.png` | The dashboard maps upstream changes to repositories and open work; drag a change onto a repository to start a fix. |
+| 11 | `captures/repo-prs-desktop.png` | Each pull request shows its breadcrumb trail: package, updater, Token Factory, checks before and after, review, and PR. |
+| 12 | `captures/changes-desktop.png` | The public catalog shows every source Teire watches, its last check, new notices, and 30 days of pickups. |
+| 13 | `captures/trust-desktop.png` | Live production status: worker heartbeat, Token Factory credits, and the Nemotron model answering. |
 
 ## Feedback on Nebius Token Factory and NVIDIA models
 

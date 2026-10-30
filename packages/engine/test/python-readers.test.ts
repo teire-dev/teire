@@ -65,6 +65,21 @@ describe("Python manifests beyond pyproject and a root requirements file (S18)",
     expect(of(py, "black")[0]?.scope).toBe("optional");
   });
 
+  it("keeps setup.cfg markers and a -r'd file's own scope (S18 review R1, R2)", async () => {
+    const cfg = await read({
+      "setup.cfg":
+        '[options]\ninstall_requires =\n    importlib-metadata; python_version<"3.8"\n    httpx>=0.24\n',
+    });
+    expect(of(cfg, "importlib-metadata")[0]?.environment).toEqual({ markers: 'python_version < "3.8"' });
+    expect(of(cfg, "httpx")[0]?.environment).toBeUndefined();
+    const reqs = await read({
+      "requirements.txt": "flask==3.0.0\n",
+      "requirements-dev.txt": "-r requirements.txt\npytest==8.0.0\n",
+    });
+    expect(of(reqs, "flask").map((i) => i.scope)).toEqual(["prod"]);
+    expect(of(reqs, "pytest")[0]?.scope).toBe("dev");
+  });
+
   it("reads a project in a build/ folder, never build output (D-21)", async () => {
     const projects = await read({
       "packages/build/pyproject.toml": '[project]\nname = "build-tools"\ndependencies = ["jinja2>=3"]\n',

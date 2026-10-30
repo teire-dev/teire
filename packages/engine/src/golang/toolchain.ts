@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -44,6 +44,47 @@ export function goEnv(home: string): NodeJS.ProcessEnv {
   };
 }
 
+/** A repository's private Go modules (S18.7): the patterns its CI marks private, the proxies it authorized. */
+export interface GoAccess {
+  patterns: string[];
+  /** Authorized GOPROXY entries; `authorization` only where the worker itself fetches. */
+  proxies: { url: string; authorization?: string }[];
+}
+
+/**
+ * The Go settings for a repository's private modules (S18 review S12, Codex #4). With an authorized
+ * proxy, every module goes through the repository's own proxy first and the public one after
+ * (GONOPROXY=none), as its CI sets it, and private modules skip the checksum database. With
+ * patterns and no proxy, GOPRIVATE sends private modules to direct fetches, which GOVCS=*:off
+ * refuses: they fail closed, never asked of proxy.golang.org or sum.golang.org.
+ */
+export function goPrivateEnv(access?: GoAccess): Record<string, string> {
+  const patterns = (access?.patterns ?? []).join(",");
+  const proxies = access?.proxies ?? [];
+  return {
+    ...(patterns ? { GOPRIVATE: patterns, GONOSUMDB: patterns } : {}),
+    ...(proxies.length
+      ? { GOPROXY: [...proxies.map((p) => p.url.replace(/\/+$/, "")), GO.proxy].join(","), GONOPROXY: "none" }
+      : {}),
+  };
+}
+
+/**
+ * The worker's own Go commands authenticate to an authorized proxy through GOAUTH's command form
+ * (Go 1.24+): a 0600 file in the scratch HOME, removed with it, never an environment variable.
+ */
+export async function goAuthEnv(home: string, access?: GoAccess): Promise<Record<string, string>> {
+  const signed = (access?.proxies ?? []).filter((p) => p.authorization);
+  if (!signed.length) return {};
+  const file = join(home, ".teire-goauth");
+  await writeFile(
+    file,
+    signed.map((p) => `${p.url.replace(/\/*$/, "/")}\n\nAuthorization: ${p.authorization}\n\n`).join(""),
+    { mode: 0o600 },
+  );
+  return { GOAUTH: `cat ${file}` };
+}
+
 export async function scratchHome() {
   return mkdtemp(join(tmpdir(), "teire-go-home-"));
 }
@@ -53,8 +94,8 @@ export async function runGo(
   cwd: string,
   home: string,
   timeoutMs = GO.commandTimeoutMs,
-  /** Over the safe defaults: a workspace's `GOWORK` (S18.4), never credentials. */
-  env: Partial<Record<"GOWORK" | "GOFLAGS", string>> = {},
+  /** Over the safe defaults: a workspace's `GOWORK` (S18.4), a repository's private-module settings. */
+  env: Record<string, string> = {},
 ) {
   const { stdout, stderr } = await run(goBinary(), args, {
     cwd,

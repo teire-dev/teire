@@ -9,7 +9,7 @@ import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
 import { goTransaction } from "../fix/upgrade-go";
 import { composeFixPullRequest } from "../github/compose";
-import { goEnv } from "../golang/toolchain";
+import { type GoAccess, goEnv } from "../golang/toolchain";
 import { assess, locateTargets, priorityOf, summariseFindings } from "../impact";
 import { type GoProject, readGoInventory } from "../inventory/go";
 import type { RepoTree } from "../inventory/tree";
@@ -37,6 +37,7 @@ import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
 import type { SurfaceDiff } from "../surface/types";
 import { withVerifyOverrides } from "../verify/commands";
 import { detectGoChecks } from "../verify/go-commands";
+import { goPrivatePatterns } from "../verify/private-registry";
 import type { ScanCoverage } from "./coverage";
 import type { Assessment, FixDependencyInput, FixDependencyResult } from "./js";
 import { securityAssessments } from "./security";
@@ -101,8 +102,21 @@ function goUnusable(
 const retractionsOf = async (paths: readonly string[]) =>
   new Map(await Promise.all(paths.map(async (p) => [p, await goRetractions(p).catch(() => null)] as const)));
 
+/** The repository's private modules and the Go proxies it authorized (S18 review S12). */
+export function goAccess(
+  tree: RepoTree,
+  options: Pick<RegistryOptions, "goPrivate" | "registries">,
+): GoAccess {
+  return {
+    patterns: options.goPrivate ?? goPrivatePatterns(tree),
+    proxies: (options.registries ?? [])
+      .filter((r) => r.ecosystem === "go")
+      .map((r) => ({ url: r.url, authorization: r.authorization })),
+  };
+}
+
 export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoAssessOptions) {
-  const projects = await readGoInventory(repoDir, tree);
+  const projects = await readGoInventory(repoDir, tree, goAccess(tree, options));
   const assessments: GoAssessment[] = [];
   const diffOf = options.surfaceDiff ?? goSurfaceDiff;
   for (const project of projects) {
@@ -395,7 +409,11 @@ export async function fixGoDependency(
       costUsd: extraction.receipt.costUsd,
     });
 
-  const plan = withVerifyOverrides(detectGoChecks(input.tree, a.project), a.project.root, input.verify);
+  const plan = withVerifyOverrides(
+    detectGoChecks(input.tree, a.project, undefined, goAccess(input.tree, input.options)),
+    a.project.root,
+    input.verify,
+  );
   const targetDir = moduleCacheDir(targetPath, target) ?? "";
   // Renames a quoted note names, at the located sites, proven by the target's own source (S15.4).
   const renames = await plannedRenames({

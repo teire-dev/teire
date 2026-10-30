@@ -43,6 +43,39 @@ const maven = () =>
       "distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.5/apache-maven-3.9.5-bin.zip\n",
   });
 
+describe("Maven profiles a build here activates (Codex S18 review #11)", () => {
+  const pom = `<project><groupId>x</groupId><artifactId>app</artifactId><version>1</version>
+  <profiles>
+    <profile><id>it</id><dependencies>
+      <dependency><groupId>org.testcontainers</groupId><artifactId>postgresql</artifactId><version>1.19.3</version></dependency>
+    </dependencies></profile>
+    <profile><id>dev</id><activation><activeByDefault>true</activeByDefault></activation><dependencies>
+      <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><version>2.2.224</version></dependency>
+    </dependencies></profile>
+    <profile><id>fast</id><activation><property><name>!skipLint</name></property></activation><build><plugins>
+      <plugin><groupId>com.diffplug.spotless</groupId><artifactId>spotless-maven-plugin</artifactId><version>2.43.0</version></plugin>
+    </plugins></build></profile>
+    <profile><id>jdk21</id><activation><jdk>[21,)</jdk></activation><dependencies>
+      <dependency><groupId>org.openjdk.jmh</groupId><artifactId>jmh-core</artifactId><version>1.37</version></dependency>
+    </dependencies></profile>
+  </profiles></project>`;
+  const [project] = readJvmInventory(
+    memoryTree({
+      "pom.xml": pom,
+      ".github/workflows/ci.yml": "jobs:\n  test:\n    steps:\n      - run: ./mvnw -B -Pit verify\n",
+    }),
+  );
+  const of = (name: string) => project?.instances.find((i) => i.name === name);
+
+  it("compares what CI, the default and a property's absence switch on; lists the rest with why", () => {
+    expect(of("org.testcontainers:postgresql")?.version).toBe("1.19.3");
+    expect(of("com.h2database:h2")?.version).toBe("2.2.224");
+    expect(of("com.diffplug.spotless:spotless-maven-plugin")?.version).toBe("2.43.0");
+    expect(of("org.openjdk.jmh:jmh-core")).toMatchObject({ version: null });
+    expect(of("org.openjdk.jmh:jmh-core")?.unresolvedReason).toMatch(/active only with JDK \[21,\)/);
+  });
+});
+
 describe("Maven candidates beyond dependencies (S18.3)", () => {
   const [project] = readJvmInventory(maven());
   const of = (name: string) => project?.instances.find((i) => i.name === name);
@@ -67,7 +100,11 @@ describe("Maven candidates beyond dependencies (S18.3)", () => {
       role: "extension",
       manifestPath: ".mvn/extensions.xml",
     });
-    expect(of("org.testcontainers:postgresql")).toMatchObject({ scope: "test", version: "1.19.3" });
+    // A profile no build here activates is listed, not compared (Codex S18 review #11).
+    expect(of("org.testcontainers:postgresql")).toMatchObject({ scope: "test", version: null });
+    expect(of("org.testcontainers:postgresql")?.unresolvedReason).toMatch(
+      /profile "it", active only with -P it/,
+    );
     expect(of("org.apache.maven:apache-maven")).toMatchObject({ role: "wrapper", version: "3.9.5" });
     expect(project?.modules[0]?.remote).toMatchObject({
       parent: "org.springframework.boot:spring-boot-starter-parent:3.2.0",

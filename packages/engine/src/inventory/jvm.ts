@@ -69,8 +69,57 @@ interface PomBuild {
 }
 interface PomProfile {
   id?: string;
+  activation?: {
+    activeByDefault?: boolean | string;
+    jdk?: string | number;
+    os?: unknown;
+    property?: { name?: string; value?: string | number };
+    file?: unknown;
+    packaging?: string;
+  };
   dependencies?: { dependency?: PomDep | PomDep[] };
   build?: PomBuild;
+}
+
+/**
+ * Profiles a build here activates by name (Codex S18 review #11): `-P a,b` or
+ * `--activate-profiles` in `.mvn/maven.config` and on a CI workflow's `mvn`/`mvnw` lines.
+ */
+function namedProfiles(tree: RepoTree, root: string) {
+  const config = tree.read(root === "." ? ".mvn/maven.config" : join(root, ".mvn/maven.config")) ?? "";
+  const lines = [
+    config,
+    ...tree
+      .files()
+      .filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f))
+      .flatMap((f) => (tree.read(f) ?? "").split("\n").filter((l) => /\bmvnw?\b/.test(l))),
+  ];
+  const on = new Set<string>();
+  for (const line of lines)
+    for (const m of line.matchAll(/(?:^|\s)(?:-P\s*|--activate-profiles[=\s]+)([\w.,!?+-]+)/g))
+      for (const id of (m[1] ?? "").split(",")) if (id && !/^[!-]/.test(id)) on.add(id.replace(/^[+?]/, ""));
+  return on;
+}
+
+/**
+ * Why a profile's dependencies may not be in the build, or null when the default build or CI has
+ * it on: active by default, named with `-P`, or switched on by a property's absence (`!skipIt`).
+ */
+function profileCondition(profile: PomProfile, named: Set<string>): string | null {
+  const a = profile.activation;
+  if ((profile.id && named.has(profile.id)) || String(a?.activeByDefault) === "true") return null;
+  const prop = a?.property;
+  if (prop?.name?.startsWith("!") && prop.value === undefined && !a?.jdk && !a?.os && !a?.file) return null;
+  const when = [
+    a?.jdk !== undefined && `JDK ${a.jdk}`,
+    a?.os !== undefined && "an operating system match",
+    prop?.name && `property ${prop.name}${prop.value !== undefined ? `=${prop.value}` : ""}`,
+    a?.file !== undefined && "a file check",
+    a?.packaging && `packaging ${a.packaging}`,
+  ].filter(Boolean);
+  return when.length
+    ? `active only with ${when.join(" and ")}`
+    : `active only with -P ${profile.id ?? ""}`.trim();
 }
 export interface Pom {
   parent?: { groupId?: string; artifactId?: string; version?: string; relativePath?: string };
@@ -202,6 +251,7 @@ function readMaven(tree: RepoTree): JvmProject[] {
         walk(normalize(join(dirname(path), String(m), "pom.xml")));
     };
     walk(rootPom);
+    const named = namedProfiles(tree, root);
     const notes: string[] = [];
     const instances: DependencyInstance[] = [];
     for (const mod of modules) {
@@ -217,20 +267,28 @@ function readMaven(tree: RepoTree): JvmProject[] {
         groupId: string,
         artifactId: string,
         raw: string | undefined,
-        fields: { scope: DependencyInstance["scope"]; role?: DependencyInstance["role"]; managed?: string },
+        fields: {
+          scope: DependencyInstance["scope"];
+          role?: DependencyInstance["role"];
+          managed?: string;
+          /** A profile no build here is known to activate: listed, not compared (Codex S18 review #11). */
+          profile?: { id: string; condition: string };
+        },
         manifestPath = mod.manifest,
       ) => {
         const name = `${interpolateWith(ctx.props, groupId)}:${interpolateWith(ctx.props, artifactId)}`;
         const stated = raw ?? fields.managed;
         const version = stated ? interpolateWith(ctx.props, stated) : null;
-        const exact = version && VERSION.test(version) ? version : null;
-        const reason = !stated
-          ? fields.role === "plugin"
-            ? "no version in the repo: the parent POM or Maven's own defaults set it"
-            : "version managed outside the repo (remote parent or imported BOM)"
-          : !exact
-            ? `version "${stated}" is not a literal version or a property defined in the repo`
-            : undefined;
+        const exact = version && VERSION.test(version) && !fields.profile ? version : null;
+        const reason = fields.profile
+          ? `in Maven profile "${fields.profile.id}", ${fields.profile.condition}: not compared until a build here activates it`
+          : !stated
+            ? fields.role === "plugin"
+              ? "no version in the repo: the parent POM or Maven's own defaults set it"
+              : "version managed outside the repo (remote parent or imported BOM)"
+            : !exact
+              ? `version "${stated}" is not a literal version or a property defined in the repo`
+              : undefined;
         const parsed = dependencyInstance.safeParse({
           ecosystem: "maven",
           name,
@@ -248,11 +306,20 @@ function readMaven(tree: RepoTree): JvmProject[] {
         if (parsed.success && !instances.some((i) => i.name === name && i.workspace === mod.dir))
           instances.push(parsed.data);
       };
-      // Dependencies, the module's own and each profile's (a profile's apply when it is active).
-      const profiles = asArray(pom?.profiles?.profile);
-      for (const d of [
-        ...asArray(pom?.dependencies?.dependency),
-        ...profiles.flatMap((pr) => asArray(pr.dependencies?.dependency)),
+      // Dependencies, the module's own and each profile's: an active profile's count as the
+      // module's; another's are listed with the condition that would switch them on.
+      // Active profiles first: a dependency both declare is the active one's.
+      const profiles = asArray(pom?.profiles?.profile)
+        .map((pr) => {
+          const condition = profileCondition(pr, named);
+          return { pr, ...(condition ? { profile: { id: pr.id ?? "(unnamed)", condition } } : {}) };
+        })
+        .sort((a, b) => Number(!!a.profile) - Number(!!b.profile));
+      for (const { d, profile } of [
+        ...asArray(pom?.dependencies?.dependency).map((d) => ({ d, profile: undefined })),
+        ...profiles.flatMap(({ pr, profile }) =>
+          asArray(pr.dependencies?.dependency).map((d) => ({ d, profile })),
+        ),
       ])
         if (d.groupId && d.artifactId)
           add(d.groupId, d.artifactId, d.version, {
@@ -260,6 +327,7 @@ function readMaven(tree: RepoTree): JvmProject[] {
             managed: ctx.managed.get(
               `${interpolateWith(ctx.props, d.groupId)}:${interpolateWith(ctx.props, d.artifactId)}`,
             ),
+            ...(profile ? { profile } : {}),
           });
       // The parent this module inherits from outside the repo, and the BOMs its own POM imports (S18.3).
       if (pom?.parent && ctx.external && pom.parent.groupId && pom.parent.artifactId)
@@ -271,8 +339,11 @@ function readMaven(tree: RepoTree): JvmProject[] {
         if (isBomImport(d) && d.groupId && d.artifactId)
           add(d.groupId, d.artifactId, d.version, { scope: "build", role: "bom" });
       // Plugins and build extensions, with their managed versions where the repo states them.
-      const builds = [pom?.build, ...profiles.map((pr) => pr.build)];
-      for (const b of builds)
+      const builds = [
+        { b: pom?.build, profile: undefined },
+        ...profiles.map(({ pr, profile }) => ({ b: pr.build, profile })),
+      ];
+      for (const { b, profile } of builds)
         for (const pl of [...asArray(b?.plugins?.plugin), ...asArray(b?.pluginManagement?.plugins?.plugin)])
           if (pl.artifactId) {
             const groupId = pl.groupId ?? MAVEN_PLUGIN_GROUP;
@@ -282,12 +353,17 @@ function readMaven(tree: RepoTree): JvmProject[] {
               managed: ctx.managedPlugins.get(
                 `${interpolateWith(ctx.props, groupId)}:${interpolateWith(ctx.props, pl.artifactId)}`,
               ),
+              ...(profile ? { profile } : {}),
             });
           }
-      for (const b of builds)
+      for (const { b, profile } of builds)
         for (const ex of asArray(b?.extensions?.extension))
           if (ex.groupId && ex.artifactId)
-            add(ex.groupId, ex.artifactId, ex.version, { scope: "build", role: "extension" });
+            add(ex.groupId, ex.artifactId, ex.version, {
+              scope: "build",
+              role: "extension",
+              ...(profile ? { profile } : {}),
+            });
       if (ctx.external && !ctx.externalParent)
         notes.push(`${mod.manifest}: parent POM outside the repo with no version stated`);
     }
