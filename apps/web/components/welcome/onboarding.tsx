@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import type { WelcomeData } from "@/lib/welcome";
 
 /**
- * Onboarding (plan revision 3.4, V2/C7): a focused screen, Attio's split — one decision on the left,
+ * Onboarding (plan revision 3.4, V2/C7): a focused screen split in two — one decision on the left,
  * on the right a live flow of the person's own repositories that grows step by step:
  *   1 Connected   GitHub → Teire
  *   2 Repositories Teire fans out to the repositories this installation covers (pick which to turn on)
