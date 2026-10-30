@@ -1052,7 +1052,7 @@ export function composeOnboarding(input: {
   out.push("### What Teire found");
   out.push(
     rows.length
-      ? `${direct.length} direct dependencies (${input.transitive ?? rows.length - direct.length} transitive)${projects.size > 1 ? ` across ${projects.size} projects` : ""} in ${ecosystems.join(", ")}, at the exact versions your lockfiles pin. ${affected.length} upgrade${affected.length === 1 ? "" : "s"} would break this repo's code; Teire fixes and verifies those before opening a PR.`
+      ? `${direct.length} direct ${direct.length === 1 ? "dependency" : "dependencies"} (${input.transitive ?? rows.length - direct.length} transitive)${projects.size > 1 ? ` across ${projects.size} projects` : ""} in ${ecosystems.join(", ")}, at the exact versions your lockfiles pin. ${affected.length ? `${affected.length} upgrade${affected.length === 1 ? "" : "s"} would break this repo's code; Teire fixes and verifies ${affected.length === 1 ? "it" : "those"} before opening a PR.` : "No upgrade would break this repo's code."}`
       : "No packages in the ecosystems Teire upgrades (npm, PyPI, Go, Cargo, RubyGems, Maven/Gradle). What it found instead, and what it could not check, is below.",
   );
   if (upgrades.length) {
