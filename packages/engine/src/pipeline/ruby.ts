@@ -11,7 +11,7 @@ import type { RepoTree } from "../inventory/tree";
 import { locateRuby } from "../locate/ruby";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherRubyNotes } from "../notes/sources";
-import { getPackageInfo, type RegistryOptions } from "../registry/clients";
+import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange, rubygemsYankChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
 import { comparable, lookupPackage } from "../registry/private";
@@ -225,6 +225,16 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
   return { projects, assessments };
 }
 
+/**
+ * D91 rule 3: Bundler's `--cooldown` set to the target's age in whole days, so the lock lands on the
+ * version Teire analysed and never a newer one; the default cooldown when the date is unknown.
+ */
+export function bundlerCooldownDays(publishedAt: string | null, now = Date.now()) {
+  return publishedAt
+    ? Math.max(0, Math.floor((now - Date.parse(publishedAt)) / 86_400_000))
+    : REGISTRY.cooldownDays;
+}
+
 export async function fixRubyDependency(
   input: Omit<FixDependencyInput, "assessment"> & { assessment: Assessment<RubyProject> },
 ): Promise<FixDependencyResult> {
@@ -289,9 +299,7 @@ export async function fixRubyDependency(
   const plan = withVerifyOverrides(detectRubyChecks(input.tree, a.project), a.project.root, input.verify);
   // Bundler's cooldown set to the target's age excludes exactly the versions published after it:
   // the resolver lands on the version Teire analysed, not a newer one.
-  const lockCooldown = decision.publishedAt
-    ? Math.max(0, Math.floor((Date.now() - Date.parse(decision.publishedAt)) / 86_400_000))
-    : REGISTRY.cooldownDays;
+  const lockCooldown = bundlerCooldownDays(decision.publishedAt);
   // Renames a quoted note names, at the located sites, proven by the target's own source (S15.4).
   const renames = await plannedRenames({
     ecosystem: "rubygems",

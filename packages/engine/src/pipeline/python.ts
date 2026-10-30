@@ -13,7 +13,7 @@ import type { RepoTree } from "../inventory/tree";
 import { locatePython } from "../locate/python";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherPypiNotes, githubRepoOf } from "../notes/sources";
-import { getPackageInfo, type RegistryOptions } from "../registry/clients";
+import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
 import { comparable, lookupPackage } from "../registry/private";

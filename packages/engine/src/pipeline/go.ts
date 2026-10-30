@@ -175,11 +175,18 @@ export async function assessGoRepo(repoDir: string, tree: RepoTree, options: GoA
               unreadableDiff("go", instance.name, instance.version as string, decision.to, error),
           );
           a.records = surfaceChangeRecords(a.diff);
+          // A load that fails outright leaves the code unanalysed ("inconclusive"), never the whole
+          // ecosystem dropped from the scan (S19).
           a.located = await locateGo({
             repoDir,
             projectRoot: project.root,
             modulePath: instance.name,
             declKeys: locateTargets(a.records).declKeys,
+          }).catch((error: unknown) => {
+            options.onProgress?.(
+              `${instance.name}: the Go code could not be loaded (${error instanceof Error ? error.message.slice(0, 200) : String(error)})`,
+            );
+            return null;
           });
           a.findings = assess({
             instance,
@@ -312,7 +319,8 @@ async function withReachability(
         f.reachability = "function-not-reachable";
         f.priority = null;
         f.callSites = [];
-        f.reason = `${position} govulncheck: ${r.level === "imported" ? "the vulnerable package is imported, but its vulnerable functions are not called" : "the module is required, but the vulnerable package is not imported"}.`;
+        // govulncheck reads the module's own code, not its tests (it runs without -test): said (S19).
+        f.reason = `${position} govulncheck: ${r.level === "imported" ? "the vulnerable package is imported, but its vulnerable functions are not called" : "the module is required, but the vulnerable package is not imported"}. Test code isn't analysed.`;
       }
     }
   for (const a of security) {

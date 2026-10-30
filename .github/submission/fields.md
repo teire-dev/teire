@@ -1,14 +1,14 @@
 # Devpost submission: Teire
 
-Ready-to-paste text for each field of the Nebius x NVIDIA Global AI Hackathon form. The form itself was not readable without the owner's login, so field limits are unverified. Devpost's usual limit of 200 characters for the elevator pitch is respected. The long story is in [story.md](story.md).
+Prepared against the owner's live Nebius x NVIDIA Global AI Hackathon form on 2026-10-30. The form allows 200 characters for the elevator pitch, up to 25 Built with tags, 15 gallery images (JPG/PNG/GIF, 5 MB each), and a YouTube or Vimeo demo URL. The long story is in [story.md](story.md); the organizer answers are in [additional-info.md](additional-info.md). The project details page saved the story, tags, and links as a draft; the video and gallery remain open.
 
 ## Project name
 
-Teire
+Teire · 手入れ
 
-## Elevator pitch (182 characters)
+## Elevator pitch (174 characters, saved in Devpost)
 
-When upstream breaks (a package, an API or an AI model), Teire fixes your code: a Nemotron agent on Nebius Token Factory edits what a swap can't, and your own tests prove it in a PR.
+When a package, API or AI model changes, Teire finds and fixes the code it breaks. Nemotron on Nebius Token Factory writes the fix; your own tests prove it in a pull request.
 
 ## Track
 
@@ -16,7 +16,7 @@ Coding and Agentic Engineering Track
 
 ## Built with
 
-nebius-token-factory, token-factory-sandboxes, nvidia-nemotron, nemotron-3-ultra, nemotron-3-super, dependabot-core, gvisor, tavily, typescript, node.js, next.js, react, postgresql, pg-boss, drizzle, cloudflare-containers, github-apps, ast-grep, vercel, coolify, fumadocs
+Nebius, nebius-token-factory, token-factory-sandboxes, nvidia-nemotron, nemotron-3-ultra, nemotron-3-super, tavily, typescript, next.js, react, postgresql, pg-boss, drizzle, github-apps, dependabot-core, gvisor, ast-grep, cloudflare-containers, vercel, coolify, node.js, mcp
 
 ## Try it out
 
@@ -28,7 +28,9 @@ nebius-token-factory, token-factory-sandboxes, nvidia-nemotron, nemotron-3-ultra
 
 ## Video
 
-The owner records and uploads it: a public YouTube video under 3 minutes. Paste its link here.
+The owner records and uploads it: a public or unlisted YouTube video under 3 minutes. The Devpost video field is empty; a URL is needed before final submission.
+
+The current [official rules](https://nebiusglobalaihackathon.devpost.com/rules) give a 2026-10-30 10:00 PDT submission deadline (18:00 WAT) and a judging period ending 2026-12-23. Keep the working demo free and unrestricted through that date. The older local hackathon context still says 2026-12-15 and needs updating before relying on it for access planning.
 
 ## Image gallery (in this order)
 
@@ -40,14 +42,15 @@ Files are in `.github/assets/` and `.github/assets/captures/`.
 | 2 | `captures/report-wrapped-models-desktop.png` | A public scan: Groq retired two Llama models; Nemotron traced the IDs through a tier registry to the request. |
 | 3 | `captures/dryrun-go-timeline-desktop.png` | A live run: Teire upgrades golang-jwt v4 → v5, the checks fail, and Nemotron 3 Ultra reads, searches and edits until they pass. |
 | 4 | `captures/dryrun-go-pr-desktop.png` | The pull request Teire composed: why this repo, what changed upstream (quoted), changes, verification, receipt. |
-| 5 | `captures/dryrun-go-verification-desktop.png` | Your own checks, before and after, in two sandboxes with the network off. |
-| 6 | `captures/dryrun-go-receipt-desktop.png` | Every Nemotron call on Token Factory, with tokens and cost: $0.1807 for this fix. |
+| 5 | `captures/dryrun-go-verification-desktop.png` | Build, typecheck and 4/4 tests pass before and after the Go fix. This captured run verified on Cloudflare Containers. |
+| 6 | `captures/dryrun-go-receipt-desktop.png` | Every Nemotron call on Token Factory, with tokens and $0.1807 model cost; the verification sandbox was Cloudflare Containers. |
 | 7 | `model-retirement-dark.png` | The model-retirement journey, numbered, with the real values of the run. |
-| 8 | `system-dark.png` | The system: GitHub, the web app, the Postgres outbox, the worker, Nemotron on Token Factory, dependabot-core's updater under gVisor, and verification on Token Factory Sandboxes (public) or Cloudflare Containers (private). |
-| 9 | `captures/dashboard-desktop.png` | The dashboard as one map: the changes reaching your code, your repositories and what is open now; drag a change onto a repository to fix it there. |
-| 10 | `captures/repo-prs-desktop.png` | Every pull request as a breadcrumb trail of its run: the package, dependabot-core, Token Factory, your checks before → after, the review and the PR. |
-| 11 | `captures/changes-desktop.png` | The public catalog, live: every source Teire watches with its last check, what is new, and 30 days of pickups. |
-| 12 | `captures/trust-desktop.png` | Live status from production: the worker's heartbeat, Token Factory credits and which Nemotron model is answering. |
+| 8 | `fix-loop-dark.png` | The fix loop: a deterministic change and checks first, then Nemotron's tools and repeated checks, final review, and the evidence-gated PR. |
+| 9 | `system-light.png` | The system: GitHub, web app, Postgres outbox, worker, Nemotron on Token Factory, dependency sources, and verification backends. |
+| 10 | `captures/dashboard-desktop.png` | The dashboard as one map: the changes reaching your code, your repositories and what is open now; drag a change onto a repository to fix it there. |
+| 11 | `captures/repo-prs-desktop.png` | Every pull request as a breadcrumb trail of its run: the package, dependabot-core, Token Factory, your checks before → after, the review and the PR. |
+| 12 | `captures/changes-desktop.png` | The public catalog, live: every source Teire watches with its last check, what is new, and 30 days of pickups. |
+| 13 | `captures/trust-desktop.png` | Live status from production: the worker's heartbeat, Token Factory credits and which Nemotron model is answering. |
 
 ## Feedback on Nebius Token Factory and NVIDIA models
 

@@ -116,6 +116,28 @@ function outcomeTile(p: FindingFlowProps, fix: FlowTile): FlowTile {
   };
 }
 
+/**
+ * How far an advisory reaches this code, in a chip (S19): called (to the first line found), not
+ * called, or the package only, when the advisory names no function to look for.
+ */
+function ReachChip({ group }: { group: FindingGroup }) {
+  if (!group.key.startsWith("advisory/") && !group.rows.some((r) => r.kind === "security-advisory"))
+    return null;
+  const site = group.sites[0];
+  const [label, tone] =
+    group.reachability === "function-reachable"
+      ? [
+          site ? `Called at ${site.file}:${site.line}` : "Called from your code",
+          "bg-affected-soft text-affected",
+        ]
+      : group.reachability === "function-not-reachable"
+        ? ["Not called from your code", "bg-clear-soft text-clear"]
+        : group.reachability === "package-present"
+          ? ["Package present: the advisory names no function", "bg-sunken text-ink-3"]
+          : ["Use not checked", "bg-sunken text-ink-3"];
+  return <span className={cn("w-fit rounded-full px-2 py-0.5 font-mono text-[11px]", tone)}>{label}</span>;
+}
+
 export function FindingFlow(p: FindingFlowProps) {
   const { group } = p;
   const subject = subjectOfKey(group.key);
@@ -178,6 +200,7 @@ export function FindingFlow(p: FindingFlowProps) {
               size="sm"
               label={`${group.title}: from the change to its pull request`}
             />
+            <ReachChip group={group} />
             {human && group.reason ? <p className="text-xs text-ink-3">{group.reason}</p> : null}
             {sites ? <CallSites sites={group.sites} repo={p.repo} sha={p.sha} /> : null}
           </div>
@@ -212,6 +235,7 @@ export function FindingFlow(p: FindingFlowProps) {
           )}
           {p.actions ? <div className="flex shrink-0 items-center gap-1">{p.actions}</div> : null}
         </header>
+        <ReachChip group={group} />
         {human && group.reason ? <p className="line-clamp-2 text-xs text-ink-3">{group.reason}</p> : null}
         {sites ? (
           <details className="group/sites">

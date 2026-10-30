@@ -49,12 +49,13 @@ export async function locateGo(input: {
     await copyFile(join(dir, "go.mod"), join(scratch, "go.mod"));
     await copyFile(join(dir, "go.sum"), join(scratch, "go.sum")).catch(() => undefined);
     // `-modfile`: the module's own go.mod and go.sum are never rewritten (they would join a fix's diff).
-    const result = await runGoHelper<{ uses: HelperUse[]; files: number; errors: string[] }>(
-      "locate",
-      ["-dir", dir, "-targets", input.modulePath, "-modfile", join(scratch, "go.mod")],
-      dir,
-      home,
-    );
+    const result = await runGoHelper<{
+      uses: HelperUse[];
+      files: number;
+      errors: string[];
+      unresolved?: number;
+      errorPackages?: number;
+    }>("locate", ["-dir", dir, "-targets", input.modulePath, "-modfile", join(scratch, "go.mod")], dir, home);
     const hits: Hit[] = [];
     const lines = new Map<string, string[]>();
     const snippet = async (file: string, line: number) => {
@@ -90,10 +91,21 @@ export async function locateGo(input: {
       ms: Date.now() - started,
       coverage: {
         filesScanned: result.files,
-        filesSkipped: errors.length ? [{ reason: "type errors while loading", count: errors.length }] : [],
+        filesSkipped: [
+          ...(result.errorPackages
+            ? [
+                {
+                  reason: `${result.errorPackages} package(s) did not type-check`,
+                  count: result.errorPackages,
+                },
+              ]
+            : []),
+          ...(errors.length ? [{ reason: "type errors while loading", count: errors.length }] : []),
+        ],
         languages: ["go"],
         resolutionLevel: "type",
-        unresolvedSites: 0,
+        // What the type checker couldn't resolve keeps the verdict from "not affected" (S19).
+        unresolvedSites: (result.unresolved ?? 0) + (result.errorPackages ?? 0),
         transitiveAnalysed: false,
       },
     };

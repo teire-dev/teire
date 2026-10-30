@@ -1,6 +1,7 @@
 import { advisoriesWithCoverage } from "../advisories";
 import type { DependencyInstance, Ecosystem } from "../contract";
 import { assess, summariseFindings } from "../impact";
+import type { LocateResult } from "../locate/ts";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { chooseFixedTarget, patchedHold, type TargetDecision, type TargetPolicy } from "../registry/target";
 import type { VersionScheme } from "../registry/versions";
@@ -23,6 +24,11 @@ export async function securityAssessments<P extends AssessedProject>(
     coverage?: ScanCoverage;
   },
   policyFor: (instance: DependencyInstance) => TargetPolicy | Promise<TargetPolicy>,
+  /**
+   * Where the code calls an advisory's named functions (S19): RustSec's `affects.functions`, Go's
+   * symbols. Without it, an advisory naming functions is "inconclusive", never "not reachable".
+   */
+  locate?: (instance: DependencyInstance, declKeys: Set<string>) => LocateResult | null,
 ): Promise<Assessment<P>[]> {
   // One per locked version and workspace. A root project's direct dependency and its lockfile entry
   // share a key: the direct one is kept, so the advisory says "a direct dependency" where it is.
@@ -68,12 +74,16 @@ export async function securityAssessments<P extends AssessedProject>(
       ? patchedHold(chooseFixedTarget(info, instance.version, [required], policy, scheme), instance)
       : { kind: "blocked", from: instance.version, reason: "no fixed version is published", skipped: [] };
     const target = decision.kind === "upgrade" ? decision.to : null;
+    const declKeys = new Set(
+      records.flatMap((r) => r.signatures.flatMap((s) => (s.kind === "symbol" ? [s.declKey] : []))),
+    );
+    const located = locate && declKeys.size ? locate(instance, declKeys) : null;
     const findings = assess({
       instance,
       target,
       isMajor: decision.kind === "upgrade" && decision.isMajor,
       records,
-      locate: null,
+      locate: located,
     });
     out.push({
       purpose: "security",
@@ -84,7 +94,7 @@ export async function securityAssessments<P extends AssessedProject>(
       diff: null,
       records,
       deprecation: null,
-      located: null,
+      located,
       findings,
       summary: summariseFindings(findings),
       priority: target ? Math.min(...findings.map((f) => f.priority ?? 4)) : null,

@@ -8,7 +8,9 @@ import { discoverRegistries, goPrivatePatterns } from "../src/verify/private-reg
 
 describe("private registries a repo names (D-36)", () => {
   const tree = memoryTree({
-    ".npmrc": "@acme:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=${NPM_TOKEN}\n",
+    // An .npmrc reads its token from the environment; Teire keeps only the registry.
+    ".npmrc":
+      "@acme:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=$" + "{NPM_TOKEN}\n",
     ".yarnrc.yml":
       "npmScopes:\n  corp:\n    npmRegistryServer: https://corp.jfrog.io/artifactory/api/npm/npm\n",
     "pip.conf": "[global]\nindex-url = https://user:hunter2@pypi.corp.example.com/simple\n",

@@ -212,7 +212,13 @@ function RemoveCredential({ installationId, row }: { installationId: number; row
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<ActionState | { error: string } | null>(null);
   return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), o || setState(null))}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setState(null);
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" aria-label={`Remove the credential for ${row.host}`}>
           <Trash2 aria-hidden />

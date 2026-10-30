@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"golang.org/x/exp/apidiff"
@@ -139,9 +140,9 @@ func runAPIDiff(args []string) error {
 		out = append(out, change{Message: c.Message, Compatible: c.Compatible})
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
-		"old":      map[string]any{"path": oldPath, "version": oldVersion, "packages": len(oldMod.Packages)},
-		"new":      map[string]any{"path": newPath, "version": newVersion, "packages": len(newMod.Packages)},
-		"changes":  out,
+		"old":       map[string]any{"path": oldPath, "version": oldVersion, "packages": len(oldMod.Packages)},
+		"new":       map[string]any{"path": newPath, "version": newVersion, "packages": len(newMod.Packages)},
+		"changes":   out,
 		"toolchain": strings.TrimPrefix(goVersion(), "go version "),
 	})
 }
@@ -256,12 +257,56 @@ func runLocate(args []string) error {
 	seen := map[string]bool{}
 	out := []use{}
 	errs := []string{}
+	targetPath := func(path string) bool {
+		for _, m := range mods {
+			if m != "" && (path == m || strings.HasPrefix(path, m+"/")) {
+				return true
+			}
+		}
+		return false
+	}
+	// Sites the type checker couldn't resolve (S19): a selector on a target package with no
+	// object behind it, and every package that failed to load while importing a target. Code that
+	// didn't type-check has no uses, so without these counts it would read as "not used".
+	unresolved := 0
+	errorPackages := 0
 	for _, p := range pkgs {
 		for _, e := range p.Errors {
 			errs = append(errs, e.Msg)
 		}
+		importsTarget := false
+		for _, f := range p.Syntax {
+			for _, spec := range f.Imports {
+				if path, err := strconv.Unquote(spec.Path.Value); err == nil && targetPath(path) {
+					importsTarget = true
+				}
+			}
+		}
+		if len(p.Errors) > 0 && importsTarget {
+			errorPackages++
+		}
 		if p.TypesInfo == nil {
 			continue
+		}
+		for _, f := range p.Syntax {
+			ast.Inspect(f, func(n ast.Node) bool {
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				x, ok := ast.Unparen(sel.X).(*ast.Ident)
+				if !ok {
+					return true
+				}
+				pkgName, ok := p.TypesInfo.Uses[x].(*types.PkgName)
+				if !ok || !targetPath(pkgName.Imported().Path()) {
+					return true
+				}
+				if p.TypesInfo.Uses[sel.Sel] == nil {
+					unresolved++
+				}
+				return true
+			})
 		}
 		// The identifier each call names (f, pkg.F, x.M, F[T]) → its argument count.
 		calls := map[*ast.Ident]int{}
@@ -348,5 +393,11 @@ func runLocate(args []string) error {
 	if len(errs) > 20 {
 		errs = errs[:20]
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"uses": out, "files": len(files), "errors": errs})
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{
+		"uses":          out,
+		"files":         len(files),
+		"errors":        errs,
+		"unresolved":    unresolved,
+		"errorPackages": errorPackages,
+	})
 }

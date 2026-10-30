@@ -253,6 +253,17 @@ export function assess(input: ImpactInput): FindingDraft[] {
         callSites: sites,
         reason: `the declared type of ${sites.length} used API(s) changed; the sandbox check decides whether it breaks`,
       };
+    // D91: a candidate change (Ruby's Prism symbols: not proven removed) whose every site matches by
+    // name alone is not evidence of a break; the sites are kept and the sandbox check decides.
+    if (sites.length && record.status === "candidate" && sites.every((c) => c.resolution === "name-only"))
+      return {
+        ...base,
+        verdict: "inconclusive",
+        reachability: "reachability-unknown",
+        priority: null,
+        callSites: sites,
+        reason: `${sites.length} call(s) match only by name, and the change is a candidate; the sandbox check decides`,
+      };
     if (sites.length) {
       const verdict: Verdict = "affected";
       return {

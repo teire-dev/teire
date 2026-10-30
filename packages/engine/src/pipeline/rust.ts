@@ -11,7 +11,7 @@ import { locateRust } from "../locate/rust";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherCargoNotes } from "../notes/sources";
 import { cratesIndexLines } from "../registry/cargo";
-import { getPackageInfo, type RegistryOptions } from "../registry/clients";
+import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { comparable, lookupPackage } from "../registry/private";
 import { crateSignals } from "../registry/supply-chain";
@@ -177,8 +177,23 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
     }
     if (options.advisories !== false)
       assessments.push(
-        ...(await securityAssessments(project, "cargo", cargoScheme, options, (instance) =>
-          rustPolicy(instance, project, options),
+        ...(await securityAssessments(
+          project,
+          "cargo",
+          cargoScheme,
+          options,
+          (instance) => rustPolicy(instance, project, options),
+          // RustSec's named functions, looked for in the code (S19): a call is located to the line.
+          (instance, declKeys) =>
+            locateRust({
+              repoDir,
+              tree,
+              projectRoot: project.root,
+              crate: instance.name,
+              ...(instance.aliasName ? { alias: instance.aliasName } : {}),
+              declKeys,
+              manifests: project.members.map((m) => m.manifest),
+            }),
         )),
       );
   }

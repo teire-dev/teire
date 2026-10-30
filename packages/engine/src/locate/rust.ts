@@ -87,7 +87,9 @@ export function locateRust(input: {
           const use = statementAt(i);
           const at = line.search(new RegExp(`\\b${esc(full)}\\b(?!::\\w)|\\b${esc(full)}::`));
           if (at >= 0) {
-            site(use ? "import" : "type-ref", at);
+            // `time::now()` is a call; a path anywhere else is a reference to the item.
+            const called = /^\s*(?:::<[^>]*>)?\s*\(/.test(line.slice(at + full.length));
+            site(use ? "import" : called ? "call" : "type-ref", at);
             continue;
           }
           // `use rand::distributions::{Uniform, Distribution}`, on one line or several: the name in
@@ -109,6 +111,27 @@ export function locateRust(input: {
             `\\b${esc(parent)}::(?:${esc(last)}\\s*;|\\{[^}]*\\b${esc(last)}\\b[^}]*\\})`,
           ).test(imports);
           const viaGlob = glob && /::prelude::/.test(full);
+          // `use time::OffsetDateTime;` … `OffsetDateTime::now_local()`: an associated function
+          // through its imported type (how RustSec names a vulnerable function, S19).
+          const owner = parent.slice(parent.lastIndexOf("::") + 2);
+          const grand = parent.includes("::") ? parent.slice(0, parent.lastIndexOf("::")) : "";
+          const ownerImported =
+            !!grand &&
+            new RegExp(`\\b${esc(grand)}::(?:${esc(owner)}\\s*;|\\{[^}]*\\b${esc(owner)}\\b[^}]*\\})`).test(
+              imports,
+            );
+          const viaOwner = ownerImported
+            ? line.search(new RegExp(`(?<![\\w:.])${esc(owner)}::${esc(last)}\\b`))
+            : -1;
+          if (viaOwner >= 0) {
+            site(
+              /^\s*(?:::<[^>]*>)?\s*\(/.test(line.slice(viaOwner + owner.length + 2 + last.length))
+                ? "call"
+                : "type-ref",
+              viaOwner,
+            );
+            continue;
+          }
           if (named || viaGlob) {
             const bare = line.search(named ? name : new RegExp(`(?<![\\w:.])${esc(last)}\\s*[(<]`));
             if (bare >= 0)

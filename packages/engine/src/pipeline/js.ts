@@ -21,7 +21,7 @@ import type { ModelPrice, TokenFactory } from "../llm";
 import { type LocateResult, locateTs } from "../locate/ts";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherNpmNotes, githubRepoOf } from "../notes/sources";
-import { getNpmVersion, getPackageInfo, npmDistTag, supplyChainSignals } from "../registry/clients";
+import { getNpmVersion, npmDistTag, supplyChainSignals } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { widenedManifests } from "../registry/library";
 import { comparable, lookupPackage } from "../registry/private";

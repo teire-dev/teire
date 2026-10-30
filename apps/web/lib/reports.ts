@@ -46,6 +46,7 @@ export async function scanFindings(repoId: number, scanId: string): Promise<Find
       state: findings.state,
       priority: findings.priority,
       reason: findings.reason,
+      reachability: findings.reachability,
       groupKey: findings.groupKey,
       callSites: findings.callSites,
       position: findings.position,

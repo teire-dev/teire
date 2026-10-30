@@ -95,6 +95,7 @@ export async function repoDetail(userId: string, fullName: string) {
         state: findings.state,
         priority: findings.priority,
         reason: findings.reason,
+        reachability: findings.reachability,
         groupKey: findings.groupKey,
         callSites: findings.callSites,
         position: findings.position,

@@ -12,7 +12,7 @@ import { locateJvm } from "../locate/jvm";
 import { locateBytecode, removedOverloads } from "../locate/jvm-bytecode";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherJvmNotes } from "../notes/sources";
-import { getPackageInfo, type RegistryOptions } from "../registry/clients";
+import type { RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { remoteManaged } from "../registry/maven-pom";
 import { mavenFlavor } from "../registry/maven-version";

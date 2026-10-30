@@ -16,6 +16,8 @@ export interface FindingRow {
   reason: string | null;
   groupKey: string | null;
   callSites: unknown;
+  /** How far the code reaches the change (`function-reachable`, `function-not-reachable`, …). */
+  reachability?: string | null;
   position: unknown;
   title: string | null;
   kind: string | null;
@@ -30,6 +32,7 @@ export interface FindingGroup {
   deadline: string | null;
   sites: CallSite[];
   reason: string | null;
+  reachability: string | null;
   changeIds: string[];
   /** Findings of the same group with a weaker verdict (mentions to check, versions outside the change). */
   others: number;
@@ -86,6 +89,7 @@ export function groupFindings(rows: FindingRow[]): FindingGroup[] {
       deadline: deadlines[0] ?? null,
       sites,
       reason: head.reason,
+      reachability: head.reachability ?? null,
       changeIds: leadIds,
       others: sorted.length - lead.length,
       rows: sorted,

@@ -344,7 +344,7 @@ export const GO = {
   commandTimeoutMs: 180_000,
   helperTimeoutMs: 600_000,
   /** Bump when packages/helpers/go changes, so development rebuilds the cached binary. */
-  helperVersion: "4",
+  helperVersion: "5",
   /** Highest major probed above the installed one (`/v5`, `/v6`, …) on the proxy. */
   maxMajorProbe: 6,
   /** govulncheck for advisory reachability (research go.md Job 9: v1.8.0 tested). */

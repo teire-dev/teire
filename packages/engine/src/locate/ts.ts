@@ -314,19 +314,61 @@ export function locateTs(input: LocateInput): LocateResult {
     });
   }
 
-  // Type-level only when the package's own imports resolve to the linked files.
+  // Type-level only when every reference to the package resolves to its linked files (S19): static
+  // imports and re-exports, `import x = require()`, `require()` and `import()` (TypeScript resolves
+  // the module of a `require` in a .js file; in a .ts file without Node's types it is `any`). Each
+  // reference that doesn't resolve is an unresolved site; a file that names the package with no
+  // reference found is one too.
+  const ownSpec = (spec: string | undefined) =>
+    !!spec && (spec === input.packageName || spec.startsWith(`${input.packageName}/`));
+  const underRoots = (file: string | undefined) => {
+    const path = file?.split(sep).join("/");
+    return !!path && roots.some((r) => path.startsWith(`${r.dir}/`));
+  };
+  const moduleFileOf = (literal: Node) =>
+    checker.getSymbolAtLocation(literal.compilerNode)?.declarations?.[0]?.getSourceFile().fileName;
   let importsTotal = 0;
   let importsResolved = 0;
+  let mentions = 0;
+  const quoted = new RegExp(
+    `["'\`]${input.packageName.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}(?:/[^"'\`]*)?["'\`]`,
+  );
   for (const sf of project.getSourceFiles()) {
     if (!walkSet.has(sf.getFilePath())) continue;
-    for (const d of sf.getImportDeclarations()) {
-      const spec = d.getModuleSpecifierValue();
-      if (spec !== input.packageName && !spec.startsWith(`${input.packageName}/`)) continue;
+    let found = 0;
+    const count = (resolved: boolean) => {
+      found++;
       importsTotal++;
-      const target = d.getModuleSpecifierSourceFile()?.getFilePath().split(sep).join("/");
-      if (target && roots.some((r) => target.startsWith(`${r.dir}/`))) importsResolved++;
+      if (resolved) importsResolved++;
+    };
+    for (const d of sf.getImportDeclarations())
+      if (ownSpec(d.getModuleSpecifierValue()))
+        count(underRoots(d.getModuleSpecifierSourceFile()?.getFilePath()));
+    for (const d of sf.getExportDeclarations())
+      if (ownSpec(d.getModuleSpecifierValue()))
+        count(underRoots(d.getModuleSpecifierSourceFile()?.getFilePath()));
+    for (const d of sf.getDescendantsOfKind(ts.SyntaxKind.ImportEqualsDeclaration)) {
+      const ref = d.getModuleReference();
+      const literal = Node.isExternalModuleReference(ref) ? ref.getExpression() : undefined;
+      if (literal && Node.isStringLiteral(literal) && ownSpec(literal.getLiteralValue()))
+        count(underRoots(moduleFileOf(literal)));
     }
+    for (const call of sf.getDescendantsOfKind(ts.SyntaxKind.CallExpression)) {
+      const callee = call.getExpression();
+      const isRequire = Node.isIdentifier(callee) && callee.getText() === "require";
+      const isDynamic = callee.getKind() === ts.SyntaxKind.ImportKeyword;
+      const literal = call.getArguments()[0];
+      if (
+        (isRequire || isDynamic) &&
+        literal &&
+        Node.isStringLiteral(literal) &&
+        ownSpec(literal.getLiteralValue())
+      )
+        count(underRoots(moduleFileOf(literal)));
+    }
+    if (!found && quoted.test(sf.getFullText())) mentions++;
   }
+  unresolved += importsTotal - importsResolved + mentions;
   return {
     hits,
     imports,
@@ -335,7 +377,7 @@ export function locateTs(input: LocateInput): LocateResult {
       filesScanned: files.length,
       filesSkipped: [...skipped].map(([reason, count]) => ({ reason, count })),
       languages: [...new Set(files.map((f) => (/\.(c|m)?tsx?$/.test(f) ? "ts" : "js")))].sort(),
-      resolutionLevel: importsTotal === 0 || importsResolved > 0 ? "type" : "syntax",
+      resolutionLevel: importsResolved > 0 || (importsTotal === 0 && mentions === 0) ? "type" : "syntax",
       unresolvedSites: unresolved,
       transitiveAnalysed: false,
     },
