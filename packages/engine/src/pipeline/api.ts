@@ -7,7 +7,7 @@ import type { ProviderRecord } from "../catalog/schema";
 import { CATALOG_SCHEMA_VERSION, providerRecord, slugify } from "../catalog/schema";
 import { sha256 } from "../catalog/source";
 import type { DeclaredSource } from "../config";
-import type { ChangeV2, DependencyInstance } from "../contract";
+import type { ChangeV2, DependencyInstance, Ecosystem } from "../contract";
 import {
   discoverProviders,
   type ProviderCandidate,
@@ -116,11 +116,15 @@ export function declaredProviders(declared: DeclaredSource[], now = new Date()):
   return out;
 }
 
-/** Every exact model ID the confirmed records name, for one scan of the repo. */
+/**
+ * Every exact model ID the confirmed and quarantined records name, for one scan of the repo. A
+ * quarantined record's ID is looked for too, so a repo that uses only that model hears of it on the
+ * dashboard and `@teire fix` can act on it; the assessment keeps it unconfirmed (R21.8).
+ */
 export function catalogModelIds(records: ChangeV2[]) {
   const ids = new Set<string>();
   for (const r of records)
-    if (r.status === "confirmed")
+    if (r.status === "confirmed" || r.status === "quarantined")
       for (const s of r.signatures) if (s.kind === "string-literal") ids.add(s.value);
   return ids;
 }
@@ -175,16 +179,23 @@ export function liveProviderChanges(options: IngestOptions = {}): ProviderChange
   };
 }
 
+/** Every lockfile root the repo has, in all six ecosystems, with what each locks (S15.1 readback). */
+export async function repoProjects(repoDir: string, tree: RepoTree) {
+  const of = (ecosystem: Ecosystem, projects: { root: string; instances: DependencyInstance[] }[]) =>
+    projects.map((p) => ({ ecosystem, root: p.root, instances: p.instances }));
+  return [
+    ...of("npm", readJsInventory(tree)),
+    ...of("pypi", await readPythonInventory(repoDir, tree)),
+    ...of("go", await readGoInventory(repoDir, tree)),
+    ...of("cargo", readRustInventory(tree)),
+    ...of("rubygems", readRubyInventory(tree)),
+    ...of("maven", readJvmInventory(tree)),
+  ];
+}
+
 /** Every package the repo locks, in all six ecosystems, for provider detection (S16.1). */
 export async function repoInstances(repoDir: string, tree: RepoTree) {
-  return [
-    ...readJsInventory(tree).flatMap((p) => p.instances),
-    ...(await readPythonInventory(repoDir, tree)).flatMap((p) => p.instances),
-    ...(await readGoInventory(repoDir, tree)).flatMap((p) => p.instances),
-    ...readRustInventory(tree).flatMap((p) => p.instances),
-    ...readRubyInventory(tree).flatMap((p) => p.instances),
-    ...readJvmInventory(tree).flatMap((p) => p.instances),
-  ];
+  return (await repoProjects(repoDir, tree)).flatMap((p) => p.instances);
 }
 
 export async function assessApiChanges(

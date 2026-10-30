@@ -550,11 +550,11 @@ export function composeFixPullRequest(input: FixPullRequestInput): { title: stri
       );
       for (const m of run.moved.slice(0, 30))
         out.push(
-          `| \`${m.name}\` | ${m.removed ? `\`${m.from ?? "?"}\` removed` : `\`${m.from ?? "new"}\` → \`${m.to ?? "?"}\``} | ${m.requested ? `asked for by the fix agent: ${sanitizeUpstream(forGitHub(m.requested, 200), null).replace(/\|/g, "/").replace(/\n/g, " ")}` : m.removed ? "" : usageCell(m.yourCode)} |`,
+          `| \`${m.name}\` | ${m.removed ? `\`${m.from ?? "?"}\` removed` : `\`${m.from ?? "new"}\` → \`${m.to ?? "?"}\``} | ${m.requested ? `asked for by the fix agent: ${sanitizeUpstream(forGitHub(m.requested, 200), null).replace(/\|/g, "/").replace(/\n/g, " ")}` : m.removed ? "" : usageCell(m.yourCode, m)} |`,
         );
       if (run.moved.length > 30) out.push(`| and ${run.moved.length - 30} more | | |`);
       // Coverage, said (D-10): how many moved packages were diffed and located, when not all were.
-      const moves = run.moved.filter((m) => !m.removed && !m.requested);
+      const moves = run.moved.filter((m) => !m.removed && !m.requested && m.from !== m.to);
       const diffed = moves.filter((m) => m.yourCode?.diffed).length;
       if (moves.some((m) => m.yourCode && !m.yourCode.diffed))
         out.push(

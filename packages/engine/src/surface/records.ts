@@ -184,6 +184,21 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
       .map((c) => `\`${c.path}\``)
       .join(", ");
     const newly = kind === "symbol-deprecated" ? list.filter((c) => c.newlyDeprecated).length : 0;
+    // Deterministic edits the target's surface backs (R21.7): a class or function at a new import
+    // path, and keywords a function no longer takes.
+    // Python only: npm's moved subpaths are rewritten by its own import codemod.
+    const moves =
+      diff.ecosystem === "pypi"
+        ? list.flatMap((c) => (c.movedTo ? [{ from: c.path, to: c.movedTo }] : []))
+        : [];
+    const removedKeywords = list.flatMap((c) =>
+      c.kind === "parameter-removed" && c.param ? [{ callee: c.declKey ?? c.path, arg: c.param }] : [],
+    );
+    const codemod = moves.length
+      ? { kind: "import-rewrite" as const, spec: { moves } }
+      : removedKeywords.length && diff.ecosystem === "pypi"
+        ? { kind: "kwarg-remove" as const, spec: { removed: removedKeywords } }
+        : null;
     records.push(
       changeV2.parse({
         schemaVersion: 2,
@@ -192,7 +207,7 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
         kind,
         // Both versions: a Go major moves the module path, so "<name> <to>" alone would mislead.
         title: `${diff.name} ${diff.fromVersion} → ${diff.toVersion}: ${(TITLE[kind] ?? "changes {n} API(s)").replace("{n}", String(list.length))}`,
-        summary: `Compared with ${diff.fromVersion}: ${headline}${list.length > 5 ? `, and ${list.length - 5} more` : ""}.${newly ? ` ${newly} newly deprecated.` : ""}`,
+        summary: `Compared with ${diff.fromVersion}: ${headline}${list.length > 5 ? `, and ${list.length - 5} more` : ""}.${newly ? ` ${newly} newly deprecated.` : ""}${moves.length ? ` ${moves.length} moved to a new import path.` : ""}`,
         applicability: {
           class: "breaks-on-upgrade",
           affectedRange: diff.fromVersion,
@@ -200,6 +215,20 @@ export function surfaceChangeRecords(diff: SurfaceDiff, checkedAt = new Date().t
           toVersion: diff.toVersion,
         },
         signatures: list.flatMap((c) => signaturesOf(diff.name, c, diff.ecosystem)),
+        ...(codemod
+          ? {
+              replacement: {
+                value:
+                  codemod.kind === "import-rewrite"
+                    ? moves
+                        .map((m) => `${m.from} → ${m.to}`)
+                        .join("; ")
+                        .slice(0, 500)
+                    : `drop ${removedKeywords.map((r) => `\`${r.arg}=\``).join(", ")}`.slice(0, 500),
+                codemod,
+              },
+            }
+          : {}),
         migrationNotes: list
           .filter((c) => c.guidance)
           .slice(0, 50)

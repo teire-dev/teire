@@ -296,7 +296,7 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       // A CI repair keeps a PR a person has truthful (D125): in every mode but Off.
       if ((await fixModeOf(db, repo)).mode === "off") return;
       const artifact = await artifactByBranch(db, repo.id, String(suite.head_branch ?? ""));
-      if (!artifact || artifact.kind !== "pr" || artifact.state !== "open") return;
+      if (artifact?.kind !== "pr" || artifact.state !== "open") return;
       if (artifact.headSha !== suite.head_sha || artifact.ciRepairSha === suite.head_sha) return;
       await upsertArtifact(db, { ...artifact, ciRepairSha: suite.head_sha });
       const [owner = "", name = ""] = repo.fullName.split("/");

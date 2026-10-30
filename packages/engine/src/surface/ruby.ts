@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { gunzipSync } from "node:zlib";
 import {
   type CallNode,
   type ClassNode,
@@ -326,7 +325,7 @@ export function diffRubySurfaces(before: RubySurface, after: RubySurface): Surfa
     if (a.visibility !== "public") continue;
     const b = after.symbols.get(key);
     const kind = a.kind === "method" ? "method" : a.kind === "constant" ? "variable" : a.kind;
-    if (!b || b.visibility !== "public") {
+    if (b?.visibility !== "public") {
       out.push({
         path: key,
         declKey: key,

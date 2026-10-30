@@ -8,8 +8,9 @@ import { getPypiIndex, versionFiles } from "./pypi";
  * Supply-chain signals beyond npm (D-14, R21.6): what changed about who published a version and what
  * runs when it installs, installed version → target, read only from what each registry publishes.
  * A field a registry doesn't publish is never guessed: PyPI and RubyGems name only today's owners,
- * so owner changes aren't compared; Maven Central requires a signature on every file, so the
- * signal there is a different signing key; the Go proxy publishes none of this.
+ * so Teire keeps a snapshot from when a scan first saw the installed version and compares today's
+ * with it; Maven Central requires a signature on every file, so the signal there is a different
+ * signing key; the Go proxy publishes none of this.
  */
 
 /** Entries of an in-memory tar (512-byte headers, ustar prefix for long names). */
@@ -119,6 +120,8 @@ export async function pypiSignals(
     if (pa && !pb) out.push(`${to} has no provenance attestation, though ${from} had one (${pa})`);
     else if (pa && pb && pa !== pb) out.push(`${to} was published by ${pb}; ${from} by ${pa}`);
   }
+  const owners = await ownerChange("pypi", name, from, options).catch(() => null);
+  if (owners) out.push(owners);
   return out;
 }
 
@@ -157,16 +160,101 @@ export function gemspecExtensions(spec: string): string[] {
     : [];
 }
 
-export async function gemSignals(name: string, from: string, to: string): Promise<string[]> {
-  const [a, b] = await Promise.all([
+export async function gemSignals(
+  name: string,
+  from: string,
+  to: string,
+  options: RegistryOptions,
+): Promise<string[]> {
+  const [a, b, owners] = await Promise.all([
     gemExtensions(name, from).catch(() => null),
     gemExtensions(name, to).catch(() => null),
+    ownerChange("rubygems", name, from, options).catch(() => null),
   ]);
-  if (!a || !b) return [];
-  const added = b.filter((e) => !a.includes(e));
-  return added.length
-    ? [`${to} adds a native extension (\`${added.join("`, `")}\`) that compiles when the gem installs`]
-    : [];
+  const added = a && b ? b.filter((e) => !a.includes(e)) : [];
+  return [
+    ...(added.length
+      ? [`${to} adds a native extension (\`${added.join("`, `")}\`) that compiles when the gem installs`]
+      : []),
+    ...(owners ? [owners] : []),
+  ];
+}
+
+// --- Owners (PyPI, RubyGems) ----------------------------------------------------------------------
+
+/** Today's owners: PyPI's `ownership` (roles and organisation), RubyGems' `owners.json`. */
+export async function packageOwners(ecosystem: "pypi" | "rubygems", name: string): Promise<string[] | null> {
+  if (ecosystem === "pypi") {
+    const res = await guardedFetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`, {
+      allowHosts: ["pypi.org"],
+      maxBytes: 64 * 1024 * 1024,
+    });
+    if (res.status !== 200) return null;
+    const own = res.json<{
+      ownership?: { organization?: string | null; roles?: { role?: string; user?: string }[] };
+    }>().ownership;
+    if (!own) return null;
+    return [
+      ...(own.organization ? [`organization ${own.organization}`] : []),
+      ...(own.roles ?? []).flatMap((r) => (r.user ? [r.user] : [])),
+    ].sort();
+  }
+  const res = await guardedFetch(`https://rubygems.org/api/v1/gems/${encodeURIComponent(name)}/owners.json`, {
+    allowHosts: ["rubygems.org"],
+  });
+  if (res.status !== 200) return null;
+  return res
+    .json<{ id?: number; handle?: string | null }[]>()
+    .flatMap((o) => (o.handle ? [o.handle] : o.id ? [`account ${o.id}`] : []))
+    .sort();
+}
+
+const ownersKey = (name: string, version: string) => `owners:${name}@${version}`;
+
+/**
+ * Keeps the owners a scan first sees at the installed version (one snapshot per package and
+ * version, never overwritten), so a later upgrade compares against who owned it then.
+ */
+export async function snapshotOwners(
+  ecosystem: "pypi" | "rubygems",
+  name: string,
+  version: string,
+  options: RegistryOptions,
+) {
+  if (await options.cache.get(ecosystem, ownersKey(name, version))) return;
+  const owners = await packageOwners(ecosystem, name).catch(() => null);
+  if (!owners) return;
+  await options.cache.put(ecosystem, ownersKey(name, version), {
+    etag: null,
+    lastModified: null,
+    bodyHash: owners.join(","),
+    data: owners,
+    fetchedAt: (options.now ?? new Date()).toISOString(),
+  });
+}
+
+/** Owners added or removed since the snapshot at the installed version; null without one. */
+export async function ownerChange(
+  ecosystem: "pypi" | "rubygems",
+  name: string,
+  from: string,
+  options: RegistryOptions,
+): Promise<string | null> {
+  const snapshot = await options.cache.get(ecosystem, ownersKey(name, from));
+  if (!snapshot || !Array.isArray(snapshot.data)) return null;
+  const now = await packageOwners(ecosystem, name).catch(() => null);
+  if (!now) return null;
+  const before = snapshot.data as string[];
+  const added = now.filter((o) => !before.includes(o));
+  const removed = before.filter((o) => !now.includes(o));
+  if (!added.length && !removed.length) return null;
+  const list = (xs: string[]) => xs.map((x) => `\`${x}\``).join(", ");
+  return `${name}'s owners changed since ${snapshot.fetchedAt.slice(0, 10)}, when Teire first saw ${from} here: ${[
+    added.length ? `added ${list(added)}` : "",
+    removed.length ? `removed ${list(removed)}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ")}`;
 }
 
 // --- Maven Central --------------------------------------------------------------------------------

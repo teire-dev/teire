@@ -1,6 +1,7 @@
 import * as pep440 from "@renovatebot/pep440";
 import { PRIORITY, REGISTRY } from "../constants";
 import type { DependencyInstance } from "../contract";
+import { planPythonEdits } from "../fix/python-edits";
 import { plannedRenames } from "../fix/renames";
 import { runFix } from "../fix/run";
 import { pyTransaction } from "../fix/upgrade-py";
@@ -14,7 +15,7 @@ import { declaredPackageNotes, gatherPypiNotes, githubRepoOf } from "../notes/so
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { getPypiIndex, type PypiIndex, versionFiles } from "../registry/pypi";
-import { pypiSignals } from "../registry/supply-chain";
+import { pypiSignals, snapshotOwners } from "../registry/supply-chain";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { pypiScheme } from "../registry/versions";
 import { pythonDocsLookup } from "../surface/pydoc";
@@ -133,6 +134,9 @@ export async function assessPyRepo(repoDir: string, tree: RepoTree, options: PyA
         decision,
         deprecation: deprecationChange(info, instance.version),
       };
+      // Who owns the project now, kept for the upgrade's owner comparison (D-14, R21.6).
+      if (decision.kind === "upgrade")
+        await snapshotOwners("pypi", instance.name, instance.version, options).catch(() => undefined);
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: griffe diff`);
         a.diff = await diffOf(instance.name, instance.version, decision.to).catch((error: unknown) =>
@@ -259,8 +263,18 @@ export async function fixPyDependency(
     notes,
     targetDir: targetWheel.dir,
   });
+  // Moved imports and removed keywords the target's surface backs, after the renames (R21.7).
+  const pythonEdits = planPythonEdits({
+    repoDir: input.repoDir,
+    findings: [...(a.summary?.breaking ?? []), ...(a.summary?.annotations ?? [])],
+    records: a.records,
+    notes,
+  }).filter(
+    (e) => !renames.some((r) => r.file === e.file && r.line >= e.line && r.line <= (e.endLine ?? e.line)),
+  );
+  const edits = [...renames, ...pythonEdits];
   const run = await runFix({
-    ...(renames.length ? { edits: renames } : {}),
+    ...(edits.length ? { edits } : {}),
     verify: input.verify,
     tf: input.tf,
     prices: input.prices,

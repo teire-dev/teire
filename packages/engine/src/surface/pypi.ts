@@ -90,6 +90,7 @@ interface Breakage {
   new: string | null;
   line: number | null;
   memberKind: string;
+  movedTo?: string;
 }
 
 const KIND: Record<string, { kind: SurfaceChangeKind; severity: SurfaceChange["severity"] }> = {
@@ -154,6 +155,8 @@ export async function pypiSurfaceDiff(
       before: b.old,
       after: b.new,
       ...(param ? { param } : {}),
+      // The same class or function at a new import path in the target (griffe, R21.7).
+      ...(b.movedTo ? { movedTo: b.movedTo } : {}),
     });
   }
   const counts: SurfaceDiff["counts"] = {};

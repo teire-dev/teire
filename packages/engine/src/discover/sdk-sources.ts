@@ -60,9 +60,10 @@ async function goSource(module: string, version: string): Promise<SdkSource | nu
     "proxy.golang.org",
   );
   if (res.status !== 200) return null;
+  // Entries are `module@version/...`, and the module path has slashes of its own.
+  const prefix = `@${version}/`;
   const files = [...readZip(res.body, (n) => SOURCE_FILE.go.test(n)).entries()].map(([path, b]) => ({
-    // Entries are `module@version/...`.
-    path: path.slice(path.indexOf("/") + 1),
+    path: path.includes(prefix) ? path.slice(path.indexOf(prefix) + prefix.length) : path,
     text: b.toString("utf8"),
   }));
   // A module path names its repository (github.com/sashabaranov/go-openai) or a vanity host.

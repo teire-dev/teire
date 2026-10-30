@@ -129,11 +129,11 @@ Model and API PRs have the same sections. Verification compares the old model wi
 | `typecheck_only` · `pre_existing_failure` · `needs_live_access` · `needs_local_service` · `environment_mismatch` | a draft PR, check run **neutral** | the same, plus the evidence, such as `typecheck-only` |
 | `regression` · `unverified` · `timeout` | an issue, **Teire needs a human: …**, with the body and the reasons | `teire` |
 
-A change from an unconfirmed source that you asked Teire to try (`@teire fix` on a **check by hand** issue) opens as a draft at best, labelled `unconfirmed`.
+A change from an unconfirmed source (one whose quote Teire couldn't find on the page) is listed on the dashboard as **check by hand** and never opens an issue. If you ask Teire to try it (`@teire fix` with its name, on the Dashboard issue), the PR opens as a draft at best, labelled `unconfirmed`.
 
 A **Teire needs a human** issue says why a person is needed, your version and the version the change is about, where the code is, how far Teire's search could see (files searched, how uses were resolved, what it couldn't resolve), what changed upstream with its quote, and what to do. For a removed parameter with no replacement that is the call sites to change; for a behaviour change, a short checklist to compare the paths before and after; for an account setting, the step the source names.
 
-A verified PR also says **Proven offline** and carries the `proven-offline` label: its checks passed with no network, on Token Factory in microVMs with no network interface, on Cloudflare with every request refused and listed. Before a PR opens, Teire reads back the files it commits with its own lockfile readers: the upgrade and every package moved with it must be locked at the versions the PR names, and a security fix must clear every advisory it claims, or the run stops and says which.
+A verified PR also says **Proven offline** and carries the `proven-offline` label: its checks passed with no network, on Token Factory in microVMs with no network interface, on Cloudflare with every request refused and listed. Before a PR opens, Teire reads back the files it commits with its own lockfile readers, in each root the PR changes: every direct copy of the upgrade and every package moved with it must be locked at the versions the PR names (a Go major at its new module path), and a security fix must clear every advisory it claims, or the run stops and says which. Another root that still locks an affected version is named in the PR, since the PR doesn't change it.
 
 `pullRequests.labels` in `teire.yml` adds your own labels.
 

@@ -9,7 +9,9 @@ import type { Hit, LocateResult } from "./ts";
  * the bump `cargo check` names every broken line anyway. Here: full and module paths
  * (`rand::distributions::Uniform`), `use` groups, prelude globs with bare calls, trait methods called
  * in files that import the trait, and removed features named in Cargo.toml. Comments and string
- * contents are blanked first. Every site is "name-only"; the compiler is the authority.
+ * contents are blanked first. A site written through the crate's path, or a name the file `use`s
+ * from it, is resolved by that import; a trait method's call on an unknown receiver is by name only.
+ * After the bump `cargo check` is the authority.
  */
 function blank(text: string) {
   // Line structure kept: comments and string contents become spaces.
@@ -56,40 +58,65 @@ export function locateRust(input: {
       continue;
     }
     if (!raw.includes(ident)) continue;
-    const lines = blank(raw).split("\n");
+    const blanked = blank(raw);
+    const lines = blanked.split("\n");
     const rawLines = raw.split("\n");
-    const imports = lines.filter((l) => /^\s*(?:pub\s+)?use\s/.test(l)).join("\n");
+    // Whole `use` statements, multi-line groups included, and the lines each one spans.
+    const uses = [...blanked.matchAll(/^[ \t]*(?:pub(?:\([^)]*\))?\s+)?use\s[^;]*;/gm)].map((m) => {
+      const first = blanked.slice(0, m.index ?? 0).split("\n").length - 1;
+      return { text: m[0], first, last: first + m[0].split("\n").length - 1 };
+    });
+    const imports = uses.map((u) => u.text).join("\n");
+    const statementAt = (i: number) => uses.find((u) => i >= u.first && i <= u.last);
     const glob = new RegExp(`\\buse\\s+${esc(ident)}::(?:prelude|\\w+)::\\*`).test(imports);
     lines.forEach((line, i) => {
       for (const key of keys) {
         if (key.startsWith("feature:")) continue;
-        const site = (kind: Hit["kind"], column: number) =>
+        const site = (kind: Hit["kind"], column: number, resolution: Hit["resolution"] = "import") =>
           add({
             file,
             line: i + 1,
             column: column + 1,
             kind,
             snippet: (rawLines[i] ?? "").trim().slice(0, 200),
-            resolution: "name-only",
+            resolution,
             declKey: key,
           });
         if (crateKey(key)) {
           const full = asWritten(key);
+          const use = statementAt(i);
           const at = line.search(new RegExp(`\\b${esc(full)}\\b(?!::\\w)|\\b${esc(full)}::`));
           if (at >= 0) {
-            site(/^\s*(?:pub\s+)?use\s/.test(line) ? "import" : "type-ref", at);
+            site(use ? "import" : "type-ref", at);
             continue;
           }
-          // `use rand::distributions::{Uniform, Distribution}`: the parent path, then the name in the group.
+          // `use rand::distributions::{Uniform, Distribution}`, on one line or several: the name in
+          // the group of its parent path.
           const parent = full.slice(0, full.lastIndexOf("::"));
           const last = full.slice(full.lastIndexOf("::") + 2);
-          const group = new RegExp(`\\b${esc(parent)}::\\{[^}]*\\b${esc(last)}\\b`);
-          const g = line.search(group);
-          if (g >= 0) site("import", g);
-          // A prelude item called bare under `use crate::prelude::*` (`thread_rng()`).
-          else if (glob && /::prelude::/.test(full)) {
-            const bare = line.search(new RegExp(`(?<![\\w:.])${esc(last)}\\s*[(<]`));
-            if (bare >= 0) site("call", bare);
+          const name = new RegExp(`(?<![\\w:.])${esc(last)}\\b`);
+          if (use) {
+            if (new RegExp(`\\b${esc(parent)}::\\{[^}]*\\b${esc(last)}\\b`).test(use.text)) {
+              const g = line.search(name);
+              if (g >= 0) site("import", g);
+            }
+            continue;
+          }
+          // Used bare after its own `use` (`use rand::thread_rng;` … `thread_rng()`): resolved by
+          // that import. A prelude item under `use crate::prelude::*` is too, unless the file
+          // declares its own of that name.
+          const named = new RegExp(
+            `\\b${esc(parent)}::(?:${esc(last)}\\s*;|\\{[^}]*\\b${esc(last)}\\b[^}]*\\})`,
+          ).test(imports);
+          const viaGlob = glob && /::prelude::/.test(full);
+          if (named || viaGlob) {
+            const bare = line.search(named ? name : new RegExp(`(?<![\\w:.])${esc(last)}\\s*[(<]`));
+            if (bare >= 0)
+              site(
+                /^\s*\(/.test(line.slice(bare + last.length)) ? "call" : "type-ref",
+                bare,
+                named || !new RegExp(`\\bfn\\s+${esc(last)}\\b`).test(blanked) ? "import" : "name-only",
+              );
           }
         } else if (key.includes("::")) {
           // `Trait::method`: a method call in a file that imports the trait or a glob.
@@ -97,7 +124,8 @@ export function locateRust(input: {
           const traitName = trait.split("::").at(-1) ?? trait;
           if (!glob && !new RegExp(`\\b${esc(traitName)}\\b`).test(imports)) continue;
           const call = line.search(new RegExp(`\\.${esc(method)}\\s*(?:::<[^>]*>)?\\s*\\(`));
-          if (call >= 0) site("call", call + 1);
+          // Any receiver whose type has a method of that name matches: by name only.
+          if (call >= 0) site("call", call + 1, "name-only");
         }
       }
     });

@@ -3,8 +3,9 @@ import { join } from "node:path";
 import { sha256 } from "../catalog/source";
 import type { DeclaredSource } from "../config";
 import { JVM, RUST, SURFACE } from "../constants";
+import type { Ecosystem } from "../contract";
 import { guardedFetch } from "../net/fetch";
-import { getNpmVersion, type RegistryOptions } from "../registry/clients";
+import { getNpmVersion, getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { getPypiVersion } from "../registry/pypi";
 import { gemVersions } from "../registry/rubygems";
 import {
@@ -16,7 +17,7 @@ import {
   rubygemsScheme,
   type VersionScheme,
 } from "../registry/versions";
-import { fileAt, goImportRepo, releasesPage, type SourceRepo, sourceRepoOf } from "./hosts";
+import { fileAt, goImportRepo, releasesPage, type SourceRepo, sourceRepoOf, tagsDated } from "./hosts";
 import { type ChangelogEntry, sliceChangelog } from "./slicer";
 
 /**
@@ -53,18 +54,6 @@ const MAX_NOTE_BYTES = 4 * 1024 * 1024;
 export function githubRepoOf(url: string | undefined | null) {
   const m = /github\.com[/:]([^/]+)\/([^/#]+?)(?:\.git)?(?:[#/].*)?$/.exec(url ?? "");
   return m?.[1] && m[2] ? { owner: m[1], repo: m[2] } : null;
-}
-
-async function github(path: string, options: NotesOptions, accept = "application/vnd.github.raw+json") {
-  return guardedFetch(`https://api.github.com${path}`, {
-    allowHosts: ["api.github.com"],
-    maxBytes: MAX_NOTE_BYTES,
-    headers: {
-      accept,
-      "x-github-api-version": "2022-11-28",
-      ...(options.githubToken ? { authorization: `Bearer ${options.githubToken}` } : {}),
-    },
-  });
 }
 
 export async function gatherNpmNotes(name: string, from: string, to: string, options: NotesOptions) {
@@ -108,6 +97,7 @@ export async function gatherNpmNotes(name: string, from: string, to: string, opt
     from,
     to,
     scheme: npmScheme,
+    ecosystem: "npm",
     repo,
     directory: detail?.repository?.directory ?? "",
     sources,
@@ -143,6 +133,7 @@ async function gatherRepoNotes(input: {
   from: string;
   to: string;
   scheme: VersionScheme;
+  ecosystem: Ecosystem;
   repo: SourceRepo;
   directory: string;
   sources: NoteSource[];
@@ -169,9 +160,22 @@ async function gatherRepoNotes(input: {
     `release/v${to}`,
   ];
   const token = options.githubToken;
+  // A date-stamped tag (`2024-03-15`, `v2024.03.15`, `release-20240315`) names no version: found from
+  // the version's publish date, looked up once and only when no spelling above exists.
+  let dated: Promise<string[]> | null = null;
+  const datedTags = async () => {
+    const info = await getPackageInfo(input.ecosystem, input.name, options).catch(() => null);
+    const published = info?.versions.find((v) => v.version === to)?.publishedAt;
+    return published ? tagsDated(repo, published, token).catch(() => []) : [];
+  };
   const atTag = async (path: string) => {
     for (const tag of tags) {
       // A missing tag or file: the next tag spelling decides.
+      const found = await fileAt(repo, tag, `${base}${path}`, token);
+      if (found) return found;
+    }
+    dated ??= datedTags();
+    for (const tag of await dated) {
       const found = await fileAt(repo, tag, `${base}${path}`, token);
       if (found) return found;
     }
@@ -267,6 +271,7 @@ export async function gatherPypiNotes(name: string, from: string, to: string, op
     from,
     to,
     scheme: pypiScheme,
+    ecosystem: "pypi",
     repo,
     directory: "",
     sources,
@@ -309,6 +314,7 @@ export async function gatherGoNotes(path: string, from: string, to: string, opti
     from,
     to,
     scheme: goScheme,
+    ecosystem: "go",
     repo: found.repo,
     directory: found.directory,
     sources,
@@ -345,6 +351,7 @@ export async function gatherCargoNotes(name: string, from: string, to: string, o
     from,
     to,
     scheme: cargoScheme,
+    ecosystem: "cargo",
     repo,
     directory: "",
     sources,
@@ -385,6 +392,7 @@ export async function gatherRubyNotes(name: string, from: string, to: string, op
     from,
     to,
     scheme: rubygemsScheme,
+    ecosystem: "rubygems",
     repo,
     directory: file?.includes("/") ? file.slice(0, file.lastIndexOf("/")) : "",
     sources,
@@ -432,6 +440,7 @@ export async function gatherJvmNotes(name: string, from: string, to: string, opt
     from,
     to: to.replace(/-(?:jre|android|jdk\d*|java\d*)$/i, ""),
     scheme: mavenScheme,
+    ecosystem: "maven",
     repo,
     directory: "",
     sources,

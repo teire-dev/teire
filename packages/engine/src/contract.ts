@@ -214,7 +214,10 @@ export const changeV2 = z.object({
       modelIds: z.array(z.string()).default([]),
       codemod: z
         .object({
-          kind: z.enum(["rename", "model-swap", "kwarg-remove", "import-rewrite", "go-fix-inline"]),
+          // A record carries an edit its own data backs: a model swap, a Python import that moved, a
+          // keyword a function dropped. Renames (notes + the target's source) and `go fix -inline` (the
+          // module's own directives) are planned at fix time, not published.
+          kind: z.enum(["model-swap", "kwarg-remove", "import-rewrite"]),
           spec: z.unknown(),
         })
         .optional(),

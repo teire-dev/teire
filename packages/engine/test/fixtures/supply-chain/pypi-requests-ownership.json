@@ -1,0 +1,19 @@
+{
+  "ownership": {
+    "organization": null,
+    "roles": [
+      {
+        "role": "Owner",
+        "user": "Lukasa"
+      },
+      {
+        "role": "Owner",
+        "user": "graffatcolmingov"
+      },
+      {
+        "role": "Owner",
+        "user": "nateprewitt"
+      }
+    ]
+  }
+}

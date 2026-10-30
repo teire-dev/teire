@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "attestation_bundles": [
+    {
+      "publisher": {
+        "environment": "publish",
+        "kind": "GitHub",
+        "repository": "urllib3/urllib3",
+        "workflow": "publish.yml"
+      }
+    }
+  ]
+}

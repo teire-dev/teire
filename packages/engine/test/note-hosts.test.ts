@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sourceRepoOf } from "../src/notes/hosts";
 
 describe("a package's own repository, wherever its metadata says it is (S16.5)", () => {
@@ -39,5 +39,30 @@ describe("a package's own repository, wherever its metadata says it is (S16.5)",
     expect(sourceRepoOf("https://git.example.org/team/lib")).toBeNull();
     expect(sourceRepoOf("https://example.org")).toBeNull();
     expect(sourceRepoOf("")).toBeNull();
+  });
+});
+
+describe("a date-stamped tag, from the version's publish date (S16.5)", () => {
+  it("finds the day's tag in any spelling, the day before after it", async () => {
+    const { tagsDated } = await import("../src/notes/hosts");
+    const listing = [
+      "v1.0.0",
+      "release-20240314",
+      "2024.03.15",
+      "nightly-2024-03-151",
+      "build-12024-03-15",
+      "v2024_03_15",
+    ];
+    const fetch = await import("../src/net/fetch");
+    const spy = vi.spyOn(fetch, "guardedFetch").mockResolvedValue({
+      status: 200,
+      json: () => listing.map((t) => ({ ref: `refs/tags/${t}` })),
+    } as never);
+    expect(await tagsDated({ host: "github", owner: "o", repo: "r" }, "2024-03-15T09:00:00Z")).toEqual([
+      "2024.03.15",
+      "v2024_03_15",
+      "release-20240314",
+    ]);
+    spy.mockRestore();
   });
 });

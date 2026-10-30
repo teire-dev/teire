@@ -138,7 +138,9 @@ export function planRenames(input: {
     return l;
   };
   for (const site of input.sites) {
-    if (!RENAMABLE.has(site.kind)) continue;
+    // A site found by its name alone may be another receiver's method of the same name: the agent
+    // reads it in context instead.
+    if (!RENAMABLE.has(site.kind) || site.resolution === "name-only") continue;
     const keyword = input.keywordSites?.has(site) ?? false;
     const text = fileLines(site.file)[site.line - 1];
     if (text === undefined || edits.some((e) => e.file === site.file && e.line === site.line)) continue;

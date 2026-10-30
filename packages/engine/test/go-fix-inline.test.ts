@@ -38,11 +38,26 @@ const diff = `--- /work/app/ui/card.go (old)
  }
 `;
 
+const directives = [
+  { pkg: "maragu.dev/gomponents", packageName: "gomponents", name: "DataAttr", method: false },
+];
+
 describe("go fix -inline, gated to the upgraded module's own directives (R21.7)", () => {
-  it("reads the names a version marks for inlining", () => {
-    expect([...inlineDirectives([{ path: "attr.go", text: moduleSource }])].sort()).toEqual([
-      "DataAttr",
-      "Version",
+  it("reads what a version marks for inlining, with the package callers reach it through", () => {
+    const found = inlineDirectives(
+      [
+        { path: "attr.go", text: moduleSource },
+        {
+          path: "html/el.go",
+          text: "package html\n\n//go:fix inline\nfunc (e El) Old() El { return e.New() }\n",
+        },
+      ],
+      "maragu.dev/gomponents",
+    );
+    expect(found).toEqual([
+      { pkg: "maragu.dev/gomponents", packageName: "gomponents", name: "DataAttr", method: false },
+      { pkg: "maragu.dev/gomponents", packageName: "gomponents", name: "Version", method: false },
+      { pkg: "maragu.dev/gomponents/html", packageName: "html", name: "Old", method: true },
     ]);
   });
 
@@ -69,7 +84,7 @@ describe("go fix -inline, gated to the upgraded module's own directives (R21.7)"
       read: (p) => (p === "app/ui/card.go" ? caller : null),
       projectRoot: ".",
       modulePath: "maragu.dev/gomponents",
-      names: new Set(["DataAttr"]),
+      directives,
     });
     expect(edits).toHaveLength(1);
     expect(edits[0]?.content).toContain('return g.Data("id", id)');
@@ -86,7 +101,31 @@ describe("go fix -inline, gated to the upgraded module's own directives (R21.7)"
         read: () => caller.replace('g "maragu.dev/gomponents"', 'g "other.dev/lib"'),
         projectRoot: ".",
         modulePath: "maragu.dev/gomponents",
-        names: new Set(["DataAttr"]),
+        directives,
+      }),
+    ).toEqual([]);
+  });
+
+  it("keeps nothing for a same-named call through another package, or a method", () => {
+    const other = caller
+      .replace('g "maragu.dev/gomponents"', 'g "maragu.dev/gomponents"\n\tx "other.dev/attrs"')
+      .replace('return g.DataAttr("id", id)', 'return x.DataAttr("id", id)');
+    expect(
+      keptInlineEdits({
+        diff: diff.replace('-\treturn g.DataAttr("id", id)', '-\treturn x.DataAttr("id", id)'),
+        read: () => other,
+        projectRoot: ".",
+        modulePath: "maragu.dev/gomponents",
+        directives,
+      }),
+    ).toEqual([]);
+    expect(
+      keptInlineEdits({
+        diff,
+        read: () => caller,
+        projectRoot: ".",
+        modulePath: "maragu.dev/gomponents",
+        directives: directives.map((d) => ({ ...d, method: true })),
       }),
     ).toEqual([]);
   });

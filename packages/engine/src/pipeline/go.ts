@@ -393,8 +393,8 @@ export async function fixGoDependency(
     // `//go:fix inline` directives the target ships, applied by Go itself and gated to its calls.
     sandboxEdits: async (session, plan, read) => {
       const source = await fetchSdkSource("go", targetPath, target).catch(() => null);
-      const names = inlineDirectives(source?.files ?? []);
-      if (!names.size) return [];
+      const directives = inlineDirectives(source?.files ?? [], targetPath);
+      if (!directives.length) return [];
       const fixed = await session.run("after-go-fix-inline", ["go", "fix", "-inline", "-diff", "./..."], {
         cwd: plan.cwd,
         ...(plan.env ? { env: plan.env } : {}),
@@ -402,14 +402,15 @@ export async function fixGoDependency(
       });
       input.onEvent?.({
         step: "codemod",
-        detail: `go fix -inline for ${[...names].join(", ")}: exit ${fixed.exitCode}`,
+        // go fix -diff exits 1 when it has changes to suggest, as `gofmt -d` does.
+        detail: `go fix -inline for ${[...new Set(directives.map((d) => d.name))].join(", ")}: ${fixed.stdout.trim() ? "changes suggested" : fixed.exitCode === 0 ? "nothing to inline" : `exit ${fixed.exitCode}`}${directives.some((d) => d.method) ? "; method calls are left to the agent" : ""}`,
       });
       return keptInlineEdits({
         diff: fixed.stdout,
         read,
         projectRoot: a.project.root,
         modulePath: targetPath,
-        names,
+        directives,
       });
     },
     verify: input.verify,

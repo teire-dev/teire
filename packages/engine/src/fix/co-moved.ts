@@ -66,7 +66,9 @@ export function usageOf(breaking: readonly FindingDraft[]): CoMovedUsage {
 }
 
 /** The "Your code" cell. */
-export function usageCell(u: CoMovedUsage | undefined): string {
+export function usageCell(u: CoMovedUsage | undefined, m?: Pick<Moved, "from" | "to">): string {
+  // The updater rewrote its lockfile entry (a source or checksum) without changing the version.
+  if (m?.from && m.from === m.to) return "same version, nothing to diff";
   if (!u) return "not diffed";
   if (!u.diffed) return u.note ?? "not diffed";
   if (!u.breaking) return "no breaking change it uses";

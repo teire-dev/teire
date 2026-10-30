@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { createTwoFilesPatch } from "diff";
-import { RunCancelledError } from "../cancel";
+import { cancelSignal, RunCancelledError } from "../cancel";
 import { FIX, PR_MODE_BY_EVIDENCE, VERIFY } from "../constants";
 import type { ChangeV2, DependencyInstance } from "../contract";
 import { forGitHub } from "../github/redact";
@@ -35,6 +35,7 @@ import { type Change, runChecks, runSide, type SideRun, type VerifyRun, verifyCh
 import { RepositoryNotPublicError, TarballTooLargeError } from "../verify/tokenfactory";
 import { type AgentStep, filesNamed, runAgent } from "./agent";
 import { applyCodemods, type CodemodEdit, type MigrationNote, planCodemods } from "./codemods";
+import { upgradeRequester } from "./request-upgrade";
 import { type InstallTriage, type Review, reviewBump, reviewFix, triageInstall } from "./review";
 import { prepareTransaction, type RequestUpgrade, type Transaction, utf8 } from "./transaction";
 import type { ManifestEdit } from "./upgrade-js";
@@ -46,6 +47,19 @@ import type { ManifestEdit } from "./upgrade-js";
  * failed verifications the agent starts over from the evidence; the attempt cap returns
  * `exhausted` so the caller can fall back one major (D71).
  */
+/**
+ * A run that can't go on and must end in a named stop (D104): the worker reports it like the
+ * updater's own stops, with this type.
+ */
+export class FixStopError extends Error {
+  constructor(
+    readonly type: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export interface FixEvent {
   step:
     | "transaction"
@@ -112,8 +126,11 @@ export interface FixInput {
    * into both sessions before their installs, saved after the baseline installs.
    */
   depCache?: {
-    restore(session: VerifySession): Promise<{ ms: number; savedAt: string } | null>;
-    save(session: VerifySession): Promise<{ ms: number } | null>;
+    /** Null when no cache is saved yet; throws when one is and restoring it failed. */
+    restore(
+      session: VerifySession,
+    ): Promise<{ ms: number; savedAt: string; lockfile: string | null; sameLockfile: boolean } | null>;
+    save(session: VerifySession): Promise<{ ms: number; lockfile: string } | null>;
   };
   /** Other upgrades the agent may ask for (S15.2); absent when the updater is off for this ecosystem. */
   requestUpgrade?: RequestUpgrade;
@@ -664,15 +681,25 @@ async function runLead(input: FixInput): Promise<FixRun> {
   try {
     // The repository's saved download cache, into both sessions before their installs (R21.11).
     if (input.depCache) {
-      const quiet = (session: VerifySession) =>
-        (input.depCache as NonNullable<FixInput["depCache"]>).restore(session).catch(() => null);
-      const [restored] = await Promise.all([quiet(base), quiet(after)]);
-      cache = restored
+      // A failed restore isn't "no cache": the receipt says it failed, and the install runs without it.
+      const tried = (session: VerifySession) =>
+        (input.depCache as NonNullable<FixInput["depCache"]>).restore(session).then(
+          (restored) => ({ restored }),
+          (error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }),
+        );
+      const sides = await Promise.all([tried(base), tried(after)]);
+      const failed = sides.find((s) => "error" in s);
+      const restored = sides[0] && "restored" in sides[0] ? sides[0].restored : null;
+      cache = failed
         ? {
-            note: `restored in ${(restored.ms / 1000).toFixed(1)} s, saved by a run on ${restored.savedAt.slice(0, 10)}`,
-            restoredMs: restored.ms,
+            note: `restore failed (${(failed as { error: string }).error.slice(0, 200)}); installed without it`,
           }
-        : { note: "no saved cache yet" };
+        : restored
+          ? {
+              note: `restored in ${(restored.ms / 1000).toFixed(1)} s, saved by a run on ${restored.savedAt.slice(0, 10)} from lockfile ${restored.lockfile?.slice(0, 12) ?? "unknown"}${restored.sameLockfile ? " (this run's lockfile)" : " (the lockfile changed since)"}`,
+              restoredMs: restored.ms,
+            }
+          : { note: "no saved cache yet" };
       emit({ step: "install", detail: `package cache: ${cache.note}` });
     }
     const log = (line: string) =>
@@ -699,9 +726,18 @@ async function runLead(input: FixInput): Promise<FixRun> {
     const savedAfterBaseline = async () => {
       const result = await probeBaseline();
       if (input.depCache && result.side.install.ok) {
-        const saved = await input.depCache.save(base).catch(() => null);
-        if (saved) {
-          cache = { ...cache, savedMs: saved.ms };
+        const saved = await input.depCache
+          .save(base)
+          .catch((error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }));
+        if (saved && "error" in saved) {
+          cache = { ...cache, note: `${cache.note}; saving failed (${saved.error.slice(0, 200)})` };
+          emit({ step: "baseline", detail: `package cache: saving failed (${saved.error.slice(0, 200)})` });
+        } else if (saved) {
+          cache = {
+            ...cache,
+            note: `${cache.note}; saved from lockfile ${saved.lockfile.slice(0, 12)}`,
+            savedMs: saved.ms,
+          };
           emit({ step: "baseline", detail: `package cache saved in ${(saved.ms / 1000).toFixed(1)} s` });
         }
       }
@@ -937,102 +973,26 @@ async function runLead(input: FixInput): Promise<FixRun> {
           .filter((p) => !transactionFiles.has(p) || editedSince(p))
           .map((p) => [p, read(p)]),
       );
-    // Upgrades the agent asks for (S15.2): moved by dependabot-core's updater on top of this run's
-    // dependency files, installed with the network on as the first install was, and put back if
-    // that install fails, so the run's environment never stays broken.
-    let requests = 0;
-    const requestUpgrade = input.requestUpgrade
-      ? async (name: string, version: string, why: string) => {
-          if (requests >= FIX.maxUpgradeRequests)
-            return `refused: this run already asked for ${FIX.maxUpgradeRequests} upgrades`;
-          requests++;
-          const current = Object.fromEntries(
-            [...transactionFiles]
-              .filter((p) => !binaryPaths.has(p) && existsSync(join(input.repoDir, p)))
-              .map((p) => [p, read(p)]),
-          );
-          emit({ step: "transaction", detail: `the agent asks for ${name} ${version}: ${clip(why)}` });
-          const already = [...(input.transaction.moved ?? []), ...extraMoved].findLast(
-            (m) => m.name === name,
-          )?.to;
-          const answer = await (input.requestUpgrade as RequestUpgrade)({
-            name,
-            version,
-            why,
-            files: current,
-            ...(already ? { current: already } : {}),
-          });
-          if (!answer.ok) {
-            emit({ step: "transaction", detail: `${name} ${version} not moved: ${answer.reason}` });
-            return `refused: ${answer.reason}`;
-          }
-          const previous = new Map(
-            answer.files.map((f) => [f.path, existsSync(join(input.repoDir, f.path)) ? read(f.path) : null]),
-          );
-          const added = new Set<string>();
-          let n = 0;
-          const put = async (path: string, content: string | null) => {
-            const full = join(input.repoDir, path);
-            if (content === null) {
-              rmSync(full, { force: true });
-              await after.run(`after-request-${requests}-${++n}`, ["rm", "-f", `${VERIFY.workDir}/${path}`], {
-                timeoutSec: 60,
-              });
-            } else {
-              mkdirSync(dirname(full), { recursive: true });
-              writeFileSync(full, content);
-              await after.writeFile(`${VERIFY.workDir}/${path}`, new TextEncoder().encode(content));
-            }
-          };
-          const install = async (label: string) => {
-            await after.setPhase("install");
-            const run = await after.run(label, input.plan.install, {
-              cwd: input.plan.cwd,
-              ...(input.plan.installEnv ? { env: input.plan.installEnv } : {}),
-              timeoutSec: input.plan.installTimeoutSec ?? VERIFY.installTimeoutSec,
-            });
-            await after.setPhase("check");
-            return run;
-          };
-          for (const f of answer.files) {
-            if (!originals.has(f.path)) {
-              if (previous.get(f.path) !== null) remember(f.path);
-              else {
-                originals.set(f.path, "");
-                added.add(f.path);
-              }
-            }
-            await put(f.path, f.content);
-            transactionFiles.add(f.path);
-            landed.set(f.path, nowText(f.path));
-          }
-          const run = await install(`after-install-request-${requests}`);
-          if (run.exitCode !== 0) {
-            for (const [path, content] of previous) {
-              await put(path, content);
-              landed.set(path, nowText(path));
-              if (added.has(path)) {
-                originals.delete(path);
-                transactionFiles.delete(path);
-              }
-            }
-            await install(`after-install-request-${requests}-undo`);
-            const said = (run.stderr + run.stdout).slice(-FIX.maxCheckOutputChars);
-            emit({
-              step: "transaction",
-              detail: `${name} ${answer.to}: the install failed (exit ${run.exitCode}), so it was put back`,
-            });
-            return `the install failed with ${name} ${answer.to}, so it was put back:\n${said}`;
-          }
-          extraMoved.push(...answer.moved.map((m) => ({ ...m, requested: why })));
-          const also = answer.moved.filter((m) => m.name !== name);
-          emit({
-            step: "transaction",
-            detail: `${name} → ${answer.to} by dependabot-core's updater, asked for by the agent${also.length ? `, with ${also.map((m) => m.name).join(", ")}` : ""}; installed in ${run.ms} ms`,
-          });
-          return `${name} is now ${answer.to}${also.length ? ` (it also moved ${also.map((m) => `${m.name} ${m.from ?? "new"} → ${m.to ?? "removed"}`).join(", ")})` : ""}, installed. Call run_check.`;
-        }
+    // Upgrades the agent asks for (S15.2), installed in the after sandbox and put back if they fail.
+    const requester = input.requestUpgrade
+      ? upgradeRequester({
+          ask: input.requestUpgrade,
+          after,
+          plan: input.plan,
+          repoDir: input.repoDir,
+          transactionFiles,
+          binaryPaths,
+          originals,
+          landed,
+          movedBefore: input.transaction.moved ?? [],
+          extraMoved,
+          remember,
+          emit,
+          clip,
+        })
       : undefined;
+    const requestUpgrade = requester?.ask;
+    const environmentLost = () => requester?.lost() ?? null;
 
     let lastAfter: SideResult = prepared;
     const verify = async (label: string) => {
@@ -1047,6 +1007,23 @@ async function runLead(input: FixInput): Promise<FixRun> {
 
     // A run with no code to review still gets a short Ultra read of the dependency change (S15.5):
     // what moved, the quoted notes and the checks, for what the checks can't see.
+    // A review that couldn't run (the model or the network failed) is on the receipt as "not
+    // concluded", never silently absent and never the end of the run; a cancelled run still ends.
+    const unreviewed =
+      (scope: "diff" | "change") =>
+      (error: unknown): Review => {
+        if (error instanceof RunCancelledError || cancelSignal()?.aborted) throw new RunCancelledError();
+        return {
+          model: input.tf.modelId("reader"),
+          scope,
+          problems: [],
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          ms: 0,
+          error: `the review couldn't run: ${forGitHub(String(error), 160)}`,
+        };
+      };
     const bumpReview = async (evidence: Evidence) => {
       const moves = [...(input.transaction.moved ?? []), ...extraMoved].filter(
         (m) => m.name !== input.instance?.name,
@@ -1072,19 +1049,7 @@ async function runLead(input: FixInput): Promise<FixRun> {
           ...checkLines(baseline.checks, lastAfter.checks),
         ].join("\n"),
         file: manifest[0]?.path ?? lockfile?.path ?? "the dependency files",
-      }).catch(
-        // A review that couldn't run is on the receipt as such, never silently absent.
-        (error: unknown): Review => ({
-          model: input.tf.modelId("reader"),
-          scope: "change",
-          problems: [],
-          tokensIn: 0,
-          tokensOut: 0,
-          costUsd: 0,
-          ms: 0,
-          error: `the review couldn't run: ${forGitHub(String(error), 160)}`,
-        }),
-      );
+      }).catch(unreviewed("change"));
       if (review)
         emit({
           step: "review",
@@ -1112,7 +1077,7 @@ async function runLead(input: FixInput): Promise<FixRun> {
             notes: input.notes,
             patch,
             rationale: `Deterministic edits at located sites: ${codemods.map((c) => `${c.file}:${c.line} ${c.reason}`).join("; ")}`,
-          })
+          }).catch(unreviewed("diff"))
         : await bumpReview(current.evidence);
       if (review && patch)
         emit({
@@ -1220,6 +1185,8 @@ async function runLead(input: FixInput): Promise<FixRun> {
           changed,
           beforeEdit: remember,
           check: async () => {
+            const lost = environmentLost();
+            if (lost) return { passed: false, text: `stopped: ${lost}` };
             const r = await verify("agent check");
             const passed = acceptable(r.evidence);
             // While answering a review: a failed check is evidence about the change the review questioned.
@@ -1278,6 +1245,9 @@ async function runLead(input: FixInput): Promise<FixRun> {
           });
         },
       });
+      // A requested upgrade left the after side unrestorable: no check can be read from it.
+      const lost = environmentLost();
+      if (lost) throw new FixStopError("request_undo_failed", lost);
       current = await verify(`attempt ${n}`);
       attempts.push({
         n,
@@ -1299,7 +1269,7 @@ async function runLead(input: FixInput): Promise<FixRun> {
           patch: codePatch(),
           failure: startingFailure,
           rationale: agent.summary,
-        });
+        }).catch(unreviewed("diff"));
         emit({
           step: "review",
           model: review.model,

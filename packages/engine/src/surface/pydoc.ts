@@ -56,6 +56,8 @@ export function pythonDocsLookup(input: {
           ? `${input.name} ${input.target}'s own source names nothing from this question${own.unread.length ? ` (unread: ${own.unread.join(", ")})` : ""}.`
           : `${input.name} ${input.target}'s own source couldn't be read.`,
       );
-    return parts.join("\n\n").slice(0, FIX.maxDocsChars);
+    // The wheel's own source is the exact target version, Context7 maybe another: it reads first, so
+    // the cut falls on Context7.
+    return [...parts.slice(1), parts[0]].join("\n\n").slice(0, FIX.maxDocsChars);
   };
 }

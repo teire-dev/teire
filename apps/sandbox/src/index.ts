@@ -464,6 +464,10 @@ async function authorized(request: Request, env: Env, sid: string) {
   const expiry = Number(match[1]);
   const now = Math.floor(Date.now() / 1000);
   if (expiry < now || expiry > now + MAX_TOKEN_TTL_SECONDS) return false;
+  return sameMac(await hmac(env, `${sid}.${expiry}`), match[2] ?? "");
+}
+
+async function hmac(env: Env, message: string) {
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(env.TEIRE_SANDBOX_KEY),
@@ -471,11 +475,29 @@ async function authorized(request: Request, env: Env, sid: string) {
     false,
     ["sign"],
   );
-  const expected = encoder.encode(
-    base64url(await crypto.subtle.sign("HMAC", key, encoder.encode(`${sid}.${expiry}`))),
-  );
-  const given = encoder.encode(match[2] ?? "");
-  return given.byteLength === expected.byteLength && crypto.subtle.timingSafeEqual(given, expected);
+  return base64url(await crypto.subtle.sign("HMAC", key, encoder.encode(message)));
+}
+
+function sameMac(expected: string, given: string) {
+  const a = encoder.encode(expected);
+  const b = encoder.encode(given);
+  return a.byteLength === b.byteLength && crypto.subtle.timingSafeEqual(a, b);
+}
+
+/**
+ * A saved cache's seal (R21.11): the sandbox Worker restores or deletes only a record it saved
+ * itself, under the name the worker gave it (`<repository id>-<ecosystem>-<root>`), so a record
+ * handed in from anywhere else is refused.
+ */
+type SealedRecord = DirectoryBackupRecord & { seal?: string };
+const cacheSeal = (env: Env, r: DirectoryBackupRecord) =>
+  hmac(env, `cache.${r.id}.${r.sha256}.${r.name ?? ""}.${r.dir}`);
+
+async function unsealed(env: Env, record: SealedRecord): Promise<DirectoryBackupRecord> {
+  const { seal, ...rest } = record;
+  if (!env.TEIRE_SANDBOX_KEY || !seal || !sameMac(await cacheSeal(env, rest), seal))
+    throw new Error("bad request: a cache record this sandbox Worker didn't save");
+  return rest;
 }
 
 function json(body: unknown, status = 200) {
@@ -548,16 +570,17 @@ export default {
       if (route.startsWith("POST cache/") && !(await sandbox.cacheBound()))
         return json({ error: "no cache bucket is bound (R2 is not enabled)" }, 501);
       if (route === "POST cache/delete") {
-        const body = await request.json<{ record: DirectoryBackupRecord }>();
-        return json(await sandbox.deleteCache(body.record));
+        const body = await request.json<{ record: SealedRecord }>();
+        return json(await sandbox.deleteCache(await unsealed(env, body.record)));
       }
       if (route === "POST cache/save") {
         const body = await request.json<{ name: string; dir: string }>();
-        return json(await sandbox.saveCache(body.name, body.dir));
+        const saved = await sandbox.saveCache(body.name, body.dir);
+        return json({ ...saved, record: { ...saved.record, seal: await cacheSeal(env, saved.record) } });
       }
       if (route === "POST cache/restore") {
-        const body = await request.json<{ record: DirectoryBackupRecord; dir?: string }>();
-        return json(await sandbox.restoreCache(body.record, body.dir));
+        const body = await request.json<{ record: SealedRecord; dir?: string }>();
+        return json(await sandbox.restoreCache(await unsealed(env, body.record), body.dir));
       }
       if (route === "GET egress") return json(await sandbox.egress());
       return json({ error: "not found" }, 404);

@@ -115,13 +115,19 @@ export const FIX = {
   maxCoMovedDiffed: 8,
   /** Other dependencies the agent may ask dependabot-core's updater to move in one run (S15.2). */
   maxUpgradeRequests: 2,
+  /** Asks of the updater in one run, landed or not (each can hold the run up to its own wait). */
+  maxUpgradeAttempts: 4,
   /**
    * An agent's request waits for its job inside one attempt: the updater gets ten minutes and the
    * request gives up after fifteen, queue included (a run's own job may take the full 20 and an hour).
    */
   upgradeRequestTimeoutSec: 600,
   upgradeRequestWaitMs: 15 * 60_000,
-  /** The resolver host's overlay limits (`teire-resolver.py`): files per job and characters each. */
+  /**
+   * The resolver host's overlay limits (`teire-resolver.py`): files per job and characters each. The
+   * host counts a Python str's code points; JavaScript's UTF-16 length is never fewer, so a file
+   * that passes here passes there.
+   */
   maxOverlayFiles: 20,
   maxOverlayChars: 1_000_000,
   /** Lines kept after an error line, up to the next blank line (a rustc diagnostic with its `help:`). */
@@ -529,7 +535,7 @@ export const PYTHON = {
   packages: ["packaging==26.3", "griffe==2.4.1", "jedi==0.20.1"],
   helperTimeoutMs: 180_000,
   /** Version of Teire's griffe step (join keys, guards); with griffe's own version it keys cached diffs. */
-  surfaceTool: { name: "griffe", version: "2.4.1+teire2" },
+  surfaceTool: { name: "griffe", version: "2.4.1+teire3" },
 } as const;
 
 /**

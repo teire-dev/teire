@@ -13,7 +13,7 @@ import { declaredPackageNotes, gatherRubyNotes } from "../notes/sources";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { type GemVersion, gemVersions, requiresOtherRuby } from "../registry/rubygems";
-import { gemSignals } from "../registry/supply-chain";
+import { gemSignals, snapshotOwners } from "../registry/supply-chain";
 import { chooseTarget, type TargetPolicy, withTargetMax } from "../registry/target";
 import { rubygemsScheme } from "../registry/versions";
 import { surfaceChangeRecords, unreadableDiff } from "../surface/records";
@@ -127,6 +127,9 @@ export async function assessRubyRepo(repoDir: string, tree: RepoTree, options: R
         decision,
         deprecation: deprecationChange(info, instance.version),
       };
+      // Who owns the gem now, kept for the upgrade's owner comparison (D-14, R21.6).
+      if (decision.kind === "upgrade")
+        await snapshotOwners("rubygems", instance.name, instance.version, options).catch(() => undefined);
       if (decision.kind === "upgrade" && decision.isMajor) {
         options.onProgress?.(`${instance.name} ${instance.version} → ${decision.to}: Prism surface diff`);
         a.diff = await diffOf(instance.name, instance.version, decision.to).catch((error: unknown) =>
@@ -288,7 +291,7 @@ export async function fixRubyDependency(
   });
   const groupKey = `rubygems/${a.instance.name}/${target}`;
   // Who published the target and what runs when it installs, against the installed version (D-14).
-  const supplyChain = await gemSignals(a.instance.name, from, target).catch(() => [] as string[]);
+  const supplyChain = await gemSignals(a.instance.name, from, target, options).catch(() => [] as string[]);
   const pr = composeFixPullRequest({
     ...(supplyChain.length ? { supplyChain } : {}),
     repo: input.repo,

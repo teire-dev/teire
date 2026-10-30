@@ -25,6 +25,8 @@ For a major, Teire downloads the wheels of both versions (sdists are never built
 
 jedi then resolves your calls statically against the installed wheel, recording the keyword arguments of each call. A removed keyword argument counts only at calls that pass it.
 
+When a removed class or function is the one public object of that name and kind elsewhere in the new version, griffe's comparison says where it moved (`acme.legacy.Client` → `acme.Client`).
+
 Versions whose every file needs a newer Python than 3.12 are skipped.
 
 ## How it upgrades
@@ -38,6 +40,10 @@ Versions whose every file needs a newer Python than 3.12 are skipped.
 | pip | the pinned line edited |
 
 Hash-pinned requirements get every target file's sha256; without them, the edit is refused. Teire never re-locks everything.
+
+Before the agent, Teire makes the edits the target's own surface backs, at calls jedi resolved: `from a.b import X` becomes `from a.c import X` where X moved (other names in the import stay), and a keyword argument the function no longer takes comes out of each call that passes it, over several lines if the call spans them. A keyword a release note renames is renamed instead.
+
+The PR's supply-chain section compares the target with the installed version: a lost or changed PEP 740 publisher, a target with only a source distribution, and owners added or removed since the scan that first saw the installed version.
 
 ## How it verifies
 

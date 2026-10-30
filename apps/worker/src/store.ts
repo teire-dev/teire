@@ -650,6 +650,7 @@ export async function findingsWithChanges(db: Database, repoId: number) {
       title: changes.title,
       kind: changes.kind,
       deadline: changes.deadline,
+      changeStatus: changes.status,
     })
     .from(findings)
     .leftJoin(changes, eq(changes.id, findings.changeId))

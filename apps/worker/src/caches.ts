@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   and,
   type Database,
@@ -10,6 +11,8 @@ import {
   surfaceDiffs,
 } from "@teire/db";
 import { DOWNLOAD_CACHE, GO, JVM, PYTHON, RUBY, RUST, SURFACE } from "@teire/engine/constants";
+import type { FixEvent } from "@teire/engine/fix";
+import type { RepoTree } from "@teire/engine/inventory";
 import type { RegistryCache } from "@teire/engine/registry";
 import {
   jvmSurfaceDiff,
@@ -19,7 +22,7 @@ import {
   rubySurfaceDiff,
   type SurfaceDiff,
 } from "@teire/engine/surface";
-import type { CacheRecord, VerifySession } from "@teire/engine/verify";
+import { type CacheRecord, privateRegistry, type VerifySession } from "@teire/engine/verify";
 
 /** `registry_cache` in Postgres: one row per (ecosystem, key), shared by every repo the worker scans. */
 export function postgresRegistryCache(db: Database): RegistryCache {
@@ -150,21 +153,41 @@ const CACHES_KEPT = 2;
 /**
  * A repository's download cache for one root (R21.11). Every restore is looked up here, by the run's
  * own repository, never handed in, so a cache can't cross repositories (R21 reviews: a public
- * lockfile would otherwise let one repository write the cache another restores). Only the package
- * manager's download directory is saved, after the baseline installs; older records are pruned.
- * Undefined where the backend keeps no cache or the manager has no download directory.
+ * lockfile would otherwise let one repository write the cache another restores); the sandbox Worker
+ * also refuses a record it didn't seal itself. Only the package manager's download directory is
+ * saved, after the baseline installs, with the sha256 of the lockfiles it installed from; older
+ * records are pruned. A root that installs from a private registry is never saved. Undefined where
+ * the backend keeps no cache, the manager has no download directory, or the registry is private.
  */
-export function dependencyCacheFor(
-  db: Database,
-  repoId: number,
-  ecosystem: string,
-  root: string,
-  manager: string,
-  backend: string,
-) {
-  const dir = DOWNLOAD_CACHE[manager];
+export function dependencyCacheFor(input: {
+  db: Database;
+  repoId: number;
+  ecosystem: string;
+  root: string;
+  manager: string;
+  backend: string;
+  tree: RepoTree;
+  /** The root's lockfiles (or manifests, where there are none), hashed for the receipt. */
+  lockfiles: string[];
+  onEvent?: (e: FixEvent) => void;
+}) {
+  const { db, repoId, ecosystem, root } = input;
+  const dir = DOWNLOAD_CACHE[input.manager];
   // On only once the sandbox Worker has its R2 bucket (`TEIRE_DEP_CACHE=on`, set when R2 is enabled).
-  if (process.env.TEIRE_DEP_CACHE !== "on" || backend !== "cloudflare" || !dir) return undefined;
+  if (process.env.TEIRE_DEP_CACHE !== "on" || input.backend !== "cloudflare" || !dir) return undefined;
+  const privateSource = privateRegistry(input.tree, root, ecosystem);
+  if (privateSource) {
+    input.onEvent?.({
+      step: "install",
+      detail: `package cache off for ${root === "." ? "this repository" : root}: ${privateSource}, and a private registry's packages are never saved`,
+    });
+    return undefined;
+  }
+  const lockfile = createHash("sha256");
+  for (const path of [...input.lockfiles].sort())
+    lockfile.update(`${path}\0${input.tree.read(path) ?? ""}\0`);
+  const lockfileSha256 = lockfile.digest("hex");
+  const name = `${repoId}-${ecosystem}-${root}`.replace(/[^\w.-]/g, "_");
   const key = and(
     eq(dependencyCaches.repoId, repoId),
     eq(dependencyCaches.ecosystem, ecosystem),
@@ -180,14 +203,22 @@ export function dependencyCacheFor(
         .orderBy(desc(dependencyCaches.createdAt))
         .limit(1);
       if (!row) return null;
-      const { ms } = await session.depCache.restore(row.record as CacheRecord);
-      return { ms, savedAt: row.createdAt.toISOString() };
+      const record = row.record as CacheRecord;
+      if (record.name !== name) throw new Error(`the saved record is for ${record.name}, not ${name}`);
+      const { ms } = await session.depCache.restore(record);
+      return {
+        ms,
+        savedAt: row.createdAt.toISOString(),
+        lockfile: row.lockfileSha256,
+        sameLockfile: row.lockfileSha256 === lockfileSha256,
+      };
     },
     async save(session: VerifySession) {
       if (!session.depCache) return null;
-      const name = `${repoId}-${ecosystem}-${root}`.replace(/[^\w.-]/g, "_");
       const { record, ms } = await session.depCache.save(dir, name);
-      await db.insert(dependencyCaches).values({ repoId, ecosystem, root, record, sizeBytes: record.size });
+      await db
+        .insert(dependencyCaches)
+        .values({ repoId, ecosystem, root, record, sizeBytes: record.size, lockfileSha256 });
       const old = (
         await db.select().from(dependencyCaches).where(key).orderBy(desc(dependencyCaches.createdAt))
       ).slice(CACHES_KEPT);
@@ -199,7 +230,7 @@ export function dependencyCacheFor(
             old.map((r) => r.id),
           ),
         );
-      return { ms };
+      return { ms, lockfile: lockfileSha256 };
     },
   };
 }

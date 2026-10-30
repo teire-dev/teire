@@ -180,7 +180,7 @@ export async function startReverify(
 export async function reverifyRun(ctx: WorkerContext, runId: string) {
   const { db, gh } = ctx;
   const run = await getRun(db, runId);
-  if (!run || run.kind !== "reverify" || run.status === "succeeded" || run.status === "cancelled")
+  if (run?.kind !== "reverify" || run.status === "succeeded" || run.status === "cancelled")
     return { skipped: true };
   // A run the reaper failed (its worker stopped) starts over; any other failure stays.
   if (run.status === "failed" && run.step !== "interrupted") return { skipped: true };

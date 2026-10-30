@@ -1,4 +1,4 @@
-import { and, type Database, eq, gte, llmCalls, lt, repos, runs, scans, sql, systemState } from "@teire/db";
+import { and, type Database, eq, gte, llmCalls, lt, runs, scans, sql, systemState } from "@teire/db";
 import { ASSISTANT, DAILY_COST_CAP_DEFAULT_USD, RUNS } from "@teire/engine/constants";
 import type { GitHubApp } from "@teire/engine/github";
 import { createTokenFactory, modelHealth, ping, tokenFactoryConfigFromEnv } from "@teire/engine/llm";

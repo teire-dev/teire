@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChangeV2 } from "../src/contract";
 import { assessProviderChanges } from "../src/impact/provider";
 import type { LiteralScan } from "../src/locate/literals";
+import { catalogModelIds } from "../src/pipeline/api";
 
 const record = {
   schemaVersion: 2,
@@ -60,5 +61,10 @@ describe("a quarantined provider record (S16.3)", () => {
   it("stays silent on a mention that isn't passed as a model", () => {
     const loose = { ...scan, hits: scan.hits.map((h) => ({ ...h, context: "other" as const })) };
     expect(assessProviderChanges({ records: [record], scan: loose })).toEqual([]);
+  });
+
+  it("is looked for in the code even when no confirmed record names the model", () => {
+    expect([...catalogModelIds([record])]).toEqual(["acme-chat-1"]);
+    expect([...catalogModelIds([{ ...record, status: "candidate" } as ChangeV2])]).toEqual([]);
   });
 });

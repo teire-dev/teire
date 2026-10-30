@@ -23,7 +23,7 @@ This search works on syntax, not types, so a crate you don't use reads **inconcl
 
 ## How it upgrades
 
-The requirement in `Cargo.toml` is edited as text in its own style. Removed features are dropped, and `workspace = true` dependencies are bumped in the root `[workspace.dependencies]`. Then `cargo update -p name@old --precise new` regenerates the lockfile.
+The requirement in `Cargo.toml` is edited as text in its own style. Removed features are dropped, and `workspace = true` dependencies are bumped in the root `[workspace.dependencies]`. Then `cargo update -p name@old --precise new` regenerates the lockfile. A version crates.io's index marks yanked is never a target, even before deps.dev reports the yank.
 
 ## How it verifies
 

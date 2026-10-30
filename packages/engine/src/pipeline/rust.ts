@@ -10,6 +10,7 @@ import type { RepoTree } from "../inventory/tree";
 import { locateRust } from "../locate/rust";
 import { documentsForReading, extractNotes, migrationNotes, noteRecords } from "../notes/extract";
 import { declaredPackageNotes, gatherCargoNotes } from "../notes/sources";
+import { cratesIndexLines } from "../registry/cargo";
 import { getPackageInfo, type RegistryOptions } from "../registry/clients";
 import { deprecationChange } from "../registry/deprecation";
 import { crateSignals } from "../registry/supply-chain";
@@ -42,14 +43,22 @@ export interface RustAssessOptions extends RegistryOptions {
   coverage?: ScanCoverage;
 }
 
-function rustPolicy(instance: DependencyInstance, options: RustAssessOptions): TargetPolicy {
+/**
+ * A crate's target policy. A version crates.io's index marks yanked is refused even before deps.dev
+ * has caught up (it folds yanks into `isDeprecated` some time after the index says so).
+ */
+async function rustPolicy(instance: DependencyInstance, options: RustAssessOptions): Promise<TargetPolicy> {
   const minutes = (options.cooldownDays ?? REGISTRY.cooldownDays) * 1440;
+  const yanked = new Set(
+    (await cratesIndexLines(instance.name).catch(() => [])).filter((l) => l.yanked).map((l) => l.vers),
+  );
   return {
     now: options.now ?? new Date(),
     minAgeMinutes: () => minutes,
     pins: [],
     allowPrerelease: instance.version ? cargoScheme.isPrerelease(instance.version) : false,
     fallbackMajors: options.fallbackMajors ?? 0,
+    exclude: (version) => (yanked.has(version) ? "yanked on crates.io" : null),
   };
 }
 
@@ -90,7 +99,7 @@ export async function assessRustRepo(repoDir: string, tree: RepoTree, options: R
       const decision = chooseTarget(
         info,
         instance.version,
-        withTargetMax(rustPolicy(instance, options), instance.name, options),
+        withTargetMax(await rustPolicy(instance, options), instance.name, options),
         cargoScheme,
       );
       const a: Assessment<RustProject> = {

@@ -340,7 +340,7 @@ const HUMAN_VERDICTS = new Set(["needs_human", "check_by_hand"]);
 /**
  * Scan-time "needs a human" issues (rule 1, D96): a group Teire can't fix on its own gets one issue
  * saying why: a finding marked needs-human or check-by-hand, or an advisory with no fixed version
- * published. At most `maxHumanIssuesPerScan` new issues per scan; a group with an open PR, or an
+ * published. Findings from quarantined records don't count. At most `maxHumanIssuesPerScan` new issues per scan; a group with an open PR, or an
  * issue of any state (a person closed it), gets none. Repos with Issues off are skipped.
  */
 export async function syncHumanIssues(ctx: WorkerContext, repoId: number) {
@@ -355,6 +355,9 @@ export async function syncHumanIssues(ctx: WorkerContext, repoId: number) {
       f.verdict === "affected" &&
       !(f.position as { target?: string | null } | null)?.target;
     if (!HUMAN_VERDICTS.has(f.verdict) && !noFix) continue;
+    // A record whose quote gate failed (quarantined) stays on the dashboard with why and how to try
+    // it anyway; it never opens an issue, since its date or model may be wrong (R21.8).
+    if (f.changeStatus === "quarantined") continue;
     // A major whose API surface couldn't be compared is the upgrade's to settle: its run checks the
     // repo before and after in the sandbox (the onboarding PR says so). Not a person's job.
     if (f.kind === "package-major" && f.verdict === "check_by_hand") continue;

@@ -97,4 +97,9 @@ describe("renames at located sites", () => {
     const neither = targetDefinitions("rust", [{ text: "pub fn other() {}" }]);
     expect(planRenames({ repoDir: dir, sites: [site(3, 17)], notes, defines: neither })).toEqual([]);
   });
+
+  it("leaves a site found by its name alone to the agent", () => {
+    const loose = { ...site(3, 17), resolution: "name-only" } as CallSite;
+    expect(planRenames({ repoDir: dir, sites: [loose], notes, defines })).toEqual([]);
+  });
 });

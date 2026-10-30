@@ -201,3 +201,64 @@ export async function releasesPage(
       })),
   };
 }
+
+/**
+ * Tags stamped with the day a version was published or the day before (a tag usually comes first):
+ * `2024-03-15`, `20240315`, `2024.03.15`, `v2024_03_15`, with any prefix (`release-`, `name-`). One
+ * listing per host, filtered by the year; the day itself first.
+ */
+export async function tagsDated(
+  repo: SourceRepo,
+  publishedAt: string,
+  githubToken?: string,
+): Promise<string[]> {
+  const day = new Date(publishedAt);
+  if (Number.isNaN(day.getTime())) return [];
+  const days = [day, new Date(day.getTime() - 86_400_000)].map((d) => d.toISOString().slice(0, 10));
+  const year = days[0]?.slice(0, 4) ?? "";
+  const names = await tagNames(repo, year, githubToken);
+  const stamp = (d: string) => {
+    const [y, m, dd] = d.split("-");
+    return new RegExp(String.raw`(?:^|[^\d])${y}[-._]?${m}[-._]?${dd}(?![\d])`);
+  };
+  return days.flatMap((d) => names.filter((n) => stamp(d).test(n)));
+}
+
+async function tagNames(repo: SourceRepo, year: string, githubToken?: string): Promise<string[]> {
+  if (repo.host === "github") {
+    const res = await guardedFetch(
+      `https://api.github.com/repos/${repo.owner}/${repo.repo}/git/matching-refs/tags/`,
+      {
+        allowHosts: ["api.github.com"],
+        maxBytes: MAX_NOTE_BYTES,
+        headers: {
+          accept: "application/vnd.github+json",
+          "x-github-api-version": "2022-11-28",
+          ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
+        },
+      },
+    ).catch(() => null);
+    return res?.status === 200
+      ? res
+          .json<{ ref: string }[]>()
+          .map((r) => r.ref.replace(/^refs\/tags\//, ""))
+          .filter((n) => n.includes(year))
+      : [];
+  }
+  if (repo.host === "gitlab") {
+    const project = encodeURIComponent(`${repo.owner}/${repo.repo}`);
+    const res = await guardedFetch(
+      `https://gitlab.com/api/v4/projects/${project}/repository/tags?search=${encodeURIComponent(year)}&per_page=100`,
+      { allowHosts: ["gitlab.com"], maxBytes: MAX_NOTE_BYTES },
+    ).catch(() => null);
+    return res?.status === 200 ? res.json<{ name: string }[]>().map((t) => t.name) : [];
+  }
+  const q = encodeURIComponent(`name ~ "${year}"`);
+  const res = await guardedFetch(
+    `https://api.bitbucket.org/2.0/repositories/${repo.owner}/${repo.repo}/refs/tags?q=${q}&pagelen=100`,
+    { allowHosts: ["api.bitbucket.org"], maxBytes: MAX_NOTE_BYTES },
+  ).catch(() => null);
+  return res?.status === 200
+    ? (res.json<{ values?: { name: string }[] }>().values?.map((t) => t.name) ?? [])
+    : [];
+}

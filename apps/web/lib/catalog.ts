@@ -22,15 +22,22 @@ export interface CatalogRow {
   record: ChangeV2;
 }
 
+/** A provider a repository named in its own teire.yml: private to that repository (D53). */
+const declaredByRepo = sql`coalesce(${providers.record} -> 'discovery' -> 'via' @> '["teire.yml"]'::jsonb, false)`;
+
 /**
  * Provider names as stored with each provider's record: curated readers and providers discovered from
- * a scanned repo alike. A provider appears only once a repo uses it (D82).
+ * a scanned repo alike, never one a repo declared (D53). A provider appears only once a repo uses it
+ * (D82).
  */
 export async function providerNames(): Promise<Record<string, string>> {
   "use cache";
   cacheTag("catalog");
   cacheLife("hours");
-  const rows = await database().select({ slug: providers.slug, name: providers.name }).from(providers);
+  const rows = await database()
+    .select({ slug: providers.slug, name: providers.name })
+    .from(providers)
+    .where(sql`not ${declaredByRepo}`);
   return Object.fromEntries(rows.map((r) => [r.slug, r.name]));
 }
 
@@ -127,7 +134,8 @@ export async function listChanges(): Promise<CatalogRow[]> {
 
 /**
  * The upstream pages Teire checks for each provider (changelogs, deprecation pages, feeds), with when
- * each was last checked and whether it answered: the catalog's "watching" band. Cached for minutes,
+ * each was last checked and whether it answered: the catalog's "watching" band. A page a repository
+ * named in its teire.yml isn't listed (D53). Cached for minutes,
  * since its point is that the checking is live.
  */
 export async function watchedSources() {
@@ -146,7 +154,9 @@ export async function watchedSources() {
       count(*) filter (where status = 'failing')::int as failing,
       count(*) filter (where status = 'stale')::int as stale,
       to_char(max(last_checked_at) at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as checked
-    from provider_sources group by provider_slug order by max(last_checked_at) desc nulls last`);
+    from provider_sources
+    where provider_slug not in (select ${providers.slug} from ${providers} where ${declaredByRepo})
+    group by provider_slug order by max(last_checked_at) desc nulls last`);
   return rows;
 }
 

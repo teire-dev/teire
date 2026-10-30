@@ -251,7 +251,10 @@ export class CloudflareSandbox {
   }
 }
 
-/** A saved download cache, as DirectoryBackup records it: the object, its size and its sha256. */
+/**
+ * A saved download cache, as DirectoryBackup records it: the object, its size and its sha256, with
+ * the sandbox Worker's seal (it restores or deletes only records it saved itself).
+ */
 export interface CacheRecord {
   id: string;
   dir: string;
@@ -259,4 +262,5 @@ export interface CacheRecord {
   name?: string;
   sha256: string;
   format: string;
+  seal?: string;
 }

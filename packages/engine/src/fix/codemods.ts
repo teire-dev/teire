@@ -24,6 +24,8 @@ export interface MigrationNote {
 export interface CodemodEdit {
   file: string;
   line: number;
+  /** The last line `before` spans (a call or import over several lines); `line` when unset. */
+  endLine?: number;
   before: string;
   after: string;
   reason: string;
@@ -152,7 +154,12 @@ export function applyCodemods(repoDir: string, edits: CodemodEdit[]) {
   for (const [file, list] of byFile) {
     const path = join(repoDir, file);
     const content = readFileSync(path, "utf8").split("\n");
-    for (const e of list) if (content[e.line - 1] === e.before) content[e.line - 1] = e.after;
+    // Bottom-up, so an edit spanning lines doesn't move the ones above it.
+    for (const e of [...list].sort((a, b) => b.line - a.line)) {
+      const span = (e.endLine ?? e.line) - e.line + 1;
+      if (content.slice(e.line - 1, e.line - 1 + span).join("\n") === e.before)
+        content.splice(e.line - 1, span, e.after);
+    }
     writeFileSync(path, content.join("\n"));
   }
   return [...byFile.keys()];

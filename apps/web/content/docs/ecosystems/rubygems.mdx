@@ -32,6 +32,8 @@ The next version skips releases whose `required_ruby_version` rejects your Ruby.
 
 Prism finds the `gem "x", "…"` line (or `add_dependency` in a gemspec). Teire replaces only the requirement, and only if it excludes the target. Then the sandbox runs `bundle lock --update GEM --conservative`, with a cooldown so Bundler lands on exactly the analysed version.
 
+The PR's supply-chain section names a native extension the target adds (from the gemspec in the `.gem`) and owners added or removed since the scan that first saw the installed version.
+
 ## How it verifies
 
 The sandbox installs the Ruby your Gemfile or lockfile names, then runs `bundle install`. It starts PostgreSQL, MySQL or Redis when your CI's `services:` or `config/database.yml` needs them, and runs your database setup.

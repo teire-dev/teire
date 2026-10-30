@@ -495,6 +495,7 @@ def cmd_surface_diff(old_dir: str, new_dir: str) -> None:
             partial.append(name)
             continue
         counts[name] = {"old": sum(1 for _ in iter_objects(old)), "new": sum(1 for _ in iter_objects(new))}
+        new_names = public_names(new)
         found = griffe.find_breaking_changes(old, new)
         while True:
             try:
@@ -513,6 +514,7 @@ def cmd_surface_diff(old_dir: str, new_dir: str) -> None:
             if safe(lambda: obj.is_alias, False):
                 canonical = safe(lambda: obj.final_target.path) or safe(lambda: obj.target_path) or obj.path
             kind = safe(lambda: obj.kind)
+            moved = moved_to(obj, new_names) if b.kind.name == "OBJECT_REMOVED" else None
             breakages.append({
                 "kind": b.kind.name,
                 "path": obj.path,
@@ -521,8 +523,56 @@ def cmd_surface_diff(old_dir: str, new_dir: str) -> None:
                 "new": None if b.new_value is None else safe(lambda: str(b.new_value)[:600]),
                 "line": safe(lambda: obj.lineno),
                 "memberKind": KIND_MAP.get(getattr(kind, "value", str(kind)), "unknown"),
+                **({"movedTo": moved} if moved else {}),
             })
     out({"breakages": breakages, "notes": notes, "counts": counts, "modules": old_tops, "partial": partial})
+
+
+def kind_of(obj):
+    kind = safe(lambda: obj.kind)
+    return getattr(kind, "value", str(kind))
+
+
+def public_names(module, depth=0, out=None):
+    """name → [(path, object)] for every public module-level name in a version: definitions and
+    re-exports alike, so a class moved behind a package's `__init__` is found under both paths."""
+    out = {} if out is None else out
+    try:
+        members = list(module.members.items())
+    except Exception:
+        return out
+    for key, member in members:
+        if key.startswith("_"):
+            continue
+        alias = safe(lambda: member.is_alias, False)
+        if not alias and kind_of(member) == "module":
+            if depth < 8:
+                public_names(member, depth + 1, out)
+            continue
+        out.setdefault(key, []).append((member.path, member))
+    return out
+
+
+def moved_to(obj, new_names):
+    """Where a removed module-level class or function is in the new version: the one public object
+    of that name and kind elsewhere (the shortest path to it, the package's own API). None when
+    there are several different ones or none; the agent reads those."""
+    if kind_of(safe(lambda: obj.parent)) != "module":
+        return None
+    old_kind = kind_of(safe(lambda: obj.final_target, obj) if safe(lambda: obj.is_alias, False) else obj)
+    if old_kind not in ("class", "function"):
+        return None
+    found = {}
+    for path, candidate in new_names.get(obj.name, []):
+        if path == obj.path:
+            continue
+        target = safe(lambda: candidate.final_target, None) if safe(lambda: candidate.is_alias, False) else candidate
+        if target is None or kind_of(target) != old_kind:
+            continue
+        found.setdefault(safe(lambda: target.path, path), []).append(path)
+    if len(found) != 1:
+        return None
+    return min(next(iter(found.values())), key=lambda p: (p.count("."), p))
 
 
 def iter_objects(obj, depth=0):

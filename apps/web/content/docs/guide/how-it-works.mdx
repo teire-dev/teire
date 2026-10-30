@@ -58,8 +58,9 @@ Next come deterministic edits:
 
 - a model swap to the replacement the provider names,
 - for npm packages, an import or call rename that a quoted migration note maps old → new, only where the target proves the new name exists,
-- in Python, Go, Rust, Ruby and Java, a rename a quoted note states (a function, a method, a class, a keyword argument), edited at each located site, only where the target version's own source defines the new name and no longer has the old one,
-- for Go, `go fix -inline` for the functions the upgraded module marks `//go:fix inline`, keeping only the changes that inline those calls.
+- in Python, Go, Rust, Ruby and Java, a rename a quoted note states (a function, a method, a class, a keyword argument), edited at each site the locator resolved by type or import, only where the target version's own source defines the new name and no longer has the old one; a site matched by name alone (a method on an unknown receiver) is the agent's,
+- in Python, an import rewritten where the target moved the class or function, and a keyword argument the function no longer takes removed from each call that passes it,
+- for Go, `go fix -inline` for the functions the upgraded module marks `//go:fix inline`, keeping only the changes that call them through the module's own import; inlined method calls are left to the agent.
 
 If verification is already good enough for a pull request at that point, the run stops without starting the agent. A model swap then costs nothing; a package upgrade has already paid for Nemotron to read its release notes.
 

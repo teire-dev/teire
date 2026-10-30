@@ -5,6 +5,7 @@ export * from "./commands";
 export * from "./evidence";
 export * from "./go-commands";
 export * from "./jvm-commands";
+export * from "./private-registry";
 export * from "./projects";
 export * from "./python-commands";
 export * from "./reports";

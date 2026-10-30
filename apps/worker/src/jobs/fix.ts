@@ -13,6 +13,8 @@ import {
   coMovedFindings,
   coMovedToDiff,
   type FixRun,
+  FixStopError,
+  leadAfter,
   type MigrationNote,
   type RequestUpgrade,
   readbackMismatch,
@@ -62,6 +64,7 @@ import {
   type GoAssessment,
   movedPackageNotes,
   repoInstances,
+  repoProjects,
 } from "@teire/engine/pipeline";
 import { cratesIndexLines, GO_PSEUDO, versionScheme } from "@teire/engine/registry";
 import {
@@ -195,15 +198,9 @@ function belowTargetReason(
  * the others the updater changed are named as not run in the sandbox, and roots under another
  * package manager that this PR leaves alone are named too, so the PR never claims more than ran.
  */
-function withRoots(
-  body: string,
-  lead: string,
-  transaction: Transaction | null | undefined,
-  matching: Assessment<AssessedProject>[],
-  /** Roots the run checked besides the lead (every other project the change touched). */
-  checked: string[] = [],
-) {
-  const changed = new Set(
+/** The roots whose files the updater's change touched, among those that declare the package. */
+function changedRoots(transaction: Transaction | null | undefined, matching: Assessment<AssessedProject>[]) {
+  return new Set(
     (transaction?.readBack ?? [])
       .map(
         (path) =>
@@ -212,12 +209,25 @@ function withRoots(
       )
       .filter((root) => matching.some((m) => m.project.root === root)),
   );
+}
+
+function withRoots(
+  body: string,
+  lead: string,
+  transaction: Transaction | null | undefined,
+  matching: Assessment<AssessedProject>[],
+  /** Roots the run checked besides the lead (every other project the change touched). */
+  checked: string[] = [],
+  /** Roots this PR doesn't change that still lock a version the advisory affects (S15.7). */
+  affectedElsewhere: string[] = [],
+) {
+  const changed = changedRoots(transaction, matching);
   const unverified = [...changed].filter((r) => r !== lead && !checked.includes(r));
   const left = [...new Set(matching.map((m) => m.project.root))].filter((r) => r !== lead && !changed.has(r));
-  if (!unverified.length && !left.length) return body;
+  if (!unverified.length && !left.length && !affectedElsewhere.length) return body;
   const name = (r: string) => `\`${r === "." ? "/" : r}\``;
   const lines = [
-    `The sandbox installed and checked ${[lead, ...checked.filter((r) => r !== lead)].map(name).join(", ")}.${unverified.length ? ` The same upgrade in ${unverified.map(name).join(", ")} was not run in the sandbox.` : ""}${left.length ? ` ${left.map(name).join(", ")} also declare${left.length === 1 ? "s" : ""} it${transaction ? " under another package manager" : ""}; this pull request doesn't change ${left.length === 1 ? "it" : "them"}.` : ""}`,
+    `The sandbox installed and checked ${[lead, ...checked.filter((r) => r !== lead)].map(name).join(", ")}.${unverified.length ? ` The same upgrade in ${unverified.map(name).join(", ")} was not run in the sandbox.` : ""}${left.length ? ` ${left.map(name).join(", ")} also declare${left.length === 1 ? "s" : ""} it${transaction ? " under another package manager" : ""}; this pull request doesn't change ${left.length === 1 ? "it" : "them"}.` : ""}${affectedElsewhere.length ? ` ${affectedElsewhere.map(name).join(", ")} still lock${affectedElsewhere.length === 1 ? "s" : ""} a version the advisory affects; this pull request doesn't fix ${affectedElsewhere.length === 1 ? "it" : "them"}.` : ""}`,
   ];
   const at = body.indexOf("\n\n### Why this repo");
   return at < 0
@@ -522,8 +532,18 @@ async function cargoChained(
   const index = new Map(
     await Promise.all(wanted.map(async (n) => [n, await cratesIndexLines(n).catch(() => [])] as const)),
   );
-  const blockers = cargoBlockers(line, declared, (c) => index.get(c) ?? []).slice(0, FIX.maxUpgradeRequests);
+  const found = cargoBlockers(line, declared, (c) => index.get(c) ?? []);
+  const blockers = found.slice(0, FIX.maxUpgradeRequests);
   if (!blockers.length) return null;
+  // More blockers than one run chains: the lead may land below the target, and the run says why.
+  if (found.length > blockers.length)
+    common.onEvent?.({
+      step: "transaction",
+      detail: `${found.length} crates hold ${lead} back (${found.map((b) => b.name).join(", ")}); one run chains at most ${FIX.maxUpgradeRequests}, so ${found
+        .slice(blockers.length)
+        .map((b) => b.name)
+        .join(", ")} stay${found.length - blockers.length === 1 ? "s" : ""} as they are`,
+    });
   type Moved = Extract<ResolverResult, { kind: "change" }>["moved"][number];
   const files = new Map(overlay.map((f) => [f.path, f.content]));
   const moved = new Map<string, Moved>();
@@ -562,7 +582,7 @@ async function cargoChained(
       return null;
     }
     const unexpected = notDependencyFiles(r, "cargo", dependency, tree);
-    if (unexpected) throw new ResolverStopError("unexpected_file", unexpected);
+    if (unexpected) throw new ResolverStopError("unexpected_file", unexpected, "teire");
     for (const f of r.files) if (f.content !== null && !f.encoding) files.set(f.path, f.content);
     for (const m of r.moved) remember(m);
     return r;
@@ -693,11 +713,12 @@ async function resolverTransactionFor(
       [`no update to ${target} (the updater's log has the details)`, ...r.warnings].join("; "),
     );
   const unexpected = notDependencyFiles(r, ecosystem, packageName, tree);
-  if (unexpected) throw new ResolverStopError("unexpected_file", unexpected);
+  if (unexpected) throw new ResolverStopError("unexpected_file", unexpected, "teire");
   if (!r.leadVersion)
     throw new ResolverStopError(
       "unreported_version",
       `the updater changed ${r.files.map((f) => f.path).join(", ")} without saying which version of ${packageName} it chose`,
+      "teire",
     );
   const bare = bareVersion;
   let change = r;
@@ -730,6 +751,7 @@ async function resolverTransactionFor(
         throw new ResolverStopError(
           "fix_not_resolvable",
           `the lowest ${packageName} the updater can resolve here is ${change.leadVersion}, which ${still.map((a) => a.id.split("/").at(-1)).join(", ")} still affect`,
+          "teire",
         );
       const reason = `${target} is the lowest version that fixes the advisory, but dependabot-core's updater can resolve ${packageName} only from ${change.leadVersion} in this repository`;
       common.onEvent?.({ step: "transaction", detail: reason });
@@ -1027,7 +1049,11 @@ async function packageOutcome(
   if (resolved && "cap" in resolved) {
     // Once only: the capped run's own job must land on the cap.
     if (cap)
-      throw new ResolverStopError(resolved.cap.floor ? "fix_moved" : "below_target", resolved.cap.reason);
+      throw new ResolverStopError(
+        resolved.cap.floor ? "fix_moved" : "below_target",
+        resolved.cap.reason,
+        "teire",
+      );
     const capped = `${run.groupKey.split("/").slice(0, -1).join("/")}/${resolved.cap.version}`;
     const outcome = await packageOutcome(
       ctx,
@@ -1070,14 +1096,17 @@ async function packageOutcome(
     ...(config.sources.length ? { declaredSources: config.sources } : {}),
     // This repository's own download cache, on backends that keep one (R21.11).
     ...((cacheHooks) => (cacheHooks ? { depCache: cacheHooks } : {}))(
-      dependencyCacheFor(
-        ctx.db,
-        repo.id,
+      dependencyCacheFor({
+        db: ctx.db,
+        repoId: repo.id,
         ecosystem,
-        assessment.project.root,
-        assessment.project.manager,
-        common.backend.name,
-      ),
+        root: assessment.project.root,
+        manager: assessment.project.manager,
+        backend: common.backend.name,
+        tree,
+        lockfiles: [...new Set(assessment.project.instances.map((i) => i.lockfilePath ?? i.manifestPath))],
+        ...(common.onEvent ? { onEvent: common.onEvent } : {}),
+      }),
     ),
     ...(transaction && resolved
       ? {
@@ -1096,7 +1125,8 @@ async function packageOutcome(
       : {}),
     ...(run.fallbackFrom ? { fallbackFrom: run.fallbackFrom } : {}),
   };
-  const result =
+  // A run the engine can't go on with (a requested upgrade that couldn't be undone) is a named stop.
+  const result = await (async () =>
     ecosystem === "pypi"
       ? await fixPyDependency({ ...input, assessment: assessment as unknown as Assessment<PyProject> })
       : ecosystem === "go"
@@ -1116,31 +1146,69 @@ async function packageOutcome(
                   ...input,
                   assessment: assessment as unknown as Assessment<JvmProject>,
                 })
-              : await fixJsDependency({ ...input, assessment: assessment as unknown as Assessment });
-  // S15.1, S15.7: the files the PR commits, read back with Teire's own lockfile readers, must lock the
-  // lead and every moved package at the versions the run names, and a security fix clear of every
-  // advisory it claims. A lockfile the readers can't read isn't taken as a mismatch.
+              : await fixJsDependency({ ...input, assessment: assessment as unknown as Assessment }))().catch(
+    (error: unknown) => {
+      if (error instanceof FixStopError) throw new ResolverStopError(error.type, error.message, "teire");
+      throw error;
+    },
+  );
+  // S15.1, S15.7: the files the PR commits, read back with Teire's own lockfile readers in the roots
+  // the run changed, must lock the lead and every moved package at the versions the run names, and a
+  // security fix clear of every advisory it claims there. Other roots that still lock an affected
+  // version are named in the PR, not a stop: this PR doesn't change them.
+  const scope = [
+    ...new Set([
+      assessment.project.root,
+      ...changedRoots(transaction, matching),
+      ...(result.run.others ?? []).map((o) => o.root),
+    ]),
+  ];
+  let affectedElsewhere: string[] = [];
   if (result.run.files.length && result.run.after.install.ok) {
-    const after = await repoInstances(repoDir, directoryTree(repoDir)).catch(() => null);
-    if (after) {
-      const mismatch = readbackMismatch(after, ecosystem, packageName, result.run.target, result.run.moved);
-      if (mismatch) throw new ResolverStopError("readback_mismatch", mismatch);
+    const projects = await repoProjects(repoDir, directoryTree(repoDir)).catch(() => null);
+    if (projects) {
+      const after = projects.filter((p) => p.ecosystem === ecosystem);
+      const lead = leadAfter(packageName, result.run.target);
+      const mismatch = readbackMismatch({
+        before: matching
+          .filter((m) => scope.includes(m.project.root))
+          .map((m) => ({ root: m.project.root, instances: m.project.instances })),
+        after: after.filter((p) => scope.includes(p.root)),
+        lead: { before: packageName, after: lead.name },
+        target: lead.version,
+        moved: result.run.moved ?? [],
+      });
+      if (mismatch) throw new ResolverStopError("readback_mismatch", mismatch, "teire");
       if (assessment.purpose === "security") {
-        const lockedAt = [
+        const affected = (root: string) => [
           ...new Set(
             after
-              .filter((i) => i.ecosystem === ecosystem && i.name === packageName && i.version)
-              .map((i) => i.version as string),
+              .filter((p) => p.root === root)
+              .flatMap((p) => p.instances)
+              .filter((i) => i.name === lead.name && i.version)
+              .map((i) => i.version as string)
+              .filter((v) =>
+                assessment.records.some(
+                  (r) => r.kind === "security-advisory" && stillAffected(r, v, ecosystem),
+                ),
+              ),
           ),
         ];
-        const still = assessment.records.filter(
-          (r) => r.kind === "security-advisory" && lockedAt.some((v) => stillAffected(r, v, ecosystem)),
-        );
-        if (still.length)
-          throw new ResolverStopError(
-            "fix_not_resolvable",
-            `the files this PR commits lock ${packageName} at ${lockedAt.join(", ")}, which ${still.map((a) => a.id.split("/").at(-1)).join(", ")} still affect`,
+        for (const root of scope) {
+          const lockedAt = affected(root);
+          const still = assessment.records.filter(
+            (r) => r.kind === "security-advisory" && lockedAt.some((v) => stillAffected(r, v, ecosystem)),
           );
+          if (still.length)
+            throw new ResolverStopError(
+              "fix_not_resolvable",
+              `the files this PR commits lock ${lead.name} at ${lockedAt.join(", ")}${root === "." ? "" : ` in ${root}`}, which ${still.map((a) => a.id.split("/").at(-1)).join(", ")} still affect`,
+              "teire",
+            );
+        }
+        affectedElsewhere = [...new Set(after.map((p) => p.root))].filter(
+          (root) => !scope.includes(root) && affected(root).length,
+        );
       }
     }
   }
@@ -1173,6 +1241,7 @@ async function packageOutcome(
         transaction,
         matching,
         (result.run.others ?? []).map((o) => o.root),
+        affectedElsewhere,
       ),
     },
     notesReceipt: result.notesReceipt,

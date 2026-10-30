@@ -442,6 +442,8 @@ export const dependencyCaches = pgTable(
     /** `CacheRecord`: object id, directory, size, sha256 (checked on every restore). */
     record: jsonb("record").notNull(),
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    /** sha256 of the root's lockfiles when it was saved: the restoring run's receipt shows it. */
+    lockfileSha256: text("lockfile_sha256"),
     createdAt: createdAt(),
   },
   (t) => [index("dependency_caches_key_idx").on(t.repoId, t.ecosystem, t.root, t.createdAt)],
