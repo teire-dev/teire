@@ -84,6 +84,9 @@ export function astGrepBinary() {
   }
 }
 
+/** Lines above a model ID read for its context: the definition it is returned from, or the map it sits in. */
+const MODEL_MAP_LOOKBACK = 16;
+
 const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** A definition named after the model: `def default_model`, `func DefaultModel()`, `String modelName() {`. */
@@ -128,7 +131,22 @@ export function sourceContext(before: string, preceding: string[] = []): Literal
     )
   )
     return "model-variable";
+  // A member of a model-named map: `MODEL_DEFAULTS = {\n  failover: "…"`, `MODELS = {\n  "fast": "…"`,
+  // Go's `var models = map[string]string{\n  "fast": "…"` (Teire's own retiring failover sat in one,
+  // and the swap would otherwise change only .env.example).
+  if (/^(?:["']?[\w$.-]+["']?|\[[^\]]+\])\s*(?::|=>|=)$/.test(prefix.trim()) && inModelMap(preceding))
+    return "model-variable";
   return "other";
+}
+
+/** The object, dict or map literal a member sits in, found by walking up past its siblings, is model-named. */
+function inModelMap(preceding: string[]) {
+  let depth = 0;
+  for (const line of [...preceding].reverse()) {
+    depth += (line.match(/[}\])]/g) ?? []).length - (line.match(/[{[(]/g) ?? []).length;
+    if (depth < 0) return /\b\w*models?\w*\b[^"'`]*?(?::?=|=>|:)[^"'`]*[{[(]\s*$/i.test(line);
+  }
+  return false;
 }
 
 /** Up to `count` lines above a 0-based line, read once per file. */
@@ -218,7 +236,8 @@ export async function locateLiterals(input: {
       const lang = STRING_NODES[Number(m.ruleId.slice(4))]?.[2] ?? m.language.toLowerCase();
       const kind = /^https?:\/\//.test(m.text) ? "url" : "model";
       const lineText = m.lines.split("\n")[0] ?? "";
-      const preceding = kind === "model" ? linesAbove(input.repoDir, m.file, m.range.start.line, 4) : [];
+      const preceding =
+        kind === "model" ? linesAbove(input.repoDir, m.file, m.range.start.line, MODEL_MAP_LOOKBACK) : [];
       languages.add(lang);
       hits.push({
         file: m.file,

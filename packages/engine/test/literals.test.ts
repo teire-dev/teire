@@ -39,6 +39,20 @@ describe("what the text before a literal says", () => {
     expect(sourceContext('String model = Optional.ofNullable(System.getenv("MODEL")).orElse("')).toBe(
       "model-variable",
     );
+    // A member of a model-named map, however many siblings sit above it.
+    const defaults = [
+      "export const MODEL_DEFAULTS: Record<keyof typeof MODEL_ENV, string> = {",
+      '  agent: "nvidia/Nemotron-3-Ultra-550b-a55b",',
+      '  nested: { a: "b" },',
+    ];
+    expect(sourceContext('  failover: "', defaults)).toBe("model-variable");
+    expect(sourceContext('    "fast": "', ["MODELS = {", '    "slow": "gpt-5",'])).toBe("model-variable");
+    expect(sourceContext('\t"fast": "', ["var models = map[string]string{"])).toBe("model-variable");
+    expect(sourceContext('  failover: "', ["export const LABELS = {", '  agent: "x",'])).toBe("other");
+    // Out of the model map already: its closing brace sits between.
+    expect(sourceContext('  other: "', ["const MODELS = {", '  a: "x",', "};", "const NAMES = {"])).toBe(
+      "other",
+    );
     expect(sourceContext('export const label = "')).toBe("other");
     expect(sourceContext('fmt.Println(req, url, "')).toBe("other");
   });
