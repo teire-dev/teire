@@ -204,9 +204,10 @@ async function main() {
       ctx.enqueueScan(repoId, "manual"),
     );
     console.log(`[worker] GitHub App ${gh.slug} ready`);
-    // Every installation against GitHub's own list of its repositories, in the background: a webhook
-    // that never came, or a reinstall that found its repositories marked removed, is put right.
-    void (async () => {
+    // Every installation against GitHub's own list of its repositories, at start and every half hour:
+    // a webhook that never came (GitHub sends none for a fork in an all-repositories installation), or
+    // a reinstall that found its repositories marked removed, is put right.
+    const reconcileAll = async () => {
       const live = await db.execute<{ id: number }>(
         sql`select id from installations where deleted_at is null and suspended_at is null`,
       );
@@ -216,7 +217,10 @@ async function main() {
         }));
         console.log("[reconcile]", id, JSON.stringify(result));
       }
-    })();
+    };
+    void reconcileAll();
+    const reconcileTimer = setInterval(() => void reconcileAll().catch(() => undefined), RUNS.reconcileMs);
+    shutdownHooks.push(async () => clearInterval(reconcileTimer));
   } catch (error) {
     console.warn("[worker] GitHub App not configured:", error instanceof Error ? error.message : error);
   }

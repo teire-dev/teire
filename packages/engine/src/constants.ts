@@ -192,6 +192,8 @@ export const PULL_REQUESTS = {
 } as const;
 
 export const RUNS = {
+  /** Every installation checked against GitHub's own list of its repositories this often (worker). */
+  reconcileMs: 30 * 60_000,
   /** Runs without a heartbeat for this long are failed by the reaper. */
   staleAfterMs: 10 * 60 * 1000,
   /** Another worker may take a running run only once its heartbeat is this old (review R13). */
