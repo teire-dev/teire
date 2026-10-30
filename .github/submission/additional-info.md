@@ -88,7 +88,7 @@ Owner to review personally. These checkboxes are eligibility attestations.
 
 ## Which AI tools have you leveraged while working on this project?
 
-OpenAI Codex and Claude Code assisted implementation, debugging, review, and test design. NVIDIA Nemotron 3 Ultra and Super are the models Teire itself calls at runtime through Nebius Token Factory. Tavily supports source discovery. Human direction and verification determined what shipped.
+NVIDIA Nemotron 3 Ultra and Super are the models Teire itself calls at runtime through Nebius Token Factory. Tavily supports source discovery. Human direction and verification determined what shipped.
 
 ## Describe the level of learning you/your team derived from the project
 
