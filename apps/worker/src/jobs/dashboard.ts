@@ -230,6 +230,11 @@ export function composeDashboard(d: DashboardInput) {
       lines.push(
         `- ${waitingTotal} waiting: ${d.queue.waiting.map((w) => `${w.n} ${w.why}`).join(", ")}${d.webUrl ? ` ([Runs](${d.webUrl}/app/runs?repo=${encodeURIComponent(d.fullName)}&show=active))` : ""}`,
       );
+    // What unblocks a queue held by the PR limit, in words (Codex walk B17).
+    if (d.queue.waiting.some((w) => w.why.includes("PR limit")))
+      lines.push(
+        "- Teire's open PRs are at this repository's limit (`pullRequests` in teire.yml): merge or close one and the next run starts; waiting runs retry on their own.",
+      );
     lines.push(
       "",
       "Security fixes go first. `@teire pause` holds the queue; `@teire resume` starts it again.",

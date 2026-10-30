@@ -215,7 +215,15 @@ export async function runSheet(id: string, after = 0): Promise<RunSheetData | nu
       evidenceKind: run.evidenceKind,
       prMode: run.prMode,
       backend: run.backend,
-      error: run.error ? maskSecrets(run.error) : null,
+      // A dry run interrupted before the worker said so its own way still read "comment `@teire
+      // recreate`", which a public repository can't take (Codex walk B23).
+      error: run.error
+        ? maskSecrets(
+            run.kind === "dry_run" && run.error.includes("@teire recreate")
+              ? "the worker stopped during this dry run; it doesn't use today's dry run: start it again from the report"
+              : run.error,
+          )
+        : null,
       costUsd: run.costUsd,
       diff: run.diff ? maskSecrets(run.diff) : null,
       diffHash: createHash("md5")

@@ -319,7 +319,27 @@ async function Findings({
         <div className="flex flex-col gap-3">
           {[...reaching.map((g) => flowOf(g)), ...b.undecided.map((g) => flowOf(g, true))]}
         </div>
-      ) : outcome ? null : (
+      ) : outcome ? null : repo.status === "disabled" || !scan ? (
+        // Never read: no result to show, and with no access the way on is GitHub's (Codex walk B27).
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+          <TileSquare tile={{ entity: "repository", state: "skipped", label: "" }} size="sm" />
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-sm text-ink">
+              {repo.status === "disabled" ? "Teire can't see this repository on GitHub" : "Not scanned yet"}
+            </span>
+            <span className="text-xs text-ink-2">
+              {repo.status === "disabled"
+                ? "Add it to Teire Bot's repository access on GitHub, then come back: Teire scans it right away."
+                : "Its first scan is queued; findings and inventory appear when it finishes."}
+            </span>
+          </span>
+          {repo.status === "disabled" && data.accessUrl ? (
+            <Button asChild size="sm">
+              <a href={data.accessUrl}>Give Teire access on GitHub</a>
+            </Button>
+          ) : null}
+        </div>
+      ) : (
         <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
           <TileSquare
             tile={{ entity: "check", state: couldnt.length ? "not_proven" : "proven", label: "" }}

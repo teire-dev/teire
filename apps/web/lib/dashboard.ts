@@ -148,6 +148,8 @@ export async function repoDetail(userId: string, fullName: string) {
         defaultFixMode: installations.defaultFixMode,
         securityFixMode: installations.securityFixMode,
         suspendedAt: installations.suspendedAt,
+        accountLogin: installations.accountLogin,
+        accountType: installations.accountType,
       })
       .from(installations)
       .where(eq(installations.id, repo.installationId))
@@ -169,6 +171,12 @@ export async function repoDetail(userId: string, fullName: string) {
     scan: scan ?? null,
     latestScan: latestScan ?? null,
     suspended: !!inst?.suspendedAt,
+    // Where the owner gives Teire Bot access to this repository on GitHub (its installation's settings).
+    accessUrl: repo.installationId
+      ? inst?.accountType === "Organization"
+        ? `https://github.com/organizations/${inst.accountLogin}/settings/installations/${repo.installationId}`
+        : `https://github.com/settings/installations/${repo.installationId}`
+      : null,
     findings: rows,
     inventory,
     artifacts: prs,

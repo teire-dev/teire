@@ -174,6 +174,13 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
                     </span>
                   ))}
                 </span>
+                {/* What unblocks the queue and what Pause does, in words (Codex walk B16, B17). */}
+                {[...q.waiting].some(([why]) => why.includes("PR limit")) ? (
+                  <span className="basis-full text-xs text-ink-2">
+                    Teire's open PRs are at this repository's limit. Merge or close one and the next run
+                    starts; waiting runs retry on their own. Pause holds them all until you resume.
+                  </span>
+                ) : null}
                 <span className="ml-auto">
                   <ActionButton kind={q.paused ? "resume" : "pause"} repo={q.repo} variant="ghost">
                     {q.paused ? (

@@ -98,18 +98,33 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <ActionButton kind="rescan" repo={fullName}>
-            <RefreshCw data-icon="inline-start" aria-hidden />
-            Rescan
-          </ActionButton>
-          <ActionButton kind={repo.status === "paused" ? "resume" : "pause"} repo={fullName} variant="ghost">
-            {repo.status === "paused" ? (
-              <Play data-icon="inline-start" aria-hidden />
-            ) : (
-              <Pause data-icon="inline-start" aria-hidden />
-            )}
-            {repo.status === "paused" ? "Resume" : "Pause"}
-          </ActionButton>
+          {/* Without access every action would only be refused: the way on is GitHub's access page. */}
+          {repo.status === "disabled" ? (
+            data.accessUrl ? (
+              <Button asChild size="sm">
+                <a href={data.accessUrl}>Give Teire access on GitHub</a>
+              </Button>
+            ) : null
+          ) : (
+            <>
+              <ActionButton kind="rescan" repo={fullName}>
+                <RefreshCw data-icon="inline-start" aria-hidden />
+                Rescan
+              </ActionButton>
+              <ActionButton
+                kind={repo.status === "paused" ? "resume" : "pause"}
+                repo={fullName}
+                variant="ghost"
+              >
+                {repo.status === "paused" ? (
+                  <Play data-icon="inline-start" aria-hidden />
+                ) : (
+                  <Pause data-icon="inline-start" aria-hidden />
+                )}
+                {repo.status === "paused" ? "Resume" : "Pause"}
+              </ActionButton>
+            </>
+          )}
           <AskButton
             icon
             question={`Explain where ${fullName} stands: what reaches its code, what Teire is doing and what needs me`}
