@@ -16,7 +16,9 @@ export function database() {
       instance = createLocalDb(connectionString);
     else {
       if (!connectionString || !caCert) throw new Error("DATABASE_URL and DATABASE_CA_CERT must be set");
-      instance = createDb({ connectionString, caCert, max: 5 });
+      // Every instance draws on `teire_web`'s one connection limit, and live pages poll it: few
+      // clients each, closed soon after they go idle ("too many connections for role", Codex B9).
+      instance = createDb({ connectionString, caCert, max: 3, idleTimeoutMillis: 5_000 });
     }
     attachDatabasePool(instance.pool);
   }

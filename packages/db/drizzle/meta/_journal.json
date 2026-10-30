@@ -176,6 +176,13 @@
       "when": 1793480000000,
       "tag": "0024_r21_cache_lockfile",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793490000000,
+      "tag": "0025_web_connection_limit",
+      "breakpoints": true
     }
   ]
 }

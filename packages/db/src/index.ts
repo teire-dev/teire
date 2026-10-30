@@ -17,6 +17,8 @@ interface CreateDbOptions {
   /** PEM of the Coolify CA. The server accepts TLS only (`hostssl`), so this is required. */
   caCert: string;
   max?: number;
+  /** Idle clients close after this long (the web's many short-lived instances share one role limit). */
+  idleTimeoutMillis?: number;
 }
 
 /** TLS settings equivalent to sslmode=verify-full: the chain must lead to the Coolify CA and the host must match. */
@@ -28,8 +30,13 @@ export function tlsOptions(caCert: string) {
  * One pool per process. On Vercel, pass the pool to `attachDatabasePool` from `@vercel/functions`
  * so idle clients are released before the function suspends.
  */
-export function createDb({ connectionString, caCert, max = 10 }: CreateDbOptions) {
-  const pool = new pg.Pool({ connectionString, max, ssl: tlsOptions(caCert) });
+export function createDb({ connectionString, caCert, max = 10, idleTimeoutMillis }: CreateDbOptions) {
+  const pool = new pg.Pool({
+    connectionString,
+    max,
+    ssl: tlsOptions(caCert),
+    ...(idleTimeoutMillis ? { idleTimeoutMillis } : {}),
+  });
   const db = drizzle({ client: pool, schema: { ...schema, ...authSchema } });
   return { db, pool };
 }
