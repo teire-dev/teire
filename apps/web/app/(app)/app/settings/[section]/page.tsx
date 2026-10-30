@@ -31,7 +31,7 @@ import { configCurrent } from "@/lib/fix-mode";
 import { languageMarks } from "@/lib/marks";
 import { credentialsReady, registriesOf } from "@/lib/registries";
 import { getSession } from "@/lib/session";
-import { APP_SLUG, INSTALL_URL } from "@/lib/site";
+import { ADD_ACCOUNT_URL, APP_SLUG, INSTALL_URL } from "@/lib/site";
 import { reposOf, usageDaily, usageOf } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "../../gate";
 
@@ -392,7 +392,7 @@ async function Installations({ userId }: { userId: string }) {
           ))}
           <li>
             <a
-              href={INSTALL_URL}
+              href={ADD_ACCOUNT_URL}
               className="flex h-full min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rule-strong text-sm text-ink-2 hover:bg-hover hover:text-ink"
             >
               <Plus className="size-4" aria-hidden />

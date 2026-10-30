@@ -770,7 +770,12 @@ export async function scanRepo(
           : [];
       }),
       ...apiCandidates(api.findings, config),
-    ].sort((x, y) => x.priority - y.priority);
+      // Security fixes first, then by priority: the queue runs in this order (Codex walk B14).
+    ].sort(
+      (x, y) =>
+        Number(!("security" in x && x.security)) - Number(!("security" in y && y.security)) ||
+        x.priority - y.priority,
+    );
     // Kept on the scan: Ask first and Off list these as "Upgrades available" (D125).
     await setScanUpgrades(
       db,

@@ -144,6 +144,19 @@ export async function welcomeOf(userId: string, asked: number | null) {
           limit 2000`),
       ])
     : [{ rows: [] }, [], [], { rows: [] }, { rows: [] }];
+  // Repositories Teire knew here that the installation no longer reaches: shown as needing access
+  // on GitHub, never dropped or called removed (Codex walk B11, the Automatic handoff).
+  const needsAccess = await db
+    .select({ fullName: repos.fullName })
+    .from(repos)
+    .where(
+      and(
+        eq(repos.installationId, installation.id),
+        eq(repos.status, "disabled"),
+        sql`(not "repos"."is_private" or exists (select 1 from user_repos ur where ur.user_id = ${userId} and ur.repo_id = "repos"."id"))`,
+      ),
+    )
+    .orderBy(repos.fullName);
   const manage =
     installation.type === "Organization"
       ? `https://github.com/organizations/${installation.login}/settings/installations/${installation.id}`
@@ -156,6 +169,7 @@ export async function welcomeOf(userId: string, asked: number | null) {
       manage,
       suspended: !!installation.suspendedAt,
     },
+    needsAccess: needsAccess.map((r) => r.fullName),
     repos: rows.map((r) => {
       // A raw query returns bigint ids as strings.
       const scan = latest.rows.find((s) => Number(s.repo_id) === r.id) ?? null;

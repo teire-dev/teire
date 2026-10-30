@@ -59,7 +59,8 @@ function stateOf(r: RepoListRow): {
       tone: "neutral",
       ...(r.pausedReason ? { why: r.pausedReason.replace(/_/g, " ") } : {}),
     };
-  if (r.status === "disabled") return { label: "Removed from the installation", tone: "neutral" };
+  // Not in the installation's repository access on GitHub (Codex walk B11): the way on is GitHub's.
+  if (r.status === "disabled") return { label: "Needs GitHub access", tone: "attention" };
   if (r.status === "detected" || r.status === "onboarding") return { label: "Onboarding", tone: "attention" };
   return { label: "Active", tone: "proven" };
 }

@@ -118,7 +118,7 @@ const STATUS_MEANS: Record<string, string> = {
   paused:
     "Paused: nothing runs. The reason says why; Resume on the repository's page, or `@teire resume` in a comment, restarts it (an archived repository resumes when it is unarchived on GitHub).",
   disabled:
-    "Teire's GitHub app no longer has access to it (removed from the installation, deleted, or the installation was uninstalled). It comes back when it is added to the installation again on GitHub (the installation's Configure page, Repository access); there is no switch for it inside Teire.",
+    "Needs GitHub access: Teire's GitHub app can no longer reach it (removed from the installation's repository access, deleted, or the installation was uninstalled). It comes back when it is added to the installation again on GitHub (the installation's Configure page, Repository access); there is no switch for it inside Teire.",
 };
 const statusMeans = (status: string) => STATUS_MEANS[status] ?? status;
 
@@ -253,7 +253,7 @@ export function assistantTools(viewer: Viewer) {
 
     list_repos: tool({
       description:
-        "List the repositories Teire watches in the person's current installation; byMode groups them by fix mode (Automatic, Ask first, Off), already counted. Fields: reaching = changes that reach the code; openPrs = Teire PRs open now; needsAPerson = runs in the last 7 days that ended as a draft, an issue or a stop; live = a run is going now.",
+        "List the repositories Teire watches in the person's current installation; byMode groups them by fix mode (Automatic, Ask first, Off), already counted. Fields: reaching = changes that reach the code; openPrs = Teire PRs open now; needsAPerson = runs in the last 7 days that ended as a draft, an issue or a stop; live = a run is going now; waiting = runs queued for their turn, the pull-request limit, or a pause (call list_runs for each one's reason).",
       inputSchema: z.object({
         filter: z.enum(["all", "needs_you", "live", "paused", "failed_scan", "not_automatic"]).default("all"),
       }),
@@ -297,6 +297,7 @@ export function assistantTools(viewer: Viewer) {
               openPrs: r.openPrs,
               needsAPerson: r.needsYou,
               live: r.live,
+              waiting: r.waiting,
               lastScannedAt: iso(r.lastScannedAt),
               lastScanFailed: r.lastScanFailed,
               languages: r.languages ?? [],

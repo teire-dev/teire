@@ -13,7 +13,13 @@ export const FIX_MODES: {
   said: string;
   tone: "proven" | "attention" | "neutral";
 }[] = [
-  { value: "auto", label: "Automatic", short: "Auto", said: "Fixes and opens PRs itself.", tone: "proven" },
+  {
+    value: "auto",
+    label: "Automatic",
+    short: "Auto",
+    said: "Fixes, verifies and opens PRs itself. You review and merge.",
+    tone: "proven",
+  },
   { value: "ask", label: "Ask first", short: "Ask", said: "Waits for your Fix now.", tone: "attention" },
   { value: "off", label: "Off", short: "Off", said: "Lists changes, opens nothing.", tone: "neutral" },
 ];

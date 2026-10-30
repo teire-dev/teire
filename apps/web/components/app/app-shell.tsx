@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/sidebar";
 import type { AppShellData } from "@/lib/app-shell";
 import { languageMarks } from "@/lib/marks";
-import { INSTALL_URL } from "@/lib/site";
+import { ADD_ACCOUNT_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
 
@@ -228,7 +228,7 @@ export function AppShell({
                 Refresh from GitHub
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <a href={INSTALL_URL}>
+                <a href={ADD_ACCOUNT_URL}>
                   <Plus className="size-4" aria-hidden />
                   Add an account on GitHub
                 </a>

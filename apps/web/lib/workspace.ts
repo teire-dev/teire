@@ -179,6 +179,51 @@ export async function rowsOf(
   });
 }
 
+/** Why a queued run hasn't started, as the worker recorded it (Codex walk B14). */
+export function waitingReason(step: string | null) {
+  if (!step || step === "queued") return "waiting for its turn";
+  if (step.startsWith("paused")) return "held: the repository is paused";
+  return step;
+}
+
+/**
+ * The work in progress per repository (Codex walk B14): what's running, and what's waiting and why
+ * (its turn, the pull-request limit, a pause), so a long queue reads as paced work, not a stall.
+ */
+export async function queueOf(scope: Scope) {
+  const rows = await database()
+    .select({
+      repo: repos.fullName,
+      repoStatus: repos.status,
+      status: runs.status,
+      step: runs.step,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(runs)
+    .innerJoin(repos, eq(repos.id, runs.repoId))
+    .innerJoin(installations, eq(installations.id, repos.installationId))
+    .where(and(scopeWhere(scope), inArray(runs.status, ["queued", "running", "stopping"])))
+    .groupBy(repos.fullName, repos.status, runs.status, runs.step);
+  const out = new Map<
+    string,
+    { repo: string; paused: boolean; running: number; waiting: Map<string, number> }
+  >();
+  for (const r of rows) {
+    const q = out.get(r.repo) ?? {
+      repo: r.repo,
+      paused: r.repoStatus === "paused",
+      running: 0,
+      waiting: new Map(),
+    };
+    if (r.status === "queued") {
+      const why = waitingReason(r.step);
+      q.waiting.set(why, (q.waiting.get(why) ?? 0) + r.n);
+    } else q.running += r.n;
+    out.set(r.repo, q);
+  }
+  return [...out.values()].sort((a, b) => a.repo.localeCompare(b.repo));
+}
+
 /** How many runs match, under the same rules as `rowsOf` (a figure always counts its own list). */
 export async function countRuns(scope: Scope, where: ReturnType<typeof and>) {
   const [row] = await database()
@@ -517,6 +562,8 @@ export async function reposOf(scope: Scope) {
       openPrs: sql<number>`(select count(*)::int from artifacts a where a.repo_id = ${repos.id} and a.kind = 'pr' and a.state = 'open')`,
       needsYou: sql<number>`(select count(*)::int from runs where runs.repo_id = ${repos.id} and ${NEEDS_YOU})`,
       live: sql<boolean>`exists (select 1 from runs r where r.repo_id = ${repos.id} and r.status in ('running', 'stopping'))`,
+      // Queued runs too: a repository with forty waiting is working, not idle (Codex walk B15).
+      waiting: sql<number>`(select count(*)::int from runs r where r.repo_id = ${repos.id} and r.status = 'queued')`,
       lastScanFailed: sql<boolean>`coalesce((select s.status = 'failed' from scans s where s.repo_id = ${repos.id} order by s.created_at desc limit 1), false)`,
     })
     .from(repos)

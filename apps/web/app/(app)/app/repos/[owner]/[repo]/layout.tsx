@@ -57,7 +57,7 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
       : repo.status === "active"
         ? { label: "Active", tone: "proven" as const }
         : {
-            label: repo.status === "disabled" ? "Removed from the installation" : "Onboarding",
+            label: repo.status === "disabled" ? "Needs GitHub access" : "Onboarding",
             tone: "attention" as const,
           };
   const base = `/app/repos/${fullName}`;

@@ -27,6 +27,7 @@ import { type Brand, ECOSYSTEMS, SPONSORS, STACK, TEIRE } from "@/lib/brands";
 import { FIX_MODES } from "@/lib/fix-mode-options";
 import type { FlowLink, FlowState } from "@/lib/flow/model";
 import { languageMarks, subjectMark } from "@/lib/marks";
+import { ADD_ACCOUNT_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import type { WelcomeData } from "@/lib/welcome";
 
@@ -503,12 +504,21 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   </span>
                 </span>
               </span>
-              <a
-                href={data.installation.manage}
-                className="inline-flex w-fit items-center gap-1 text-[13px] text-link hover:underline"
-              >
-                Change access on GitHub <ExternalLink className="size-3" />
-              </a>
+              <span className="flex flex-wrap gap-x-4 gap-y-1">
+                <a
+                  href={data.installation.manage}
+                  className="inline-flex w-fit items-center gap-1 text-[13px] text-link hover:underline"
+                >
+                  Change access on GitHub <ExternalLink className="size-3" />
+                </a>
+                {/* Optional: one connection is enough to start (Codex walk B11). */}
+                <a
+                  href={ADD_ACCOUNT_URL}
+                  className="inline-flex w-fit items-center gap-1 text-[13px] text-ink-2 hover:text-ink hover:underline"
+                >
+                  Add another account or organization <ExternalLink className="size-3" />
+                </a>
+              </span>
             </div>
           ) : null}
 
@@ -561,6 +571,25 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   />
                 </li>
               ))}
+              {(data.needsAccess ?? []).map((fullName) => (
+                <li
+                  key={fullName}
+                  className="flex items-center justify-between gap-3 rounded-card border border-dashed border-rule px-3 py-2"
+                >
+                  <span className="min-w-0 truncate font-mono text-[13px] text-ink-2">{fullName}</span>
+                  <span className="shrink-0 rounded-full bg-attention-soft px-2 py-0.5 font-mono text-[11px] text-attention">
+                    Needs GitHub access
+                  </span>
+                </li>
+              ))}
+              <li className="px-3 pt-1">
+                <a
+                  href={data.installation.manage}
+                  className="inline-flex items-center gap-1 text-[13px] text-link hover:underline"
+                >
+                  Change repository access on GitHub <ExternalLink className="size-3" />
+                </a>
+              </li>
             </ul>
           ) : null}
 
@@ -699,6 +728,51 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                   </div>
                 ))}
               </dl>
+              {/* Each chosen repository's real state, never one global "on" (the Automatic handoff). */}
+              <ul className="flex flex-col gap-1.5" aria-label="Where each repository stands">
+                {data.repos
+                  .filter((r) => chosen.has(r.fullName) && !(results[r.fullName] && !ok(results[r.fullName])))
+                  .map((r) => {
+                    const on = r.status === "active" || done(results[r.fullName]);
+                    const state =
+                      r.scan?.status === "failed"
+                        ? { label: "Degraded: the last scan failed", tone: "bg-broke-soft text-broke" }
+                        : on
+                          ? !r.scan || r.scan.status === "running" || r.scan.status === "queued"
+                            ? { label: "Scanning", tone: "bg-sunken text-ink-2" }
+                            : { label: "Active", tone: "bg-proven-soft text-proven" }
+                          : r.onboarding?.state === "open"
+                            ? {
+                                label: `Needs one action: merge #${r.onboarding.number}`,
+                                tone: "bg-attention-soft text-attention",
+                                href: r.onboarding.url,
+                              }
+                            : { label: "Waiting for GitHub", tone: "bg-sunken text-ink-2" };
+                    return (
+                      <li
+                        key={r.fullName}
+                        className="flex items-center justify-between gap-2 rounded-card bg-sunken px-3 py-2 text-xs"
+                      >
+                        <span className="truncate font-mono">{short(r.fullName)}</span>
+                        {"href" in state && state.href ? (
+                          <a
+                            href={state.href}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 font-mono text-[11px] hover:underline",
+                              state.tone,
+                            )}
+                          >
+                            {state.label}
+                          </a>
+                        ) : (
+                          <span className={cn("rounded-full px-2 py-0.5 font-mono text-[11px]", state.tone)}>
+                            {state.label}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+              </ul>
               {data.repos.some(
                 (r) => chosen.has(r.fullName) && results[r.fullName] && !ok(results[r.fullName]),
               ) ? (

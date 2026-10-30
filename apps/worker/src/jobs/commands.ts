@@ -20,11 +20,13 @@ import {
   getArtifact,
   getRepo,
   latestUpgrades,
+  parkQueued,
   recordAction,
   recordFeedback,
   setFindingsState,
   setIgnore,
   setRepo,
+  unparkQueued,
   upgradeMatches,
 } from "../store";
 import type { EventContext } from "./events";
@@ -176,10 +178,14 @@ export async function handleComment(ctx: EventContext, p: Payload) {
         `Rescanning the default branch; ${repo.status === "active" ? "the Dashboard issue" : "the onboarding pull request"} updates when it finishes.`,
       );
       return;
-    case "pause":
+    case "pause": {
       if (repo.status !== "paused") await setRepo(db, repo.id, { status: "paused", pausedFrom: repo.status });
-      await reply("Paused: no scans or PRs until `@teire resume`.");
+      const held = await parkQueued(db, repo.id);
+      await reply(
+        `Paused: no scans or PRs until \`@teire resume\`${held ? `; ${held} queued run(s) are held and start again then` : ""}.`,
+      );
       return;
+    }
     case "resume": {
       // A declined or stalled onboarding comes back as a pull request to merge (Codex walk B12).
       const onboarding = await resumeOnboarding(db, repo, octokit, owner, name);
@@ -189,8 +195,13 @@ export async function handleComment(ctx: EventContext, p: Payload) {
           pausedFrom: null,
           pausedReason: null,
         });
+      const held = await unparkQueued(db, repo.id);
+      for (const runId of held) await ctx.enqueueFix(runId, repo.id);
       await ctx.enqueueScan(repo.id, "command");
-      await reply(onboarding ?? "Resumed; rescanning now.");
+      await reply(
+        onboarding ??
+          `Resumed; rescanning now${held.length ? `, and ${held.length} held run(s) are back in the queue` : ""}.`,
+      );
       return;
     }
     case "pause-fixes":

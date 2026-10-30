@@ -66,6 +66,8 @@ export interface DashboardInput {
   gaps?: string[];
   /** The latest scan, whose flow image the issue opens with. */
   scanId?: string | null;
+  /** Runs in progress: what's running, and how many wait and why (Codex walk B14). */
+  queue?: { running: string[]; waiting: { why: string; n: number }[] };
 }
 
 export function composeDashboard(d: DashboardInput) {
@@ -203,6 +205,21 @@ export function composeDashboard(d: DashboardInput) {
     }
     lines.push("");
   }
+  // The work Teire is doing on its own, paced by the PR limits (Codex walk B14): never a silent queue.
+  const waitingTotal = (d.queue?.waiting ?? []).reduce((n, w) => n + w.n, 0);
+  if (d.queue && (d.queue.running.length || waitingTotal)) {
+    lines.push("## In progress", "");
+    for (const r of d.queue.running) lines.push(`- Running: \`${r}\``);
+    if (waitingTotal)
+      lines.push(
+        `- ${waitingTotal} waiting: ${d.queue.waiting.map((w) => `${w.n} ${w.why}`).join(", ")}${d.webUrl ? ` ([Runs](${d.webUrl}/app/runs?repo=${encodeURIComponent(d.fullName)}&show=active))` : ""}`,
+      );
+    lines.push(
+      "",
+      "Security fixes go first. `@teire pause` holds the queue; `@teire resume` starts it again.",
+      "",
+    );
+  }
   const prs = d.artifacts.filter((a) => a.kind === "pr");
   if (prs.length) {
     lines.push("## Open PRs", "");
@@ -295,7 +312,25 @@ export async function syncDashboard(ctx: WorkerContext, repoId: number) {
   }>(sql`
     select id, coverage, upgrades from scans where repo_id = ${repoId} and status = 'done' order by created_at desc limit 1
   `);
+  const { rows: inFlight } = await db.execute<{ status: string; step: string | null; group_key: string }>(sql`
+    select status, step, group_key from runs
+    where repo_id = ${repoId} and status in ('queued', 'running', 'stopping') and kind <> 'dry_run'
+  `);
+  const waitingWhy = new Map<string, number>();
+  for (const r of inFlight.filter((x) => x.status === "queued")) {
+    const why =
+      !r.step || r.step === "queued"
+        ? "for their turn"
+        : r.step.startsWith("paused")
+          ? "held by a pause"
+          : r.step;
+    waitingWhy.set(why, (waitingWhy.get(why) ?? 0) + 1);
+  }
   const body = composeDashboard({
+    queue: {
+      running: inFlight.filter((r) => r.status !== "queued").map((r) => r.group_key),
+      waiting: [...waitingWhy].map(([why, n]) => ({ why, n })),
+    },
     fullName: repo.fullName,
     sha: repo.lastScannedSha,
     scannedAt: repo.lastScannedAt,

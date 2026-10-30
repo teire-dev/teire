@@ -111,6 +111,7 @@ import {
   getRun,
   holdsRun,
   openArtifacts,
+  PAUSED_STEP,
   prCounts,
   recordLlmCall,
   recordSandboxExec,
@@ -1786,16 +1787,17 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
   const isApi = /^(models|api)\//.test(groupKey);
   const [owner = "", name = ""] = repo.fullName.split("/");
   // A paused repo gets no PRs ("no scans or PRs until resume"), whatever started the run.
+  // Held, not cancelled: resuming the repository puts it back in the queue (Codex walk B14).
   if (!dry && repo.status === "paused") {
-    await update({ status: "cancelled", step: "repository paused", finishedAt: new Date() });
-    await appendEvent(db, runId, "queue", "cancelled", {
-      reason: "the repository is paused; resume it to fix",
+    await update({ status: "queued", step: PAUSED_STEP, workerId: null });
+    await appendEvent(db, runId, "queue", "held", {
+      reason: "the repository is paused; it starts on resume",
     });
     await settleRunActions(db, runId, ["fix", "rebase", "refresh", "recreate", "retry-run"], {
-      status: "refused",
-      result: "The repository is paused; resume it first",
+      status: "started",
+      result: "Queued: the repository is paused, and this starts when it's resumed",
     });
-    return { cancelled: "paused" };
+    return { held: "paused" };
   }
   // Fix mode (D118, D125): Off cancels queued runs with the mode and where it was set; scans and the
   // Dashboard issue go on. Ask first lets runs already queued finish (nothing new starts on its own).

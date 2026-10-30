@@ -529,6 +529,29 @@ export async function cancelRequest(db: Database, runId: string) {
  * Settles the open actions that asked for something this run does (Fix now, Retry, Cancel), found
  * by the run link they carry: "done means the effect happened" (plan "Actions with real results").
  */
+/** A queued run held while its repository is paused: it starts again on resume (Codex walk B14). */
+export const PAUSED_STEP = "paused: starts when the repository is resumed";
+
+/** Holds a repository's queued runs while it's paused; their jobs leave them be when they come up. */
+export async function parkQueued(db: Database, repoId: number) {
+  const rows = await db
+    .update(runs)
+    .set({ step: PAUSED_STEP, updatedAt: new Date() })
+    .where(and(eq(runs.repoId, repoId), eq(runs.status, "queued"), ne(runs.kind, "dry_run")))
+    .returning({ id: runs.id });
+  return rows.length;
+}
+
+/** The runs a pause held, back in the queue in the order they were made. */
+export async function unparkQueued(db: Database, repoId: number) {
+  const rows = await db
+    .update(runs)
+    .set({ step: null, updatedAt: new Date() })
+    .where(and(eq(runs.repoId, repoId), eq(runs.status, "queued"), eq(runs.step, PAUSED_STEP)))
+    .returning({ id: runs.id, createdAt: runs.createdAt });
+  return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()).map((r) => r.id);
+}
+
 export async function settleRunActions(
   db: Database,
   runId: string,

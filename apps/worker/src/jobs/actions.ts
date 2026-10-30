@@ -27,6 +27,7 @@ import {
   getRun,
   latestUpgrades,
   markInstallation,
+  parkQueued,
   recordFeedback,
   removeInstallationData,
   setAction,
@@ -35,6 +36,7 @@ import {
   setRepo,
   setRun,
   settleRunActions,
+  unparkQueued,
   upgradeMatches,
   upsertArtifact,
 } from "../store";
@@ -245,9 +247,14 @@ async function repoAction(
       if (repo.status === "paused") return refused("This repository is paused; resume it first");
       await ctx.enqueueScan(repo.id, "manual");
       return { status: "started", result: "Rescanning the default branch" };
-    case "pause":
+    case "pause": {
       if (repo.status !== "paused") await setRepo(db, repo.id, { status: "paused", pausedFrom: repo.status });
-      return { status: "done", result: "Paused: no scans or pull requests until it is resumed" };
+      const held = await parkQueued(db, repo.id);
+      return {
+        status: "done",
+        result: `Paused: no scans or pull requests until it is resumed${held ? `; ${held} queued run(s) held and start again then` : ""}`,
+      };
+    }
     case "resume": {
       const [owner = "", name = ""] = repo.fullName.split("/");
       // A declined or stalled onboarding comes back as a pull request to merge (Codex walk B12).
@@ -258,8 +265,15 @@ async function repoAction(
           pausedFrom: null,
           pausedReason: null,
         });
+      const held = await unparkQueued(db, repo.id);
+      for (const runId of held) await ctx.enqueueFix(runId, repo.id);
       await ctx.enqueueScan(repo.id, "manual");
-      return { status: "done", result: onboarding ?? "Resumed; rescanning" };
+      return {
+        status: "done",
+        result:
+          onboarding ??
+          `Resumed; rescanning${held.length ? `, and ${held.length} held run(s) are back in the queue` : ""}`,
+      };
     }
     case "set-fix-mode": {
       const before = await fixModeOf(db, repo);

@@ -1,7 +1,9 @@
 import { and, eq, inArray, repos, runs, sql } from "@teire/db";
+import { Pause, Play } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { ActionButton } from "@/components/app/action-button";
 import { FilterSelect } from "@/components/app/filter-select";
 import { TileSquare } from "@/components/flow/tile";
 import { Trail } from "@/components/flow/trail";
@@ -10,7 +12,7 @@ import { runFlow } from "@/lib/flow/model";
 import { runFlowsOf } from "@/lib/run-flows";
 import { getSession } from "@/lib/session";
 import { ago } from "@/lib/time";
-import { countRuns, NEEDS_YOU, repoNamesOf, runsOf } from "@/lib/workspace";
+import { countRuns, NEEDS_YOU, queueOf, repoNamesOf, runsOf, waitingReason } from "@/lib/workspace";
 import { InstallCard, SignInCard } from "../gate";
 
 export const metadata = { title: "Runs" };
@@ -75,10 +77,11 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
     repo ? eq(repos.fullName, repo) : undefined,
   );
   // A page of runs at a time, and how many there are in all (U3 review: "every run" is every run).
-  const [rows, total, names] = await Promise.all([
+  const [rows, total, names, queue] = await Promise.all([
     runsOf(mine.scope, where, PAGE, (page - 1) * PAGE),
     countRuns(mine.scope, where),
     repoNamesOf(mine.scope),
+    queueOf(mine.scope),
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const href = (patch: Record<string, string | null>) => {
@@ -135,6 +138,54 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
           </Link>
         ) : null}
       </div>
+      {queue.length ? (
+        // Work in progress per repository, paced by its limits, with the one control to hold it.
+        <ul className="flex flex-col gap-2" aria-label="Work in progress">
+          {queue.map((q) => {
+            const waiting = [...q.waiting.values()].reduce((a, b) => a + b, 0);
+            return (
+              <li
+                key={q.repo}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-sheet px-4 py-3 shadow-card"
+              >
+                <TileSquare
+                  tile={{ entity: "check", state: q.paused ? "pending" : "live", label: "" }}
+                  size="sm"
+                />
+                <Link
+                  href={href({ repo: q.repo, show: "active" })}
+                  className="text-sm text-ink hover:underline"
+                >
+                  {q.repo}
+                </Link>
+                <span className="font-mono text-xs text-ink-2">
+                  {q.running} running · {waiting} waiting
+                </span>
+                <span className="flex flex-wrap gap-1.5">
+                  {[...q.waiting].map(([why, n]) => (
+                    <span
+                      key={why}
+                      className="rounded-full bg-sunken px-2 py-0.5 font-mono text-[11px] text-ink-2"
+                    >
+                      {n} {why}
+                    </span>
+                  ))}
+                </span>
+                <span className="ml-auto">
+                  <ActionButton kind={q.paused ? "resume" : "pause"} repo={q.repo} variant="ghost">
+                    {q.paused ? (
+                      <Play data-icon="inline-start" aria-hidden />
+                    ) : (
+                      <Pause data-icon="inline-start" aria-hidden />
+                    )}
+                    {q.paused ? "Resume" : "Pause"}
+                  </ActionButton>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
       {rows.length ? (
         <ul className="divide-y divide-rule overflow-hidden rounded-xl bg-sheet shadow-card">
           {rows.map((r) => {
@@ -156,7 +207,10 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
                   className="shrink-0 font-mono text-[11px] text-ink-3 hover:text-ink"
                   title={r.createdAt.toISOString()}
                 >
-                  {r.status === "queued" ? "waiting" : ago(r.finishedAt ?? r.startedAt ?? r.createdAt)} ›
+                  {r.status === "queued"
+                    ? waitingReason(r.step)
+                    : ago(r.finishedAt ?? r.startedAt ?? r.createdAt)}{" "}
+                  ›
                 </Link>
               </li>
             );
