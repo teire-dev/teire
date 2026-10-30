@@ -93,6 +93,26 @@ describe.skipIf(!url)("reliability (Postgres)", () => {
     expect(scan?.status).toBe("failed");
   });
 
+  it("leaves a long scan that still says it's alive running (S19 review B4)", async () => {
+    // An hour old, but its heartbeat is a minute old: the reaper measures silence, not age.
+    const [busy] = await db
+      .insert(scans)
+      .values({
+        repoId: 1,
+        trigger: "push",
+        status: "running",
+        startedAt: new Date(Date.now() - 60 * 60_000),
+        heartbeatAt: new Date(Date.now() - 60_000),
+      })
+      .returning();
+    await reap(db);
+    const [after] = await db
+      .select()
+      .from(scans)
+      .where(eq(scans.id, busy?.id as string));
+    expect(after?.status).toBe("running");
+  });
+
   it("numbers a run's events in order when both sandboxes report at once", async () => {
     const [run] = await db
       .insert(runs)
@@ -157,8 +177,24 @@ describe.skipIf(!url)("reliability (Postgres)", () => {
         lastScannedAt: new Date(r.last),
       })),
     );
+    // The schedule counts from the last scan attempt, failed ones included (a scan that keeps failing
+    // isn't retried every hour), so each repository has its scan row.
+    await db.insert(scans).values(
+      rows.map((r) => ({
+        repoId: r.id,
+        trigger: "push" as const,
+        status: "done" as const,
+        createdAt: new Date(r.last),
+      })),
+    );
     const due = (await dueScheduledScans(db)).filter((id) => id > base && id <= base + 6).sort();
     expect(due).toEqual([base + 1, base + 4]);
+    await db.delete(scans).where(
+      inArray(
+        scans.repoId,
+        rows.map((r) => r.id),
+      ),
+    );
     await db.delete(repos).where(
       inArray(
         repos.id,

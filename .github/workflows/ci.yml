@@ -54,6 +54,31 @@ jobs:
       - run: pnpm --filter @teire/worker build && node --check apps/worker/dist/bundle/main.mjs
       - run: pnpm --filter @teire/web build
 
+  # The worker's reliability against a real Postgres with Teire's migrations (plan R-M17, S21.4): the
+  # reaper (runs and scans by heartbeat), event ordering, the cost cap and the 402 credit pause.
+  reliability:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: teire
+          POSTGRES_DB: teire_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @teire/worker test
+        env:
+          TEIRE_TEST_DATABASE_URL: postgres://postgres:teire@localhost:5432/teire_test
+
   secrets:
     # The whole history, read-only: gitleaks pinned by its release checksum (plan S21.5).
     runs-on: ubuntu-latest
