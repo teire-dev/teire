@@ -17,22 +17,30 @@ const svg = (name) =>
 const MARK = `data:image/svg+xml;base64,${readFileSync(join(ROOT, ".github/assets/brand/teire-logo.svg")).toString("base64")}`;
 
 const THEMES = {
+  // Warm cream and olive (lime is a fill on light, never text); graphite and lime with the demo
+  // film's glow on dark. The site's own tokens (apps/web/app/globals.css).
   light: {
-    bg: "#f8f9fc",
-    dot: "rgba(27,37,64,.10)",
-    ink: "#1b2540",
-    ink2: "#4a5675",
-    ink3: "#7a849c",
-    rule: "rgba(27,37,64,.12)",
+    bg: "#f5f5ef",
+    glow: "transparent",
+    dot: "rgba(20,20,15,.10)",
+    ink: "#14140f",
+    ink2: "#55554c",
+    ink3: "#66665c",
+    accent: "#5b6e00",
+    proven: "#137a3f",
+    rule: "rgba(20,20,15,.12)",
     logos: { nvidia: svg("nvidia-light.svg"), nebius: svg("nebius-light.svg") },
   },
   dark: {
-    bg: "#001033",
-    dot: "rgba(232,237,251,.12)",
-    ink: "#fafeff",
-    ink2: "#b9c3dc",
-    ink3: "#8a96b4",
-    rule: "rgba(232,237,251,.16)",
+    bg: "#0d0f13",
+    glow: "rgba(212,245,60,.10)",
+    dot: "rgba(255,255,255,.09)",
+    ink: "#f1f3f6",
+    ink2: "#aab0bb",
+    ink3: "#7d8494",
+    accent: "#d4f53c",
+    proven: "#4ade80",
+    rule: "rgba(255,255,255,.14)",
     logos: { nvidia: svg("nvidia-dark.svg"), nebius: svg("nebius-dark.svg") },
   },
 };
@@ -55,11 +63,13 @@ for (const [name, t] of Object.entries(THEMES)) {
   await run.close();
 
   const html = `<!doctype html><html><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,500&family=Noto+Serif+JP:wght@500&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,400&family=Noto+Serif+JP:wght@500&display=block" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; }
   body { width: 2560px; height: 1280px; background: ${t.bg}; color: ${t.ink}; font-family: Geist, sans-serif;
-    background-image: radial-gradient(${t.dot} 1.6px, transparent 1.6px); background-size: 32px 32px;
+    background-image: radial-gradient(60% 70% at 74% 52%, ${t.glow}, transparent 70%),
+      radial-gradient(${t.dot} 1.6px, transparent 1.6px);
+    background-size: 100% 100%, 32px 32px;
     display: flex; align-items: center; gap: 96px; padding: 0 120px; overflow: hidden; }
   .left { flex: 0 0 1000px; display: flex; flex-direction: column; gap: 44px; }
   .brand { display: flex; align-items: center; gap: 26px; }
@@ -68,6 +78,7 @@ for (const [name, t] of Object.entries(THEMES)) {
   .brand span { font-family: "Noto Serif JP", serif; font-size: 46px; color: ${t.ink3}; margin-left: 10px; }
   .eco { font-family: "Geist Mono", monospace; font-size: 26px; white-space: nowrap; color: ${t.ink2}; letter-spacing: .01em; }
   h1 { font-family: Newsreader, serif; font-weight: 500; font-size: 124px; line-height: 1.02; letter-spacing: -0.025em; text-wrap: balance; }
+  h1 em { font-style: italic; font-weight: 400; color: ${t.accent}; }
   p { font-size: 42px; line-height: 1.35; color: ${t.ink2}; max-width: 940px; text-wrap: balance; }
   .built { display: flex; align-items: center; gap: 40px; padding-top: 30px; border-top: 2px solid ${t.rule}; }
   .built small { font-family: "Geist Mono", monospace; font-size: 24px; color: ${t.ink3}; letter-spacing: .12em; }
@@ -75,16 +86,16 @@ for (const [name, t] of Object.entries(THEMES)) {
   .right { flex: 1; display: flex; flex-direction: column; gap: 22px; }
   .chip { align-self: flex-start; font-family: "Geist Mono", monospace; font-size: 26px; color: ${t.ink2};
     border: 2px solid ${t.rule}; border-radius: 999px; padding: 10px 24px; }
-  .chip i { font-style: normal; color: #16a34a; }
+  .chip i { font-style: normal; color: ${t.proven}; }
   .shot { border-radius: 36px; overflow: hidden; border: 2px solid ${t.rule};
-    box-shadow: 0 40px 120px -30px rgba(0,16,51,.45); }
+    box-shadow: 0 40px 120px -30px rgba(0,0,0,.45); }
   .shot img { display: block; width: 100%; }
 </style></head><body>
   <div class="left">
     <div class="brand"><img src="${MARK}" alt=""><b>Teire</b><span>手入れ</span></div>
     <div class="eco">npm · PyPI · Go · Cargo · RubyGems · Maven · APIs · models</div>
-    <h1>When upstream breaks, Teire fixes your code.</h1>
-    <p>Found, fixed by Nemotron, proven by your own tests.</p>
+    <h1>When upstream breaks, <em>Teire fixes your code.</em></h1>
+    <p>Dependabot bumps the version. Teire fixes the code it breaks, and proves it with your own tests.</p>
     <div class="built"><small>BUILT ON</small><img src="${t.logos.nvidia}" alt=""><img src="${t.logos.nebius}" alt=""></div>
   </div>
   <div class="right">

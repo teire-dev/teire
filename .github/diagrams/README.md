@@ -3,8 +3,7 @@
 Mermaid sources for the README and the docs, rendered in Teire's own colours (`mermaid-light.json`, `mermaid-dark.json`) at 2x:
 
 ```bash
-~/.claude/skills/project-docs/scripts/render_diagrams.sh .github/diagrams .github/assets '#fafafa' '#08090a'
-cp .github/assets/*-light.png .github/assets/*-dark.png apps/web/public/diagrams/
+~/.claude/skills/project-docs/scripts/render_diagrams.sh .github/diagrams .github/assets '#f5f5ef' '#0d0f13'
 ```
 
 | Source                        | Shows                                                                            |
