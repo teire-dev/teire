@@ -1,4 +1,4 @@
-import { eq, repos } from "@teire/db";
+import { eq, inArray, repos } from "@teire/db";
 import { STALE_EVIDENCE_LABEL } from "@teire/engine/github";
 import { forgetDependencyCaches } from "../caches";
 import type { Delivery } from "../outbox";
@@ -406,11 +406,32 @@ export async function reconcileInstallation(ctx: EventContext, installationId: n
   });
   const ids = new Set<number>();
   let enabled = 0;
+  let added = 0;
   let removed = 0;
+  const known = new Set(
+    listed.length
+      ? (
+          await db
+            .select({ id: repos.id })
+            .from(repos)
+            .where(
+              inArray(
+                repos.id,
+                (listed as RepoPayload[]).map((r) => r.id),
+              ),
+            )
+        ).map((r) => r.id)
+      : [],
+  );
   for (const r of listed as RepoPayload[]) {
     ids.add(r.id);
     const repo = await upsertRepo(db, r, installationId);
-    if (repo.status === "disabled") {
+    // New to Teire (a fork or a repository created with no webhook), or back after a removal: scanned
+    // as an installed one is, which opens its onboarding PR.
+    if (!known.has(r.id)) {
+      await ctx.enqueueScan(repo.id, "install");
+      added++;
+    } else if (repo.status === "disabled") {
       await setRepo(db, repo.id, { status: "detected" });
       await ctx.enqueueScan(repo.id, "install");
       enabled++;
@@ -426,5 +447,5 @@ export async function reconcileInstallation(ctx: EventContext, installationId: n
       await forgetDependencyCaches(db, [r.id]);
       removed++;
     }
-  return { listed: ids.size, enabled, removed };
+  return { listed: ids.size, added, enabled, removed };
 }

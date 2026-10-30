@@ -105,6 +105,23 @@ export interface RunLite {
   link: string;
 }
 
+/**
+ * What a repository's status means and the real way on (B5: the model once invented a settings
+ * toggle for a removed repository). Only controls that exist: GitHub's installation page, the
+ * repository page's Resume and Remove, and `@teire` comments.
+ */
+const STATUS_MEANS: Record<string, string> = {
+  detected: "Teire found it; its first scan is queued or running, then an onboarding pull request opens.",
+  onboarding:
+    "Its onboarding pull request is open: merging it (or Turn on in the welcome flow) turns Teire on there.",
+  active: "Teire watches it and fixes what reaches its code.",
+  paused:
+    "Paused: nothing runs. The reason says why; Resume on the repository's page, or `@teire resume` in a comment, restarts it (an archived repository resumes when it is unarchived on GitHub).",
+  disabled:
+    "Teire's GitHub app no longer has access to it (removed from the installation, deleted, or the installation was uninstalled). It comes back when it is added to the installation again on GitHub (the installation's Configure page, Repository access); there is no switch for it inside Teire.",
+};
+const statusMeans = (status: string) => STATUS_MEANS[status] ?? status;
+
 const chain = (proof: Proof) =>
   PROOF_STEPS.map((s) => ({
     key: s.key,
@@ -272,6 +289,7 @@ export function assistantTools(viewer: Viewer) {
             repos: kept.slice(0, 25).map((r) => ({
               fullName: r.fullName,
               status: r.status,
+              statusMeans: statusMeans(r.status),
               pausedReason: r.pausedReason,
               fixMode: MODE_LABEL[r.fixMode.mode] ?? r.fixMode.mode,
               fixOrigin: r.fixMode.file ?? r.fixMode.origin,
@@ -321,6 +339,7 @@ export function assistantTools(viewer: Viewer) {
             fullName: got.repo.fullName,
             isPrivate: got.repo.isPrivate,
             status: got.repo.status,
+            statusMeans: statusMeans(got.repo.status),
             pausedReason: got.repo.pausedReason,
             fixMode: {
               mode: MODE_LABEL[detail.fixMode.mode] ?? detail.fixMode.mode,

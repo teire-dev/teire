@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { actions, and, eq, repos, sql, userInstallations, webhookDeliveries } from "@teire/db";
 import { INSTALLATION_ACTIONS } from "@teire/engine/actions";
 import { parseAction } from "@teire/engine/actions-schema";
+import { githubToken } from "./auth";
 import { database } from "./db";
 import { canRead } from "./workspace";
 
@@ -67,6 +68,8 @@ export async function requestAction(input: {
     installationId = row.installationId;
   }
 
+  // The worker reads this person's stored GitHub token to check who asks: make sure it is live.
+  await githubToken(input.userId);
   const guid = `teire-action-${randomUUID()}`;
   const action = await db.transaction(async (tx) => {
     const [created] = await tx

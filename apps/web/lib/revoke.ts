@@ -11,6 +11,7 @@ import {
   userInstallations,
   userRepos,
 } from "@teire/db";
+import { githubToken } from "./auth";
 import { database } from "./db";
 import { canRead } from "./workspace";
 
@@ -22,15 +23,6 @@ import { canRead } from "./workspace";
  */
 
 const GITHUB = { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" };
-
-async function githubToken(userId: string) {
-  const [row] = await database()
-    .select({ token: account.accessToken })
-    .from(account)
-    .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
-    .limit(1);
-  return row?.token ?? null;
-}
 
 /**
  * Removes one repository from its installation with the person's own GitHub token (GitHub:

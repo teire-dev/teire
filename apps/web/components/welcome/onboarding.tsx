@@ -55,7 +55,8 @@ const MODES: { key: Mode; name: string; said: string; tag?: string }[] = FIX_MOD
   ...(m.value === "auto" ? { tag: "Recommended" } : {}),
 }));
 
-const keyOf = (s: string) => `welcome:${s}:${Math.floor(Date.now() / 60_000)}`;
+/** An action key: a repository's `owner/name` holds a slash, which keys may not (B7). */
+const keyOf = (s: string) => `welcome:${s.replace(/[^\w:.-]/g, "_")}:${Math.floor(Date.now() / 60_000)}`;
 const short = (fullName: string) => fullName.split("/")[1] ?? fullName;
 const ok = (r?: Result) => !!r && !("error" in r) && r.status !== "refused" && r.status !== "failed";
 /** Confirmed: the worker said done. Still open is not on, and a refusal is not on. */
@@ -338,7 +339,7 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
   }, [data.repos, seen]);
 
   const saveMode = async () => {
-    let refused = false;
+    let refused: string | null = null;
     await followAction(
       {
         kind: "set-installation-fix-mode",
@@ -347,15 +348,15 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
         key: keyOf(`mode:${data.installation.id}:${mode}:${security}`),
       },
       (s) => {
-        if ("error" in s || s.status === "refused") refused = true;
+        if ("error" in s) refused = s.error;
+        else if (s.status === "refused" || s.status === "failed") refused = s.result ?? "Teire refused it";
       },
     );
     if (refused) {
-      // The You tile springs back to the mode that is actually set (plan revision 3.4, C7).
+      // The You tile springs back to the mode that is actually set (plan revision 3.4, C7), and the
+      // reason is the worker's own (B6: a personal account's owner was told to find an org admin).
       setMode(data.installation.defaultFixMode ?? "auto");
-      toast("Needs an organization admin", {
-        description: "Your choice wasn't saved; repos keep their mode.",
-      });
+      toast("Your choice wasn't saved", { description: `${refused} Repositories keep their mode.` });
     }
   };
 

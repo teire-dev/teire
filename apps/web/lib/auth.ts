@@ -66,17 +66,31 @@ export function auth() {
   return instance;
 }
 
-/** The GitHub login this person signed in with (Better Auth keeps their display name, not the login). */
-export async function githubLogin(userId: string): Promise<string | null> {
+/**
+ * This person's GitHub token, refreshed first when it has expired: a GitHub App's user token lasts
+ * eight hours, and Better Auth swaps the refresh token for a new pair and stores it, so the worker,
+ * which reads the stored token for actions, finds a live one too. Null without a GitHub account.
+ */
+export async function githubToken(userId: string): Promise<string | null> {
   const [row] = await database()
-    .select({ token: account.accessToken })
+    .select({ id: account.id, token: account.accessToken })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
     .limit(1);
-  if (!row?.token) return null;
+  if (!row) return null;
+  const fresh = await auth()
+    .api.getAccessToken({ body: { accountId: row.id, userId } })
+    .catch(() => null);
+  return fresh?.accessToken || row.token || null;
+}
+
+/** The GitHub login this person signed in with (Better Auth keeps their display name, not the login). */
+export async function githubLogin(userId: string): Promise<string | null> {
+  const token = await githubToken(userId);
+  if (!token) return null;
   const res = await fetch("https://api.github.com/user", {
     headers: {
-      authorization: `Bearer ${row.token}`,
+      authorization: `Bearer ${token}`,
       accept: "application/vnd.github+json",
       "x-github-api-version": "2022-11-28",
     },
@@ -88,15 +102,11 @@ export async function githubLogin(userId: string): Promise<string | null> {
 /** `GET /user/installations` with the user's GitHub token → `user_installations`; true when GitHub answered. */
 export async function refreshInstallations(userId: string): Promise<boolean> {
   const db = database();
-  const [row] = await db
-    .select({ token: account.accessToken })
-    .from(account)
-    .where(and(eq(account.userId, userId), eq(account.providerId, "github")))
-    .limit(1);
-  if (!row?.token) return false;
+  const token = await githubToken(userId);
+  if (!token) return false;
   const res = await fetch("https://api.github.com/user/installations?per_page=100", {
     headers: {
-      authorization: `Bearer ${row.token}`,
+      authorization: `Bearer ${token}`,
       accept: "application/vnd.github+json",
       "x-github-api-version": "2022-11-28",
     },
@@ -118,7 +128,7 @@ export async function refreshInstallations(userId: string): Promise<boolean> {
         `https://api.github.com/user/installations/${i.id}/repositories?per_page=100&page=${page}`,
         {
           headers: {
-            authorization: `Bearer ${row.token}`,
+            authorization: `Bearer ${token}`,
             accept: "application/vnd.github+json",
             "x-github-api-version": "2022-11-28",
           },
