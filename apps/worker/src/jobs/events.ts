@@ -141,7 +141,9 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
           pausedReason: null,
         });
         await ctx.enqueueScan(repo.id, "manual");
-      }
+      } else if (delivery.action === "unarchived" && repo.status !== "paused" && repo.status !== "disabled")
+        // Already archived when it was installed: its scan stopped at "archived", so it starts now.
+        await ctx.enqueueScan(repo.id, "manual");
       return;
     }
     case "pull_request": {
@@ -178,7 +180,9 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
     }
     case "push": {
       const repo = await getRepo(db, p.repository.id);
-      if (!repo || (repo.status !== "active" && repo.status !== "onboarding")) return;
+      // Detected too: a repository whose scan found it empty, or found nothing Teire reads, is scanned
+      // again when that changes (its first commits, a manifest added), and its onboarding PR follows.
+      if (!repo || !["active", "onboarding", "detected"].includes(repo.status)) return;
       if (p.ref !== `refs/heads/${repo.defaultBranch}`) return;
       const touched = (
         (p.commits ?? []) as { added?: string[]; modified?: string[]; removed?: string[] }[]
@@ -187,7 +191,8 @@ export async function handleDelivery(ctx: EventContext, delivery: Delivery) {
       );
       // `schedule: off` means no automatic scans, pushes included (C8).
       const off = (repo.config as { schedule?: string } | null)?.schedule === "off";
-      if (touched && !off) await ctx.enqueueScan(repo.id, "push");
+      // The branch's first push (an empty repository's first commits) is scanned whatever it holds.
+      if ((touched || p.created === true) && !off) await ctx.enqueueScan(repo.id, "push");
       // The base moved (C6): open Teire PRs are re-applied when the push touched dependency files
       // or GitHub reports a conflict; their verification ran against the old base.
       const deps = (

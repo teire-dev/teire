@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { SPONSORS } from "@/lib/brands";
 import { repoDetailCached } from "@/lib/dashboard";
 import { bucketGroups, groupFindings } from "@/lib/findings";
+import { installOutcome, type OutcomeCoverage } from "@/lib/install-outcome";
 import { languageMarks } from "@/lib/marks";
 import { getSession } from "@/lib/session";
 import { ago } from "@/lib/time";
@@ -48,8 +49,10 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
   const { repo, fixMode } = data;
   const open = data.findings.filter((f) => f.state === "open");
   const b = bucketGroups(groupFindings(open));
-  const state =
-    repo.status === "paused"
+  const outcome = installOutcome(data.scan?.coverage as OutcomeCoverage | null, repo);
+  const state = outcome
+    ? { label: outcome.label, tone: "neutral" as const, why: outcome.why }
+    : repo.status === "paused"
       ? {
           label: `Paused${repo.pausedReason ? `: ${repo.pausedReason.replace(/_/g, " ")}` : ""}`,
           tone: "neutral" as const,
@@ -74,7 +77,11 @@ async function Header({ params }: { params: LayoutProps<"/app/repos/[owner]/[rep
             <h1 className="heading flex items-center gap-2 text-2xl text-ink">
               <span className="truncate">{name}</span>
               {repo.isPrivate ? <Lock className="size-4 shrink-0 text-ink-3" aria-label="Private" /> : null}
-              {repo.status !== "active" ? <StatusChip tone={state.tone}>{state.label}</StatusChip> : null}
+              {repo.status !== "active" ? (
+                <span title={"why" in state ? state.why : undefined} className="inline-flex">
+                  <StatusChip tone={state.tone}>{state.label}</StatusChip>
+                </span>
+              ) : null}
             </h1>
             <span className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-3">
               <MarkStack brands={languageMarks(repo.languages)} max={3} />

@@ -814,15 +814,17 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                                 tone: "bg-attention-soft text-attention",
                                 ...(r.onboarding?.url ? { href: r.onboarding.url } : {}),
                               }
-                            : results[r.fullName] && !done(results[r.fullName])
-                              ? { label: "Turning on…", tone: "bg-sunken text-ink-2" }
-                              : r.onboarding?.state === "open"
-                                ? {
-                                    label: `Needs one action: merge #${r.onboarding.number}`,
-                                    tone: "bg-attention-soft text-attention",
-                                    href: r.onboarding.url,
-                                  }
-                                : { label: "Waiting for GitHub", tone: "bg-sunken text-ink-2" };
+                            : r.outcome
+                              ? { label: r.outcome.label, tone: "bg-sunken text-ink-2", why: r.outcome.why }
+                              : results[r.fullName] && !done(results[r.fullName])
+                                ? { label: "Turning on…", tone: "bg-sunken text-ink-2" }
+                                : r.onboarding?.state === "open"
+                                  ? {
+                                      label: `Needs one action: merge #${r.onboarding.number}`,
+                                      tone: "bg-attention-soft text-attention",
+                                      href: r.onboarding.url,
+                                    }
+                                  : { label: "Waiting for GitHub", tone: "bg-sunken text-ink-2" };
                     return (
                       <li
                         key={r.fullName}
@@ -840,7 +842,10 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
                             {state.label}
                           </a>
                         ) : (
-                          <span className={cn("rounded-full px-2 py-0.5 font-mono text-[11px]", state.tone)}>
+                          <span
+                            title={"why" in state ? state.why : undefined}
+                            className={cn("rounded-full px-2 py-0.5 font-mono text-[11px]", state.tone)}
+                          >
                             {state.label}
                           </span>
                         )}

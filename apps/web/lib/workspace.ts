@@ -18,6 +18,7 @@ import { notFound } from "next/navigation";
 import type { LedgerCheck } from "@/components/teire/ledger";
 import { database } from "./db";
 import { repoFixMode } from "./fix-mode";
+import type { OutcomeCoverage } from "./install-outcome";
 import { type Proof, proofOfRun } from "./proof";
 import { reachKey, reachOf } from "./reach";
 import { getSession } from "./session";
@@ -571,6 +572,9 @@ export async function reposOf(scope: Scope) {
       // Queued runs too: a repository with forty waiting is working, not idle (Codex walk B15).
       waiting: sql<number>`(select count(*)::int from runs r where r.repo_id = ${repos.id} and r.status = 'queued')`,
       lastScanFailed: sql<boolean>`coalesce((select s.status = 'failed' from scans s where s.repo_id = ${repos.id} order by s.created_at desc limit 1), false)`,
+      // Where the latest finished scan stopped when it had nothing to work on (archived, empty,
+      // nothing Teire reads), so the list names it instead of "Onboarding".
+      outcome: sql<OutcomeCoverage | null>`(select jsonb_build_object('skipped', s.coverage->>'skipped', 'nothingReadable', (s.coverage->>'nothingReadable')::boolean) from scans s where s.repo_id = ${repos.id} and s.status = 'done' order by s.created_at desc limit 1)`,
     })
     .from(repos)
     .innerJoin(installations, eq(installations.id, repos.installationId))

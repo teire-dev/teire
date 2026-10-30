@@ -9,6 +9,7 @@ import { GhostFlow } from "@/components/flow/ghost-flow";
 import { myScope } from "@/lib/app-shell";
 import { FIX_MODE_LABEL } from "@/lib/fix-mode-options";
 import type { FlowState } from "@/lib/flow/model";
+import { installOutcome } from "@/lib/install-outcome";
 import { languageMarks } from "@/lib/marks";
 import { getSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,8 @@ function stateOf(r: RepoListRow): {
 } {
   if (r.live) return { label: "Working", tone: "signal" };
   if (r.lastScanFailed) return { label: "Last scan failed", tone: "broke" };
+  const outcome = installOutcome(r.outcome, r);
+  if (outcome) return { label: outcome.label, tone: "neutral" };
   if (r.status === "paused")
     return {
       label: "Paused",

@@ -45,6 +45,7 @@ import { repoDetailCached } from "@/lib/dashboard";
 import { bucketGroups, groupFindings } from "@/lib/findings";
 import { configCurrent } from "@/lib/fix-mode";
 import { runFlow } from "@/lib/flow/model";
+import { installOutcome, type OutcomeCoverage } from "@/lib/install-outcome";
 import { findingsByPackage, type InventoryFacts, inventoryFacts, plannedByPackage } from "@/lib/inventory";
 import { providerLogo } from "@/lib/logos";
 import { subjectMark } from "@/lib/marks";
@@ -185,12 +186,15 @@ async function Findings({
     (i) => !byCommand.some((c) => c.entry === i),
   );
   const b = bucketGroups(groupFindings(open));
-  const coverage = scan?.coverage as {
-    filesScanned?: number;
-    advisoryStatus?: "complete" | "partial" | "unavailable";
-    gaps?: string[];
-    skipped?: "archived" | "empty";
-  } | null;
+  const coverage = scan?.coverage as
+    | (OutcomeCoverage & {
+        filesScanned?: number;
+        advisoryStatus?: "complete" | "partial" | "unavailable";
+        gaps?: string[];
+      })
+    | null;
+  // Archived, no commits yet, or nothing Teire reads: said by name instead of "Nothing reaches this code".
+  const outcome = installOutcome(coverage, repo);
   const gaps = coverage?.gaps ?? [];
   const prFor = new Map(data.artifacts.filter((a) => a.kind === "pr").map((a) => [a.changeKey, a]));
   const off = fixMode.mode === "off";
@@ -284,16 +288,25 @@ async function Findings({
   const ignoredCount = ignored.length + byCommand.length + byFile.length;
   return (
     <div className="flex flex-col gap-4">
-      {coverage?.skipped ? (
-        <p className="w-fit rounded-full bg-sunken px-3 py-1 font-mono text-xs text-ink-2">
-          {coverage.skipped === "archived" ? "Archived on GitHub: read-only" : "No commits yet"}
-        </p>
+      {outcome ? (
+        <div className="flex items-start gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
+          <TileSquare tile={{ entity: "repository", state: "skipped", label: "" }} size="sm" />
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="text-sm text-ink">{outcome.label}</span>
+            <span className="text-xs text-ink-2">{outcome.why}</span>
+            {coverage?.searched?.length ? (
+              <span className="font-mono text-[11px] text-ink-3">
+                Looked for: {coverage.searched.join(" · ")}
+              </span>
+            ) : null}
+          </span>
+        </div>
       ) : null}
       {reaching.length || b.undecided.length ? (
         <div className="flex flex-col gap-3">
           {[...reaching.map((g) => flowOf(g)), ...b.undecided.map((g) => flowOf(g, true))]}
         </div>
-      ) : (
+      ) : outcome ? null : (
         <div className="flex items-center gap-3 rounded-xl bg-sheet px-4 py-4 shadow-card">
           <TileSquare
             tile={{ entity: "check", state: couldnt.length ? "not_proven" : "proven", label: "" }}
