@@ -48,6 +48,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # Rust crates' surfaces are compared with cargo-semver-checks, the version the sandbox image pins.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks@0.51.0
       - run: pnpm --filter ./packages/cli build
       - name: Every fork against its file
         env:

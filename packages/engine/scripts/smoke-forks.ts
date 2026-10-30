@@ -46,8 +46,8 @@ interface Fork {
   status?: string;
   ecosystem?: string;
   upgrades?: Upgrade[];
-  models?: { id: string; expected?: string }[];
-  security?: { packages: string; expected?: string }[];
+  models?: (string | { id?: string; expected?: string; teire?: string; status?: string })[];
+  security?: { packages?: string; expected?: string }[];
 }
 interface Check {
   what: string;
@@ -62,6 +62,11 @@ const report: { repo: string; skipped?: string; error?: string; checks: Check[];
 for (const file of files) {
   const fork = YAML.parse(readFileSync(join(root, "smoke/forks", file), "utf8")) as Fork;
   if (only.size && !only.has(fork.repo) && !only.has(file.replace(/\.yaml$/, ""))) continue;
+  // A file that names no single repository (a collection's notes) is no scan.
+  if (typeof fork.repo !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(fork.repo)) {
+    report.push({ repo: file, skipped: "names no single repository", checks: [] });
+    continue;
+  }
   // A fork its file retires (replaced by another, no passing baseline) isn't scanned.
   if (typeof fork.status === "string" && /replaced|retired|no baseline/i.test(fork.status)) {
     report.push({ repo: fork.repo, skipped: fork.status, checks: [] });
@@ -116,7 +121,8 @@ for (const file of files) {
           .split(/,\s*/)
           .map((p) => p.trim().split(/\s+/)[0] ?? "")
           .filter(Boolean);
-    if (!names.length) {
+    // Prose about a family of packages (`dev.langchain4j:*-open-ai, -bedrock`) names none exactly.
+    if (!names.length || names.some((n) => /[*()]|^-/.test(n))) {
       checks.push({ what: "an upgrade entry", ok: null, detail: "names no package this can read" });
       continue;
     }
@@ -169,24 +175,49 @@ for (const file of files) {
     }
   }
 
+  // A model is found when a finding names it (a group is one provider's; its title names the first few).
+  const named = (id: string) =>
+    groups.find((x) => x.title.includes(id) || x.findings.some((f) => JSON.stringify(f).includes(id)));
   for (const m of fork.models ?? []) {
-    const g = groups.find((x) => x.key.includes(m.id) || x.title.includes(m.id));
-    checks.push({
-      what: `model ${m.id}: found`,
-      ok: !!g,
-      detail: g ? `${g.key} (${g.verdict})` : "no group names it",
-    });
-    if (g && affected(m.expected))
+    if (typeof m === "string" || !m.id) {
+      checks.push({ what: "a model entry", ok: null, detail: "names no model id" });
+      continue;
+    }
+    // "finding only if the catalog names it", "no claim without a record": the file asks for nothing firm.
+    const firm = !/only if|no claim|not claimed|UNVERIFIED/i.test(
+      `${m.teire ?? ""} ${m.expected ?? ""} ${m.status ?? ""}`,
+    );
+    for (const id of m.id.split(/,\s*/).filter(Boolean)) {
+      const g = named(id);
+      if (!g && !firm) {
+        checks.push({
+          what: `model ${id}`,
+          ok: null,
+          detail: "not found, and its file claims nothing without a record",
+        });
+        continue;
+      }
       checks.push({
-        what: `model ${m.id}: affected`,
-        ok: g.verdict === "affected",
-        detail: `verdict ${g.verdict}`,
+        what: `model ${id}: found`,
+        ok: !!g,
+        detail: g ? `${g.key} (${g.verdict})` : "no finding names it",
       });
+      if (g && affected(m.expected))
+        checks.push({
+          what: `model ${id}: affected`,
+          ok: g.verdict === "affected",
+          detail: `verdict ${g.verdict}`,
+        });
+    }
   }
 
   for (const s of fork.security ?? []) {
-    for (const part of s.packages.split(/,\s*/)) {
-      const name = part.split(/\s*→\s*/)[0]?.trim();
+    for (const part of (s.packages ?? "").split(/,\s*/)) {
+      // `golang.org/x/net → v0.62.0`, `tracing-subscriber 0.3.20`: the name before the version.
+      const name = part
+        .split(/\s*→\s*/)[0]
+        ?.trim()
+        .split(/\s+/)[0];
       if (!name) continue;
       const g = groups.find(
         (x) => x.key.includes(`/${name}/`) && x.findings.some((f) => f.class === "security"),

@@ -12,7 +12,7 @@ upgrades:
     to: 2.x latest
     resolver: the gemspec pins faraday ~> 1.0 and faraday_middleware ~> 1.2; the resolver must widen the gemspec requirement or report it cannot
     bump_alone: load or spec failures; request.rb uses faraday.basic_auth, FaradayMiddleware::ParseJson, adapter :httpclient, request :multipart; upload_io.rb uses Faraday::UploadIO
-    teire: affected; co-upgrades faraday-multipart and faraday-httpclient (or a named stop), code fixed, gemspec + lock + code in one PR
+    teire: "decided in the sandbox (D91, 2026-10-30): at scan time inconclusive, since Prism's removed symbols are candidates and the sites in request.rb match by name; the upgrade's run co-upgrades faraday-multipart and faraday-httpclient (or a named stop), fixes the code, and opens gemspec + lock + code in one PR"
   - package: activesupport
     from: 7.1.2
     to: 8.x
