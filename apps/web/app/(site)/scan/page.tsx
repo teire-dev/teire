@@ -35,7 +35,7 @@ const STEPS = [
 export default function ScanPage() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-10 px-4 py-10">
-      <section className="relative overflow-hidden rounded-feature bg-hero p-6 text-hero-ink sm:p-10">
+      <section className="relative overflow-hidden rounded-feature bg-hero dark:ring-1 dark:ring-white/10 p-6 text-hero-ink sm:p-10">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_85%_0%,var(--hero-2),transparent)] opacity-80"

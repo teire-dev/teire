@@ -43,7 +43,10 @@ export default function ChangesPage({ searchParams }: PageProps<"/changes">) {
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 py-10">
       <Suspense
         fallback={
-          <div className="flex h-96 items-center justify-center rounded-feature bg-hero" aria-hidden>
+          <div
+            className="flex h-96 items-center justify-center rounded-feature bg-hero dark:ring-1 dark:ring-white/10"
+            aria-hidden
+          >
             <GhostFlow tiles={4} />
           </div>
         }

@@ -220,7 +220,7 @@ async function Change({ params }: { params: PageProps<"/changes/[...id]">["param
         )}
       </section>
 
-      <section className="flex flex-col items-start justify-between gap-4 rounded-xl bg-hero p-6 text-hero-ink sm:flex-row sm:items-center">
+      <section className="flex flex-col items-start justify-between gap-4 rounded-xl bg-hero dark:ring-1 dark:ring-white/10 p-6 text-hero-ink sm:flex-row sm:items-center">
         <p className="display text-2xl">Does it reach your code?</p>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="cta" shape="pill">

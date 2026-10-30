@@ -293,7 +293,8 @@
   --cta-hover: #e2ff5a;
   --cta-edge: #d4f53c;
   --cta-shadow: 0 0 0 1px var(--cta-edge), 0 10px 24px -12px rgb(212 245 60 / 0.35);
-  --hero: #0d0f13;
+  /* A step above the graphite canvas, so a dark brand card keeps its edge in dark mode. */
+  --hero: #111419;
   --hero-2: #1c2210;
   --hero-ink: #f1f3f6;
   --hero-ink-2: #aab0bb;

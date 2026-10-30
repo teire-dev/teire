@@ -97,7 +97,7 @@ export function WatchBand({
 }) {
   const latest = watched.find((w) => w.checked && w.status !== "demand")?.checked ?? null;
   return (
-    <section className="relative overflow-hidden rounded-feature bg-hero p-6 text-hero-ink sm:p-8">
+    <section className="relative overflow-hidden rounded-feature bg-hero dark:ring-1 dark:ring-white/10 p-6 text-hero-ink sm:p-8">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_85%_0%,var(--hero-2),transparent)] opacity-80"

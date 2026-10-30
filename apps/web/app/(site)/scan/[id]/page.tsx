@@ -312,7 +312,7 @@ async function Report({ params }: { params: PageProps<"/scan/[id]">["params"] })
         </div>
       ) : null}
 
-      <section className="flex flex-col items-start justify-between gap-4 rounded-xl bg-hero p-6 text-hero-ink sm:flex-row sm:items-center">
+      <section className="flex flex-col items-start justify-between gap-4 rounded-xl bg-hero dark:ring-1 dark:ring-white/10 p-6 text-hero-ink sm:flex-row sm:items-center">
         <div className="flex flex-col gap-3">
           <p className="display text-2xl">Get these as pull requests</p>
           <ul className="flex flex-wrap gap-2 font-mono text-[11px] text-hero-ink-2">
