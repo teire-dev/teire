@@ -18,6 +18,8 @@
   &nbsp;·&nbsp;
   <a href="https://teire.vercel.app/docs"><b>Docs</b></a>
   &nbsp;·&nbsp;
+  <a href="https://www.npmjs.com/package/teire-cli"><b>CLI on npm</b></a>
+  &nbsp;·&nbsp;
   <a href="https://teire.vercel.app/scan"><b>Scan a public repo</b></a>
   &nbsp;·&nbsp;
   <a href="https://teire.vercel.app/trust"><b>Live status</b></a>
@@ -212,7 +214,7 @@ Super costs 3 to 7 times less per run, but on one case it passed the tests by re
 | Ask Teire             | Ask about your repositories, findings, runs and changes; answers come back as the dashboard's own flows, and it changes something only when you click Confirm (Nemotron 3 Ultra on Token Factory)                                                                                            | [Ask Teire](https://teire.vercel.app/docs/guide/ask-teire)                                      |
 | Public change catalog | Every confirmed change Teire has read, quoted from its source: [/changes](https://teire.vercel.app/changes) shows each source Teire watches with its last check, what is new and 30 days of pickups; provider pages draw a retirement timeline, package pages a version rail; and a JSON API | [Providers](https://teire.vercel.app/docs/ecosystems/providers)                                 |
 | `teire.yml`           | What to upgrade, PR limits, custom checks, your own API's changelog or OpenAPI spec                                                                                                                                                                                                          | [Configuration](https://teire.vercel.app/docs/guide/configuration)                              |
-| CLI and MCP           | `npx teire-cli scan` in any checkout or on any public repository (`scan owner/name`), `teire check` for CI, and the same tools for coding agents ([`teire-cli` on npm](https://www.npmjs.com/package/teire-cli))                                                                             | [CLI](https://teire.vercel.app/docs/build/cli) · [MCP](https://teire.vercel.app/docs/build/mcp) |
+| CLI, MCP and Agent Skill | `npx teire-cli scan` in any checkout or on any public repository (`scan owner/name`), `teire check` for CI, the same tools over MCP, and `npx skills add teire-dev/teire --skill teire-cli` for coding agents ([`teire-cli` on npm](https://www.npmjs.com/package/teire-cli)) | [CLI](https://teire.vercel.app/docs/build/cli) · [MCP](https://teire.vercel.app/docs/build/mcp) · [Agent Skill](https://teire.vercel.app/docs/build/agent-skill) |
 | Runtimes              | End-of-life notices for Node.js, Python, Go, Ruby, Java and Rust                                                                                                                                                                                                                             | [Runtimes](https://teire.vercel.app/docs/ecosystems/runtimes)                                   |
 
 ## Run it locally

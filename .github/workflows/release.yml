@@ -47,5 +47,12 @@ jobs:
           test "$(openssl dgst -sha512 -binary "$RUNNER_TEMP/npm.tgz" | base64 -w0)" = "$NPM_SHA512"
           npm install -g "$RUNNER_TEMP/npm.tgz"
           test "$(npm --version)" = "11.21.0"
+      - name: The published tarball runs outside the workspace
+        working-directory: packages/cli
+        run: |
+          version=$(node -p "require('./package.json').version")
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm install --prefix "$RUNNER_TEMP/teire-smoke" "$RUNNER_TEMP/teire-cli-$version.tgz"
+          test "$("$RUNNER_TEMP/teire-smoke/node_modules/.bin/teire" --version)" = "$version"
       - run: npm publish --access public
         working-directory: packages/cli
