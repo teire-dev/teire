@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
-import { AtSign, Copy, RotateCcw, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AtSign, Copy, MessageCircleQuestion, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Conversation,
@@ -183,7 +183,7 @@ function Thread({
             <div className="flex flex-col gap-4 pt-6">
               {/* The intro is ten words at most (plan revision 3.4, V6): the chips say the rest. */}
               <p className="flex items-center gap-2 text-sm text-ink-2">
-                <Sparkles className="size-4 shrink-0 text-signal" aria-hidden />
+                <MessageCircleQuestion className="size-4 shrink-0 text-signal" aria-hidden />
                 {a.mode === "docs"
                   ? "Answers from the docs and the catalog."
                   : "Reads everything. Acts only on your click."}
@@ -435,7 +435,10 @@ function linkLabel(href: string) {
 
 /** The reply's related links (plan revision 3.3: the answer ends with them), from its own cards. */
 function Related({ links }: { links: Set<string> }) {
-  const list = [...links].slice(0, 5);
+  // One link per name: a findings card links each group (`…/findings?group=…`), and five links all
+  // reading "teire-dev/nlsh · findings" say nothing more than one.
+  const seen = new Set<string>();
+  const list = [...links].filter((l) => !seen.has(linkLabel(l)) && seen.add(linkLabel(l))).slice(0, 5);
   if (!list.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

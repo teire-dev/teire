@@ -21,19 +21,19 @@
   },
   "wide/ask-action": {
     "width": 1600,
-    "height": 1000
+    "height": 900
   },
   "wide/ask-docked": {
     "width": 1600,
-    "height": 1000
+    "height": 900
   },
   "wide/ask-overview": {
     "width": 1600,
-    "height": 1000
+    "height": 900
   },
   "wide/ask-why": {
     "width": 1600,
-    "height": 1000
+    "height": 900
   },
   "wide/change-detail": {
     "width": 1600,

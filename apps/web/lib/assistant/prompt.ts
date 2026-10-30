@@ -16,8 +16,18 @@ export function instructionsFor(input: {
   const today = new Date().toISOString().slice(0, 10);
   const who = input.name ? `You're talking with ${input.name}` : "You're talking with a Teire user";
   const where = input.account ? ` about the ${input.account} installation` : "";
+  // The page names its subject, so a question about "this" goes straight to its tool with that id:
+  // never ask which one, the page already said (a run page's "Explain this run" was answered with
+  // "which run?").
+  const tool = input.context
+    ? {
+        run: `explain_run or get_run with runId "${input.context.id}"`,
+        change: `get_change with changeId "${input.context.id}"`,
+        repo: `get_repo with repo "${input.context.id}"`,
+      }[input.context.kind]
+    : null;
   const looking = input.context
-    ? `\nThey are looking at ${input.context.kind} ${input.context.label} (${input.context.id}); "this" or "here" means it.`
+    ? `\nThey are looking at ${input.context.kind} ${input.context.label} (${input.context.id}); "this" or "here" means it. For a question about it, call ${tool} first; never ask them which ${input.context.kind} they mean.`
     : input.lost
       ? `\nThe page they're on is about ${input.lost}, which they can't read in Teire. If they ask about it or "here", say "You don't have access to ${input.lost} in Teire" and nothing about it.`
       : "";
