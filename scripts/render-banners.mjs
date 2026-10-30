@@ -49,7 +49,9 @@ for (const [name, t] of Object.entries(THEMES)) {
   await run.goto(RUN, { waitUntil: "networkidle", timeout: 120_000 });
   await run.waitForTimeout(3000);
   await run.mouse.move(0, 0);
-  const shot = (await run.screenshot({ clip: { x: 124, y: 86, width: 1192, height: 672 } })).toString("base64");
+  const shot = (await run.screenshot({ clip: { x: 124, y: 86, width: 1192, height: 672 } })).toString(
+    "base64",
+  );
   await run.close();
 
   const html = `<!doctype html><html><head><meta charset="utf-8">
