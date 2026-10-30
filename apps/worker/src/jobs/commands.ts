@@ -205,7 +205,10 @@ export async function handleComment(ctx: EventContext, p: Payload) {
       await ctx.enqueueScan(repo.id, "command");
       await reply(
         onboarding ??
-          `Resumed; rescanning now${held.length ? `, and ${held.length} held run(s) are back in the queue` : ""}.`,
+          (repo.status === "active"
+            ? // Already on: a closed onboarding PR is obsolete, nothing to reopen (Codex walk B24).
+              `Teire is already on for this repository, so this onboarding pull request isn't needed; rescanning now${held.length ? `, and ${held.length} held run(s) are back in the queue` : ""}.`
+            : `Resumed; rescanning now${held.length ? `, and ${held.length} held run(s) are back in the queue` : ""}.`),
       );
       await syncDashboard(ctx, repo.id).catch(() => undefined);
       return;

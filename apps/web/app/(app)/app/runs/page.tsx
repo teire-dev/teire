@@ -222,6 +222,12 @@ async function Runs({ searchParams }: { searchParams: PageProps<"/app/runs">["se
                     : ago(r.finishedAt ?? r.startedAt ?? r.createdAt)}{" "}
                   ›
                 </Link>
+                {/* One waiting run can be cancelled from the list, not only its own page (Codex walk B19). */}
+                {r.status === "queued" ? (
+                  <ActionButton kind="cancel-run" params={{ runId: r.id }} repo={r.repo} variant="ghost">
+                    Cancel
+                  </ActionButton>
+                ) : null}
               </li>
             );
           })}

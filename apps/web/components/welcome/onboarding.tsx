@@ -301,9 +301,12 @@ export function Onboarding({ data, updated }: { data: Data; updated: boolean }) 
   useEffect(() => {
     try {
       const saved = Number(localStorage.getItem(store));
-      if (Number.isInteger(saved) && saved > 0 && saved < STEPS.length) setStep(saved);
+      // Back from GitHub with a repository not turned on yet: the repositories step, so it's seen and
+      // chosen, never a later step it would be skipped past (Codex walk B25).
+      if (updated && data.repos.some((r) => r.status === "detected")) setStep(1);
+      else if (Number.isInteger(saved) && saved > 0 && saved < STEPS.length) setStep(saved);
     } catch {}
-  }, [store]);
+  }, [store, updated, data.repos]);
   useEffect(() => {
     try {
       localStorage.setItem(store, String(step));
