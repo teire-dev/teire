@@ -20,6 +20,7 @@ import { activityOf, type Exec, modelLabel } from "@/lib/activity";
 import { SPONSORS, STACK } from "@/lib/brands";
 import { canReplay, sheetAt } from "@/lib/flow/clock";
 import { type FlowTile, runFlow, TILE_OF_STEP } from "@/lib/flow/model";
+import { groupHref } from "@/lib/links";
 import { subjectMark } from "@/lib/marks";
 import { proofOfRun, STEP_DOING } from "@/lib/proof";
 import { postOf } from "@/lib/run-evidence";
@@ -118,6 +119,7 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
   );
   const traceEnd = Math.max(1000, ...spans.map((s) => s.end));
   const subject = subjectOf(run);
+  const subjectPage = run.groupKey ? groupHref(run.groupKey) : null;
   const _proof = proofOfRun({
     kind: run.kind,
     status: run.status,
@@ -234,7 +236,20 @@ export function ProofSheet({ initial }: { initial: RunSheetData }) {
                 </Link>
               ) : null}
             </span>
-            <h1 className="heading truncate text-3xl text-ink">{subject.name || run.groupKey}</h1>
+            <h1 className="heading truncate text-3xl text-ink">
+              {/* The subject names a package or provider: its page is one click away (discoverability). */}
+              {subjectPage ? (
+                <Link
+                  href={subjectPage}
+                  className="decoration-rule-strong underline-offset-4 hover:underline"
+                  title="Its page on Teire"
+                >
+                  {subject.name || run.groupKey}
+                </Link>
+              ) : (
+                subject.name || run.groupKey
+              )}
+            </h1>
             <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
               {subject.from.slice(0, 3).map((v) => (
                 <span
