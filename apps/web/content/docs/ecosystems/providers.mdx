@@ -85,7 +85,7 @@ Everything Teire has read for the repositories it scans is public, and every pag
 | [/changes](/changes) | Every confirmed change, upcoming deadlines first, filterable by source and class |
 | `/changes/<id>` | One change: replacement, date, the source's exact words with the page's hash, and what Teire searches your code for. A change computed from published code that no release note confirms yet is marked as not confirmed |
 | `/providers/<slug>` | A provider: the pages Teire reads and their health, models with a change, the SDK packages it recognises, and its changes |
-| `/packages/<ecosystem>/<name>` | A package: the changes Teire computed per target version, and its recent versions from the registry |
+| `/packages/<ecosystem>/<name>` | A package: the changes Teire computed per target version and its advisories. Signed in, **Where you stand** lists each copy your repositories install: its version, how far behind, its open findings, the planned upgrade, and what the API changes from your version to it |
 
 A change only appears once a scanned repository depends on it. The same records are available as JSON from `/api/catalog/changes`, which the CLI reads.
 
