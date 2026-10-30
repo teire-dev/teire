@@ -95,7 +95,20 @@ The sidebar holds the installation switcher, the five pages and the installation
 
 **Runs** lists every run as its trail, newest first, with the same filters the Overview links to.
 
-**Settings** has four sections. **Organization** holds the installation's default fix mode and whether security fixes start on their own; only an organisation admin or the account's owner can change these. **Repositories** holds each repository's fix mode, **Installations** is where Teire is installed (with Refresh from GitHub), and **Usage** is above.
+**Settings** has five sections. **Organization** holds the installation's default fix mode and whether security fixes start on their own; only an organisation admin or the account's owner can change these. **Repositories** holds each repository's fix mode, **Installations** is where Teire is installed (with Refresh from GitHub), **Usage** is above, and **Account** is who you're signed in as.
+
+### Taking Teire's access away
+
+Each of these is in Teire itself, and each that can't be undone asks you to type the name first:
+
+| To | Where | What happens |
+|---|---|---|
+| Stop Teire on one repository | The unplug button on the repository's page | Teire is removed from it on GitHub with your own access (you must administer the repository, and the installation must cover selected repositories, not all) |
+| Stop Teire on a whole account | Settings › Installations › **Uninstall** | Teire uninstalls itself as the app, after checking you own the account or administer the organisation; its runs stop and its data is removed |
+| End Teire's access to your GitHub account | Settings › Account › **Revoke Teire's GitHub access** | Teire's authorization on GitHub ends and you're signed out everywhere; signing in asks GitHub again |
+| Leave Teire | Settings › Account › **Delete my Teire account** | Your sign-in, Teire's GitHub access, your Ask Teire threads and what Teire knew you could see are deleted. Installations keep running until you uninstall them |
+
+**Sign out everywhere** (Settings › Account) ends every session you have, on every device.
 
 A repository page has seven tabs, each with its own address (`/app/repos/<owner>/<name>/<tab>`):
 
