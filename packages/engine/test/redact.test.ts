@@ -74,4 +74,16 @@ describe("maskSecrets (run page output)", () => {
     expect(masked).toContain("PASS src/a.test.ts");
     expect(masked).toContain("  3 passed");
   });
+
+  it("keeps a source file's line, which is proof, and still masks a credential with a file-like name", () => {
+    const out = maskSecrets(
+      "- [`go-major/auth/token.go:12`] jwt.StandardClaims\nsrc/auth.ts:40-42 and lib/session_id.rb:7:3\nAUTH_TOKEN: abc123secretvalue\ntoken.json: 9f8e7d6c5b4a\nsession_id: 123456",
+    );
+    expect(out).toContain("go-major/auth/token.go:12`");
+    expect(out).toContain("src/auth.ts:40-42");
+    expect(out).toContain("lib/session_id.rb:7:3");
+    expect(out).toContain("AUTH_TOKEN: ***");
+    expect(out).toContain("token.json: ***");
+    expect(out).toContain("session_id: ***");
+  });
 });

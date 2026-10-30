@@ -279,16 +279,14 @@ pnpm typecheck && pnpm lint && pnpm test   # engine, worker and web
 
 ## Honest limits
 
-- **Token Factory Sandboxes keep a run's images for 180 days and have no call to delete them**, so only public repositories and dry runs verify there; private repositories verify on Cloudflare Containers.
+- **Private repositories verify on Cloudflare Containers, not Token Factory Sandboxes.** A run chains saved sandbox images (checkout, install, each check) and needs them only while it runs, but Token Factory keeps them 180 days before deleting them and has no call to delete them sooner. Public code is public anyway, so public repositories and dry runs verify there.
 - **Real-repository PRs don't cover every package manager yet.** dependabot-core's updater decides the dependency files in all six ecosystems on the deployed worker, and every manager passed the updater pilot; the fork files in [`smoke/forks/`](smoke/forks) record which have a PR on a real repository so far.
 - **Only major upgrades** get an API diff and a line search; minor and patch upgrades are plain bumps the sandbox decides.
 - **Rust, Ruby, and Java/Kotlin at scan time are searched by syntax,** so a repository that doesn't use a change reads "inconclusive", not "not affected".
 - **Model and API fixes** are detected and verified in all six ecosystems' projects; the evaluation proves them in JavaScript/TypeScript and Python, and the other four languages are not yet proven on a real repository.
-- **Android projects are not supported.**
-- **PyPI packages** get no version-pinned docs lookup for the agent.
+- **Android projects run their debug unit tests;** instrumented tests (`androidTest`) need a device or emulator and don't run.
 - **Provider parameter and API-version records** don't become findings on their own.
 - **Runtimes come from the repository** (`.nvmrc`/`engines`, `.python-version`/CI/`requires-python`, `rust-toolchain`, Go's `toolchain`, Ruby pins and lockfiles, the JDK from CI), within what the sandbox provides: Node 18–24, Python 3.10–3.13, any Rust channel, Go via `GOTOOLCHAIN`, Ruby 3.2–4.0. A version outside that runs on the nearest one, and the PR says so.
-- **No real users yet.** The evaluation repositories are Teire's own demos, built to reproduce real breakages.
 
 The full list, per ecosystem, is in the [docs](https://teire.vercel.app/docs/ecosystems).
 

@@ -132,16 +132,16 @@ The captures below come from Teire's public evaluation repositories, built to re
 ## What's next
 
 - A type-level locator for Rust.
-- Android projects.
+- Android instrumented tests on an emulator.
 - Open the change catalog to provider contributions.
 
 ## Honest limits
 
-- Private repositories verify on Cloudflare Containers: Token Factory Sandboxes keeps images 180 days with no delete call.
+- Private repositories verify on Cloudflare Containers: Token Factory keeps a run's saved sandbox images 180 days before deleting them, with no call to delete them sooner.
 - dependabot-core decides the dependency files in all six ecosystems on the deployed worker; real-repository PRs don't cover every package manager yet (`smoke/forks/` records each fork's result).
 - Only major upgrades get an API diff and a line search.
 - Rust, Ruby, and Java/Kotlin at scan time are searched by syntax.
 - Model and API fixes run in all six ecosystems; the evaluation proves them in JavaScript/TypeScript and Python only.
-- Android is not supported.
+- Android runs its debug unit tests; instrumented tests need a device and don't run.
 - The 12 package and 7 model cases are evaluation on Teire-controlled repositories. One installed fork has a verified PR and an owner-controlled repository has a draft PR; broader external adoption has not been established.
 - An October 30 first-use walk found GitHub onboarding and action-recovery failures. Fixes have been deployed or are deploying, but a clean end-to-end retest of the full automatic queue is still open.

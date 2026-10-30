@@ -14,7 +14,7 @@ A public scan runs the same assessment as an installed repository. It reads ever
 
 <Shot
   name="scan"
-  alt="Scan a repo: the navy band with Sign in with GitHub to scan and its limits as chips (public repos, no install, 3 scans and 1 dry run a day), what a scan does as a six-step flow, and the recent public reports."
+  alt="Scan a repo: the graphite band with Sign in with GitHub to scan and its limits as chips (public repos, no install, 3 scans and 1 dry run a day), what a scan does as a six-step flow, and the recent public reports."
   caption="/scan: paste a repository and see the recent public reports."
 />
 
@@ -39,21 +39,15 @@ The report page updates by itself while the scan runs. Most repositories take on
 - **Needs a person**: changes Teire could not decide alone,
 - **Checked, not reaching this code**: changes Teire looked at and ruled out, with every reference resolved.
 
-<Tabs items={["Model retirement", "Go major", "Kotlin", "Python", "Nothing to fix"]}>
-<Tab value="Model retirement">
-<Shot name="report-wrapped-models" alt="Report for teire-dev/examples/wrapped-models: npm 4 direct and 60 transitive, 2 changes reaching this code, the Llama shutdown on 2026-08-16 at src/models.ts:7 and :9, and a Node.js 20 end-of-life notice at package.json:8." caption="Model IDs kept in a registry, traced to the request by Nemotron." />
-</Tab>
-<Tab value="Go major">
-<Shot name="report-go-major" alt="Report for teire-dev/examples/go-major with the golang-jwt v4 to v5 change and its call sites in auth/token.go." caption="A Go module major, resolved by type with go/types." />
-</Tab>
-<Tab value="Kotlin">
-<Shot name="report-kotlin-major" alt="Report for teire-dev/examples/kotlin-major: Maven · Gradle 3 direct and 11 transitive, two security advisories for okhttp and okio at PR priority 0, and okhttp 5.5.0 removing 133 APIs with call sites in WebhookClient.kt." caption="Two advisories and an OkHttp major in a Gradle project, at syntax level until the fix reads the compiled classes." />
+<Tabs items={["npm", "Python", "Go"]}>
+<Tab value="npm">
+<Shot name="report-axios" alt="Report for axios/axios: npm 948 read across 279 files, 10 changes reaching this code of 20 checked, one dry run; each finding's source quoted with its osv.dev link, such as the body-parser denial of service and the vite path traversal advisories." caption="An advisory reaches the installed version: each finding says so, quotes the advisory and links it." />
 </Tab>
 <Tab value="Python">
-<Shot name="report-py-major" alt="Report for teire-dev/examples/py-major: PyPI 2 direct and 20 transitive, claude-2.1 shut down on 2025-07-21 at app/support.py:15, and anthropic 1.15.0 removing 70 APIs with four call sites in app/support.py." caption="A retired Anthropic model and an SDK major in the same file: griffe diffs the SDK, jedi finds the calls." />
+<Shot name="report-flask" alt="Report for pallets/flask: PyPI 331 read across 82 files, 7 changes reaching this code of 9 checked; werkzeug's safe_join advisory and cryptography's PKCS#7 advisory, each quoted with its source." caption="A Python report: what reaches the code, each with the advisory's own words." />
 </Tab>
-<Tab value="Nothing to fix">
-<Shot name="report-clean" alt="Report for teire-dev/examples/clean: 1 change reaching the code, a Node.js 20 end-of-life notice at package.json:8, and 2 changes checked and ruled out." caption="Only a runtime notice: Teire reports it, and never opens a PR for a runtime." />
+<Tab value="Go">
+<Shot name="report-gin" alt="Report for gin-gonic/gin: Go 32 read across 90 files, 1 change reaching of 4 checked: golang.org/x/net's HTTP/2 server memory exhaustion, called at gin.go:806 and render/json.go:187, both traced, with 3 more mentions checked and 3 changes ruled out." caption="A Go module: the advisory's function traced to the exact lines that call it." />
 </Tab>
 </Tabs>
 
@@ -72,8 +66,8 @@ Nothing is written to GitHub. The run page shows each step live and keeps the pu
 
 <Shot
   name="dryrun-ai-web-pr"
-  alt="Dry run for teire-dev/examples/ai-web: status succeeded, evidence verified, The PR tab showing 'Replace retired model gpt-4.1-nano with gpt-5.6-luna' and its body."
-  caption="The PR tab: the title and body Teire would open, here for OpenAI's gpt-4.1-nano shutdown, fixed with no model call."
+  alt="The PR tab of a real run on teire-dev/nlsh: 'Replace retired model gemini-2.0-flash with gemini-3.6-flash', Verified; why this repo with pkg/config/config.go:43 and :100; the shutdown quoted with its source; the changed file; the checks before and after (10/11 tests on both sides); the receipt."
+  caption="The PR tab: the title and body Teire opened, here for Google's gemini-2.0-flash shutdown, swapped by a deterministic edit. A dry run shows the same panel, marked Proposed."
 />
 
 The run page is one sheet, live while the run works: it reads the run every second, without a reload.

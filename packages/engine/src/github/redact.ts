@@ -33,6 +33,11 @@ export function forGitHub(message: string, max = MAX_CHARS): string {
  * user part, credentials in a query string or written as `name=value` / `name: value`, provider
  * keys, cloud access keys, private key blocks and the Token Factory project id.
  */
+/** A source file's name right before `:` (`token.go:`, `auth_test.py:`), and a line or range after it. */
+const FILE_LINE =
+  /\.(?:go|ts|tsx|mts|cts|js|jsx|mjs|cjs|py|pyi|rb|rs|java|kt|kts|scala|groovy|gradle|php|cs|swift|c|h|cc|cpp|hpp|ex|exs|dart|lua|sh|vue|svelte|json|ya?ml|toml|md|mdx|xml)[ \t]*:[ \t]*$/i;
+const LINE = /^\d+(?:[:-]\d+)*[)\]`*.]*$/;
+
 export function maskSecrets(text: string): string {
   return (
     text
@@ -46,10 +51,12 @@ export function maskSecrets(text: string): string {
       )
       // Any name that says it holds a credential (`GITHUB_TOKEN=…`, `authorization: …`, `x-api-key=…`),
       // whatever else the name says. A word like "token: expired" in prose loses its value too; for a
-      // page anyone can read that is the safer mistake.
+      // page anyone can read that is the safer mistake. A source file and its line (`auth/token.go:12`)
+      // is a place, not a credential, and stays: it is the proof a run page and a PR body point at.
       .replace(
-        /\b([\w.-]*(?:token|secret|passw(?:or)?d|pwd|api[_-]?key|access[_-]?key|private[_-]?key|auth(?:orization)?|credential|cookie|session[_-]?id|signature)[\w.-]*["']?[ \t]*[=:][ \t]*["']?)(?!\*\*\*)[^\s"',;&]+/gi,
-        "$1***",
+        /\b([\w.-]*(?:token|secret|passw(?:or)?d|pwd|api[_-]?key|access[_-]?key|private[_-]?key|auth(?:orization)?|credential|cookie|session[_-]?id|signature)[\w.-]*["']?[ \t]*[=:][ \t]*["']?)(?!\*\*\*)([^\s"',;&]+)/gi,
+        (match, name: string, value: string) =>
+          FILE_LINE.test(name) && LINE.test(value) ? match : `${name}***`,
       )
       .replace(/\b(?:sk|pk|rk|nvapi|xox[abp])[-_][A-Za-z0-9_-]{16,}\b/g, "***")
       .replace(/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, "***")

@@ -10,7 +10,7 @@ Teire verifies a public repository's upgrade, and every dry run, on **Nebius Tok
 
 | Repository | Backend | Why |
 |---|---|---|
-| Public | Token Factory Sandboxes | A saved sandbox image keeps the repository's files for 180 days, and Token Factory has no call to delete it. For public code that is no exposure. |
+| Public | Token Factory Sandboxes | A run's saved sandbox images hold the repository's files for 180 days; after that Token Factory deletes the ones nothing tags or references, and there is no call to delete them sooner. For public code that is no exposure. |
 | Dry run of a public repository | Token Factory Sandboxes | The same reason |
 | Private | Cloudflare Containers | A private repository's files never land in an image that outlives the run |
 
@@ -61,7 +61,7 @@ Limits come from Token Factory's own `whoami` call, never assumed: an hour per m
 | Install network | Open (no allowlist exists) | Package registries only, GET only |
 | Check network | None: no network interface | Off; any request is denied and recorded |
 | Egress record | None kept by Token Factory | Every request the sandbox refused |
-| After the run | Images kept 180 days, no delete call | The container is destroyed |
+| After the run | Images kept 180 days, then deleted; no call to delete sooner | The container is destroyed |
 
 <Callout title="Gaps that shape how Teire uses it">
 Token Factory Sandboxes has no call to delete an image, no idempotency key on spawns, no egress log and no allowlist for the install's network. Each shapes how Teire uses it: public repositories only, spawns never retried, and checks with no network interface.

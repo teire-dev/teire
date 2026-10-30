@@ -1,9 +1,5 @@
 {
-  "phone/changes": {
-    "width": 780,
-    "height": 1688
-  },
-  "phone/dashboard": {
+  "phone/ask": {
     "width": 780,
     "height": 1688
   },
@@ -11,11 +7,7 @@
     "width": 780,
     "height": 1688
   },
-  "phone/landing": {
-    "width": 780,
-    "height": 1688
-  },
-  "phone/report-wrapped-models": {
+  "phone/report-axios": {
     "width": 780,
     "height": 1688
   },
@@ -23,135 +15,11 @@
     "width": 780,
     "height": 1688
   },
-  "wide/change-detail": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/changes": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/dashboard": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/dryrun-ai-web-pr": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/dryrun-go-diff": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/dryrun-go-pr": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/landing-coverage": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/landing-steps": {
-    "width": 1280,
-    "height": 563
-  },
-  "wide/landing": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/package-anthropic": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/provider-anthropic": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/provider-groq": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/repo-findings": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/report-clean": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/report-go-major": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/report-kotlin-major": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/report-py-major": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/report-wrapped-models": {
-    "width": 1280,
-    "height": 1080
-  },
-  "wide/repos": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/scan": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/settings": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/trust": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/welcome": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/run-sheet": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/run-sheet-steps": {
-    "width": 1600,
-    "height": 1935
-  },
-  "wide/run-sheet-receipt": {
-    "width": 1600,
-    "height": 761
-  },
-  "phone/run-sheet": {
-    "width": 780,
-    "height": 1688
-  },
-  "wide/run-reverify": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/repo-prs": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/repo-config": {
-    "width": 1600,
-    "height": 1000
-  },
-  "wide/changes-for-you": {
-    "width": 1600,
-    "height": 1000
-  },
   "wide/app-runs": {
     "width": 1600,
-    "height": 1000
+    "height": 900
   },
-  "wide/ask-overview": {
+  "wide/ask-action": {
     "width": 1600,
     "height": 1000
   },
@@ -159,7 +27,7 @@
     "width": 1600,
     "height": 1000
   },
-  "wide/ask-action": {
+  "wide/ask-overview": {
     "width": 1600,
     "height": 1000
   },
@@ -167,8 +35,100 @@
     "width": 1600,
     "height": 1000
   },
-  "phone/ask": {
-    "width": 780,
-    "height": 1688
+  "wide/change-detail": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/changes-for-you": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/dashboard": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/dryrun-ai-web-pr": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/dryrun-go-diff": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/dryrun-go-pr": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/package-anthropic": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/provider-groq": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/repo-config": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/repo-findings": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/repo-prs": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/report-axios": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/report-flask": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/report-gin": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/repos": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/run-reverify": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/run-sheet": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/run-sheet-receipt": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/run-sheet-steps": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/runtime-notice": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/scan": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/settings": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/trust": {
+    "width": 1600,
+    "height": 900
+  },
+  "wide/welcome": {
+    "width": 1600,
+    "height": 900
   }
 }
