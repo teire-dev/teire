@@ -943,18 +943,22 @@ export interface OnboardingRow {
   coverage: string | null;
 }
 
-/** Default `.github/teire.yml` the onboarding PR adds (keys and defaults from card C8). */
+/**
+ * Default `.github/teire.yml` the onboarding PR adds (keys and defaults from card C8). One space before
+ * each comment, as Biome and Prettier format YAML, so the PR passes the repository's own format check
+ * (teire-dev/teire#1 failed on aligned comments).
+ */
 export const DEFAULT_CONFIG = `# yaml-language-server: $schema=https://teire.vercel.app/schema.json
 # Teire configuration. Every key is optional; these are the defaults.
 # Reference: https://teire.vercel.app/docs/config
 upgrades:
-  majors: true          # open upgrade PRs across major versions
-  plainBumps: true      # open verified upgrades with no code change (last in the queue)
-  cooldownDays: 7       # wait this long after a release before proposing it
-schedule: daily         # daily and on pushes that change dependencies or code; weekly, push (pushes only) or off
+  majors: true # open upgrade PRs across major versions
+  plainBumps: true # open verified upgrades with no code change (last in the queue)
+  cooldownDays: 7 # wait this long after a release before proposing it
+schedule: daily # daily and on pushes that change dependencies or code; weekly, push (pushes only) or off
 pullRequests:
-  limit: 5              # open Teire PRs at most
-  perHour: 2            # new Teire PRs per hour at most
+  limit: 5 # open Teire PRs at most
+  perHour: 2 # new Teire PRs per hour at most
 dashboardIssue: true
 `;
 
