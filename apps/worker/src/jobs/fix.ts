@@ -274,6 +274,10 @@ class ResolverStopError extends Error {
 class ResolverNothingError extends Error {}
 
 /** What a fix produced, whatever was fixed (a package upgrade or a provider's API change). */
+/** The located lines a run keeps for its page (revamp S1), and how much of each line. */
+const RUN_SITES_KEPT = 40;
+const SITE_SNIPPET_CHARS = 240;
+
 interface Outcome {
   /** Why the PR can be a draft at best whatever the checks say: the change came from an unconfirmed source. */
   unconfirmed?: string[];
@@ -2119,6 +2123,18 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       return { cancelled: true };
     }
     const { fix, pr: composed, notesReceipt } = outcome;
+    // The lines this run reached, kept on the run (revamp S1): a later scan updates findings in place,
+    // and the run page links these at the commit this run read.
+    await event("assess", "sites", {
+      sha: run.baseSha,
+      total: outcome.sites.length,
+      sites: outcome.sites.slice(0, RUN_SITES_KEPT).map((s) => ({
+        file: s.file,
+        line: s.line,
+        snippet: s.snippet.trim().slice(0, SITE_SNIPPET_CHARS),
+        kind: s.kind,
+      })),
+    });
 
     // Receipts: every model call and every sandbox command, written only by the worker that holds
     // the run, so a run never shows another worker's calls and costs (review round 2). They go in
@@ -2363,7 +2379,15 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
         step: "needs a human",
         finishedAt: new Date(),
       });
-      await event("pr", "issue", { url: issue.html_url, evidence: fix.evidence.kind });
+      // The issue as published, so the run page shows its text (revamp S1).
+      await event("pr", "issue", {
+        url: issue.html_url,
+        number: issue.number,
+        evidence: fix.evidence.kind,
+        kind: "issue",
+        title: issue.title,
+        body,
+      });
       // The Dashboard issue links "Needs a human" issues, and this group no longer offers "Fix now".
       await beforePublish();
       await syncDashboard(ctx, repo.id).catch(() => undefined);
@@ -2514,10 +2538,15 @@ export async function fixRun(ctx: WorkerContext, runId: string) {
       headSha: commit.oid,
       finishedAt: new Date(),
     });
+    // The pull request as published, so the run page shows its text (revamp S1).
     await event("pr", pr.created ? "opened" : "updated", {
       url: pr.url,
       number: pr.number,
       draft: prMode === "draft",
+      kind: "pr",
+      branch,
+      title: headline,
+      body: composed.body,
     });
     await beforePublish();
     await syncDashboard(ctx, repo.id).catch((error) =>

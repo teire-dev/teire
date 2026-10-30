@@ -150,6 +150,9 @@ function lineOf(e: Event): string | null {
     return `changed ${(p.files as string[] | undefined)?.join(", ")}${moved.length ? `; ${moved.map((m) => `${m.name} ${m.from ?? "?"} → ${m.to ?? "?"}`).join(", ")}` : ""}`;
   }
   if (e.step === "assess" && e.type === "started") return `${p.from ?? "?"} → ${p.target ?? "?"}`;
+  if (e.step === "assess" && e.type === "sites")
+    return `${p.total ?? 0} line${p.total === 1 ? "" : "s"} located${typeof p.sha === "string" ? ` at ${p.sha.slice(0, 7)}` : ""}`;
+  if (e.step === "pr" && e.type === "body") return "the published text, read back from GitHub";
   if (e.step === "pr")
     return typeof p.url === "string" ? `${e.type} ${p.url}${p.draft ? " (draft)" : ""}` : e.type;
   if (e.type === "running" || e.type === "done" || e.type === "queued") return null;
