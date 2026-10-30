@@ -75,6 +75,7 @@ for (const file of files) {
   const started = Date.now();
   let groups: Group[];
   let upgrades: { name: string; from: string | null; to: string }[] = [];
+  let notes: string[] = [];
   try {
     const { stdout } = await run(process.execPath, [cli, "scan", fork.repo, "--json", "--all"], {
       cwd: root,
@@ -89,6 +90,7 @@ for (const file of files) {
     };
     groups = scan.groups;
     upgrades = scan.upgrades ?? [];
+    notes = scan.notes ?? [];
     // The fork's own ecosystem skipped (its toolchain isn't on this machine) is a setup failure, not misses.
     const skippedText = JSON.stringify(scan.skipped ?? []);
     if (fork.ecosystem && skippedText.includes(fork.ecosystem)) {
@@ -166,7 +168,18 @@ for (const file of files) {
           ok: !!version && version.replace(/^v/, "").startsWith(u.from.replace(/^v/, "")),
           detail: `scan read ${version ?? "no version"}`,
         });
-      if (affected(u.teire ?? u.expected))
+      // An API surface only the sandbox can compile (an old crate with no rustdoc JSON on docs.rs) is
+      // compared by the worker, not this CLI layer: said, not counted either way.
+      const sandboxOnly = notes.some(
+        (n) => n.startsWith(`${name} `) && /sandbox\) is needed|needs the sandbox/.test(n),
+      );
+      if (affected(u.teire ?? u.expected) && g.verdict !== "affected" && sandboxOnly)
+        checks.push({
+          what: `${name}: affected`,
+          ok: null,
+          detail: "its surface needs the sandbox's compiled comparison (the worker's layer)",
+        });
+      else if (affected(u.teire ?? u.expected))
         checks.push({
           what: `${name}: affected`,
           ok: g.verdict === "affected",
